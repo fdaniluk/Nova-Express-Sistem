@@ -1,0 +1,67 @@
+.cliente-grupo {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+}
+
+.cliente-grupo-header {
+  background: #f1f5f9;
+  padding: 0.6rem 1rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.cliente-grupo-header strong {
+  color: var(--color-primary);
+}
+
+.cliente-grupo-body {
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+}
+
+.cliente-grupo-body table {
+  font-size: 0.85rem;
+}
+
+.liq-preview {
+  margin-top: 1.25rem;
+  padding-top: 1rem;
+  border-top: 2px solid var(--color-border);
+}
+
+.fuel-info {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+
+.fuel-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.fuel-card {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  padding: 1rem;
+}
+
+.fuel-card h4 {
+  margin: 0 0 0.75rem;
+}
+
+.fuel-card .current {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--color-primary);
+}
+
+.crear-step {
+  align-items: end;
+}

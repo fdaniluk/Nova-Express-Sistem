@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Registro de envíos – Nova Express</title>
+  <link rel="stylesheet" href="../css/main.css">
+  <link rel="stylesheet" href="../css/modules/envios.css">
+  <style>
+    .cot-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 16px 0 8px;
+      padding: 10px 14px;
+      background: #f0f4ff;
+      border-left: 4px solid #3b82f6;
+      border-radius: 6px;
+    }
+    .cot-header label { font-size: 13px; color: #555; font-weight: 500; }
+    .cot-header input[type="number"] { width: 80px; padding: 5px 8px; border: 1px solid #c7d2fe; border-radius: 5px; font-size: 13px; }
+    #cot-panel { background: #f8faff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; }
+    #cot-panel.hidden { display: none; }
+    #cot-panel.cot-aplicado { border-color: #86efac; background: #f0fdf4; }
+    .cot-desglose { display: grid; gap: 5px; margin-bottom: 12px; }
+    .cot-fila { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; border-bottom: 1px solid #e8edff; }
+    .cot-fila:last-child { border-bottom: none; }
+    .cot-fila span:first-child { color: #555; }
+    .cot-profit-row span { color: #2563eb; font-weight: 500; }
+    .cot-total-row { font-weight: 700; font-size: 14px; border-top: 2px solid #c7d2fe !important; padding-top: 6px !important; margin-top: 4px; }
+    .cot-utilidad-row { background: #f0fdf4; border-radius: 4px; padding: 5px 8px !important; margin-top: 4px; border-bottom: none !important; }
+    .cot-utilidad-row span { color: #16a34a; font-weight: 700; }
+    .cot-aplicar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px solid #c7d2fe; }
+    .cot-aplicar label { font-size: 12px; color: #666; }
+    .cot-aplicar input[type="number"] { width: 110px; padding: 6px 8px; border: 1px solid #c7d2fe; border-radius: 5px; font-size: 14px; font-weight: 600; }
+    .cot-estado { font-size: 12px; color: #16a34a; font-weight: 600; }
+    .cot-aviso { font-size: 13px; color: #b45309; margin: 0; }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+
+  <aside class="sidebar">
+    <a class="sidebar-brand" href="../index.html">
+      <span class="sidebar-logo">NE</span>
+      <div>
+        <div class="sidebar-title">Nova Express</div>
+        <div class="sidebar-subtitle">Courier DHL / UPS</div>
+      </div>
+    </a>
+    <nav class="sidebar-nav">
+      <a href="../index.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
+        <span>Dashboard</span>
+      </a>
+      <a href="envios.html" class="nav-item active">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span>
+        <span>Envíos</span>
+      </a>
+      <a href="clientes.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+        <span>Clientes</span>
+      </a>
+      <a href="liquidaciones.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
+        <span>Liquidaciones</span>
+      </a>
+      <a href="cotizador.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
+        <span>Cotizador</span>
+      </a>
+      <a href="seguimiento.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+        <span>Seguimiento</span>
+      </a>
+    </nav>
+  </aside>
+
+  <div class="page-content">
+    <div class="page-header">
+      <h1>Registro de envíos</h1>
+    </div>
+
+    <div class="page-body">
+      <div id="alert-box"></div>
+
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="nuevo">Nuevo envío</button>
+        <button class="tab" data-tab="listado">Listado</button>
+        <button class="tab" data-tab="importar">Importar Excel</button>
+      </div>
+
+      <section id="panel-nuevo" class="card">
+        <h2 id="form-title">Cargar envío</h2>
+        <form id="form-envio">
+          <input type="hidden" id="envio-id" value="">
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="cliente_id">Cliente *</label>
+              <div class="cliente-row">
+                <select id="cliente_id" required></select>
+                <button type="button" class="btn btn-sm btn-secondary" id="btn-nuevo-cliente" title="Agregar cliente">+</button>
+              </div>
+            </div>
+            <div class="form-group">
+              <label for="fecha">Fecha *</label>
+              <input type="date" id="fecha" required>
+            </div>
+            <div class="form-group">
+              <label for="courier">Courier *</label>
+              <select id="courier" required>
+                <option value="DHL">DHL</option>
+                <option value="UPS">UPS</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="tipo_envio">Tipo *</label>
+              <select id="tipo_envio" required>
+                <option value="exportacion">Exportación</option>
+                <option value="importacion">Importación</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="numero_guia">Nº de guía *</label>
+              <input type="text" id="numero_guia" required>
+            </div>
+            <div class="form-group">
+              <label for="pais_destino">País destino *</label>
+              <input type="text" id="pais_destino" required>
+            </div>
+            <div class="form-group">
+              <label for="zona">Zona</label>
+              <input type="text" id="zona">
+            </div>
+            <div class="form-group">
+              <label for="cantidad_bultos">Cant. bultos</label>
+              <input type="number" id="cantidad_bultos" min="1" value="1">
+            </div>
+            <div class="form-group">
+              <label for="peso_real">Peso real (kg) *</label>
+              <input type="number" id="peso_real" step="0.001" min="0" required>
+            </div>
+            <div class="form-group">
+              <label for="largo">Largo (cm)</label>
+              <input type="number" id="largo" step="0.1" min="0">
+            </div>
+            <div class="form-group">
+              <label for="ancho">Ancho (cm)</label>
+              <input type="number" id="ancho" step="0.1" min="0">
+            </div>
+            <div class="form-group">
+              <label for="alto">Alto (cm)</label>
+              <input type="number" id="alto" step="0.1" min="0">
+            </div>
+            <div class="form-group">
+              <label for="fob">FOB (USD)</label>
+              <input type="number" id="fob" step="0.01" min="0" value="0">
+            </div>
+            <div class="form-group">
+              <label for="total_cobrado">Total cobrado (USD) *</label>
+              <input type="number" id="total_cobrado" step="0.01" min="0" required>
+            </div>
+            <div class="form-group full">
+              <label for="observaciones">Observaciones</label>
+              <textarea id="observaciones" rows="2"></textarea>
+            </div>
+          </div>
+
+          <div id="bultos-extra" class="bultos-section hidden">
+            <h3>Dimensiones por bulto</h3>
+            <div id="bultos-container"></div>
+          </div>
+
+          <div class="peso-preview" id="peso-preview" data-facturable="">
+            Peso volumétrico: — | Peso facturable: —
+          </div>
+
+          <div class="cot-header">
+            <span>🧮 Cotizador automático</span>
+            <span id="cot-ups-wrap" style="display:none">
+              <label for="cot-ups-variante">Servicio:</label>
+              <select id="cot-ups-variante" style="width:auto;padding:4px 8px;font-size:12px">
+                <option value="UPS_EXP">Expedited</option>
+                <option value="UPS_SAV">Saver</option>
+              </select>
+            </span>
+            <label for="cot-profit">% Profit cliente:</label>
+            <input type="number" id="cot-profit" step="0.5" min="0" value="20">
+            <small style="color:#888;font-size:11px;">Se calcula al ingresar país y peso</small>
+          </div>
+          <div id="cot-panel" class="hidden">
+            <div id="cot-resultado"></div>
+          </div>
+
+          <div class="actions">
+            <button type="submit" class="btn btn-primary">Guardar envío</button>
+            <button type="button" class="btn btn-secondary" id="btn-cancelar-edit">Cancelar edición</button>
+          </div>
+        </form>
+      </section>
+
+      <section id="panel-listado" class="card hidden">
+        <h2>Envíos registrados</h2>
+        <div class="filters">
+          <div class="form-group">
+            <label>Cliente</label>
+            <select id="filtro-cliente"><option value="">Todos</option></select>
+          </div>
+          <div class="form-group">
+            <label>Desde</label>
+            <input type="date" id="filtro-desde">
+          </div>
+          <div class="form-group">
+            <label>Hasta</label>
+            <input type="date" id="filtro-hasta">
+          </div>
+          <div class="form-group">
+            <label>Courier</label>
+            <select id="filtro-courier">
+              <option value="">Todos</option>
+              <option value="DHL">DHL</option>
+              <option value="UPS">UPS</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Tipo</label>
+            <select id="filtro-tipo">
+              <option value="">Todos</option>
+              <option value="exportacion">Exportación</option>
+              <option value="importacion">Importación</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Estado</label>
+            <select id="filtro-liquidado">
+              <option value="">Todos</option>
+              <option value="0">Pendiente</option>
+              <option value="1">Liquidado</option>
+            </select>
+          </div>
+          <button type="button" class="btn btn-primary" id="btn-filtrar">Filtrar</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th><th>Guía</th><th>Cliente</th><th>País</th>
+                <th>Courier</th><th>Peso fact.</th><th>Total</th><th>Estado</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="tabla-envios"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="panel-importar" class="card hidden">
+        <h2>Importar desde Excel (SALIDAS)</h2>
+        <p class="hint">El archivo debe tener encabezados como CLIENTE, FECHA, GUIA, PAIS, PESO, FOB, TOTAL, COURIER, etc.</p>
+        <input type="file" id="archivo-excel" accept=".xlsx,.xls,.csv">
+        <div class="actions">
+          <button type="button" class="btn btn-primary" id="btn-importar">Importar</button>
+        </div>
+        <pre id="import-result" class="import-result"></pre>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/main.js"></script>
+<script src="../js/modules/envios.js"></script>
+</body>
+</html>

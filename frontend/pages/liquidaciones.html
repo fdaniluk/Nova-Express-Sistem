@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Liquidaciones – Nova Express</title>
+  <link rel="stylesheet" href="../css/main.css">
+  <link rel="stylesheet" href="../css/modules/liquidaciones.css">
+  <style>
+    .cot-panel { background: #f8f9ff; }
+    .cotizador-inline { padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; border-top: 2px solid #e0e4ff; }
+    .cot-campos { display: flex; flex-wrap: wrap; gap: 10px; }
+    .cot-campos .form-group { min-width: 120px; margin: 0; }
+    .cot-campos label { font-size: 11px; color: #666; margin-bottom: 3px; display: block; }
+    .cot-campos input, .cot-campos select { padding: 6px 8px; font-size: 13px; border: 1px solid #ccc; border-radius: 5px; width: 100%; }
+    .cot-detalle { width: 100%; margin-top: 8px; }
+    .cot-desglose { display: grid; gap: 4px; background: #fff; border: 1px solid #e0e4ff; border-radius: 6px; padding: 10px 14px; }
+    .cot-fila { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; }
+    .cot-profit-row { color: #2563eb; }
+    .cot-total-row { font-weight: 600; border-top: 1px solid #e0e4ff; padding-top: 6px; margin-top: 2px; }
+    .cot-utilidad-row { color: #16a34a; font-weight: 600; background: #f0fdf4; border-radius: 4px; padding: 5px 8px; margin-top: 4px; }
+    .badge-cotizado { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 12px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
+    .util-badge { display: block; font-size: 11px; color: #16a34a; font-weight: 600; margin-top: 2px; }
+    .util-total { display: inline-block; background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; border-radius: 6px; padding: 6px 14px; font-size: 14px; margin-top: 8px; }
+    #liq-utilidad-total.hidden { display: none; }
+    .cot-resultado { min-width: 110px; }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+
+  <aside class="sidebar">
+    <a class="sidebar-brand" href="../index.html">
+      <span class="sidebar-logo">NE</span>
+      <div>
+        <div class="sidebar-title">Nova Express</div>
+        <div class="sidebar-subtitle">Courier DHL / UPS</div>
+      </div>
+    </a>
+    <nav class="sidebar-nav">
+      <a href="../index.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
+        <span>Dashboard</span>
+      </a>
+      <a href="envios.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span>
+        <span>Envíos</span>
+      </a>
+      <a href="clientes.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+        <span>Clientes</span>
+      </a>
+      <a href="liquidaciones.html" class="nav-item active">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
+        <span>Liquidaciones</span>
+      </a>
+      <a href="cotizador.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
+        <span>Cotizador</span>
+      </a>
+      <a href="seguimiento.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+        <span>Seguimiento</span>
+      </a>
+    </nav>
+  </aside>
+
+  <div class="page-content">
+    <div class="page-header">
+      <h1>Liquidaciones</h1>
+    </div>
+
+    <div class="page-body">
+      <div id="alert-box"></div>
+
+      <div class="tabs">
+        <button class="tab active" data-tab="pendientes">Pendientes</button>
+        <button class="tab" data-tab="crear">Crear liquidación</button>
+        <button class="tab" data-tab="historial">Historial</button>
+        <button class="tab" data-tab="config">Configuración fuel</button>
+      </div>
+
+      <section id="panel-pendientes" class="card">
+        <h2>Envíos sin liquidar</h2>
+        <div class="filters">
+          <div class="form-group">
+            <label>Desde</label><input type="date" id="pend-desde">
+          </div>
+          <div class="form-group">
+            <label>Hasta</label><input type="date" id="pend-hasta">
+          </div>
+          <div class="form-group">
+            <label>Courier</label>
+            <select id="pend-courier">
+              <option value="">Todos</option>
+              <option value="DHL">DHL</option>
+              <option value="UPS">UPS</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Tipo cobro</label>
+            <select id="pend-tipo-cobro">
+              <option value="">Todos</option>
+              <option value="D">Diario</option>
+              <option value="S">Semanal</option>
+              <option value="Q">Quincenal</option>
+              <option value="CC">Cuenta Corriente</option>
+            </select>
+          </div>
+          <button type="button" class="btn btn-primary" id="btn-pend-filtrar">Filtrar</button>
+        </div>
+        <div id="pendientes-list"></div>
+      </section>
+
+      <section id="panel-crear" class="card hidden">
+        <h2>Nueva liquidación</h2>
+        <div class="form-grid crear-step">
+          <div class="form-group">
+            <label>Cliente *</label>
+            <select id="liq-cliente"></select>
+          </div>
+          <div class="form-group">
+            <label>Período desde *</label>
+            <input type="date" id="liq-desde" required>
+          </div>
+          <div class="form-group">
+            <label>Período hasta *</label>
+            <input type="date" id="liq-hasta" required>
+          </div>
+          <button type="button" class="btn btn-secondary" id="btn-cargar-envios">Cargar envíos pendientes</button>
+        </div>
+
+        <div id="liq-envios-wrap" class="hidden">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th><input type="checkbox" id="liq-select-all" checked></th>
+                  <th>Fecha</th><th>Guía</th><th>Courier</th><th>FOB</th>
+                  <th>Total cobrado</th><th>Adicional (USD)</th><th>Cotizador</th><th>Precio / Utilidad</th>
+                </tr>
+              </thead>
+              <tbody id="liq-envios-body"></tbody>
+            </table>
+          </div>
+
+          <div id="liq-preview" class="liq-preview hidden">
+            <h3>Desglose calculado</h3>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Guía</th><th>Flete</th><th>Fuel</th><th>Seguro</th>
+                    <th>Adicional</th><th>Total USD</th><th>Precio cotizado</th>
+                    <th>Utilidad 💰</th><th>% Profit</th>
+                  </tr>
+                </thead>
+                <tbody id="liq-preview-body"></tbody>
+                <tfoot>
+                  <tr>
+                    <td colspan="5"><strong>Total liquidación</strong></td>
+                    <td id="liq-total"><strong>—</strong></td>
+                    <td colspan="3"></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+            <div id="liq-utilidad-total" class="hidden"></div>
+            <p class="fuel-info" id="fuel-info"></p>
+          </div>
+
+          <div class="actions">
+            <button type="button" class="btn btn-secondary" id="btn-preview">Calcular</button>
+            <button type="button" class="btn btn-accent" id="btn-export-borrador" disabled>Exportar Excel</button>
+            <button type="button" class="btn btn-primary" id="btn-confirmar-liq" disabled>Confirmar liquidación</button>
+          </div>
+        </div>
+      </section>
+
+      <section id="panel-historial" class="card hidden">
+        <h2>Historial de liquidaciones</h2>
+        <div class="filters">
+          <div class="form-group">
+            <label>Cliente</label>
+            <select id="hist-cliente"><option value="">Todos</option></select>
+          </div>
+          <div class="form-group">
+            <label>Desde</label><input type="date" id="hist-desde">
+          </div>
+          <div class="form-group">
+            <label>Hasta</label><input type="date" id="hist-hasta">
+          </div>
+          <button type="button" class="btn btn-primary" id="btn-hist-filtrar">Buscar</button>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th><th>Cliente</th><th>Período</th>
+                <th>Envíos</th><th>Total</th><th>Estado</th><th></th>
+              </tr>
+            </thead>
+            <tbody id="hist-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section id="panel-config" class="card hidden">
+        <h2>Fuel surcharge por courier</h2>
+        <div class="fuel-cards" id="fuel-cards"></div>
+        <h3>Historial de cambios</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Fecha</th><th>Courier</th><th>Anterior</th><th>Nuevo</th></tr>
+            </thead>
+            <tbody id="fuel-hist-body"></tbody>
+          </table>
+        </div>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/main.js"></script>
+<script src="../js/modules/liquidaciones.js"></script>
+</body>
+</html>

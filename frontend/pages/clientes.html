@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Clientes – Nova Express</title>
+  <link rel="stylesheet" href="../css/main.css">
+  <style>
+    .form-clientes {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.75rem 1rem;
+    }
+    .tipo-cobro-hint {
+      font-size: 0.75rem;
+      color: var(--color-muted);
+      margin-top: 0.2rem;
+    }
+    .btn-link {
+      background: none;
+      border: none;
+      padding: 0;
+      color: var(--color-primary-light);
+      cursor: pointer;
+      font: inherit;
+      text-decoration: underline;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+
+  <aside class="sidebar">
+    <a class="sidebar-brand" href="../index.html">
+      <span class="sidebar-logo">NE</span>
+      <div>
+        <div class="sidebar-title">Nova Express</div>
+        <div class="sidebar-subtitle">Courier DHL / UPS</div>
+      </div>
+    </a>
+    <nav class="sidebar-nav">
+      <a href="../index.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
+        <span>Dashboard</span>
+      </a>
+      <a href="envios.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span>
+        <span>Envíos</span>
+      </a>
+      <a href="clientes.html" class="nav-item active">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+        <span>Clientes</span>
+      </a>
+      <a href="liquidaciones.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
+        <span>Liquidaciones</span>
+      </a>
+      <a href="cotizador.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
+        <span>Cotizador</span>
+      </a>
+      <a href="seguimiento.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+        <span>Seguimiento</span>
+      </a>
+    </nav>
+  </aside>
+
+  <div class="page-content">
+    <div class="page-header">
+      <h1>Clientes</h1>
+      <button class="btn btn-primary" id="btn-nuevo">+ Nuevo cliente</button>
+    </div>
+
+    <div class="page-body">
+      <div id="alert-box"></div>
+
+      <!-- Formulario add/edit (oculto por defecto) -->
+      <div class="card hidden" id="form-panel">
+        <h2 id="form-title">Nuevo cliente</h2>
+        <form id="form-cliente">
+          <input type="hidden" id="cliente-id">
+          <div class="form-clientes">
+            <div class="form-group">
+              <label for="f-razon_social">Razón social *</label>
+              <input type="text" id="f-razon_social" required>
+            </div>
+            <div class="form-group">
+              <label for="f-cuit">CUIT</label>
+              <input type="text" id="f-cuit" placeholder="30-12345678-9">
+            </div>
+            <div class="form-group">
+              <label for="f-tipo_cobro">Tipo de cobro</label>
+              <select id="f-tipo_cobro">
+                <option value="CC">Cuenta Corriente</option>
+                <option value="D">Diario</option>
+                <option value="S">Semanal</option>
+                <option value="Q">Quincenal</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="f-tarifa_pct">% Tarifa (profit)</label>
+              <input type="number" id="f-tarifa_pct" min="0" max="100" step="0.5" value="0">
+            </div>
+            <div class="form-group">
+              <label for="f-tipo_facturacion">Tipo facturación</label>
+              <select id="f-tipo_facturacion">
+                <option value="Responsable inscripto">Responsable inscripto</option>
+                <option value="Monotributista">Monotributista</option>
+                <option value="Exento">Exento</option>
+                <option value="Consumidor final">Consumidor final</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label for="f-contacto">Contacto</label>
+              <input type="text" id="f-contacto">
+            </div>
+            <div class="form-group">
+              <label for="f-email">Email</label>
+              <input type="email" id="f-email">
+            </div>
+            <div class="form-group">
+              <label for="f-whatsapp">WhatsApp</label>
+              <input type="text" id="f-whatsapp" placeholder="+54 9 11 ...">
+            </div>
+            <div class="form-group">
+              <label for="f-codigo_postal">Código postal</label>
+              <input type="text" id="f-codigo_postal">
+            </div>
+            <div class="form-group full">
+              <label for="f-direccion_recoleccion">Dirección de recolección</label>
+              <input type="text" id="f-direccion_recoleccion">
+            </div>
+          </div>
+          <div class="actions">
+            <button type="submit" class="btn btn-primary">Guardar</button>
+            <button type="button" class="btn btn-secondary" id="btn-cancelar">Cancelar</button>
+          </div>
+        </form>
+      </div>
+
+      <!-- Tabla de clientes -->
+      <div class="card">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Razón social</th>
+                <th>CUIT</th>
+                <th>Contacto</th>
+                <th>Email</th>
+                <th>Tipo cobro</th>
+                <th>Tarifa %</th>
+                <th>Estado</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="tabla-clientes">
+              <tr><td colspan="8" class="empty">Cargando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/main.js"></script>
+<script src="../js/modules/clientes.js"></script>
+</body>
+</html>

@@ -1,0 +1,42 @@
+.bultos-section {
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--color-border);
+}
+
+.bulto-row {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr 1fr 1fr;
+  gap: 0.5rem;
+  align-items: end;
+  margin-bottom: 0.5rem;
+}
+
+.bulto-row span {
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding-bottom: 0.45rem;
+}
+
+.cliente-row {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.cliente-row select {
+  flex: 1;
+}
+
+.hint {
+  color: var(--color-muted);
+  font-size: 0.9rem;
+}
+
+.import-result {
+  margin-top: 1rem;
+  background: #f8fafc;
+  padding: 1rem;
+  border-radius: 4px;
+  font-size: 0.85rem;
+  white-space: pre-wrap;
+}

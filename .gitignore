@@ -1,0 +1,8 @@
+node_modules/
+backend/node_modules/
+database/nova.db
+database/nova.db-wal
+database/nova.db-shm
+.env
+backend/.env
+*.log

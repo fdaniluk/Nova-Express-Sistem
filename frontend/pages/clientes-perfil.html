@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Perfil de cliente — Nova Express</title>
+  <link rel="stylesheet" href="../css/main.css">
+  <style>
+    .info-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      gap: 0.75rem;
+    }
+    .info-field {
+      display: flex;
+      flex-direction: column;
+      gap: 0.2rem;
+    }
+    .info-field .field-label {
+      font-size: 0.72rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--color-muted);
+    }
+    .info-field .field-value {
+      font-size: 0.95rem;
+      color: var(--color-text);
+      font-weight: 500;
+    }
+    .info-field input, .info-field select {
+      display: none;
+    }
+    .info-field.editing .field-value {
+      display: none;
+    }
+    .info-field.editing input,
+    .info-field.editing select {
+      display: block;
+    }
+    .stat-cards {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+      margin-bottom: 1.25rem;
+    }
+    @media (max-width: 600px) {
+      .stat-cards { grid-template-columns: 1fr 1fr; }
+    }
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.4rem;
+      color: var(--color-muted);
+      text-decoration: none;
+      font-size: 0.85rem;
+      margin-bottom: 0.75rem;
+    }
+    .back-link:hover { color: var(--color-primary); }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+
+  <aside class="sidebar">
+    <a class="sidebar-brand" href="../index.html">
+      <span class="sidebar-logo">NE</span>
+      <div>
+        <div class="sidebar-title">Nova Express</div>
+        <div class="sidebar-subtitle">Courier DHL / UPS</div>
+      </div>
+    </a>
+    <nav class="sidebar-nav">
+      <a href="../index.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
+        <span>Dashboard</span>
+      </a>
+      <a href="envios.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span>
+        <span>Envíos</span>
+      </a>
+      <a href="clientes.html" class="nav-item active">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+        <span>Clientes</span>
+      </a>
+      <a href="liquidaciones.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
+        <span>Liquidaciones</span>
+      </a>
+      <a href="cotizador.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
+        <span>Cotizador</span>
+      </a>
+      <a href="seguimiento.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span>
+        <span>Seguimiento</span>
+      </a>
+    </nav>
+  </aside>
+
+  <div class="page-content">
+    <div class="page-header">
+      <h1 id="page-title">Perfil de cliente</h1>
+      <div style="display:flex;gap:0.5rem">
+        <button class="btn btn-secondary" id="btn-editar">Editar datos</button>
+        <button class="btn btn-primary hidden" id="btn-guardar">Guardar cambios</button>
+        <button class="btn btn-secondary hidden" id="btn-cancelar-edit">Cancelar</button>
+      </div>
+    </div>
+
+    <div class="page-body">
+      <div id="alert-box"></div>
+      <a href="clientes.html" class="back-link">← Volver a clientes</a>
+
+      <!-- Info del cliente -->
+      <div class="card" id="card-info">
+        <div class="info-grid" id="info-grid">
+          <div class="empty">Cargando...</div>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="stat-cards" id="stat-cards">
+        <div class="metric-card">
+          <div class="metric-label">Total guías</div>
+          <div class="metric-value" id="stat-guias">—</div>
+        </div>
+        <div class="metric-card success">
+          <div class="metric-label">Utilidad total</div>
+          <div class="metric-value" id="stat-utilidad">—</div>
+        </div>
+        <div class="metric-card">
+          <div class="metric-label">Última liquidación</div>
+          <div class="metric-value" id="stat-ultima-liq">—</div>
+        </div>
+      </div>
+
+      <!-- Chart utilidad mensual -->
+      <div class="card">
+        <h2>Utilidad mensual (últimos 12 meses)</h2>
+        <canvas id="chart-mensual" width="700" height="200"></canvas>
+        <p id="chart-empty" class="empty hidden">Sin datos de envíos aún.</p>
+      </div>
+
+      <!-- Tabla de guías -->
+      <div class="card">
+        <h2>Historial de envíos</h2>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Fecha</th>
+                <th>Guía</th>
+                <th>País</th>
+                <th>Courier</th>
+                <th>Total cobrado</th>
+                <th>Utilidad</th>
+                <th>Estado</th>
+              </tr>
+            </thead>
+            <tbody id="tabla-guias">
+              <tr><td colspan="7" class="empty">Cargando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/main.js"></script>
+<script src="../js/modules/clientes-perfil.js"></script>
+</body>
+</html>

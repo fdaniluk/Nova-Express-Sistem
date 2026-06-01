@@ -1,0 +1,129 @@
+-- Nova Express — Esquema completo (SQLite)
+
+PRAGMA foreign_keys = ON;
+
+-- Clientes
+CREATE TABLE IF NOT EXISTS clientes (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  nombre TEXT NOT NULL UNIQUE,
+  tipo_cobro TEXT NOT NULL CHECK (tipo_cobro IN ('D', 'S', 'Q', 'CC')),
+  tarifa_especial TEXT,
+  activo INTEGER NOT NULL DEFAULT 1,
+  created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+-- Configuración fuel por courier
+CREATE TABLE IF NOT EXISTS configuracion (
+  courier TEXT PRIMARY KEY CHECK (courier IN ('DHL', 'UPS')),
+  fuel_pct REAL NOT NULL,
+  fecha_actualizacion TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS configuracion_historial (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  courier TEXT NOT NULL CHECK (courier IN ('DHL', 'UPS')),
+  fuel_pct_anterior REAL NOT NULL,
+  fuel_pct_nuevo REAL NOT NULL,
+  fecha_cambio TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+-- Liquidaciones (cabecera) — antes de envios por FK opcional
+CREATE TABLE IF NOT EXISTS liquidaciones (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cliente_id INTEGER NOT NULL,
+  periodo_desde TEXT NOT NULL,
+  periodo_hasta TEXT NOT NULL,
+  fecha TEXT NOT NULL DEFAULT (date('now', 'localtime')),
+  total REAL NOT NULL DEFAULT 0,
+  estado TEXT NOT NULL DEFAULT 'borrador' CHECK (estado IN ('borrador', 'confirmada')),
+  created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  FOREIGN KEY (cliente_id) REFERENCES clientes(id)
+);
+
+-- Envíos
+CREATE TABLE IF NOT EXISTS envios (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  cliente_id INTEGER NOT NULL,
+  fecha TEXT NOT NULL,
+  courier TEXT NOT NULL CHECK (courier IN ('DHL', 'UPS')),
+  tipo_envio TEXT NOT NULL CHECK (tipo_envio IN ('exportacion', 'importacion')),
+  numero_guia TEXT NOT NULL,
+  pais_destino TEXT NOT NULL,
+  zona TEXT,
+  cantidad_bultos INTEGER NOT NULL DEFAULT 1,
+  peso_real REAL NOT NULL,
+  largo REAL,
+  ancho REAL,
+  alto REAL,
+  peso_volumetrico REAL NOT NULL DEFAULT 0,
+  peso_facturable REAL NOT NULL DEFAULT 0,
+  fob REAL NOT NULL DEFAULT 0,
+  total_cobrado REAL NOT NULL DEFAULT 0,
+  observaciones TEXT,
+  liquidado INTEGER NOT NULL DEFAULT 0,
+  fecha_liquidacion TEXT,
+  liquidacion_id INTEGER,
+  created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  FOREIGN KEY (cliente_id) REFERENCES clientes(id),
+  FOREIGN KEY (liquidacion_id) REFERENCES liquidaciones(id)
+);
+
+CREATE UNIQUE INDEX IF NOT EXISTS idx_envios_numero_guia ON envios(numero_guia);
+
+-- Dimensiones por bulto (opcional, para múltiples bultos)
+CREATE TABLE IF NOT EXISTS envio_bultos (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  envio_id INTEGER NOT NULL,
+  numero_bulto INTEGER NOT NULL,
+  peso_real REAL,
+  largo REAL NOT NULL,
+  ancho REAL NOT NULL,
+  alto REAL NOT NULL,
+  peso_volumetrico REAL NOT NULL DEFAULT 0,
+  FOREIGN KEY (envio_id) REFERENCES envios(id) ON DELETE CASCADE,
+  UNIQUE (envio_id, numero_bulto)
+);
+
+-- Líneas de liquidación por envío
+CREATE TABLE IF NOT EXISTS liquidacion_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  liquidacion_id INTEGER NOT NULL,
+  envio_id INTEGER NOT NULL,
+  flete REAL NOT NULL DEFAULT 0,
+  fuel REAL NOT NULL DEFAULT 0,
+  seguro REAL NOT NULL DEFAULT 0,
+  adicional REAL NOT NULL DEFAULT 0,
+  total_usd REAL NOT NULL DEFAULT 0,
+  fuel_pct_usado REAL NOT NULL,
+  precio_cotizado REAL,
+  profit_pct REAL,
+  utilidad_usd REAL,
+  servicio_cotizado TEXT,
+  FOREIGN KEY (liquidacion_id) REFERENCES liquidaciones(id) ON DELETE CASCADE,
+  FOREIGN KEY (envio_id) REFERENCES envios(id),
+  UNIQUE (liquidacion_id, envio_id)
+);
+
+-- Cargos adicionales por envío (en liquidación o pendientes)
+CREATE TABLE IF NOT EXISTS cargos_adicionales (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  envio_id INTEGER NOT NULL,
+  liquidacion_id INTEGER,
+  descripcion TEXT NOT NULL,
+  monto REAL NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  FOREIGN KEY (envio_id) REFERENCES envios(id) ON DELETE CASCADE,
+  FOREIGN KEY (liquidacion_id) REFERENCES liquidaciones(id) ON DELETE SET NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_envios_cliente ON envios(cliente_id);
+CREATE INDEX IF NOT EXISTS idx_envios_fecha ON envios(fecha);
+CREATE INDEX IF NOT EXISTS idx_envios_liquidado ON envios(liquidado);
+CREATE INDEX IF NOT EXISTS idx_liquidaciones_cliente ON liquidaciones(cliente_id);
+
+-- Fuel inicial DHL y UPS al 39.5%
+INSERT OR IGNORE INTO configuracion (courier, fuel_pct) VALUES ('DHL', 39.5);
+INSERT OR IGNORE INTO configuracion (courier, fuel_pct) VALUES ('UPS', 39.5);
