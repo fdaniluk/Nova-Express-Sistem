@@ -88,8 +88,40 @@ const api = {
   },
 };
 
+api.clientes.direcciones = {
+  listar: (clienteId) => api.get(`/clientes/${clienteId}/direcciones`),
+  agregar: (clienteId, dir) =>
+    api.post(`/clientes/${clienteId}/direcciones`, { direccion: dir }),
+  borrar: (clienteId, dirId) =>
+    api.delete(`/clientes/${clienteId}/direcciones/${dirId}`),
+};
+
 api.dashboard = {
   metricas: (periodo) => api.get(`/dashboard/metricas?periodo=${periodo}`),
+};
+
+api.pickups = {
+  listar: (desde, hasta) => api.get(`/pickups?desde=${desde}&hasta=${hasta}`),
+  crear: (data) => api.post('/pickups', data),
+  editar: (id, data) => api.put(`/pickups/${id}`, data),
+  borrar: (id) => api.delete(`/pickups/${id}`),
+};
+
+api.operaciones = {
+  delDia: (fecha) => api.get(`/operaciones?fecha=${fecha}`),
+  actualizarEnvio: (id, data) => request(`/operaciones/envios/${id}`, { method: 'PATCH', body: data }),
+  actualizarPickup: (id, data) => request(`/operaciones/pickups/${id}`, { method: 'PATCH', body: data }),
+};
+
+api.salidas = {
+  listar: (params) => {
+    const q = params ? new URLSearchParams(params).toString() : '';
+    return api.get(`/salidas${q ? `?${q}` : ''}`);
+  },
+};
+
+api.tracking = {
+  ups: (guia) => api.get(`/tracking/ups/${encodeURIComponent(guia)}`),
 };
 
 window.NovaAPI = api;
