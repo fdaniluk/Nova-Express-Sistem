@@ -73,12 +73,12 @@ function calcularPesosPreview(req, res, next) {
   }
 }
 
-function importarExcel(req, res, next) {
+async function importarExcel(req, res, next) {
   try {
     if (!req.file) {
       return res.status(400).json({ error: 'Debe enviar un archivo Excel' });
     }
-    const resultado = excelService.importarSalidas(req.file.buffer);
+    const resultado = await excelService.importarSalidas(req.file.buffer);
     res.json(resultado);
   } catch (e) {
     next(e);
