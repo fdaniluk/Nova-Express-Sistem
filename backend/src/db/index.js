@@ -119,10 +119,60 @@ async function migrateClientes() {
   }
 }
 
+async function migratePickups() {
+  const cols = (await dbApi.prepare('PRAGMA table_info(pickups)').all()).map((c) => c.name);
+  const toAdd = [
+    ['estado',          "TEXT DEFAULT 'pendiente'"],
+    ['check_datos',     'INTEGER DEFAULT 0'],
+    ['check_guia',      'INTEGER DEFAULT 0'],
+    ['check_proforma',  'INTEGER DEFAULT 0'],
+    ['check_despachado','INTEGER DEFAULT 0'],
+  ];
+  for (const [col, def] of toAdd) {
+    if (!cols.includes(col)) {
+      await dbApi.exec(`ALTER TABLE pickups ADD COLUMN ${col} ${def}`);
+    }
+  }
+}
+
+async function migrateEnvios() {
+  const cols = (await dbApi.prepare('PRAGMA table_info(envios)').all()).map((c) => c.name);
+  const toAdd = [
+    ['estado_operativo', "TEXT DEFAULT 'pendiente'"],
+    ['check_datos',      'INTEGER DEFAULT 0'],
+    ['check_guia',       'INTEGER DEFAULT 0'],
+    ['check_proforma',   'INTEGER DEFAULT 0'],
+    ['check_despachado', 'INTEGER DEFAULT 0'],
+    // Columnas módulo Salidas
+    ['numero_salida',    'INTEGER'],
+    ['bulto',            'TEXT'],
+    ['tipo_paquete',     'TEXT'],
+    ['asegurado',        'INTEGER DEFAULT 0'],
+    ['flete',            'REAL'],
+    ['descuento',        'REAL'],
+    ['seguro',           'REAL'],
+    ['fuel',             'REAL'],
+    ['derechos',         'REAL'],
+    ['adicionales',      'REAL'],
+    ['otros',            'REAL'],
+    ['profit',           'REAL'],
+    ['porcentaje',       'REAL'],
+    ['destino_raw',      'TEXT'],
+    ['direccion',        "TEXT DEFAULT 'expo'"],
+  ];
+  for (const [col, def] of toAdd) {
+    if (!cols.includes(col)) {
+      await dbApi.exec(`ALTER TABLE envios ADD COLUMN ${col} ${def}`);
+    }
+  }
+}
+
 async function initSchema() {
   const schema = fs.readFileSync(config.schemaPath, 'utf8');
   await dbApi.exec(schema);
   await migrateClientes();
+  await migratePickups();
+  await migrateEnvios();
   await seedIfEmpty();
 }
 
