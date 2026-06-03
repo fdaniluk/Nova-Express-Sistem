@@ -9,6 +9,7 @@ const pickupsRoutes = require('./pickups');
 const operacionesRoutes = require('./operaciones');
 const salidasRoutes = require('./salidas.routes');
 const trackingRoutes = require('./tracking.routes');
+const facturasRoutes = require('./facturas.routes');
 
 const router = Router();
 
@@ -22,6 +23,7 @@ router.use('/dashboard', dashboardRoutes);
 router.use('/pickups', pickupsRoutes);
 router.use('/operaciones', operacionesRoutes);
 router.use('/tracking', trackingRoutes);
+router.use('/facturas', facturasRoutes);
 
 router.get('/health', (req, res) => {
   res.json({ ok: true, service: 'nova-express-api' });

@@ -196,6 +196,19 @@ CREATE TABLE IF NOT EXISTS pickups (
   check_despachado INTEGER DEFAULT 0
 );
 
+-- Historial de facturas cargadas (módulo Control de Facturas)
+CREATE TABLE IF NOT EXISTS facturas_cargadas (
+  id                    INTEGER PRIMARY KEY AUTOINCREMENT,
+  courier               TEXT NOT NULL DEFAULT 'UPS',
+  numero_factura        TEXT,
+  fecha_factura         TEXT,
+  fecha_carga           TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  cantidad_guias        INTEGER NOT NULL DEFAULT 0,
+  guias_cruzadas        INTEGER NOT NULL DEFAULT 0,
+  guias_no_encontradas  INTEGER NOT NULL DEFAULT 0,
+  usuario               TEXT DEFAULT NULL
+);
+
 -- Fuel inicial DHL y UPS al 39.5%
 INSERT OR IGNORE INTO configuracion (courier, fuel_pct) VALUES ('DHL', 39.5);
 INSERT OR IGNORE INTO configuracion (courier, fuel_pct) VALUES ('UPS', 39.5);

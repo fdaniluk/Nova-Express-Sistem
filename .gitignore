@@ -6,3 +6,4 @@ database/nova.db-shm
 .env
 backend/.env
 *.log
+facturas-ejemplo/
