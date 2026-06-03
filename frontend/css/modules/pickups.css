@@ -1,0 +1,641 @@
+/* ── Colores estado pickups ──────────────────────────────── */
+:root {
+  --rec-bg: #EAF3DE;
+  --rec-border: #97C459;
+  --rec-text: #27500A;
+  --rec-badge-bg: #C0DD97;
+  --pend-border: #FAC775;
+  --pend-badge-bg: #FAC775;
+  --pend-badge-text: #633806;
+  --pku-green: #3B6D11;
+  --pku-green-hover: #2d5509;
+}
+
+/* ── Page header controls ────────────────────────────────── */
+.pku-controls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+/* ── View toggle ─────────────────────────────────────────── */
+.view-toggle {
+  display: flex;
+  background: #f1f5f9;
+  border-radius: 6px;
+  padding: 3px;
+  gap: 2px;
+}
+
+.view-btn {
+  padding: 0.38rem 0.85rem;
+  border: none;
+  background: transparent;
+  border-radius: 4px;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+  color: var(--color-muted);
+  font-weight: 500;
+  transition: background 0.15s, color 0.15s;
+  white-space: nowrap;
+  min-height: 32px;
+}
+
+.view-btn.active {
+  background: var(--pku-green);
+  color: #fff;
+}
+
+/* ── Week navigation ─────────────────────────────────────── */
+.pickups-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.week-label {
+  font-weight: 600;
+  font-size: 0.88rem;
+  color: var(--color-primary);
+  min-width: 160px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.btn-week {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  padding: 0.32rem 0.65rem;
+  cursor: pointer;
+  font-size: 0.82rem;
+  color: var(--color-text);
+  font-weight: 500;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.btn-week:hover {
+  background: #f1f5f9;
+  border-color: var(--color-primary-light);
+}
+
+/* ── Day strip ───────────────────────────────────────────── */
+.day-strip {
+  display: flex;
+  gap: 0.5rem;
+  padding: 0.65rem 1.5rem;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.day-pill {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 0.4rem 0.9rem;
+  border-radius: 20px;
+  border: 1.5px solid var(--color-border);
+  background: #f8fafc;
+  cursor: pointer;
+  flex-shrink: 0;
+  min-height: 54px;
+  justify-content: center;
+  transition: border-color 0.12s, background 0.12s, color 0.12s;
+  color: var(--color-text);
+}
+
+.day-pill:hover {
+  border-color: var(--color-primary-light);
+}
+
+.day-pill.today:not(.active) {
+  border-color: var(--pku-green);
+  color: var(--pku-green);
+}
+
+.day-pill.active {
+  background: var(--pku-green);
+  border-color: var(--pku-green);
+  color: #fff;
+}
+
+.day-pill-label {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  line-height: 1;
+}
+
+.day-pill-num {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.day-pill-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  margin-top: 1px;
+}
+
+.day-pill-dot.pend { background: #FAC775; }
+.day-pill-dot.rec  { background: #97C459; }
+.day-pill.active .day-pill-dot.pend { background: rgba(255,255,255,0.7); }
+.day-pill.active .day-pill-dot.rec  { background: rgba(255,255,255,0.9); }
+
+/* ── Vista Día ───────────────────────────────────────────── */
+.dia-header {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.dia-titulo {
+  font-size: 1.08rem;
+  font-weight: 600;
+  color: var(--color-primary);
+  margin: 0;
+  text-transform: capitalize;
+}
+
+.dia-count {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+
+.resumen-bar {
+  display: flex;
+  gap: 0.65rem;
+  margin-bottom: 1.1rem;
+}
+
+.resumen-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.45rem 1rem;
+  border-radius: 8px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  border: 1.5px solid;
+}
+
+.resumen-card.rec {
+  background: var(--rec-bg);
+  border-color: var(--rec-border);
+  color: var(--rec-text);
+}
+
+.resumen-card.pend {
+  background: #fffbeb;
+  border-color: var(--pend-border);
+  color: var(--pend-badge-text);
+}
+
+/* ── Tarjetas pickup (vista día) ─────────────────────────── */
+.pickup-cards-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.pickup-card-v2 {
+  background: var(--color-surface);
+  border: 1.5px solid var(--pend-border);
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+}
+
+.pickup-card-v2.recolectado {
+  background: var(--rec-bg);
+  border-color: var(--rec-border);
+}
+
+.pickup-card-v2-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.6rem;
+}
+
+.pickup-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 0.82rem;
+  flex-shrink: 0;
+  background: var(--pend-badge-bg);
+  color: var(--pend-badge-text);
+}
+
+.pickup-avatar.rec {
+  background: var(--rec-border);
+  color: var(--rec-text);
+}
+
+.pickup-card-v2-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.pickup-client-name {
+  font-size: 17px;
+  font-weight: 500;
+  color: var(--color-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.recolectado .pickup-client-name {
+  color: var(--rec-text);
+}
+
+.pickup-hora {
+  font-size: 0.82rem;
+  color: var(--color-muted);
+  margin-top: 2px;
+}
+
+.pickup-badge {
+  padding: 0.22rem 0.65rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.pickup-badge.rec  { background: var(--rec-badge-bg);  color: var(--rec-text); }
+.pickup-badge.pend { background: var(--pend-badge-bg); color: var(--pend-badge-text); }
+
+.pickup-direccion {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+  margin-bottom: 0.8rem;
+}
+
+.pickup-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.btn-confirmar {
+  flex: 1;
+  min-height: 44px;
+  background: var(--pku-green);
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  font: inherit;
+  font-weight: 600;
+  font-size: 0.9rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.btn-confirmar:hover { background: var(--pku-green-hover); }
+.btn-confirmar:active { opacity: 0.85; }
+
+.btn-confirmar.loading {
+  opacity: 0.6;
+  cursor: wait;
+}
+
+.btn-detalle {
+  min-height: 44px;
+  padding: 0 1rem;
+  background: var(--color-surface);
+  color: var(--color-primary);
+  border: 1.5px solid var(--color-border);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.85rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-detalle:hover {
+  border-color: var(--color-primary-light);
+  background: #f8fafc;
+}
+
+.pickup-recolectado-label {
+  flex: 1;
+  min-height: 44px;
+  background: var(--rec-badge-bg);
+  color: var(--rec-text);
+  border-radius: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+
+.dia-empty {
+  text-align: center;
+  color: var(--color-muted);
+  padding: 2.5rem 1rem;
+  font-size: 0.95rem;
+}
+
+/* ── Vista Semana ────────────────────────────────────────── */
+.semana-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.semana-dia-block {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.semana-dia-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 1rem;
+  border-bottom: 1px solid var(--color-border);
+  background: #f8fafc;
+}
+
+.semana-dia-titulo {
+  font-weight: 700;
+  font-size: 0.88rem;
+  color: var(--color-primary);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  text-transform: capitalize;
+}
+
+.semana-hoy-badge {
+  font-size: 0.68rem;
+  background: var(--pku-green);
+  color: #fff;
+  border-radius: 20px;
+  padding: 0.1rem 0.5rem;
+  font-weight: 700;
+  text-transform: none;
+}
+
+.semana-dia-count {
+  font-size: 0.78rem;
+  color: var(--color-muted);
+}
+
+.semana-dia-rows { padding: 0.25rem 0; }
+
+.semana-row {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.55rem 1rem;
+  cursor: pointer;
+  transition: background 0.1s;
+}
+
+.semana-row:hover { background: #f8fafc; }
+
+.semana-row.rec { background: #f5faee; }
+.semana-row.rec:hover { background: #eef6e0; }
+
+.semana-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.semana-dot.rec  { background: #97C459; }
+.semana-dot.pend { background: #FAC775; }
+
+.semana-row-name {
+  flex: 1;
+  font-size: 15px;
+  font-weight: 500;
+  color: var(--color-text);
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.semana-row-hora {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+  flex-shrink: 0;
+}
+
+.semana-row-badge {
+  padding: 0.15rem 0.5rem;
+  border-radius: 20px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.semana-row-badge.rec  { background: var(--rec-badge-bg);  color: var(--rec-text); }
+.semana-row-badge.pend { background: var(--pend-badge-bg); color: var(--pend-badge-text); }
+
+.semana-empty {
+  padding: 0.7rem 1rem;
+  color: var(--color-muted);
+  font-size: 0.85rem;
+  font-style: italic;
+}
+
+/* ── Modal crear/editar ──────────────────────────────────── */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.35);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.modal-overlay.hidden { display: none; }
+
+.modal-box {
+  background: var(--color-surface);
+  border-radius: var(--radius);
+  width: 100%;
+  max-width: 480px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+
+.modal-header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.modal-header h2 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--color-primary);
+}
+
+.modal-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.1rem;
+  color: var(--color-muted);
+  padding: 0.2rem 0.4rem;
+  border-radius: 3px;
+  line-height: 1;
+}
+
+.modal-close:hover { background: #f1f5f9; color: var(--color-text); }
+
+.modal-body {
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.modal-footer {
+  padding: 1rem 1.25rem;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.modal-footer .btn-eliminar { margin-right: auto; }
+
+.hora-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+/* ── Panel detalle ───────────────────────────────────────── */
+.detalle-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.2);
+  z-index: 900;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.detalle-overlay.hidden { display: none; }
+
+.detalle-panel {
+  background: var(--color-surface);
+  width: 100%;
+  max-width: 360px;
+  height: 100%;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  box-shadow: -4px 0 24px rgba(0, 0, 0, 0.14);
+}
+
+.detalle-header {
+  padding: 1rem 1.25rem;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.detalle-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  color: var(--color-primary);
+}
+
+.detalle-body {
+  padding: 1.25rem;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.detalle-field label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  display: block;
+  margin-bottom: 0.2rem;
+}
+
+.detalle-field span {
+  font-size: 0.9rem;
+  color: var(--color-text);
+  display: block;
+}
+
+.detalle-actions {
+  padding: 1rem 1.25rem;
+  border-top: 1px solid var(--color-border);
+  display: flex;
+  gap: 0.5rem;
+}
+
+.detalle-actions button { flex: 1; min-height: 44px; }
+
+/* ── Responsive ──────────────────────────────────────────── */
+@media (max-width: 700px) {
+  .pku-controls {
+    gap: 0.5rem;
+  }
+
+  .week-label {
+    min-width: 120px;
+    font-size: 0.8rem;
+  }
+
+  .resumen-bar { gap: 0.5rem; }
+
+  .resumen-card {
+    font-size: 0.8rem;
+    padding: 0.4rem 0.65rem;
+  }
+
+  .dia-titulo { font-size: 1rem; }
+}
+
+@media (max-width: 480px) {
+  .day-strip { padding: 0.5rem 1rem; }
+
+  .pickup-card-v2 { padding: 0.85rem 0.9rem; }
+
+  .btn-confirmar, .btn-detalle { font-size: 0.85rem; }
+}
