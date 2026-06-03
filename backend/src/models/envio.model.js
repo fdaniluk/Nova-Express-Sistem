@@ -108,14 +108,18 @@ async function listar(filtros = {}) {
 async function crear(data) {
   const db = getDb();
   const { pesoVolumetrico, pesoFacturable } = buildPesos(data);
-  const id = await db.transaction(async () => {
+  const hasBultos = data.bultos && data.bultos.length > 0;
+
+  const doInsert = async () => {
     const result = await db
       .prepare(
         `INSERT INTO envios (
-          cliente_id, fecha, courier, tipo_envio, numero_guia, pais_destino, zona,
+          cliente_id, fecha, courier, tipo_envio, numero_guia, pais_destino, destino_raw, direccion, zona,
           cantidad_bultos, peso_real, largo, ancho, alto,
-          peso_volumetrico, peso_facturable, fob, total_cobrado, observaciones
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          peso_volumetrico, peso_facturable, fob, total_cobrado, observaciones,
+          numero_salida, bulto, tipo_paquete, asegurado,
+          flete, descuento, seguro, fuel, derechos, adicionales, otros, profit, porcentaje
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         data.cliente_id,
@@ -124,6 +128,8 @@ async function crear(data) {
         data.tipo_envio,
         data.numero_guia,
         data.pais_destino,
+        data.destino_raw ?? null,
+        data.direccion ?? 'expo',
         data.zona || null,
         data.cantidad_bultos || 1,
         data.peso_real,
@@ -134,14 +140,30 @@ async function crear(data) {
         pesoFacturable,
         data.fob ?? 0,
         data.total_cobrado ?? 0,
-        data.observaciones || null
+        data.observaciones || null,
+        data.numero_salida ?? null,
+        data.bulto ?? null,
+        data.tipo_paquete ?? null,
+        data.asegurado ?? 0,
+        data.flete ?? null,
+        data.descuento ?? null,
+        data.seguro ?? null,
+        data.fuel ?? null,
+        data.derechos ?? null,
+        data.adicionales ?? null,
+        data.otros ?? null,
+        data.profit ?? null,
+        data.porcentaje ?? null
       );
     const envioId = result.lastInsertRowid;
-    if (data.bultos && data.bultos.length > 0) {
-      await saveBultos(envioId, data.bultos);
-    }
+    if (hasBultos) await saveBultos(envioId, data.bultos);
     return envioId;
-  });
+  };
+
+  // Solo abre una transacción propia cuando hay bultos (múltiples escrituras que deben ser atómicas).
+  // Sin bultos, un INSERT único ya es atómico en SQLite y puede ejecutarse dentro de
+  // una transacción externa (como la de importarSalidas) sin anidar BEGIN.
+  const id = hasBultos ? await db.transaction(doInsert) : await doInsert();
   return buscarPorId(id);
 }
 

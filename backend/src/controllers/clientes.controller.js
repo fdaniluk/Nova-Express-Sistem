@@ -86,6 +86,7 @@ async function perfil(req, res, next) {
              e.fecha,
              e.pais_destino AS pais,
              e.courier,
+             e.asegurado,
              e.total_cobrado AS total_cobrado_usd,
              COALESCE(li.utilidad_usd, e.total_cobrado * c.tarifa_pct / 100.0) AS utilidad_usd,
              CASE WHEN e.liquidado = 1 THEN 'liquidado' ELSE 'pendiente' END AS estado
@@ -134,6 +135,7 @@ async function perfil(req, res, next) {
         fecha: g.fecha,
         pais: g.pais,
         courier: g.courier,
+        asegurado: Boolean(g.asegurado),
         total_cobrado_usd: round2(g.total_cobrado_usd),
         utilidad_usd: round2(g.utilidad_usd),
         estado: g.estado,

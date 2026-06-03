@@ -2,50 +2,80 @@ const XLSX = require('xlsx');
 const ExcelJS = require('exceljs');
 const envioModel = require('../models/envio.model');
 const clienteModel = require('../models/cliente.model');
+const { normalizarDestino } = require('../utils/paises');
+const { calcularPesos, buscarZona, ZONAS_DHL, ZONAS_UPS } = require('./calculos.service');
+const { getDb } = require('../db');
 
-const COLUMN_MAP = {
-  cliente: ['CLIENTE', 'Cliente', 'cliente', 'RAZON SOCIAL', 'Razon Social'],
-  fecha: ['FECHA', 'Fecha', 'fecha', 'DATE'],
-  courier: ['COURIER', 'Courier', 'courier', 'TRANSPORTISTA'],
-  tipo_envio: ['T DE ENVIO', 'T. ENVIO', 'TIPO', 'Tipo Envio', 'tipo_envio', 'T ENVIO'],
-  numero_guia: ['Nº ENVIO', 'N ENVIO', 'NUMERO GUIA', 'Guia', 'GUIA', 'AWB', 'numero_guia', 'N° ENVIO'],
-  pais_destino: ['PAIS', 'País', 'PAIS DESTINO', 'pais_destino', 'DESTINO'],
-  zona: ['ZONA', 'Zona', 'zona'],
-  cantidad_bultos: ['BULTOS', 'CANT BULTOS', 'cantidad_bultos', 'PIEZAS'],
-  peso_real: ['PESO', 'PESO REAL', 'peso_real', 'PESO KG', 'KG'],
-  largo: ['LARGO', 'L', 'largo'],
-  ancho: ['ANCHO', 'A', 'ancho'],
-  alto: ['ALTO', 'H', 'alto', 'ALTO CM'],
-  fob: ['FOB', 'fob', 'VALOR FOB', 'VALOR DECLARADO'],
-  total_cobrado: ['TOTAL', 'TOTAL USD', 'TOTAL COBRADO', 'total_cobrado', 'IMPORTE'],
-  observaciones: ['OBS', 'OBSERVACIONES', 'observaciones', 'NOTAS'],
+// Columnas por posición fija (índice 0-based → col 1 del Excel = índice 0)
+const POSITION_MAP = {
+  numero_salida:  0,   // col 1
+  courier:        1,   // col 2
+  fecha:          2,   // col 3
+  numero_guia:    3,   // col 4
+  tipo_cobro:     4,   // col 5
+  cliente:        5,   // col 6
+  pais_destino:   6,   // col 7
+  bulto:          7,   // col 8
+  tipo_envio:     8,   // col 9
+  peso_real:      9,   // col 10
+  largo:          10,  // col 11
+  ancho:          11,  // col 12
+  alto:           12,  // col 13
+  // col 14 (idx 13): peso volumétrico — se recalcula, no se importa
+  // col 15 (idx 14): peso_facturable  — se recalcula a partir de peso/dims
+  // cols 16-17 (idx 15-16): sin asignar
+  fob:            17,  // col 18 — valor declarado / FOB
+  // cols 19-21 (idx 18-20): sin asignar
+  flete:          21,  // col 22
+  descuento:      22,  // col 23
+  seguro:         23,  // col 24
+  fuel:           24,  // col 25
+  derechos:       25,  // col 26
+  adicionales:    26,  // col 27
+  otros:          27,  // col 28
+  total_cobrado:  28,  // col 29
+  profit:         29,  // col 30
+  porcentaje:     30,  // col 31
+  observaciones:  31,  // col 32
 };
 
-function normalizeHeader(h) {
-  return String(h || '')
-    .trim()
-    .toUpperCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '');
+function mapRowByPosition(row) {
+  const m = {};
+  for (const [key, idx] of Object.entries(POSITION_MAP)) {
+    m[key] = row[idx] ?? '';
+  }
+  return m;
 }
 
-function findColumnKey(header) {
-  const norm = normalizeHeader(header);
-  for (const [key, aliases] of Object.entries(COLUMN_MAP)) {
-    for (const alias of aliases) {
-      if (normalizeHeader(alias) === norm) return key;
-    }
-  }
+function isEmptyRow(row) {
+  return !row || row.every((c) => c === '' || c === null || c === undefined);
+}
+
+// Filas sin guía NI cliente se ignoran silenciosamente (totales, separadores, encabezados)
+function isSkippableRow(m) {
+  return !String(m.numero_guia ?? '').trim() && !String(m.cliente ?? '').trim();
+}
+
+function parseTipoPaquete(val) {
+  const s = String(val || '')
+    .toLowerCase()
+    .trim()
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '');
+  if (s.startsWith('m') || s.includes('merc')) return 'm';
+  if (s.startsWith('d') || s.includes('doc')) return 'd';
   return null;
 }
 
-function mapRow(headers, row) {
-  const mapped = {};
-  headers.forEach((h, i) => {
-    const key = findColumnKey(h);
-    if (key) mapped[key] = row[i];
-  });
-  return mapped;
+function parseAsegurado(val) {
+  const s = String(val || '').toLowerCase().trim();
+  return s === 'si' || s === 'yes' || s === 'x' || s === '1' ? 1 : 0;
+}
+
+function parseTipoCobro(val) {
+  const s = String(val || '').trim().toUpperCase();
+  if (['D', 'S', 'Q', 'CC'].includes(s)) return s;
+  return null;
 }
 
 function parseCourier(val) {
@@ -71,7 +101,7 @@ function parseFecha(val) {
   }
   const s = String(val).trim();
   if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
-  const m = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  const m = s.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{2,4})$/);
   if (m) {
     let [, d, mo, y] = m;
     if (y.length === 2) y = `20${y}`;
@@ -87,78 +117,138 @@ function parseFecha(val) {
   return s;
 }
 
-function getOrCreateCliente(nombre) {
-  const clientes = clienteModel.listar();
+async function getOrCreateCliente(nombre, tipoCobro) {
+  const clientes = await clienteModel.listar();
   const found = clientes.find(
     (c) => c.nombre.toLowerCase() === String(nombre).trim().toLowerCase()
   );
   if (found) return found.id;
-  const nuevo = clienteModel.crear({
+  const nuevo = await clienteModel.crear({
     nombre: String(nombre).trim(),
-    tipo_cobro: 'D',
+    tipo_cobro: tipoCobro || 'D',
     tarifa_especial: null,
   });
   return nuevo.id;
 }
 
-function importarSalidas(buffer) {
+async function importarSalidas(buffer) {
   const wb = XLSX.read(buffer, { type: 'buffer', cellDates: true });
   const sheetName = wb.SheetNames[0];
   const sheet = wb.Sheets[sheetName];
   const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
-  if (data.length < 2) {
-    return { importados: 0, errores: [{ fila: 0, error: 'Archivo vacío o sin datos' }] };
+  if (data.length < 1) {
+    return { importados: 0, errores: [{ fila: 0, error: 'Archivo vacío' }] };
   }
 
-  const headers = data[0];
   const resultados = { importados: 0, errores: [], omitidos: 0 };
 
-  for (let i = 1; i < data.length; i++) {
-    const row = data[i];
-    if (!row || row.every((c) => c === '' || c === null)) continue;
+  // Empezar desde fila 1 para saltear la fila de encabezados (aunque no sea reconocible por nombre).
+  // Si el archivo no tiene encabezado, la fila 0 se perderá; en ese caso cambiar a i = 0.
+  const startRow = 1;
 
-    const m = mapRow(headers, row);
-    try {
-      if (!m.numero_guia || !m.cliente) {
-        resultados.errores.push({ fila: i + 1, error: 'Falta cliente o número de guía' });
-        continue;
-      }
+  const db = getDb();
 
-      const courier = parseCourier(m.courier) || 'DHL';
-      const cliente_id = getOrCreateCliente(m.cliente);
+  // Una sola transacción exterior para toda la importación. Cada fila usa un SAVEPOINT
+  // individual para que errores por fila (como duplicados) no aborte el import completo.
+  // envioModel.crear no abre su propia transacción cuando no hay bultos, así no hay anidamiento.
+  await db.transaction(async () => {
+    for (let i = startRow; i < data.length; i++) {
+      const row = data[i];
 
-      const payload = {
-        cliente_id,
-        fecha: parseFecha(m.fecha) || new Date().toISOString().slice(0, 10),
-        courier,
-        tipo_envio: parseTipo(m.tipo_envio),
-        numero_guia: String(m.numero_guia).trim(),
-        pais_destino: String(m.pais_destino || '—').trim(),
-        zona: m.zona ? String(m.zona).trim() : null,
-        cantidad_bultos: parseInt(m.cantidad_bultos, 10) || 1,
-        peso_real: parseFloat(m.peso_real) || 0,
-        largo: parseFloat(m.largo) || null,
-        ancho: parseFloat(m.ancho) || null,
-        alto: parseFloat(m.alto) || null,
-        fob: parseFloat(m.fob) || 0,
-        total_cobrado: parseFloat(m.total_cobrado) || 0,
-        observaciones: m.observaciones ? String(m.observaciones) : null,
-      };
+      if (isEmptyRow(row)) continue;
+
+      const m = mapRowByPosition(row);
+
+      if (isSkippableRow(m)) continue;
 
       try {
-        envioModel.crear(payload);
-        resultados.importados++;
-      } catch (e) {
-        if (e.message && e.message.includes('UNIQUE')) {
-          resultados.omitidos++;
-        } else {
-          throw e;
+        const guia = String(m.numero_guia ?? '').trim();
+        const clienteNombre = String(m.cliente ?? '').trim();
+
+        if (!guia) {
+          resultados.errores.push({ fila: i + 1, error: 'Falta número de guía' });
+          continue;
         }
+        if (!clienteNombre) {
+          resultados.errores.push({ fila: i + 1, error: 'Falta nombre de cliente' });
+          continue;
+        }
+
+        const courier = parseCourier(m.courier) || 'DHL';
+        const cliente_id = await getOrCreateCliente(clienteNombre, parseTipoCobro(m.tipo_cobro));
+        const observacionesStr = m.observaciones ? String(m.observaciones) : null;
+        const { destino, destino_raw, direccion, origen } = normalizarDestino(
+          m.pais_destino,
+          observacionesStr
+        );
+
+        const pesoRealNum = parseFloat(m.peso_real) || 0;
+        const largoNum    = parseFloat(m.largo)  || null;
+        const anchoNum    = parseFloat(m.ancho)  || null;
+        const altoNum     = parseFloat(m.alto)   || null;
+        const { pesoVolumetrico, pesoFacturable } = calcularPesos(
+          pesoRealNum, [], { largo: largoNum, ancho: anchoNum, alto: altoNum }
+        );
+
+        const paisParaZona = direccion === 'impo' ? origen : destino;
+        const zonaTabla    = courier === 'DHL' ? ZONAS_DHL : ZONAS_UPS;
+        const zonaNum      = paisParaZona != null ? buscarZona(zonaTabla, paisParaZona) : undefined;
+
+        const payload = {
+          cliente_id,
+          fecha: parseFecha(m.fecha) || new Date().toISOString().slice(0, 10),
+          courier,
+          tipo_envio: parseTipo(m.tipo_envio),
+          numero_guia: guia,
+          pais_destino: destino,
+          destino_raw,
+          direccion,
+          zona: zonaNum != null ? zonaNum : null,
+          cantidad_bultos: 1,
+          peso_real:        pesoRealNum,
+          largo:            largoNum,
+          ancho:            anchoNum,
+          alto:             altoNum,
+          peso_volumetrico: pesoVolumetrico,
+          peso_facturable:  pesoFacturable,
+          fob: parseFloat(m.fob) || 0,
+          total_cobrado: parseFloat(m.total_cobrado) || 0,
+          observaciones: observacionesStr,
+          numero_salida: m.numero_salida ? parseInt(m.numero_salida, 10) || null : null,
+          bulto: m.bulto ? String(m.bulto).trim() : null,
+          tipo_paquete: parseTipoPaquete(m.tipo_envio),
+          tipo_cobro: m.tipo_cobro ? String(m.tipo_cobro).trim().toUpperCase() : null,
+          asegurado: parseFloat(m.fob) > 100 ? 1 : 0,
+          flete: parseFloat(m.flete) || null,
+          descuento: parseFloat(m.descuento) || null,
+          seguro: parseFloat(m.seguro) || null,
+          fuel: parseFloat(m.fuel) || null,
+          derechos: parseFloat(m.derechos) || null,
+          adicionales: parseFloat(m.adicionales) || null,
+          otros: parseFloat(m.otros) || null,
+          profit: parseFloat(m.profit) || null,
+          porcentaje: parseFloat(m.porcentaje) || null,
+        };
+
+        await db.exec('SAVEPOINT import_row');
+        try {
+          await envioModel.crear(payload);
+          await db.exec('RELEASE SAVEPOINT import_row');
+          resultados.importados++;
+        } catch (e) {
+          await db.exec('ROLLBACK TO SAVEPOINT import_row');
+          await db.exec('RELEASE SAVEPOINT import_row');
+          if (e.message && e.message.includes('UNIQUE')) {
+            resultados.omitidos++;
+          } else {
+            resultados.errores.push({ fila: i + 1, error: e.message });
+          }
+        }
+      } catch (e) {
+        resultados.errores.push({ fila: i + 1, error: e.message });
       }
-    } catch (e) {
-      resultados.errores.push({ fila: i + 1, error: e.message });
     }
-  }
+  });
 
   return resultados;
 }
@@ -201,7 +291,7 @@ function parseFechaExcel(val) {
   const s = String(val).trim();
   const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (iso) return new Date(Number(iso[1]), Number(iso[2]) - 1, Number(iso[3]));
-  const dmy = s.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})$/);
+  const dmy = s.match(/^(\d{1,2})[/\-](\d{1,2})[/\-](\d{2,4})$/);
   if (dmy) {
     let y = dmy[3];
     if (y.length === 2) y = `20${y}`;
@@ -377,7 +467,7 @@ async function exportarLiquidacion(liquidacion) {
 function nombreArchivoExport(clienteNombre, fecha) {
   const safe = String(clienteNombre || 'Cliente')
     .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[̀-ͯ]/g, '')
     .replace(/[^\w]/g, '')
     .slice(0, 40);
   const f = (fecha || new Date().toISOString().slice(0, 10)).replace(/-/g, '');

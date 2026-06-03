@@ -21,6 +21,8 @@
       renderChart(perfil.utilidad_mensual);
       renderGuias(perfil.guias);
       bindEdicion(perfil);
+      await cargarDirecciones();
+      bindDirecciones();
     } catch (err) {
       NovaUtils.showAlert(alertBox, 'Error al cargar perfil: ' + err.message);
     }
@@ -162,6 +164,7 @@
         <td style="font-family:monospace;font-size:0.85rem">${g.numero_guia}</td>
         <td>${g.pais}</td>
         <td><span class="badge badge-${g.courier.toLowerCase()}">${g.courier}</span></td>
+        <td>${g.asegurado ? 'Sí' : 'No'}</td>
         <td>${NovaUtils.formatMoney(g.total_cobrado_usd)}</td>
         <td style="color:var(--color-success);font-weight:600">${NovaUtils.formatMoney(g.utilidad_usd)}</td>
         <td><span class="badge badge-${g.estado}">${g.estado}</span></td>
@@ -227,6 +230,89 @@
       } catch (err) {
         NovaUtils.showAlert(alertBox, err.message);
       }
+    });
+  }
+
+  // ── Direcciones de recolección ────────────────────────
+
+  let direcciones = [];
+
+  async function cargarDirecciones() {
+    try {
+      direcciones = await NovaAPI.clientes.direcciones.listar(clienteId);
+      renderDirecciones();
+    } catch (err) {
+      NovaUtils.showAlert(alertBox, 'Error al cargar direcciones: ' + err.message);
+    }
+  }
+
+  function renderDirecciones() {
+    const list = document.getElementById('dirs-list');
+    if (!direcciones.length) {
+      list.innerHTML = '<li style="color:var(--color-muted);font-size:0.9rem">Sin direcciones registradas.</li>';
+      return;
+    }
+    list.innerHTML = direcciones
+      .map(
+        (d) => `<li>
+          <span class="dir-text">${d.direccion}</span>
+          ${d.es_principal ? '<span class="badge-principal">principal</span>' : ''}
+          <button class="btn-borrar-dir" data-dir-id="${d.id}" title="Eliminar" ${d.es_principal ? 'disabled' : ''}>✕</button>
+        </li>`
+      )
+      .join('');
+
+    list.querySelectorAll('.btn-borrar-dir:not(:disabled)').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const dirId = btn.dataset.dirId;
+        if (!confirm('¿Eliminar esta dirección?')) return;
+        try {
+          await NovaAPI.clientes.direcciones.borrar(clienteId, dirId);
+          await cargarDirecciones();
+        } catch (err) {
+          NovaUtils.showAlert(alertBox, err.message);
+        }
+      });
+    });
+  }
+
+  function bindDirecciones() {
+    const btnAgregar = document.getElementById('btn-agregar-dir');
+    const addForm = document.getElementById('add-dir-form');
+    const inputDir = document.getElementById('nueva-direccion');
+    const btnGuardar = document.getElementById('btn-guardar-dir');
+    const btnCancelar = document.getElementById('btn-cancelar-dir');
+
+    btnAgregar.addEventListener('click', () => {
+      addForm.classList.add('visible');
+      btnAgregar.style.display = 'none';
+      inputDir.focus();
+    });
+
+    btnCancelar.addEventListener('click', () => {
+      addForm.classList.remove('visible');
+      btnAgregar.style.display = '';
+      inputDir.value = '';
+    });
+
+    btnGuardar.addEventListener('click', async () => {
+      const dir = inputDir.value.trim();
+      if (!dir) return;
+      try {
+        await NovaAPI.clientes.direcciones.agregar(clienteId, dir);
+        inputDir.value = '';
+        addForm.classList.remove('visible');
+        btnAgregar.style.display = '';
+        await cargarDirecciones();
+        NovaUtils.showAlert(alertBox, 'Dirección agregada', 'success');
+      } catch (err) {
+        NovaUtils.showAlert(alertBox, err.message);
+      }
+    });
+
+    inputDir.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') btnGuardar.click();
+      if (e.key === 'Escape') btnCancelar.click();
     });
   }
 

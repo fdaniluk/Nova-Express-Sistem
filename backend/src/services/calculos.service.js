@@ -448,4 +448,7 @@ module.exports = {
   cotizarEnvio,
   calcSeguroDHL,
   calcularPrecioDHL,
+  buscarZona,
+  ZONAS_DHL,
+  ZONAS_UPS,
 };

@@ -267,6 +267,7 @@
         ancho: parseFloat(document.getElementById('ancho').value) || null,
         alto: parseFloat(document.getElementById('alto').value) || null,
         fob: parseFloat(document.getElementById('fob').value) || 0,
+        asegurado: document.getElementById('asegurado').checked ? 1 : 0,
         total_cobrado: parseFloat(document.getElementById('total_cobrado').value) || 0,
         observaciones: document.getElementById('observaciones').value.trim() || null,
         bultos: bultos.length ? bultos : undefined,
@@ -318,6 +319,7 @@
     document.getElementById('ancho').value = envio.ancho || '';
     document.getElementById('alto').value = envio.alto || '';
     document.getElementById('fob').value = envio.fob;
+    document.getElementById('asegurado').checked = Boolean(envio.asegurado);
     document.getElementById('total_cobrado').value = envio.total_cobrado;
     document.getElementById('observaciones').value = envio.observaciones || '';
     renderBultos();
