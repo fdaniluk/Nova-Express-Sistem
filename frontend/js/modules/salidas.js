@@ -22,10 +22,14 @@
   // caché de resultados de tracking (por sesión)
   const trackingCache = {};
 
+  // estado del modal de edición
+  let editEnvio = null;
+
   const alertBox = document.getElementById('alert-box');
 
   // ── Init ────────────────────────────────────────────────────────────────────
   async function init() {
+    buildEditModal();
     bindSearch();
     bindSortHeaders();
     bindFilterButtons();
@@ -34,6 +38,7 @@
     bindAlertToggle();
     bindLoadMore();
     bindTracking();
+    bindRowEdit();
     await loadData();
   }
 
@@ -216,6 +221,7 @@
 
   function buildRow(e, today, grpKey, isDetail) {
     const tr = document.createElement('tr');
+    tr.dataset.envioId = e.id;
     if (isDetail) tr.classList.add('bulto-detail-row');
 
     const alert = alertLevel(e, today);
@@ -699,6 +705,180 @@
     if (!d) return '<span class="em">—</span>';
     const cls = d === 'impo' ? 'badge-impo' : 'badge-expo';
     return `<span class="badge ${cls}">${esc(d)}</span>`;
+  }
+
+  // ── Modal de edición ────────────────────────────────────────────────────────
+  function buildEditModal() {
+    const overlay = document.createElement('div');
+    overlay.id = 'sal-edit-overlay';
+    overlay.className = 'sal-modal-overlay hidden';
+    overlay.innerHTML = `
+      <div class="sal-modal-box">
+        <div class="sal-modal-header">
+          <div>
+            <h2 id="sal-modal-title">Editar salida</h2>
+            <div id="sal-modal-meta" class="sal-modal-meta"></div>
+          </div>
+          <button class="sal-modal-close" id="sal-modal-close" title="Cerrar">×</button>
+        </div>
+        <div class="sal-modal-body">
+          <div>
+            <div class="sal-section-title">Identificación</div>
+            <div class="sal-form-grid">
+              <div class="form-group" style="grid-column:span 2">
+                <label>Nro. Guía *</label>
+                <input type="text" id="saled-guia">
+              </div>
+              <div class="form-group">
+                <label>Nro. Salida</label>
+                <input type="number" id="saled-numero-salida" step="1" min="0">
+              </div>
+              <div class="form-group">
+                <label>Bulto</label>
+                <input type="text" id="saled-bulto">
+              </div>
+              <div class="form-group">
+                <label>Tipo</label>
+                <select id="saled-tipo-paquete">
+                  <option value="">—</option>
+                  <option value="m">m</option>
+                  <option value="d">d</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Dirección</label>
+                <select id="saled-direccion">
+                  <option value="expo">expo</option>
+                  <option value="impo">impo</option>
+                </select>
+              </div>
+              <div class="form-group" style="justify-content:flex-end;padding-bottom:2px">
+                <label>&nbsp;</label>
+                <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px">
+                  <input type="checkbox" id="saled-asegurado" style="width:auto;margin:0">
+                  Asegurado
+                </label>
+              </div>
+            </div>
+          </div>
+          <div>
+            <div class="sal-section-title">Costos (USD)</div>
+            <div class="sal-form-grid sal-form-grid--nums">
+              <div class="form-group"><label>Flete</label><input type="number" id="saled-flete" step="0.01"></div>
+              <div class="form-group"><label>Descuento</label><input type="number" id="saled-descuento" step="0.01"></div>
+              <div class="form-group"><label>Seguro</label><input type="number" id="saled-seguro" step="0.01"></div>
+              <div class="form-group"><label>Fuel</label><input type="number" id="saled-fuel" step="0.01"></div>
+              <div class="form-group"><label>Derechos</label><input type="number" id="saled-derechos" step="0.01"></div>
+              <div class="form-group"><label>Adicionales</label><input type="number" id="saled-adicionales" step="0.01"></div>
+              <div class="form-group"><label>Otros</label><input type="number" id="saled-otros" step="0.01"></div>
+              <div class="form-group"><label>Profit</label><input type="number" id="saled-profit" step="0.01"></div>
+              <div class="form-group"><label>% Profit</label><input type="number" id="saled-porcentaje" step="0.1"></div>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Observaciones</label>
+            <textarea id="saled-observaciones" rows="2" style="resize:vertical"></textarea>
+          </div>
+        </div>
+        <div class="sal-modal-footer">
+          <button class="btn btn-secondary" id="sal-modal-cancel">Cancelar</button>
+          <button class="btn btn-primary" id="sal-modal-save">Guardar cambios</button>
+        </div>
+      </div>`;
+    document.body.appendChild(overlay);
+
+    overlay.addEventListener('click', (e) => { if (e.target === overlay) closeEditModal(); });
+    document.getElementById('sal-modal-close').addEventListener('click', closeEditModal);
+    document.getElementById('sal-modal-cancel').addEventListener('click', closeEditModal);
+    document.getElementById('sal-modal-save').addEventListener('click', saveEditModal);
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !document.getElementById('sal-edit-overlay').classList.contains('hidden')) {
+        closeEditModal();
+      }
+    });
+  }
+
+  function openEditModal(envio) {
+    editEnvio = envio;
+    document.getElementById('sal-modal-title').textContent = `Editar — ${envio.numero_guia}`;
+    document.getElementById('sal-modal-meta').innerHTML =
+      `${courierBadge(envio.courier)}<span>${esc(envio.cliente_nombre)}</span><span style="color:var(--color-muted)">${NovaUtils.formatDate(envio.fecha)}</span>`;
+
+    document.getElementById('saled-guia').value = envio.numero_guia ?? '';
+    document.getElementById('saled-numero-salida').value = envio.numero_salida ?? '';
+    document.getElementById('saled-bulto').value = envio.bulto ?? '';
+    document.getElementById('saled-tipo-paquete').value = envio.tipo_paquete ?? '';
+    document.getElementById('saled-direccion').value = envio.direccion || 'expo';
+    document.getElementById('saled-asegurado').checked = Boolean(envio.asegurado);
+
+    for (const f of ['flete', 'descuento', 'seguro', 'fuel', 'derechos', 'adicionales', 'otros', 'profit', 'porcentaje']) {
+      document.getElementById(`saled-${f}`).value = envio[f] ?? '';
+    }
+    document.getElementById('saled-observaciones').value = envio.observaciones ?? '';
+
+    document.getElementById('sal-edit-overlay').classList.remove('hidden');
+    document.getElementById('saled-guia').focus();
+    document.getElementById('saled-guia').select();
+  }
+
+  function closeEditModal() {
+    document.getElementById('sal-edit-overlay').classList.add('hidden');
+    editEnvio = null;
+  }
+
+  async function saveEditModal() {
+    if (!editEnvio) return;
+    const saveBtn = document.getElementById('sal-modal-save');
+    const guia = document.getElementById('saled-guia').value.trim();
+
+    if (!guia) {
+      NovaUtils.showAlert(alertBox, 'El número de guía no puede estar vacío', 'error');
+      document.getElementById('saled-guia').focus();
+      return;
+    }
+
+    saveBtn.disabled = true;
+    saveBtn.textContent = 'Guardando…';
+
+    const payload = {
+      numero_guia:    guia,
+      numero_salida:  document.getElementById('saled-numero-salida').value !== '' ? Number(document.getElementById('saled-numero-salida').value) : null,
+      bulto:          document.getElementById('saled-bulto').value.trim() || null,
+      tipo_paquete:   document.getElementById('saled-tipo-paquete').value || null,
+      direccion:      document.getElementById('saled-direccion').value,
+      asegurado:      document.getElementById('saled-asegurado').checked ? 1 : 0,
+      observaciones:  document.getElementById('saled-observaciones').value.trim() || null,
+    };
+    for (const f of ['flete', 'descuento', 'seguro', 'fuel', 'derechos', 'adicionales', 'otros', 'profit', 'porcentaje']) {
+      const v = document.getElementById(`saled-${f}`).value;
+      payload[f] = v !== '' ? Number(v) : null;
+    }
+
+    try {
+      await NovaAPI.salidas.actualizar(editEnvio.id, payload);
+      const idx = allData.findIndex((d) => d.id === editEnvio.id);
+      if (idx !== -1) Object.assign(allData[idx], payload);
+      closeEditModal();
+      applyAll();
+      NovaUtils.showAlert(alertBox, 'Cambios guardados correctamente', 'success');
+    } catch (err) {
+      NovaUtils.showAlert(alertBox, err.message, 'error');
+    } finally {
+      saveBtn.disabled = false;
+      saveBtn.textContent = 'Guardar cambios';
+    }
+  }
+
+  function bindRowEdit() {
+    document.getElementById('salidas-body').addEventListener('click', (e) => {
+      // No abrir modal si el click fue en un botón o link interactivo de la fila
+      if (e.target.closest('.track-btn') || e.target.closest('.expand-btn') || e.target.closest('a')) return;
+      const tr = e.target.closest('tr[data-envio-id]');
+      if (!tr) return;
+      const envio = allData.find((d) => d.id === Number(tr.dataset.envioId));
+      if (envio) openEditModal(envio);
+    });
   }
 
   init();

@@ -109,4 +109,57 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// Campos editables desde la vista Salidas.
+// Bloqueados: cliente_id, courier, fecha, pais_destino, liquidado, liquidacion_id.
+const SALIDAS_EDITABLE = [
+  'numero_guia', 'numero_salida', 'bulto', 'tipo_paquete', 'asegurado', 'direccion',
+  'flete', 'descuento', 'seguro', 'fuel', 'derechos', 'adicionales', 'otros',
+  'profit', 'porcentaje', 'observaciones',
+];
+
+router.patch('/:id', async (req, res, next) => {
+  try {
+    const db = getDb();
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: 'ID inválido' });
+
+    const existing = await db.prepare('SELECT id, numero_guia FROM envios WHERE id = ?').get(id);
+    if (!existing) return res.status(404).json({ error: 'Envío no encontrado' });
+
+    const picked = {};
+    for (const field of SALIDAS_EDITABLE) {
+      if (Object.prototype.hasOwnProperty.call(req.body, field)) {
+        picked[field] = req.body[field];
+      }
+    }
+
+    if (Object.keys(picked).length === 0) {
+      return res.status(400).json({ error: 'No hay campos para actualizar' });
+    }
+
+    // numero_guia es UNIQUE: validar que no exista en otro envío
+    if (picked.numero_guia !== undefined && picked.numero_guia !== existing.numero_guia) {
+      if (!picked.numero_guia) {
+        return res.status(400).json({ error: 'El número de guía no puede estar vacío' });
+      }
+      const dupe = await db
+        .prepare('SELECT id FROM envios WHERE numero_guia = ? AND id != ?')
+        .get(picked.numero_guia, id);
+      if (dupe) {
+        return res.status(409).json({ error: `Ya existe un envío con la guía "${picked.numero_guia}"` });
+      }
+    }
+
+    const setClauses = Object.keys(picked).map((f) => `${f} = ?`).join(', ');
+    const values = [...Object.values(picked), id];
+    await db
+      .prepare(`UPDATE envios SET ${setClauses}, updated_at = datetime('now', 'localtime') WHERE id = ?`)
+      .run(...values);
+
+    res.json({ ok: true });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;

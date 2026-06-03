@@ -159,11 +159,23 @@ async function migrateEnvios() {
     ['porcentaje',       'REAL'],
     ['destino_raw',      'TEXT'],
     ['direccion',        "TEXT DEFAULT 'expo'"],
+    // Columnas módulo Control de Facturas
+    ['costo_facturado',  'REAL'],
+    ['courier_facturado','TEXT'],
+    ['fecha_facturado',  'TEXT'],
+    ['estado_revision',  'TEXT'],
   ];
   for (const [col, def] of toAdd) {
     if (!cols.includes(col)) {
       await dbApi.exec(`ALTER TABLE envios ADD COLUMN ${col} ${def}`);
     }
+  }
+}
+
+async function migrateConfiguracion() {
+  const cols = (await dbApi.prepare('PRAGMA table_info(configuracion)').all()).map((c) => c.name);
+  if (!cols.includes('ganancia_minima_pct')) {
+    await dbApi.exec('ALTER TABLE configuracion ADD COLUMN ganancia_minima_pct REAL DEFAULT 20');
   }
 }
 
@@ -173,6 +185,7 @@ async function initSchema() {
   await migrateClientes();
   await migratePickups();
   await migrateEnvios();
+  await migrateConfiguracion();
   await seedIfEmpty();
 }
 

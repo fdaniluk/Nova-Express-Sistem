@@ -62,6 +62,32 @@
   color: var(--color-primary);
 }
 
+.fuel-card--warn {
+  border-color: #f59e0b;
+  background: #fffbeb;
+}
+
+.fuel-card--warn .fuel-age {
+  color: #b45309;
+  font-weight: 600;
+}
+
+.fuel-card--danger {
+  border-color: #ef4444;
+  background: #fef2f2;
+}
+
+.fuel-card--danger .fuel-age {
+  color: #b91c1c;
+  font-weight: 600;
+}
+
+.fuel-age {
+  font-size: 0.8rem;
+  color: var(--color-muted);
+  margin-bottom: 0.25rem;
+}
+
 .crear-step {
   align-items: end;
 }

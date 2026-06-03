@@ -34,4 +34,38 @@ async function historialFuel(req, res, next) {
   }
 }
 
-module.exports = { listarFuel, actualizarFuel, historialFuel };
+async function listarUmbrales(req, res, next) {
+  try {
+    res.json(await configuracionModel.listarUmbrales());
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function actualizarUmbral(req, res, next) {
+  try {
+    const courier = req.params.courier?.toUpperCase();
+    if (!['DHL', 'UPS'].includes(courier)) {
+      return res.status(400).json({ error: 'Courier debe ser DHL o UPS' });
+    }
+    const { ganancia_minima_pct } = req.body;
+    if (ganancia_minima_pct === undefined || Number.isNaN(Number(ganancia_minima_pct))) {
+      return res.status(400).json({ error: 'ganancia_minima_pct es obligatorio y numérico' });
+    }
+    const cfg = await configuracionModel.actualizarUmbral(courier, Number(ganancia_minima_pct));
+    res.json(cfg);
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function historialUmbral(req, res, next) {
+  try {
+    const courier = req.query.courier?.toUpperCase();
+    res.json(await configuracionModel.historialUmbral(courier));
+  } catch (e) {
+    next(e);
+  }
+}
+
+module.exports = { listarFuel, actualizarFuel, historialFuel, listarUmbrales, actualizarUmbral, historialUmbral };

@@ -85,6 +85,13 @@ const api = {
       const q = courier ? `?courier=${courier}` : '';
       return api.get(`/configuracion/fuel/historial${q}`);
     },
+    umbral: () => api.get('/configuracion/umbral'),
+    actualizarUmbral: (courier, ganancia_minima_pct) =>
+      api.put(`/configuracion/umbral/${courier}`, { ganancia_minima_pct }),
+    historialUmbral: (courier) => {
+      const q = courier ? `?courier=${courier}` : '';
+      return api.get(`/configuracion/umbral/historial${q}`);
+    },
   },
 };
 
@@ -118,6 +125,7 @@ api.salidas = {
     const q = params ? new URLSearchParams(params).toString() : '';
     return api.get(`/salidas${q ? `?${q}` : ''}`);
   },
+  actualizar: (id, data) => request(`/salidas/${id}`, { method: 'PATCH', body: data }),
 };
 
 api.tracking = {

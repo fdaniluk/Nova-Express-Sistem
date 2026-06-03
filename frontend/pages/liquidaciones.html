@@ -85,7 +85,7 @@
         <button class="tab active" data-tab="pendientes">Pendientes</button>
         <button class="tab" data-tab="crear">Crear liquidación</button>
         <button class="tab" data-tab="historial">Historial</button>
-        <button class="tab" data-tab="config">Configuración fuel</button>
+        <button class="tab" data-tab="config">Configuración</button>
       </div>
 
       <section id="panel-pendientes" class="card">
@@ -216,13 +216,30 @@
       <section id="panel-config" class="card hidden">
         <h2>Fuel surcharge por courier</h2>
         <div class="fuel-cards" id="fuel-cards"></div>
-        <h3>Historial de cambios</h3>
+        <h3>Historial de cambios (fuel)</h3>
         <div class="table-wrap">
           <table>
             <thead>
               <tr><th>Fecha</th><th>Courier</th><th>Anterior</th><th>Nuevo</th></tr>
             </thead>
             <tbody id="fuel-hist-body"></tbody>
+          </table>
+        </div>
+
+        <hr style="margin:1.5rem 0">
+
+        <h2>Ganancia mínima antes de alertar (%)</h2>
+        <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:1rem">
+          Cuando se cargue la factura del courier, se marcará la guía como "a revisar" si la ganancia real es menor a este umbral.
+        </p>
+        <div class="fuel-cards" id="umbral-cards"></div>
+        <h3>Historial de cambios (umbral ganancia)</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Fecha</th><th>Courier</th><th>Anterior</th><th>Nuevo</th></tr>
+            </thead>
+            <tbody id="umbral-hist-body"></tbody>
           </table>
         </div>
       </section>

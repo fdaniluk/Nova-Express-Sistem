@@ -23,11 +23,12 @@ CREATE TABLE IF NOT EXISTS clientes (
   tarifa_pct           REAL DEFAULT 0
 );
 
--- Configuración fuel por courier
+-- Configuración por courier (fuel y umbrales de negocio)
 CREATE TABLE IF NOT EXISTS configuracion (
   courier              TEXT PRIMARY KEY CHECK (courier IN ('DHL', 'UPS')),
   fuel_pct             REAL NOT NULL,
-  fecha_actualizacion  TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+  fecha_actualizacion  TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  ganancia_minima_pct  REAL DEFAULT 20
 );
 
 CREATE TABLE IF NOT EXISTS configuracion_historial (
@@ -36,6 +37,14 @@ CREATE TABLE IF NOT EXISTS configuracion_historial (
   fuel_pct_anterior REAL NOT NULL,
   fuel_pct_nuevo   REAL NOT NULL,
   fecha_cambio     TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS configuracion_ganancia_historial (
+  id                      INTEGER PRIMARY KEY AUTOINCREMENT,
+  courier                 TEXT NOT NULL CHECK (courier IN ('DHL', 'UPS')),
+  ganancia_pct_anterior   REAL NOT NULL,
+  ganancia_pct_nuevo      REAL NOT NULL,
+  fecha_cambio            TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
 
 -- Liquidaciones (cabecera) — antes de envios por FK opcional
@@ -99,6 +108,11 @@ CREATE TABLE IF NOT EXISTS envios (
   porcentaje          REAL,
   destino_raw         TEXT,
   direccion           TEXT DEFAULT 'expo',
+  -- Control de Facturas
+  costo_facturado     REAL,
+  courier_facturado   TEXT,
+  fecha_facturado     TEXT,
+  estado_revision     TEXT,
   FOREIGN KEY (cliente_id) REFERENCES clientes(id),
   FOREIGN KEY (liquidacion_id) REFERENCES liquidaciones(id)
 );

@@ -511,22 +511,37 @@
 
   function bindConfig() { /* fuel cards rendered dynamically */ }
 
+  function diasDesde(fechaStr) {
+    if (!fechaStr) return null;
+    const diff = Date.now() - new Date(fechaStr).getTime();
+    return Math.floor(diff / 86400000);
+  }
+
   async function loadFuelConfig() {
     try {
       const configs = await NovaAPI.configuracion.fuel();
       const container = document.getElementById('fuel-cards');
-      container.innerHTML = configs.map((c) => `
-        <div class="fuel-card" data-courier="${c.courier}">
+      container.innerHTML = configs.map((c) => {
+        const dias = diasDesde(c.fecha_actualizacion);
+        const alertClass = dias >= 14 ? 'fuel-card--danger' : dias >= 7 ? 'fuel-card--warn' : '';
+        const alertMsg = dias >= 14
+          ? `Hace ${dias} días — actualizar urgente`
+          : dias >= 7
+          ? `Hace ${dias} días — verificar`
+          : dias !== null ? `Hace ${dias} día${dias === 1 ? '' : 's'}` : '';
+        return `
+        <div class="fuel-card ${alertClass}" data-courier="${c.courier}">
           <h4>${c.courier}</h4>
           <div class="current">${c.fuel_pct}%</div>
+          <p class="fuel-age">${alertMsg}</p>
           <p class="hint">Actualizado: ${NovaUtils.formatDate(c.fecha_actualizacion?.slice(0, 10))}</p>
           <div class="form-group" style="margin-top:0.75rem">
             <label>Nuevo % fuel</label>
             <input type="number" class="fuel-input" step="0.1" min="0" value="${c.fuel_pct}">
           </div>
           <button type="button" class="btn btn-primary btn-sm btn-save-fuel" style="margin-top:0.5rem">Guardar</button>
-        </div>`
-      ).join('');
+        </div>`;
+      }).join('');
 
       container.querySelectorAll('.btn-save-fuel').forEach((btn) => {
         btn.addEventListener('click', async () => {
@@ -551,6 +566,46 @@
             <td>${h.courier}</td>
             <td>${h.fuel_pct_anterior}%</td>
             <td>${h.fuel_pct_nuevo}%</td>
+          </tr>`).join('')
+        : '<tr><td colspan="4" class="empty">Sin cambios registrados</td></tr>';
+
+      // Sección umbral de ganancia mínima
+      const umbrales = await NovaAPI.configuracion.umbral();
+      const umbralContainer = document.getElementById('umbral-cards');
+      umbralContainer.innerHTML = umbrales.map((c) => `
+        <div class="fuel-card" data-courier="${c.courier}">
+          <h4>${c.courier}</h4>
+          <div class="current">${c.ganancia_minima_pct}%</div>
+          <div class="form-group" style="margin-top:0.75rem">
+            <label>Ganancia mínima antes de alertar (%)</label>
+            <input type="number" class="umbral-input" step="1" min="0" value="${c.ganancia_minima_pct}">
+          </div>
+          <button type="button" class="btn btn-primary btn-sm btn-save-umbral" style="margin-top:0.5rem">Guardar</button>
+        </div>`).join('');
+
+      umbralContainer.querySelectorAll('.btn-save-umbral').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const card = btn.closest('.fuel-card');
+          const courier = card.dataset.courier;
+          const ganancia_minima_pct = parseFloat(card.querySelector('.umbral-input').value);
+          try {
+            await NovaAPI.configuracion.actualizarUmbral(courier, ganancia_minima_pct);
+            NovaUtils.showAlert(alertBox, `Umbral de ganancia ${courier} actualizado a ${ganancia_minima_pct}%`, 'success');
+            loadFuelConfig();
+          } catch (err) {
+            NovaUtils.showAlert(alertBox, err.message, 'error');
+          }
+        });
+      });
+
+      const umbralHist = await NovaAPI.configuracion.historialUmbral();
+      const umbralTbody = document.getElementById('umbral-hist-body');
+      umbralTbody.innerHTML = umbralHist.length
+        ? umbralHist.map((h) => `<tr>
+            <td>${h.fecha_cambio}</td>
+            <td>${h.courier}</td>
+            <td>${h.ganancia_pct_anterior}%</td>
+            <td>${h.ganancia_pct_nuevo}%</td>
           </tr>`).join('')
         : '<tr><td colspan="4" class="empty">Sin cambios registrados</td></tr>';
     } catch (err) {
