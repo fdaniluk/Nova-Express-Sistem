@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Pickups — Nova Express</title>
+  <link rel="stylesheet" href="../css/main.css">
+  <link rel="stylesheet" href="../css/modules/pickups.css">
+</head>
+<body>
+<div class="app-layout">
+
+  <aside class="sidebar">
+    <a class="sidebar-brand" href="../index.html">
+      <span class="sidebar-logo">NE</span>
+      <div>
+        <div class="sidebar-title">Nova Express</div>
+        <div class="sidebar-subtitle">Courier DHL / UPS</div>
+      </div>
+    </a>
+    <nav class="sidebar-nav">
+      <a href="../index.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
+        <span>Dashboard</span>
+      </a>
+      <a href="clientes.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+        <span>Clientes</span>
+      </a>
+      <a href="envios.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span>
+        <span>Envíos</span>
+      </a>
+      <a href="salidas.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/><line x1="17" y1="18" x2="22" y2="18"/><polyline points="19 15 22 18 19 21"/></svg></span>
+        <span>Salidas</span>
+      </a>
+      <a href="liquidaciones.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
+        <span>Liquidaciones</span>
+      </a>
+      <a href="cotizador.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
+        <span>Cotizador</span>
+      </a>
+      <a href="pickups.html" class="nav-item active">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+        <span>Pickups</span>
+      </a>
+      <a href="operaciones.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1" ry="1"/><path d="m9 12 2 2 4-4"/></svg></span>
+        <span>Operaciones</span>
+      </a>
+    </nav>
+  </aside>
+
+  <div class="page-content">
+
+    <!-- Header -->
+    <div class="page-header">
+      <h1>Pickups</h1>
+      <div class="pku-controls">
+        <div class="view-toggle">
+          <button class="view-btn active" id="btn-vista-dia">📋 Día</button>
+          <button class="view-btn" id="btn-vista-semana">📅 Semana</button>
+        </div>
+        <div class="pickups-nav">
+          <button class="btn-week" id="btn-prev-week">← Ant.</button>
+          <span class="week-label" id="week-label">—</span>
+          <button class="btn-week" id="btn-next-week">Sig. →</button>
+        </div>
+      </div>
+      <button class="btn btn-primary" id="btn-nuevo-pickup">+ Nuevo pickup</button>
+    </div>
+
+    <!-- Strip de días (solo en vista Día) -->
+    <div class="day-strip" id="day-strip"></div>
+
+    <div class="page-body">
+      <div id="alert-box"></div>
+
+      <!-- Vista Día -->
+      <div id="vista-dia">
+        <div class="dia-header">
+          <h2 class="dia-titulo" id="dia-titulo">—</h2>
+          <span class="dia-count" id="dia-count"></span>
+        </div>
+        <div class="resumen-bar">
+          <div class="resumen-card rec" id="count-rec">✓ 0 recolectados</div>
+          <div class="resumen-card pend" id="count-pend">⏱ 0 pendientes</div>
+        </div>
+        <div class="pickup-cards-list" id="pickups-dia-list">
+          <div class="dia-empty">Cargando...</div>
+        </div>
+      </div>
+
+      <!-- Vista Semana -->
+      <div id="vista-semana" class="hidden">
+        <div id="semana-list"></div>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Modal nuevo/editar pickup -->
+<div class="modal-overlay hidden" id="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2 id="modal-title">Nuevo pickup</h2>
+      <button class="modal-close" id="modal-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-group">
+        <label for="m-cliente">Cliente</label>
+        <select id="m-cliente"></select>
+      </div>
+      <div class="form-group" id="dir-group">
+        <label for="m-direccion">Dirección</label>
+        <div id="dir-input-wrap"></div>
+      </div>
+      <div class="form-group">
+        <label for="m-fecha">Fecha</label>
+        <input type="date" id="m-fecha">
+      </div>
+      <div class="hora-row">
+        <div class="form-group">
+          <label for="m-hora-inicio">Desde</label>
+          <input type="time" id="m-hora-inicio">
+        </div>
+        <div class="form-group">
+          <label for="m-hora-fin">Hasta</label>
+          <input type="time" id="m-hora-fin">
+        </div>
+      </div>
+      <div class="form-group">
+        <label for="m-notas">Notas (opcional)</label>
+        <input type="text" id="m-notas" placeholder="Ej: Llamar antes de ir">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger btn-sm btn-eliminar hidden" id="btn-eliminar-pickup">Eliminar pickup</button>
+      <button class="btn btn-secondary" id="btn-modal-cancelar">Cancelar</button>
+      <button class="btn btn-primary" id="btn-modal-guardar">Guardar pickup</button>
+    </div>
+  </div>
+</div>
+
+<!-- Panel detalle -->
+<div class="detalle-overlay hidden" id="detalle-overlay">
+  <div class="detalle-panel">
+    <div class="detalle-header">
+      <h3>Detalle del pickup</h3>
+      <button class="modal-close" id="detalle-close">✕</button>
+    </div>
+    <div class="detalle-body">
+      <div class="detalle-field">
+        <label>Cliente</label>
+        <span id="detalle-cliente">—</span>
+      </div>
+      <div class="detalle-field">
+        <label>Fecha</label>
+        <span id="detalle-fecha">—</span>
+      </div>
+      <div class="detalle-field">
+        <label>Horario</label>
+        <span id="detalle-hora">—</span>
+      </div>
+      <div class="detalle-field">
+        <label>Dirección</label>
+        <span id="detalle-dir">—</span>
+      </div>
+      <div class="detalle-field">
+        <label>Notas</label>
+        <span id="detalle-notas">—</span>
+      </div>
+      <div class="detalle-field">
+        <label>Estado</label>
+        <span id="detalle-estado">—</span>
+      </div>
+    </div>
+    <div class="detalle-actions">
+      <button class="btn btn-secondary" id="detalle-btn-editar">Editar</button>
+      <button class="btn btn-primary" id="detalle-btn-cerrar">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/main.js"></script>
+<script src="../js/modules/pickups.js"></script>
+</body>
+</html>

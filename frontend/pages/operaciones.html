@@ -3,14 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard — Nova Express</title>
-  <link rel="stylesheet" href="css/main.css">
+  <title>Operaciones — Nova Express</title>
+  <link rel="stylesheet" href="../css/main.css">
+  <link rel="stylesheet" href="../css/modules/operaciones.css">
 </head>
 <body>
 <div class="app-layout">
 
   <aside class="sidebar">
-    <a class="sidebar-brand" href="index.html">
+    <a class="sidebar-brand" href="../index.html">
       <span class="sidebar-logo">NE</span>
       <div>
         <div class="sidebar-title">Nova Express</div>
@@ -18,35 +19,35 @@
       </div>
     </a>
     <nav class="sidebar-nav">
-      <a href="index.html" class="nav-item active">
+      <a href="../index.html" class="nav-item">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
         <span>Dashboard</span>
       </a>
-      <a href="pages/clientes.html" class="nav-item">
+      <a href="clientes.html" class="nav-item">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
         <span>Clientes</span>
       </a>
-      <a href="pages/envios.html" class="nav-item">
+      <a href="envios.html" class="nav-item">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span>
         <span>Envíos</span>
       </a>
-      <a href="pages/salidas.html" class="nav-item">
+      <a href="salidas.html" class="nav-item">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/><line x1="17" y1="18" x2="22" y2="18"/><polyline points="19 15 22 18 19 21"/></svg></span>
         <span>Salidas</span>
       </a>
-      <a href="pages/liquidaciones.html" class="nav-item">
+      <a href="liquidaciones.html" class="nav-item">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
         <span>Liquidaciones</span>
       </a>
-      <a href="pages/cotizador.html" class="nav-item">
+      <a href="cotizador.html" class="nav-item">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
         <span>Cotizador</span>
       </a>
-      <a href="pages/pickups.html" class="nav-item">
+      <a href="pickups.html" class="nav-item">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
         <span>Pickups</span>
       </a>
-      <a href="pages/operaciones.html" class="nav-item">
+      <a href="operaciones.html" class="nav-item active">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1" ry="1"/><path d="m9 12 2 2 4-4"/></svg></span>
         <span>Operaciones</span>
       </a>
@@ -55,62 +56,29 @@
 
   <div class="page-content">
     <div class="page-header">
-      <h1>Dashboard</h1>
-      <div class="period-selector">
-        <button class="period-btn active" data-periodo="hoy">Hoy</button>
-        <button class="period-btn" data-periodo="semana">7 días</button>
-        <button class="period-btn" data-periodo="mes">Este mes</button>
+      <div>
+        <h1>Operaciones</h1>
+        <div id="subtitle-ops" style="font-size:0.82rem;color:var(--color-muted);margin-top:0.1rem">—</div>
+      </div>
+      <div class="date-nav">
+        <button class="btn-day" id="btn-prev-day" title="Día anterior">&#8249;</button>
+        <span class="date-label" id="date-label">—</span>
+        <button class="btn-day" id="btn-next-day" title="Día siguiente">&#8250;</button>
+        <input type="date" id="date-picker" title="Ir a fecha">
       </div>
     </div>
 
     <div class="page-body">
       <div id="alert-box"></div>
-
-      <!-- Metric cards -->
-      <div class="metrics-grid" id="metrics-grid">
-        <div class="metric-card"><div class="metric-label">Cargando...</div></div>
-      </div>
-
-      <!-- Chart + Top clientes -->
-      <div class="dashboard-cols">
-        <div class="card">
-          <h2>Utilidad por período</h2>
-          <canvas id="chart-utilidad" width="500" height="220"></canvas>
-        </div>
-        <div class="card">
-          <h2>Top clientes</h2>
-          <div class="table-wrap">
-            <table id="table-top-clientes">
-              <thead>
-                <tr><th>Cliente</th><th>Envíos</th><th>Kilos</th><th>Utilidad</th></tr>
-              </thead>
-              <tbody id="top-clientes-body"></tbody>
-            </table>
-          </div>
-        </div>
-      </div>
-
-      <!-- Courier mix + Pending -->
-      <div class="dashboard-cols">
-        <div class="card">
-          <h2>Mix de couriers</h2>
-          <div id="courier-mix"></div>
-        </div>
-        <div class="card">
-          <h2>Accesos rápidos</h2>
-          <div class="actions" style="flex-direction:column;align-items:flex-start;gap:0.6rem">
-            <a href="pages/envios.html" class="btn btn-primary">Registrar envío</a>
-            <a href="pages/liquidaciones.html" class="btn btn-secondary">Nueva liquidación</a>
-            <a href="pages/clientes.html" class="btn btn-secondary">Gestionar clientes</a>
-          </div>
-        </div>
+      <div class="ops-list" id="ops-list">
+        <div class="ops-empty">Cargando...</div>
       </div>
     </div>
   </div>
 </div>
 
-<script src="js/api.js"></script>
-<script src="js/main.js"></script>
-<script src="js/modules/dashboard.js"></script>
+<script src="../js/api.js"></script>
+<script src="../js/main.js"></script>
+<script src="../js/modules/operaciones.js"></script>
 </body>
 </html>
