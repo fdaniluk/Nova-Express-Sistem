@@ -132,4 +132,21 @@ api.tracking = {
   ups: (guia) => api.get(`/tracking/ups/${encodeURIComponent(guia)}`),
 };
 
+api.facturas = {
+  chequear: (file) => {
+    const fd = new FormData();
+    fd.append('pdf', file);
+    return request('/facturas/chequear', { method: 'POST', body: fd });
+  },
+  cargar: (file, sobreescribir) => {
+    const fd = new FormData();
+    fd.append('pdf', file);
+    fd.append('sobreescribir', sobreescribir ? 'true' : 'false');
+    return request('/facturas/cargar', { method: 'POST', body: fd });
+  },
+  guias: () => api.get('/facturas/guias'),
+  actualizarEstado: (id, estado_revision) =>
+    request(`/facturas/guias/${id}/estado`, { method: 'PATCH', body: { estado_revision } }),
+};
+
 window.NovaAPI = api;

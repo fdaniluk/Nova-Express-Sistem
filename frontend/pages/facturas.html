@@ -3,30 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Clientes – Nova Express</title>
+  <title>Control de Facturas – Nova Express</title>
   <link rel="stylesheet" href="../css/main.css">
-  <style>
-    .form-clientes {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 0.75rem 1rem;
-    }
-    .tipo-cobro-hint {
-      font-size: 0.75rem;
-      color: var(--color-muted);
-      margin-top: 0.2rem;
-    }
-    .btn-link {
-      background: none;
-      border: none;
-      padding: 0;
-      color: var(--color-primary-light);
-      cursor: pointer;
-      font: inherit;
-      text-decoration: underline;
-      font-size: 0.9rem;
-    }
-  </style>
+  <link rel="stylesheet" href="../css/modules/facturas.css">
 </head>
 <body>
 <div class="app-layout">
@@ -44,7 +23,7 @@
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
         <span>Dashboard</span>
       </a>
-      <a href="clientes.html" class="nav-item active">
+      <a href="clientes.html" class="nav-item">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
         <span>Clientes</span>
       </a>
@@ -72,7 +51,7 @@
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1" ry="1"/><path d="m9 12 2 2 4-4"/></svg></span>
         <span>Operaciones</span>
       </a>
-      <a href="facturas.html" class="nav-item">
+      <a href="facturas.html" class="nav-item active">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></span>
         <span>Facturas</span>
       </a>
@@ -81,98 +60,90 @@
 
   <div class="page-content">
     <div class="page-header">
-      <h1>Clientes</h1>
-      <button class="btn btn-primary" id="btn-nuevo">+ Nuevo cliente</button>
+      <h1>Control de Facturas</h1>
+      <span style="font-size:0.8rem;color:var(--color-muted)">UPS</span>
     </div>
 
     <div class="page-body">
       <div id="alert-box"></div>
 
-      <!-- Formulario add/edit (oculto por defecto) -->
-      <div class="card hidden" id="form-panel">
-        <h2 id="form-title">Nuevo cliente</h2>
-        <form id="form-cliente">
-          <input type="hidden" id="cliente-id">
-          <div class="form-clientes">
-            <div class="form-group">
-              <label for="f-razon_social">Razón social *</label>
-              <input type="text" id="f-razon_social" required>
-            </div>
-            <div class="form-group">
-              <label for="f-cuit">CUIT</label>
-              <input type="text" id="f-cuit" placeholder="30-12345678-9">
-            </div>
-            <div class="form-group">
-              <label for="f-tipo_cobro">Tipo de cobro</label>
-              <select id="f-tipo_cobro">
-                <option value="CC">Cuenta Corriente</option>
-                <option value="D">Diario</option>
-                <option value="S">Semanal</option>
-                <option value="Q">Quincenal</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="f-tarifa_pct">% Tarifa (profit)</label>
-              <input type="number" id="f-tarifa_pct" min="0" max="100" step="0.5" value="0">
-            </div>
-            <div class="form-group">
-              <label for="f-tipo_facturacion">Tipo facturación</label>
-              <select id="f-tipo_facturacion">
-                <option value="Responsable inscripto">Responsable inscripto</option>
-                <option value="Monotributista">Monotributista</option>
-                <option value="Exento">Exento</option>
-                <option value="Consumidor final">Consumidor final</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="f-contacto">Contacto</label>
-              <input type="text" id="f-contacto">
-            </div>
-            <div class="form-group">
-              <label for="f-email">Email</label>
-              <input type="email" id="f-email">
-            </div>
-            <div class="form-group">
-              <label for="f-whatsapp">WhatsApp</label>
-              <input type="text" id="f-whatsapp" placeholder="+54 9 11 ...">
-            </div>
-            <div class="form-group">
-              <label for="f-codigo_postal">Código postal</label>
-              <input type="text" id="f-codigo_postal">
-            </div>
-            <div class="form-group full">
-              <label for="f-direccion_recoleccion">Dirección de recolección</label>
-              <input type="text" id="f-direccion_recoleccion">
-              <small class="tipo-cobro-hint">Las direcciones adicionales se gestionan desde el perfil del cliente.</small>
-            </div>
-          </div>
-          <div class="actions">
-            <button type="submit" class="btn btn-primary">Guardar</button>
-            <button type="button" class="btn btn-secondary" id="btn-cancelar">Cancelar</button>
-          </div>
-        </form>
+      <div class="tabs">
+        <button class="tab active" data-tab="cargar">Cargar factura</button>
+        <button class="tab" data-tab="revisar">Revisar guías</button>
       </div>
 
-      <!-- Tabla de clientes -->
-      <div class="card">
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Razón social</th>
-                <th>CUIT</th>
-                <th>Contacto</th>
-                <th>Email</th>
-                <th>Tipo cobro</th>
-                <th>Tarifa %</th>
-                <th>Estado</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="tabla-clientes">
-              <tr><td colspan="8" class="empty">Cargando...</td></tr>
-            </tbody>
-          </table>
+      <!-- ── PESTAÑA: CARGAR ─────────────────────────────── -->
+      <div id="tab-cargar">
+        <div class="card">
+          <h2>Cargar PDF de factura UPS</h2>
+
+          <div class="fac-upload-zone">
+            <label class="fac-file-label" id="fac-file-label" for="fac-file-input">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              Elegir PDF
+            </label>
+            <input type="file" id="fac-file-input" accept="application/pdf,.pdf">
+            <span class="fac-filename" id="fac-filename">Ningún archivo seleccionado</span>
+            <button class="btn btn-primary" id="btn-cargar" disabled>Cargar factura</button>
+          </div>
+
+          <!-- Confirmación de duplicados (oculto inicialmente) -->
+          <div class="fac-confirm hidden" id="fac-confirm">
+            <div class="fac-confirm-msg" id="fac-confirm-msg"></div>
+            <div class="fac-confirm-actions">
+              <button class="btn btn-primary" id="btn-sobreescribir">Sí, sobreescribir</button>
+              <button class="btn btn-secondary" id="btn-omitir">No, omitir las repetidas</button>
+            </div>
+          </div>
+
+          <!-- Resumen post-carga (oculto inicialmente) -->
+          <div class="fac-resumen hidden" id="fac-resumen">
+            <div class="fac-resumen-nums" id="fac-resumen-nums"></div>
+          </div>
+
+          <!-- Lista de no encontradas (oculto inicialmente) -->
+          <div class="fac-no-enc hidden" id="fac-no-enc">
+            <div class="fac-no-enc-title">Estas guías de la factura no están en el sistema — revisar</div>
+            <table class="fac-no-enc-table">
+              <thead><tr><th>Guía</th><th>País</th><th>Costo</th></tr></thead>
+              <tbody id="fac-no-enc-body"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <!-- ── PESTAÑA: REVISAR ────────────────────────────── -->
+      <div id="tab-revisar" class="hidden">
+        <div class="card">
+          <div class="fac-revisar-header">
+            <h2 style="margin:0">Guías con costo facturado</h2>
+            <div style="display:flex;gap:0.5rem;align-items:center">
+              <span class="fac-revisar-counter" id="fac-revisar-counter"></span>
+              <button class="btn btn-sm btn-secondary" id="btn-revisar-reload">↺ Actualizar</button>
+            </div>
+          </div>
+
+          <div class="fac-table-wrap">
+            <table class="fac-table" id="fac-table">
+              <thead>
+                <tr>
+                  <th>Guía</th>
+                  <th>Cliente</th>
+                  <th>País</th>
+                  <th>F. Factura</th>
+                  <th class="num">Venta</th>
+                  <th class="num">Costo</th>
+                  <th class="num">Ganancia</th>
+                  <th class="num">%</th>
+                  <th>Estado</th>
+                  <th>Acciones</th>
+                </tr>
+              </thead>
+              <tbody id="fac-table-body">
+                <tr><td colspan="10" class="empty">Cargando…</td></tr>
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -181,6 +152,6 @@
 
 <script src="../js/api.js"></script>
 <script src="../js/main.js"></script>
-<script src="../js/modules/clientes.js"></script>
+<script src="../js/modules/facturas.js"></script>
 </body>
 </html>

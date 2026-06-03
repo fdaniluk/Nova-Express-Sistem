@@ -1,0 +1,283 @@
+/* ── Pestaña Cargar ──────────────────────────────────────── */
+
+.fac-upload-zone {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.fac-file-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: #f8fafc;
+  cursor: pointer;
+  font-size: 0.875rem;
+  color: var(--color-muted);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.fac-file-label:hover {
+  border-color: var(--color-primary-light);
+  background: #f1f5f9;
+}
+
+.fac-file-label.has-file {
+  color: var(--color-text);
+  border-color: var(--color-primary-light);
+  background: #eff6ff;
+}
+
+#fac-file-input {
+  display: none;
+}
+
+.fac-filename {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+  font-style: italic;
+}
+
+.fac-filename.has-file {
+  color: var(--color-text);
+  font-style: normal;
+  font-weight: 500;
+}
+
+/* ── Panel de confirmación de duplicados ─────────────────── */
+
+.fac-confirm {
+  margin-top: 1rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid #fde68a;
+  border-radius: var(--radius);
+  background: #fffbeb;
+}
+
+.fac-confirm-msg {
+  font-size: 0.95rem;
+  color: #92400e;
+  margin-bottom: 0.75rem;
+}
+
+.fac-confirm-msg strong {
+  color: #78350f;
+}
+
+.fac-confirm-actions {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+/* ── Resumen post-carga ──────────────────────────────────── */
+
+.fac-resumen {
+  margin-top: 1rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid #bbf7d0;
+  border-radius: var(--radius);
+  background: #f0fdf4;
+}
+
+.fac-resumen-nums {
+  display: flex;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+  font-size: 0.95rem;
+  color: var(--color-text);
+}
+
+.fac-resumen-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 80px;
+}
+
+.fac-resumen-val {
+  font-size: 1.6rem;
+  font-weight: 700;
+  line-height: 1.1;
+  color: var(--color-primary);
+}
+
+.fac-resumen-val.danger  { color: var(--color-danger); }
+.fac-resumen-val.warning { color: #b45309; }
+
+.fac-resumen-lbl {
+  font-size: 0.72rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-muted);
+  margin-top: 0.15rem;
+  text-align: center;
+}
+
+/* ── Lista de guías no encontradas ───────────────────────── */
+
+.fac-no-enc {
+  margin-top: 1rem;
+  padding: 1rem 1.25rem;
+  border: 1px solid #fecaca;
+  border-radius: var(--radius);
+  background: #fef2f2;
+}
+
+.fac-no-enc-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-danger);
+  margin-bottom: 0.6rem;
+}
+
+.fac-no-enc-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+
+.fac-no-enc-table th,
+.fac-no-enc-table td {
+  padding: 0.35rem 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid #fecaca;
+}
+
+.fac-no-enc-table th {
+  background: transparent;
+  color: var(--color-danger);
+  font-size: 0.72rem;
+}
+
+.fac-no-enc-table tr:last-child td {
+  border-bottom: none;
+}
+
+/* ── Pestaña Revisar ─────────────────────────────────────── */
+
+.fac-revisar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 1rem;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.fac-revisar-counter {
+  font-size: 0.85rem;
+  color: var(--color-muted);
+}
+
+.fac-table-wrap {
+  overflow-x: auto;
+}
+
+.fac-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.875rem;
+}
+
+.fac-table th,
+.fac-table td {
+  padding: 0.5rem 0.65rem;
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+}
+
+.fac-table th {
+  background: #f1f5f9;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  color: var(--color-muted);
+  font-weight: 600;
+}
+
+.fac-table td.num { text-align: right; }
+
+.fac-table tr:hover td { background: #f8fafc; }
+
+/* a_revisar rows */
+.fac-table tr.row-a-revisar td {
+  background: #fffbeb;
+}
+
+.fac-table tr.row-a-revisar:hover td {
+  background: #fef3c7;
+}
+
+/* reclamar rows */
+.fac-table tr.row-reclamar td {
+  background: #eff6ff;
+}
+
+.fac-table tr.row-reclamar:hover td {
+  background: #dbeafe;
+}
+
+/* ── Badges de estado ────────────────────────────────────── */
+
+.badge-a-revisar {
+  background: #fef3c7;
+  color: #92400e;
+  border: 1px solid #fde68a;
+}
+
+.badge-revisado-ok {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.badge-reclamar {
+  background: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
+/* ── Botones de acción inline ────────────────────────────── */
+
+.fac-action-btns {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.btn-ok {
+  background: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.btn-ok:hover {
+  background: #bbf7d0;
+}
+
+.btn-reclamar {
+  background: #dbeafe;
+  color: #1e40af;
+  border: 1px solid #bfdbfe;
+}
+
+.btn-reclamar:hover {
+  background: #bfdbfe;
+}
+
+.btn-loading {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* ── Ganancia coloreada ──────────────────────────────────── */
+
+.gain-pos  { color: var(--color-success); font-weight: 600; }
+.gain-neg  { color: var(--color-danger);  font-weight: 600; }
+.gain-zero { color: var(--color-muted); }

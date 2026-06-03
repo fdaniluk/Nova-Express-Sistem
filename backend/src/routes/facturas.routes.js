@@ -9,6 +9,8 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 },
 });
 
+const ESTADOS_VALIDOS = ['a_revisar', 'revisado_ok', 'reclamar'];
+
 // POST /api/facturas/chequear
 // Solo lectura: extrae el PDF y devuelve qué guías ya tienen costo cargado en la BD.
 router.post('/chequear', upload.single('pdf'), async (req, res, next) => {
@@ -88,7 +90,11 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
 
           if (!envio) {
             resumen.no_encontradas++;
-            resumen.no_encontradas_lista.push(guia.numero_guia);
+            resumen.no_encontradas_lista.push({
+              numero_guia: guia.numero_guia,
+              pais: guia.pais,
+              costo_total: guia.costo_total,
+            });
             await db.exec('RELEASE SAVEPOINT factura_row');
             continue;
           }
@@ -110,11 +116,11 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
 
           await db.prepare(`
             UPDATE envios
-            SET costo_facturado  = ?,
+            SET costo_facturado   = ?,
                 courier_facturado = 'UPS',
-                fecha_facturado  = ?,
-                estado_revision  = ?,
-                updated_at       = datetime('now', 'localtime')
+                fecha_facturado   = ?,
+                estado_revision   = ?,
+                updated_at        = datetime('now', 'localtime')
             WHERE id = ?
           `).run(costo_facturado, hoy, estado_revision, envio.id);
 
@@ -137,6 +143,92 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
     });
 
     res.json(resumen);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/facturas/guias
+// Devuelve todos los envíos que tienen costo facturado, con ganancia calculada.
+// Los a_revisar van primero.
+router.get('/guias', async (req, res, next) => {
+  try {
+    const db = getDb();
+    const rows = await db.prepare(`
+      SELECT
+        e.id, e.numero_guia, e.pais_destino, e.fecha,
+        e.total_cobrado, e.costo_facturado, e.courier_facturado,
+        e.fecha_facturado, e.estado_revision,
+        c.nombre AS cliente
+      FROM envios e
+      JOIN clientes c ON c.id = e.cliente_id
+      WHERE e.costo_facturado IS NOT NULL
+      ORDER BY
+        CASE e.estado_revision
+          WHEN 'a_revisar'   THEN 0
+          WHEN 'reclamar'    THEN 1
+          ELSE 2
+        END,
+        e.fecha_facturado DESC,
+        e.id DESC
+    `).all();
+
+    const result = rows.map((r) => {
+      const ganancia_usd = r.total_cobrado != null
+        ? Math.round((r.total_cobrado - r.costo_facturado) * 100) / 100
+        : null;
+      const ganancia_pct = r.costo_facturado > 0 && ganancia_usd != null
+        ? Math.round((ganancia_usd / r.costo_facturado) * 10000) / 100
+        : null;
+      return {
+        id: r.id,
+        numero_guia: r.numero_guia,
+        cliente: r.cliente,
+        pais_destino: r.pais_destino,
+        fecha: r.fecha,
+        total_cobrado: r.total_cobrado,
+        costo_facturado: r.costo_facturado,
+        courier_facturado: r.courier_facturado,
+        fecha_facturado: r.fecha_facturado,
+        ganancia_usd,
+        ganancia_pct,
+        estado_revision: r.estado_revision,
+      };
+    });
+
+    res.json(result);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// PATCH /api/facturas/guias/:id/estado
+// Actualiza estado_revision de un envío con costo facturado.
+router.patch('/guias/:id/estado', async (req, res, next) => {
+  try {
+    const db = getDb();
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: 'ID inválido' });
+
+    const { estado_revision } = req.body;
+    if (!ESTADOS_VALIDOS.includes(estado_revision)) {
+      return res.status(400).json({
+        error: `estado_revision debe ser uno de: ${ESTADOS_VALIDOS.join(', ')}`,
+      });
+    }
+
+    const envio = await db
+      .prepare('SELECT id FROM envios WHERE id = ? AND costo_facturado IS NOT NULL')
+      .get(id);
+    if (!envio) return res.status(404).json({ error: 'Envío no encontrado o sin costo facturado' });
+
+    await db.prepare(`
+      UPDATE envios
+      SET estado_revision = ?, updated_at = datetime('now', 'localtime')
+      WHERE id = ?
+    `).run(estado_revision, id);
+
+    res.json({ ok: true, estado_revision });
   } catch (err) {
     next(err);
   }
