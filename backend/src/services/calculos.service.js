@@ -67,7 +67,7 @@ function redondear2(n) {
 // ─────────────────────────────────────────────────────────────
 
 // Surge fee UPS — conjuntos de países con tarifa especial
-const SURGE_ISRAEL_EAU = new Set(['Israel', 'Emiratos Árabes Unidos']);
+const SURGE_EAU = new Set(['Emiratos Árabes Unidos']);
 const SURGE_INDIA = new Set(['India']);
 const SURGE_ISMEA = new Set([
   'Arabia Saudita','Bahréin','Irak','Irán','Israel','Jordania','Kuwait','Líbano','Omán','Qatar',
@@ -242,7 +242,8 @@ function canonizarPais(pais) {
 // Surge fee UPS (USD/kg) según país y tipo de operación
 function getSurge(pais, tipo, pf) {
   const p = canonizarPais(pais);
-  if (SURGE_ISRAEL_EAU.has(p)) return redondear2(pf * 3.30);
+  if (p === 'Israel') return tipo === 'export' ? redondear2(pf * 3.30) : redondear2(pf * 0.50);
+  if (SURGE_EAU.has(p)) return redondear2(pf * 3.30);
   if (tipo === 'import' && SURGE_INDIA.has(p)) return redondear2(pf * 1.45);
   if (SURGE_ISMEA.has(p)) return redondear2(pf * 2.95);
   return redondear2(pf * 0.50);
