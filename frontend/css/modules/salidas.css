@@ -1,0 +1,385 @@
+/* ── Toolbar ── */
+.salidas-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+.salidas-toolbar .search-box {
+  flex: 1;
+  min-width: 220px;
+  position: relative;
+}
+
+.salidas-toolbar .search-box input {
+  width: 100%;
+  padding: 7px 34px 7px 32px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  background: #fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cline x1='21' y1='21' x2='16.65' y2='16.65'/%3E%3C/svg%3E") no-repeat 9px center;
+}
+
+.salidas-toolbar .search-box input:focus {
+  outline: none;
+  border-color: var(--color-primary-light);
+  box-shadow: 0 0 0 2px rgba(45, 90, 135, 0.12);
+}
+
+.search-clear {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  color: var(--color-muted);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 1;
+  padding: 2px;
+  display: none;
+}
+
+.search-clear.visible { display: block; }
+
+.salidas-counter {
+  font-size: 12px;
+  color: var(--color-muted);
+  white-space: nowrap;
+}
+
+/* ── Filter chips ── */
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 0;
+  margin-bottom: 6px;
+}
+
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: #e0e7ff;
+  color: #3730a3;
+  border-radius: 20px;
+  padding: 3px 10px 3px 8px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.chip-remove {
+  background: none;
+  border: none;
+  color: #6366f1;
+  cursor: pointer;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+  margin-left: 2px;
+}
+
+/* ── Table wrapper ── */
+.salidas-table-wrap {
+  overflow-x: auto;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+}
+
+.salidas-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+  table-layout: auto;
+  min-width: 1400px;
+}
+
+.salidas-table th,
+.salidas-table td {
+  padding: 6px 9px;
+  border-bottom: 1px solid #edf0f5;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.salidas-table th {
+  background: #f1f5f9;
+  font-weight: 600;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-muted);
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.salidas-table th:hover { background: #e2e8f0; }
+
+.salidas-table tr:last-child td { border-bottom: none; }
+.salidas-table tbody tr:hover { background: #f8fafc; }
+
+/* Numeric columns right-aligned */
+.salidas-table .num { text-align: right; font-variant-numeric: tabular-nums; }
+.salidas-table .mono { font-family: 'Courier New', monospace; font-size: 11.5px; }
+
+/* Sort indicators */
+.th-inner {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sort-icon {
+  font-size: 9px;
+  color: #94a3b8;
+  flex-shrink: 0;
+}
+
+th.sort-asc .sort-icon::after { content: '▲'; color: var(--color-primary); }
+th.sort-desc .sort-icon::after { content: '▼'; color: var(--color-primary); }
+th:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: '⇅'; }
+
+/* ── Column filter button ── */
+.filter-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #94a3b8;
+  padding: 1px 3px;
+  border-radius: 3px;
+  font-size: 10px;
+  flex-shrink: 0;
+  line-height: 1;
+}
+
+.filter-btn:hover,
+.filter-btn.active { color: var(--color-primary); background: #e0e7ff; }
+
+/* ── Dropdown filter ── */
+.filter-dropdown {
+  position: absolute;
+  z-index: 50;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.12);
+  min-width: 200px;
+  max-height: 320px;
+  display: flex;
+  flex-direction: column;
+  padding: 8px;
+}
+
+.filter-dropdown .dd-search {
+  padding: 5px 8px;
+  font-size: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  margin-bottom: 6px;
+  width: 100%;
+}
+
+.filter-dropdown .dd-list {
+  overflow-y: auto;
+  flex: 1;
+}
+
+.filter-dropdown label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 2px;
+  font-size: 12px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.filter-dropdown label:hover { background: #f1f5f9; }
+
+.dd-actions {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 7px;
+  padding-top: 6px;
+  border-top: 1px solid var(--color-border);
+  gap: 6px;
+}
+
+.dd-actions button {
+  flex: 1;
+  padding: 4px 0;
+  font-size: 11px;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: #f8fafc;
+  cursor: pointer;
+}
+
+.dd-actions .dd-apply {
+  background: var(--color-primary);
+  color: #fff;
+  border-color: var(--color-primary);
+}
+
+/* ── Badges ── */
+.badge {
+  display: inline-block;
+  padding: 2px 7px;
+  border-radius: 10px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+.badge-ups    { background: #fef3c7; color: #92400e; }
+.badge-dhl    { background: #fee2e2; color: #991b1b; }
+.badge-fx     { background: #d1fae5; color: #065f46; }
+
+.badge-cobro-d  { background: #dbeafe; color: #1e40af; }
+.badge-cobro-s  { background: #e0e7ff; color: #3730a3; }
+.badge-cobro-q  { background: #fce7f3; color: #9d174d; }
+.badge-cobro-cc { background: #f3f4f6; color: #374151; }
+
+.badge-m      { background: #ecfdf5; color: #065f46; }
+.badge-d      { background: #eff6ff; color: #1e40af; }
+
+.badge-impo   { background: #fef3c7; color: #92400e; }
+.badge-expo   { background: #e0f2fe; color: #075985; }
+
+.badge-liq    { background: #d1fae5; color: #065f46; }
+.badge-pend-ok  { background: #fef3c7; color: #92400e; }
+.badge-pend-alert { background: #fee2e2; color: #991b1b; }
+
+/* ── Alert row indicators ── */
+.row-alert-rojo td:first-child { border-left: 3px solid #dc2626; }
+.row-alert-ambar td:first-child { border-left: 3px solid #d97706; }
+
+.alert-icon {
+  cursor: help;
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 12px;
+  vertical-align: middle;
+}
+
+/* ── Expand / collapse (multi-bulto) ── */
+.expand-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-primary-light);
+  font-size: 11px;
+  padding: 1px 4px;
+  border-radius: 3px;
+}
+
+.expand-btn:hover { background: #e0e7ff; }
+
+.bulto-detail-row td {
+  background: #f8fafc;
+  padding-left: 28px;
+  font-size: 11.5px;
+  color: var(--color-muted);
+}
+
+/* ── Dash for empty values ── */
+.em { color: #cbd5e1; }
+
+/* ── Empty state ── */
+.salidas-empty {
+  text-align: center;
+  padding: 2rem;
+  color: var(--color-muted);
+  font-size: 14px;
+}
+
+/* ── Alerta-only filter toggle ── */
+.btn-toggle-alertas.active {
+  background: #fee2e2;
+  color: #991b1b;
+  border-color: #fca5a5;
+}
+
+/* ── Load more ── */
+.load-more-wrap {
+  text-align: center;
+  padding: 12px;
+}
+
+/* ── UPS Tracking ── */
+.track-btn {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 1px 3px;
+  margin-left: 4px;
+  border-radius: 3px;
+  vertical-align: middle;
+  opacity: 0.6;
+  line-height: 1;
+}
+
+.track-btn:hover { opacity: 1; background: #fef3c7; }
+
+.tracking-popup {
+  position: absolute;
+  z-index: 60;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.14);
+  min-width: 220px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+}
+
+.tracking-header {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-weight: 600;
+  font-size: 11px;
+  color: var(--color-muted);
+  margin-bottom: 8px;
+  font-family: 'Courier New', monospace;
+}
+
+.tracking-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 3px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.tracking-row:last-child { border-bottom: none; }
+
+.tracking-label {
+  color: var(--color-muted);
+  font-size: 11px;
+  flex-shrink: 0;
+}
+
+.tracking-loading {
+  color: var(--color-muted);
+  font-size: 12px;
+  padding: 4px 0;
+}
+
+.tracking-error {
+  color: #dc2626;
+  font-size: 12px;
+  padding: 4px 0;
+  max-width: 260px;
+  word-break: break-word;
+}
