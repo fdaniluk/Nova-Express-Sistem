@@ -196,7 +196,10 @@
       <div class="pickup-card-v2-header">
         <div class="pickup-avatar ${sc}">${escHtml(getInitials(p.cliente_nombre))}</div>
         <div class="pickup-card-v2-info">
-          <div class="pickup-client-name">${escHtml(p.cliente_nombre)}${courierBadgeHtml(p.courier)}</div>
+          <div class="pickup-name-row">
+            <div class="pickup-client-name">${escHtml(p.cliente_nombre)}</div>
+            ${courierBadgeHtml(p.courier)}
+          </div>
           <div class="pickup-hora">${escHtml(p.hora_inicio)} – ${escHtml(p.hora_fin)}</div>
         </div>
         <span class="pickup-badge ${sc}">${badgeText}</span>
@@ -429,8 +432,12 @@
     const fecha = document.getElementById('m-fecha').value;
     const hora_inicio = document.getElementById('m-hora-inicio').value;
     const hora_fin = document.getElementById('m-hora-fin').value;
-    const courier = document.getElementById('m-courier').value || null;
+    const courierEl = document.getElementById('m-courier');
+    const courier = courierEl ? (courierEl.value || null) : null;
     const notas = document.getElementById('m-notas').value.trim() || null;
+    console.log('[guardarPickup] courierEl:', courierEl, '| value:', courierEl?.value, '| courier enviado:', courier);
+    const payload = { cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, notas };
+    console.log('[guardarPickup] payload completo:', JSON.stringify(payload));
     if (!cliente_id || !direccion || !fecha || !hora_inicio || !hora_fin) {
       NovaUtils.showAlert(alertBox, 'Completá todos los campos obligatorios.');
       return;

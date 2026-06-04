@@ -39,6 +39,7 @@ router.post('/', async (req, res, next) => {
   try {
     const db = getDb();
     const { cliente_id, direccion, fecha, hora_inicio, hora_fin, notas, courier } = req.body;
+    console.log('[POST /pickups] req.body.courier:', JSON.stringify(courier), '| body completo:', JSON.stringify(req.body));
 
     if (!cliente_id || !direccion || !fecha || !hora_inicio || !hora_fin) {
       return res
@@ -51,11 +52,14 @@ router.post('/', async (req, res, next) => {
       .get(cliente_id);
     if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
 
+    const insertParams = [cliente_id, cliente.nombre, direccion, fecha, hora_inicio, hora_fin, notas || null, courier || null];
+    console.log('[POST /pickups] INSERT params:', JSON.stringify(insertParams));
+
     const result = await db
       .prepare(
         'INSERT INTO pickups (cliente_id, cliente_nombre, direccion, fecha, hora_inicio, hora_fin, notas, courier) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
       )
-      .run(cliente_id, cliente.nombre, direccion, fecha, hora_inicio, hora_fin, notas || null, courier || null);
+      .run(...insertParams);
 
     const created = await db.prepare('SELECT * FROM pickups WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(created);

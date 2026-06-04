@@ -251,6 +251,13 @@
   min-width: 0;
 }
 
+.pickup-name-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  min-width: 0;
+}
+
 .pickup-client-name {
   font-size: 17px;
   font-weight: 500;
@@ -258,6 +265,8 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  flex: 1;
+  min-width: 0;
 }
 
 .recolectado .pickup-client-name {
