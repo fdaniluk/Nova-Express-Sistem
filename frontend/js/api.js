@@ -68,7 +68,7 @@ const api = {
     preview: (data) => api.post('/liquidaciones/preview', data),
     crear: (data) => api.post('/liquidaciones', data),
     cotizar: (data) => api.post('/liquidaciones/cotizar', data),
-    confirmar: (id) => api.post(`/liquidaciones/${id}/confirmar`),
+    confirmar: (id) => request(`/liquidaciones/${id}/confirmar`, { method: 'PATCH' }),
     listar: (params) => {
       const q = new URLSearchParams(params).toString();
       return api.get(`/liquidaciones${q ? `?${q}` : ''}`);

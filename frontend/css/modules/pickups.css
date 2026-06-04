@@ -611,6 +611,23 @@
 
 .detalle-actions button { flex: 1; min-height: 44px; }
 
+/* ── Badge courier ───────────────────────────────────────── */
+.courier-badge {
+  display: inline-block;
+  padding: 0.1rem 0.42rem;
+  border-radius: 4px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  margin-left: 0.4rem;
+  vertical-align: middle;
+  flex-shrink: 0;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+
+.courier-badge-dhl { background: #FFCC00; color: #CC0000; }
+.courier-badge-ups { background: #351C15; color: #FFB500; }
+
 /* ── Responsive ──────────────────────────────────────────── */
 @media (max-width: 700px) {
   .pku-controls {

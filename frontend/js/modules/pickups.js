@@ -196,7 +196,7 @@
       <div class="pickup-card-v2-header">
         <div class="pickup-avatar ${sc}">${escHtml(getInitials(p.cliente_nombre))}</div>
         <div class="pickup-card-v2-info">
-          <div class="pickup-client-name">${escHtml(p.cliente_nombre)}</div>
+          <div class="pickup-client-name">${escHtml(p.cliente_nombre)}${courierBadgeHtml(p.courier)}</div>
           <div class="pickup-hora">${escHtml(p.hora_inicio)} – ${escHtml(p.hora_fin)}</div>
         </div>
         <span class="pickup-badge ${sc}">${badgeText}</span>
@@ -229,6 +229,7 @@
             return `<div class="semana-row ${sc}" data-action="goto-dia" data-ymd="${ymd}">
               <span class="semana-dot ${sc}"></span>
               <span class="semana-row-name">${escHtml(p.cliente_nombre)}</span>
+              ${courierBadgeHtml(p.courier)}
               <span class="semana-row-hora">${escHtml(p.hora_inicio)}</span>
               <span class="semana-row-badge ${sc}">${esRec ? '✓ Listo' : 'Pendiente'}</span>
             </div>`;
@@ -289,6 +290,7 @@
     document.getElementById('detalle-hora').textContent = `${p.hora_inicio} – ${p.hora_fin}`;
     document.getElementById('detalle-dir').textContent = p.direccion;
     document.getElementById('detalle-notas').textContent = p.notas || '—';
+    document.getElementById('detalle-courier').textContent = p.courier || '—';
     const esRec = (p.estado || 'pendiente') === 'recolectado';
     document.getElementById('detalle-estado').textContent = esRec ? '✓ Recolectado' : '⏱ Pendiente';
     detalleOverlay.classList.remove('hidden');
@@ -390,6 +392,7 @@
     document.getElementById('m-fecha').value = fecha;
     document.getElementById('m-hora-inicio').value = '09:00';
     document.getElementById('m-hora-fin').value = '11:00';
+    document.getElementById('m-courier').value = '';
     document.getElementById('m-notas').value = '';
     const primerCliente = clientes[0];
     if (primerCliente) cargarDirecciones(primerCliente.id);
@@ -408,6 +411,7 @@
     document.getElementById('m-fecha').value = p.fecha;
     document.getElementById('m-hora-inicio').value = p.hora_inicio;
     document.getElementById('m-hora-fin').value = p.hora_fin;
+    document.getElementById('m-courier').value = p.courier || '';
     document.getElementById('m-notas').value = p.notas || '';
     await cargarDirecciones(p.cliente_id);
     setDireccionEnModal(p.direccion);
@@ -425,6 +429,7 @@
     const fecha = document.getElementById('m-fecha').value;
     const hora_inicio = document.getElementById('m-hora-inicio').value;
     const hora_fin = document.getElementById('m-hora-fin').value;
+    const courier = document.getElementById('m-courier').value || null;
     const notas = document.getElementById('m-notas').value.trim() || null;
     if (!cliente_id || !direccion || !fecha || !hora_inicio || !hora_fin) {
       NovaUtils.showAlert(alertBox, 'Completá todos los campos obligatorios.');
@@ -432,9 +437,9 @@
     }
     try {
       if (pickupEditandoId) {
-        await NovaAPI.pickups.editar(pickupEditandoId, { cliente_id, direccion, fecha, hora_inicio, hora_fin, notas });
+        await NovaAPI.pickups.editar(pickupEditandoId, { cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, notas });
       } else {
-        await NovaAPI.pickups.crear({ cliente_id, direccion, fecha, hora_inicio, hora_fin, notas });
+        await NovaAPI.pickups.crear({ cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, notas });
       }
       cerrarModal();
       await cargarPickups();
@@ -462,6 +467,14 @@
 
   function getInitials(nombre) {
     return (nombre || '').split(' ').slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
+  }
+
+  function courierBadgeHtml(courier) {
+    if (!courier) return '';
+    const c = String(courier).toUpperCase().trim();
+    if (c === 'DHL') return '<span class="courier-badge courier-badge-dhl">DHL</span>';
+    if (c === 'UPS') return '<span class="courier-badge courier-badge-ups">UPS</span>';
+    return '';
   }
 
   function escHtml(s) {

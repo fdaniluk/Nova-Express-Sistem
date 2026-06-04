@@ -38,7 +38,7 @@ router.get('/', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const db = getDb();
-    const { cliente_id, direccion, fecha, hora_inicio, hora_fin, notas } = req.body;
+    const { cliente_id, direccion, fecha, hora_inicio, hora_fin, notas, courier } = req.body;
 
     if (!cliente_id || !direccion || !fecha || !hora_inicio || !hora_fin) {
       return res
@@ -53,9 +53,9 @@ router.post('/', async (req, res, next) => {
 
     const result = await db
       .prepare(
-        'INSERT INTO pickups (cliente_id, cliente_nombre, direccion, fecha, hora_inicio, hora_fin, notas) VALUES (?, ?, ?, ?, ?, ?, ?)'
+        'INSERT INTO pickups (cliente_id, cliente_nombre, direccion, fecha, hora_inicio, hora_fin, notas, courier) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
       )
-      .run(cliente_id, cliente.nombre, direccion, fecha, hora_inicio, hora_fin, notas || null);
+      .run(cliente_id, cliente.nombre, direccion, fecha, hora_inicio, hora_fin, notas || null, courier || null);
 
     const created = await db.prepare('SELECT * FROM pickups WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(created);
@@ -72,7 +72,7 @@ router.put('/:id', async (req, res, next) => {
     const existing = await db.prepare('SELECT * FROM pickups WHERE id = ?').get(id);
     if (!existing) return res.status(404).json({ error: 'Pickup no encontrado' });
 
-    const { cliente_id, direccion, fecha, hora_inicio, hora_fin, notas, estado } = req.body;
+    const { cliente_id, direccion, fecha, hora_inicio, hora_fin, notas, estado, courier } = req.body;
 
     const newClienteId = cliente_id != null ? cliente_id : existing.cliente_id;
     const newFecha = fecha != null ? fecha : existing.fecha;
@@ -87,7 +87,7 @@ router.put('/:id', async (req, res, next) => {
 
     await db
       .prepare(
-        'UPDATE pickups SET cliente_id=?, cliente_nombre=?, direccion=?, fecha=?, hora_inicio=?, hora_fin=?, notas=?, estado=? WHERE id=?'
+        'UPDATE pickups SET cliente_id=?, cliente_nombre=?, direccion=?, fecha=?, hora_inicio=?, hora_fin=?, notas=?, estado=?, courier=? WHERE id=?'
       )
       .run(
         newClienteId,
@@ -98,6 +98,7 @@ router.put('/:id', async (req, res, next) => {
         hora_fin != null ? hora_fin : existing.hora_fin,
         notas !== undefined ? notas : existing.notas,
         newEstado,
+        courier !== undefined ? courier : existing.courier,
         id
       );
 
