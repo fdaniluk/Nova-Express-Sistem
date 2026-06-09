@@ -13,6 +13,12 @@ const ZONAS_UPS={"Afganistán":6,"Albania":6,"Alemania":4,"Andorra":4,"Angola":6
 // UPS importación — zonas distintas a exportación
 const ZONAS_UPS_I={"Afganistán":6,"Albania":6,"Alemania":5,"Angola":6,"Anguila":2,"Antigua y Barbuda":2,"Arabia Saudita":6,"Argelia":6,"Armenia":6,"Aruba":2,"Australia":3,"Austria":4,"Azerbaiyán":6,"Bahamas":2,"Bahréin":6,"Bangladesh":6,"Barbados":2,"Belarús":6,"Bélgica":5,"Benín":6,"Bermuda":2,"Bolivia":2,"Bonaire":2,"Bosnia-Herzegovina":6,"Botswana":6,"Brasil":1,"Brunei":6,"Bulgaria":6,"Burkina Faso":6,"Burundi":6,"Bután":6,"Canadá":1,"Chad":6,"Chile":1,"China":3,"Chipre":6,"Colombia":1,"Comoros":6,"Congo":6,"Corea del Sur":3,"Costa Rica":2,"Costa de Marfil":6,"Croacia":6,"Curasao":2,"Dinamarca":5,"Dominica":2,"Ecuador":1,"Egipto":6,"El Salvador":2,"Emiratos Árabes Unidos":6,"Eritrea":6,"Eslovaquia":6,"Eslovenia":6,"España":5,"Estados Unidos":1,"Estonia":6,"Etiopía":6,"Fiji":6,"Filipinas":3,"Finlandia":6,"Francia":6,"Gabón":6,"Gambia":6,"Georgia":6,"Ghana":6,"Granada":2,"Grecia":6,"Guatemala":2,"Guinea":6,"Guinea-Bissau":6,"Guinea Ecuatorial":6,"Guyana":2,"Guyana Francesa":2,"Haití":2,"Honduras":2,"Hong Kong":3,"Hungría":6,"India":6,"Indonesia":3,"Irak":6,"Irán":6,"Irlanda":5,"Israel":6,"Italia":4,"Jamaica":2,"Japón":3,"Jordania":6,"Kazajistán":6,"Kenia":6,"Kirguistán":6,"Kuwait":6,"Laos":6,"Letonia":6,"Líbano":6,"Liberia":6,"Liechtenstein":5,"Lituania":6,"Luxemburgo":5,"Macao":3,"Madagascar":6,"Malasia":3,"Malaui":6,"Maldivas":6,"Mali":6,"Malta":6,"Marruecos":6,"Martinica":2,"Mauricio":6,"Mauritania":6,"México":1,"Micronesia":6,"Moldova":6,"Mónaco":5,"Mongolia":6,"Montenegro":6,"Mozambique":6,"Myanmar":6,"Namibia":6,"Nepal":6,"Nicaragua":2,"Níger":6,"Nigeria":6,"Noruega":5,"Nueva Zelanda":3,"Omán":6,"Pakistán":6,"Panamá":2,"Papúa Nueva Guinea":6,"Paraguay":2,"Países Bajos":5,"Perú":1,"Polonia":5,"Portugal":5,"Puerto Rico":2,"Qatar":6,"Reino Unido":5,"República Checa":6,"República Dominicana":2,"Ruanda":6,"Rumania":6,"Rusia":6,"San Marino":5,"San Vicente y Las Granadinas":2,"Santa Lucía":2,"Senegal":6,"Serbia":6,"Seychelles":6,"Sierra Leona":6,"Singapur":3,"Sri Lanka":6,"St. Kitts y Nevis":2,"St. Maarten":2,"Sudáfrica":3,"Sudán":6,"Suecia":5,"Suiza":5,"Suriname":2,"Tailandia":3,"Taiwán":3,"Tanzania":6,"Tayikistán":6,"Timor Oriental":6,"Togo":6,"Trinidad y Tobago":2,"Túnez":6,"Turquía":6,"Ucrania":6,"Uganda":6,"Uruguay":1,"Uzbekistán":6,"Venezuela":2,"Vietnam":3,"Yemen":6,"Zambia":6,"Zimbabue":6};
 
+// ── Resolución de zona por courier y tipo ────────────────────────────────────
+function resolverZona(pais, courier, tipo) {
+  if (courier === 'DHL') return ZONAS_DHL[pais] || null;
+  return (tipo === 'import' ? ZONAS_UPS_I : ZONAS_UPS)[pais] || null;
+}
+
 // ── Sets para surge fee UPS ───────────────────────────────────────────────────
 const ISRAEL_EAU=new Set(['Israel','Emiratos Árabes Unidos']);
 const INDIA=new Set(['India']);
@@ -192,7 +198,7 @@ function cotizarServicio(servicio, params) {
 
   // ── DHL ──────────────────────────────────────────────────────────────────────
   if(servicio==='DHL'){
-    const zona=ZONAS_DHL[pais]||(zonaOverride?Number(zonaOverride):null);
+    const zona=resolverZona(pais,'DHL',tipo)||(zonaOverride?Number(zonaOverride):null);
     if(!zona)return null;
     const esDoc=contenido==='documento'&&pf<=2;
     let fleteBase;
@@ -228,8 +234,7 @@ function cotizarServicio(servicio, params) {
   }
 
   // ── UPS (Expedited o Saver) ───────────────────────────────────────────────────
-  const zonaMap=tipo==='import'?ZONAS_UPS_I:ZONAS_UPS;
-  const zona=zonaMap[pais]||(zonaOverride?Number(zonaOverride):null);
+  const zona=resolverZona(pais,servicio,tipo)||(zonaOverride?Number(zonaOverride):null);
   if(!zona)return null;
   const pfRound=Math.ceil(pf*2)/2;
   // feeUSA: solo exportación (orden canónico del v8)
@@ -288,6 +293,7 @@ if(typeof module!=='undefined'&&module.exports){
     UPS_SE_LIQD,UPS_SE_PK,UPS_SE_MN,
     UPS_SI_LIQD,UPS_SI_PK,UPS_SI_MN,
     UPS_SAVER_ES_IT,UPS_SAVER_ES_PK,UPS_SAVER_IT_PK,
+    resolverZona,
     getPesoVol,getDHL,getDHLBig,getUPS,getUPSSaverEsIt,
     getSurge,calcSeguroUPS,calcSeguroDHL,calcUPSDimExtras,calcImpuestos,
     cotizarServicio,

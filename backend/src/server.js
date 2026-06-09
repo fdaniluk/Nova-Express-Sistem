@@ -14,6 +14,7 @@ app.use('/api', routes);
 
 const frontendPath = path.join(__dirname, '../../frontend');
 app.use(express.static(frontendPath));
+app.use('/shared', express.static(path.join(__dirname, '../../shared')));
 
 app.use((err, req, res, next) => {
   console.error(err);

@@ -5,6 +5,7 @@
 
   async function init() {
     document.getElementById('fecha').value = new Date().toISOString().slice(0, 10);
+    rellenarSelectPaises();
     await loadClientes();
     await loadFuelConfig();
     bindTabs();
@@ -17,6 +18,31 @@
     bindCotizador();
     document.getElementById('btn-cancelar-edit').addEventListener('click', resetForm);
     document.getElementById('cantidad_bultos').addEventListener('change', renderBultos);
+  }
+
+  function rellenarSelectPaises() {
+    const sel = document.getElementById('pais_destino');
+    const paises = [...new Set([
+      ...Object.keys(ZONAS_DHL),
+      ...Object.keys(ZONAS_UPS),
+      ...Object.keys(ZONAS_UPS_I),
+    ])].sort();
+    sel.innerHTML = '<option value="">Selecciona país</option>';
+    for (const p of paises) {
+      const opt = document.createElement('option');
+      opt.value = p;
+      opt.textContent = p;
+      sel.appendChild(opt);
+    }
+  }
+
+  function autocompletarZona() {
+    const pais = document.getElementById('pais_destino').value;
+    if (!pais) { document.getElementById('zona').value = ''; return; }
+    const courier = document.getElementById('courier').value;
+    const tipo = document.getElementById('tipo_envio').value === 'exportacion' ? 'export' : 'import';
+    const zona = resolverZona(pais, courier, tipo);
+    document.getElementById('zona').value = zona !== null ? zona : '';
   }
 
   // Carga los % fuel actuales desde el backend
@@ -119,6 +145,11 @@
 
   // ── Cotizador integrado ──────────────────────────────────────────
   function bindCotizador() {
+    // Autocompletar zona al cambiar país, courier o tipo
+    ['pais_destino', 'courier', 'tipo_envio'].forEach((id) => {
+      document.getElementById(id).addEventListener('change', autocompletarZona);
+    });
+
     // Recalcular cuando cambian campos clave
     ['pais_destino', 'courier', 'tipo_envio', 'fob'].forEach((id) => {
       document.getElementById(id).addEventListener('change', debounce(updateCotizacion, 400));
