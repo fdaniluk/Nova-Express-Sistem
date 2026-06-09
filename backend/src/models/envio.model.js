@@ -118,8 +118,9 @@ async function crear(data) {
           cantidad_bultos, peso_real, largo, ancho, alto,
           peso_volumetrico, peso_facturable, fob, total_cobrado, observaciones,
           numero_salida, bulto, tipo_paquete, asegurado,
-          flete, descuento, seguro, fuel, derechos, adicionales, otros, profit, porcentaje
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          flete, descuento, seguro, fuel, derechos, adicionales, otros, profit, porcentaje,
+          servicio_ups
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         data.cliente_id,
@@ -153,7 +154,8 @@ async function crear(data) {
         data.adicionales ?? null,
         data.otros ?? null,
         data.profit ?? null,
-        data.porcentaje ?? null
+        data.porcentaje ?? null,
+        data.courier === 'UPS' ? (data.servicio_ups ?? null) : null
       );
     const envioId = result.lastInsertRowid;
     if (hasBultos) await saveBultos(envioId, data.bultos);
@@ -196,6 +198,7 @@ async function actualizar(id, data) {
         cantidad_bultos = ?, peso_real = ?, largo = ?, ancho = ?, alto = ?,
         peso_volumetrico = ?, peso_facturable = ?,
         fob = ?, total_cobrado = ?, observaciones = ?,
+        servicio_ups = ?,
         updated_at = datetime('now', 'localtime')
        WHERE id = ?`
     ).run(
@@ -216,6 +219,7 @@ async function actualizar(id, data) {
       data.fob ?? actual.fob,
       data.total_cobrado ?? actual.total_cobrado,
       data.observaciones !== undefined ? data.observaciones : actual.observaciones,
+      (data.courier ?? actual.courier) === 'UPS' ? (data.servicio_ups !== undefined ? data.servicio_ups : actual.servicio_ups) : null,
       id
     );
     if (data.bultos !== undefined) {

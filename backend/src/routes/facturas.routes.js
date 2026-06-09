@@ -158,7 +158,7 @@ router.get('/guias', async (req, res, next) => {
       SELECT
         e.id, e.numero_guia, e.pais_destino, e.fecha,
         e.total_cobrado, e.costo_facturado, e.courier_facturado,
-        e.fecha_facturado, e.estado_revision,
+        e.fecha_facturado, e.estado_revision, e.servicio_ups,
         c.nombre AS cliente
       FROM envios e
       JOIN clientes c ON c.id = e.cliente_id
@@ -193,6 +193,7 @@ router.get('/guias', async (req, res, next) => {
         ganancia_usd,
         ganancia_pct,
         estado_revision: r.estado_revision,
+        servicio_ups: r.servicio_ups ?? null,
       };
     });
 

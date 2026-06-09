@@ -113,6 +113,7 @@ CREATE TABLE IF NOT EXISTS envios (
   courier_facturado   TEXT,
   fecha_facturado     TEXT,
   estado_revision     TEXT,
+  servicio_ups        TEXT,
   FOREIGN KEY (cliente_id) REFERENCES clientes(id),
   FOREIGN KEY (liquidacion_id) REFERENCES liquidaciones(id)
 );

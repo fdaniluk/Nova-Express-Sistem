@@ -165,6 +165,7 @@ async function migrateEnvios() {
     ['courier_facturado','TEXT'],
     ['fecha_facturado',  'TEXT'],
     ['estado_revision',  'TEXT'],
+    ['servicio_ups',     'TEXT'],
   ];
   for (const [col, def] of toAdd) {
     if (!cols.includes(col)) {

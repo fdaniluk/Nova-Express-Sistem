@@ -315,6 +315,9 @@
         total_cobrado: parseFloat(document.getElementById('total_cobrado').value) || 0,
         observaciones: document.getElementById('observaciones').value.trim() || null,
         bultos: bultos.length ? bultos : undefined,
+        servicio_ups: document.getElementById('courier').value === 'UPS'
+          ? (document.getElementById('cot-ups-variante').value || null)
+          : null,
       };
       try {
         if (id) {
@@ -353,6 +356,10 @@
     document.getElementById('cliente_id').value = envio.cliente_id;
     document.getElementById('fecha').value = envio.fecha?.slice(0, 10);
     document.getElementById('courier').value = envio.courier;
+    document.getElementById('cot-ups-wrap').style.display = envio.courier === 'UPS' ? '' : 'none';
+    if (envio.courier === 'UPS' && envio.servicio_ups) {
+      document.getElementById('cot-ups-variante').value = envio.servicio_ups;
+    }
     document.getElementById('tipo_envio').value = envio.tipo_envio;
     document.getElementById('numero_guia').value = envio.numero_guia;
     document.getElementById('pais_destino').value = envio.pais_destino;

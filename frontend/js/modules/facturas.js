@@ -168,7 +168,7 @@
     const tbody = document.getElementById('fac-table-body');
     const counter = document.getElementById('fac-revisar-counter');
 
-    tbody.innerHTML = '<tr><td colspan="10" class="empty">Cargando…</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="11" class="empty">Cargando…</td></tr>';
     counter.textContent = '';
 
     try {
@@ -187,7 +187,7 @@
     counter.textContent = `${revisarData.length} guías`;
 
     if (revisarData.length === 0) {
-      tbody.innerHTML = '<tr><td colspan="10" class="empty">No hay guías con costo facturado aún.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="11" class="empty">No hay guías con costo facturado aún.</td></tr>';
       return;
     }
 
@@ -209,6 +209,7 @@
       <td class="mono">${esc(g.numero_guia)}</td>
       <td>${esc(g.cliente)}</td>
       <td>${esc(g.pais_destino)}</td>
+      <td>${servicioUPSLabel(g.servicio_ups)}</td>
       <td>${NovaUtils.formatDate(g.fecha_facturado)}</td>
       <td class="num">${fmtUSD(g.total_cobrado)}</td>
       <td class="num">${fmtUSD(g.costo_facturado)}</td>
@@ -243,8 +244,8 @@
       else if (nuevoEstado === 'reclamar') tr.classList.add('row-reclamar');
 
       const cells = tr.querySelectorAll('td');
-      cells[8].innerHTML = estadoBadge(nuevoEstado);
-      cells[9].innerHTML = accionesBtns(id, nuevoEstado);
+      cells[9].innerHTML = estadoBadge(nuevoEstado);
+      cells[10].innerHTML = accionesBtns(id, nuevoEstado);
 
       tr.querySelectorAll('.btn-accion').forEach((btn) => {
         btn.addEventListener('click', () => onCambiarEstado(id, btn.dataset.estado, tr, guia));
@@ -304,6 +305,12 @@
 
   function esc(s) {
     return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  function servicioUPSLabel(v) {
+    if (v === 'UPS_EXP') return 'Expedited';
+    if (v === 'UPS_SAV') return 'Saver';
+    return '<span class="em">—</span>';
   }
 
   function show(id) { document.getElementById(id).classList.remove('hidden'); }
