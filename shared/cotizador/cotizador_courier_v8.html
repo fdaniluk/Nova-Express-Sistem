@@ -330,113 +330,39 @@ function cotizar(){
   });
 
   const pfTotal=bultosProc.reduce((s,b)=>s+b.pf,0);
-  const seguroDHL=calcSeguroDHL(valor);
-  const seguroUPS=calcSeguroUPS(valor);
   const results=[];
 
   const mostrarDHL=couriers==='ambos'||couriers==='dhl';
   const mostrarExp=couriers==='ambos'||couriers==='ups_exp'||couriers==='ups';
   const mostrarSav=couriers==='ambos'||couriers==='ups_sav'||couriers==='ups';
 
-  function buildResult(courier,zona,pf,flete,surgeAmt,extraRows){
-    const conGan=flete*(1+g/100);
-    const subtotalConSurge=conGan+surgeAmt;
-    const fuelMonto=subtotalConSurge*(f/100);
-    const extrasTotal=extraRows.reduce((s,r)=>s+r[1],0);
-    const total=subtotalConSurge+fuelMonto+extrasTotal;
-    return{courier,zona,pf,conGan,surgeAmt,subtotalConSurge,fuelMonto,total,extraRows};
-  }
+  const _params={pais,tipo,pf:pfTotal,fob:valor,fuelPct:f,profitPct:g,bultosProc,remota:exR,residencial:exRe,contenido};
 
   // ── DHL ──
   if(mostrarDHL){
-    const zona=ZONAS_DHL[pais];
-    if(!zona){errEl.textContent='País no encontrado en DHL.';errEl.style.display='block';}
-    else{
-      const esDoc=contenido==='documento'&&pfTotal<=2;
-      let flete;
-      // Para impo y pf>50: usar nueva tarifa big
-      if(tipo==='import'&&!esDoc&&pfTotal>50){
-        flete=getDHLBig(zona,pfTotal);
-      } else {
-        const tabla=esDoc?(tipo==='export'?DHL_E_DOC:DHL_I_DOC):(tipo==='export'?DHL_E_PKG:DHL_I_PKG);
-        flete=getDHL(tabla,zona,pfTotal);
-      }
-      if(flete){
-        const ex=[];
-        // GoGreen: solo si pf<=50 (impo) o siempre en expo; NO aplica a impo >50kg
-        const aplicaGoGreen=!(tipo==='import'&&pfTotal>50);
-        if(aplicaGoGreen){
-          const ggMonto=parseFloat((pfTotal*0.98).toFixed(2));
-          ex.push([`GoGreen (${pfTotal.toFixed(1)} kg × USD 0.98)`,ggMonto]);
-        }
-        // Extracargos por dimensión DHL (por bulto, todos los envíos)
-        let dhlDimExtra=0;
-        bultosProc.forEach(b=>{
-          const d=b.dims;
-          if(d[0]>100)dhlDimExtra+=23;
-          if(d[1]>80)dhlDimExtra+=23;
-        });
-        if(dhlDimExtra>0)ex.push([`Extracargo dimensiones DHL`,dhlDimExtra]);
-        if(seguroDHL.monto>0)ex.push(['Seguro DHL',seguroDHL.monto]);
-        if(exR)ex.push(['Área remota',Math.max(40,pfTotal*0.8)]);
-        results.push({...buildResult('DHL Express Worldwide',zona,pfTotal,flete,0,ex),tag:'dhl'});
-      }
-    }
+    const r=cotizarServicio('DHL',_params);
+    if(!r){errEl.textContent='País no encontrado en DHL.';errEl.style.display='block';}
+    else results.push({...r,courier:r.servicio,extraRows:r.extras,tag:'dhl'});
   }
-
-
-  // UPS USA/Canadá expo: +$2.50 integrado al flete
-  const upsUsaCanadaFee=(tipo==='export'&&(pais==='Estados Unidos'||pais==='Canadá'))?2.50:0;
 
   // ── UPS Expedited ──
   let totalExp=null;
   if(mostrarExp){
-    const zonaUPS=tipo==='export'?ZONAS_UPS[pais]:ZONAS_UPS_I[pais];
-    if(!zonaUPS){errEl.textContent='País no encontrado en UPS Expedited.';errEl.style.display='block';}
+    const r=cotizarServicio('UPS_EXP',_params);
+    if(!r){errEl.textContent='País no encontrado en UPS Expedited.';errEl.style.display='block';}
     else{
-      const liqd=tipo==='export'?UPS_E_LIQD:UPS_I_LIQD;
-      const pk=tipo==='export'?UPS_E_PK:UPS_I_PK;
-      const mn=tipo==='export'?UPS_E_MN:UPS_I_MN;
-      const fleteBase=getUPS(liqd,pk,mn,zonaUPS,pfTotal);
-      const flete=fleteBase+upsUsaCanadaFee;
-      const sf=getSurge(pais,tipo,pfTotal);
-      const{manejoCount,contornoExtra,contornoWarn}=calcUPSDimExtras(bultosProc);
-      if(contornoWarn){errEl.textContent='⚠ Uno o más bultos superan el contorno máximo de 400 cm y no pueden enviarse por UPS.';errEl.style.display='block';}
-      const ex=[];
-      if(manejoCount>0)ex.push([`Manejo adicional (${manejoCount} bulto${manejoCount>1?'s':''})`,manejoCount*27.65]);
-      if(contornoExtra>0)ex.push([`Paquete mayor tamaño — contorno >300 cm`,contornoExtra]);
-      if(seguroUPS.monto>0)ex.push(['Seguro',seguroUPS.monto]);
-      if(exR)ex.push(['Área remota',Math.max(42.15,pfTotal*0.92)]);
-      if(exRe)ex.push(['Entrega residencial',6]);
-      const res=buildResult('UPS Worldwide Expedited',zonaUPS,pfTotal,flete,sf,ex);
-      totalExp=res.total;
-      results.push({...res,tag:'ups'});
+      if(r.contornoWarn){errEl.textContent='⚠ Uno o más bultos superan el contorno máximo de 400 cm y no pueden enviarse por UPS.';errEl.style.display='block';}
+      totalExp=r.total;
+      results.push({...r,courier:r.servicio,extraRows:r.extras,tag:'ups'});
     }
   }
 
   // ── UPS Saver ──
   if(mostrarSav){
-    const zonaUPS=tipo==='export'?ZONAS_UPS[pais]:ZONAS_UPS_I[pais];
-    if(!zonaUPS){errEl.textContent='País no encontrado en UPS Saver.';errEl.style.display='block';}
-    else{
-      const liqd=tipo==='export'?UPS_SE_LIQD:UPS_SI_LIQD;
-      const pk=tipo==='export'?UPS_SE_PK:UPS_SI_PK;
-      const mn=tipo==='export'?UPS_SE_MN:UPS_SI_MN;
-      const esEsIt=tipo==='export'&&(pais==='España'||pais==='Italia');
-      const fleteBase=esEsIt?getUPSSaverEsIt(pais,pfTotal):getUPS(liqd,pk,mn,zonaUPS,pfTotal);
-      const flete=fleteBase+upsUsaCanadaFee;
-      const sf=getSurge(pais,tipo,pfTotal);
-      const{manejoCount,contornoExtra,contornoWarn}=calcUPSDimExtras(bultosProc);
-      const ex=[];
-      if(manejoCount>0)ex.push([`Manejo adicional (${manejoCount} bulto${manejoCount>1?'s':''})`,manejoCount*27.65]);
-      if(contornoExtra>0)ex.push([`Paquete mayor tamaño — contorno >300 cm`,contornoExtra]);
-      if(seguroUPS.monto>0)ex.push(['Seguro',seguroUPS.monto]);
-      if(exR)ex.push(['Área remota',Math.max(42.15,pfTotal*0.92)]);
-      if(exRe)ex.push(['Entrega residencial',6]);
-      const res=buildResult('UPS Worldwide Saver',zonaUPS,pfTotal,flete,sf,ex);
-      if(totalExp===null||res.total>totalExp){
-        results.push({...res,tag:'ups'});
-      }
+    const r=cotizarServicio('UPS_SAV',_params);
+    if(!r){errEl.textContent='País no encontrado en UPS Saver.';errEl.style.display='block';}
+    else if(totalExp===null||r.total>totalExp){
+      results.push({...r,courier:r.servicio,extraRows:r.extras,tag:'ups'});
     }
   }
 

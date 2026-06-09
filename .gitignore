@@ -3,6 +3,7 @@ backend/node_modules/
 database/nova.db
 database/nova.db-wal
 database/nova.db-shm
+database/*.db
 .env
 backend/.env
 *.log

@@ -7,6 +7,7 @@ const {
   UPS_SI_LIQD, UPS_SI_PK, UPS_SI_MN,
   getDHL, getDHLBig, getUPS, getUPSSaverEsIt,
   getSurge, calcSeguroDHL, calcUPSDimExtras,
+  cotizarServicio: cotizarServicioCore,
 } = require('../../../shared/cotizador/cotizador-core');
 
 function pesoVolumetricoBulto(largo, ancho, alto) {
@@ -104,91 +105,50 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
   const fuel   = (Number(fuelPct)   || 0) / 100;
   const profit = (Number(profitPct) || 0) / 100;
 
-  // ── DHL ────────────────────────────────────────────────────────────────────
+  // Canonizar país para lookup exacto en el core (el core solo hace exact match)
+  const paisCanon = canonizarPais(pais) || pais || '';
+
+  // Si el país canonizado no aparece en el mapa, el core usará zonaOverride como fallback
+  const r = cotizarServicioCore(servicio, {
+    pais: paisCanon,
+    tipo,
+    pf,
+    fob,
+    fuelPct:   Number(fuelPct)   || 0,
+    profitPct: Number(profitPct) || 0,
+    bultosProc: mkBultosProc(bultos),
+    residencial,
+    zonaOverride,
+  });
+  if (!r) return null;
+
+  // profitMonto según fórmula canónica del v8: aplica sobre (fleteBase + feeUSA)
+  const profitMontoRaw = (r.fleteBase + r.feeUSA) * profit * (1 + fuel);
+  // precioBase = total sin profit = (flete+surge)*(1+fuel) + manejo + seguro [+ extras]
+  const precioBaseRaw  = r.total - profitMontoRaw;
+
   if (servicio === 'DHL') {
-    const zona = buscarZona(ZONAS_DHL, pais, zonaOverride);
-    if (!zona) return null;
-
-    let fleteBase;
-    if (tipo === 'import' && pf > 50) {
-      fleteBase = getDHLBig(zona, pf);
-    } else {
-      const tabla = tipo === 'export' ? DHL_E_PKG : DHL_I_PKG;
-      fleteBase = getDHL(tabla, zona, pf);
-    }
-    const seguroDHL  = calcSeguroDHL(fob).monto;
-    const aplicaGG   = !(tipo === 'import' && pf > 50);
-    const goGreen    = aplicaGG ? redondear2(pf * 0.98) : 0;
-    const precioBaseRaw  = fleteBase * (1 + fuel) + goGreen + seguroDHL;
-    const profitMontoRaw = fleteBase * profit * (1 + fuel);
-    const precioBase  = redondear2(precioBaseRaw);
-    const profitMonto = redondear2(profitMontoRaw);
-    return { precioBase, profitMonto, utilidad: profitMonto, precioFinal: redondear2(precioBaseRaw + profitMontoRaw), zona, servicio: 'DHL Express' };
+    return {
+      precioBase:  redondear2(precioBaseRaw),
+      profitMonto: redondear2(profitMontoRaw),
+      utilidad:    redondear2(profitMontoRaw),
+      precioFinal: redondear2(r.total),
+      zona: r.zona,
+      servicio: 'DHL Express',
+    };
   }
 
-  // ── UPS: fee USA/Canadá ($2.50) y residencial ($6) van dentro del bracket de fuel ──
-  const paisCanon = canonizarPais(pais) || '';
-  const feeUSA    = (paisCanon === 'Canadá' || paisCanon === 'Estados Unidos') ? 2.50 : 0;
-  const feeRes    = residencial ? 6.00 : 0;
-
-  // ── UPS Expedited ──────────────────────────────────────────────────────────
-  if (servicio === 'UPS_EXP') {
-    const zonaMap = tipo === 'import' ? ZONAS_UPS_I : ZONAS_UPS;
-    const zona    = buscarZona(zonaMap, pais, zonaOverride);
-    if (!zona) return null;
-
-    const pfRound   = Math.ceil(pf * 2) / 2;
-    const liqd = tipo === 'import' ? UPS_I_LIQD : UPS_E_LIQD;
-    const pk   = tipo === 'import' ? UPS_I_PK   : UPS_E_PK;
-    const mn   = tipo === 'import' ? UPS_I_MN   : UPS_E_MN;
-    const fleteBase = getUPS(liqd, pk, mn, zona, pfRound);
-    const surge     = getSurge(pais, tipo, pfRound);
-
-    const { manejoCount, contornoExtra } = calcUPSDimExtras(mkBultosProc(bultos));
-    const contorno  = contornoExtra;
-    // manejo combina manejo+contorno para que descomponerPrecioBase los reste juntos de precioBase
-    const manejo = redondear2(manejoCount * 27.65 + contorno);
-    const seguro = calcularSeguro(fob);
-
-    const precioBaseRaw  = (fleteBase + surge + feeUSA + feeRes) * (1 + fuel) + manejo + seguro;
-    const profitMontoRaw = fleteBase * profit * (1 + fuel);
-    const precioBase  = redondear2(precioBaseRaw);
-    const profitMonto = redondear2(profitMontoRaw);
-    return { precioBase, profitMonto, utilidad: profitMonto, precioFinal: redondear2(precioBaseRaw + profitMontoRaw), zona, surge: redondear2(surge), manejo, contorno, servicio: 'UPS Expedited' };
-  }
-
-  // ── UPS Saver ──────────────────────────────────────────────────────────────
-  if (servicio === 'UPS_SAV') {
-    const zonaMap = tipo === 'import' ? ZONAS_UPS_I : ZONAS_UPS;
-    const zona    = buscarZona(zonaMap, pais, zonaOverride);
-    if (!zona) return null;
-
-    const pfRound = Math.ceil(pf * 2) / 2;
-    const esEsIt  = tipo === 'export' && (paisCanon === 'España' || paisCanon === 'Italia');
-    let fleteBase;
-    if (esEsIt) {
-      fleteBase = getUPSSaverEsIt(paisCanon, pfRound);
-    } else {
-      const liqd = tipo === 'import' ? UPS_SI_LIQD : UPS_SE_LIQD;
-      const pk   = tipo === 'import' ? UPS_SI_PK   : UPS_SE_PK;
-      const mn   = tipo === 'import' ? UPS_SI_MN   : UPS_SE_MN;
-      fleteBase = getUPS(liqd, pk, mn, zona, pfRound);
-    }
-    const surge = getSurge(pais, tipo, pfRound);
-
-    const { manejoCount, contornoExtra } = calcUPSDimExtras(mkBultosProc(bultos));
-    const contorno = contornoExtra;
-    const manejo   = redondear2(manejoCount * 27.65 + contorno);
-    const seguro   = calcularSeguro(fob);
-
-    const precioBaseRaw  = (fleteBase + surge + feeUSA + feeRes) * (1 + fuel) + manejo + seguro;
-    const profitMontoRaw = fleteBase * profit * (1 + fuel);
-    const precioBase  = redondear2(precioBaseRaw);
-    const profitMonto = redondear2(profitMontoRaw);
-    return { precioBase, profitMonto, utilidad: profitMonto, precioFinal: redondear2(precioBaseRaw + profitMontoRaw), zona, surge: redondear2(surge), manejo, contorno, servicio: 'UPS Saver' };
-  }
-
-  return null;
+  return {
+    precioBase:  redondear2(precioBaseRaw),
+    profitMonto: redondear2(profitMontoRaw),
+    utilidad:    redondear2(profitMontoRaw),
+    precioFinal: redondear2(r.total),
+    zona: r.zona,
+    surge:   redondear2(r.surge),
+    manejo:  redondear2(r.manejo),
+    contorno: r.contornoExtra,
+    servicio: servicio === 'UPS_EXP' ? 'UPS Expedited' : 'UPS Saver',
+  };
 }
 
 function calcularPrecioDHL({ pais, tipo, contenido, pfTotal, bultosProc, valor, g, f, exR }) {

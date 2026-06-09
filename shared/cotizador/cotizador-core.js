@@ -172,6 +172,111 @@ function calcImpuestos(fob,flete,arancel){
   return{CIF,derechos,tasaEst,ivaAduana,gastoDoc,ivaGastoDoc,total};
 }
 
+// ── Orquestación canónica por servicio ───────────────────────────────────────
+// Fuente única de verdad: replica el orden exacto de cotizar() del v8.
+// params.bultosProc: [{ dims:[mayor,seg,menor], pr }] (ya procesados, dims ordenadas)
+// params.pf: peso facturable total ya calculado
+// Retorna null si el país no se encuentra y no hay zonaOverride.
+function cotizarServicio(servicio, params) {
+  const {
+    pais='', tipo='export',
+    pf=0, fob=0,
+    fuelPct=0, profitPct=0,
+    bultosProc=[],
+    residencial=false, remota=false,
+    contenido='paquete',
+    zonaOverride,
+  } = params;
+  const fuel   = fuelPct   / 100;
+  const profit = profitPct / 100;
+
+  // ── DHL ──────────────────────────────────────────────────────────────────────
+  if(servicio==='DHL'){
+    const zona=ZONAS_DHL[pais]||(zonaOverride?Number(zonaOverride):null);
+    if(!zona)return null;
+    const esDoc=contenido==='documento'&&pf<=2;
+    let fleteBase;
+    if(tipo==='import'&&!esDoc&&pf>50){
+      fleteBase=getDHLBig(zona,pf);
+    } else {
+      const tabla=esDoc?(tipo==='export'?DHL_E_DOC:DHL_I_DOC):(tipo==='export'?DHL_E_PKG:DHL_I_PKG);
+      fleteBase=getDHL(tabla,zona,pf);
+    }
+    if(!fleteBase)return null;
+    const aplicaGoGreen=!(tipo==='import'&&pf>50);
+    const goGreen=aplicaGoGreen?parseFloat((pf*0.98).toFixed(2)):0;
+    let dhlDimExtra=0;
+    bultosProc.forEach(b=>{if(b.dims[0]>100)dhlDimExtra+=23;if(b.dims[1]>80)dhlDimExtra+=23;});
+    const seguroObj=calcSeguroDHL(fob);
+    const extras=[];
+    if(goGreen>0)      extras.push([`GoGreen (${pf.toFixed(1)} kg × USD 0.98)`,goGreen]);
+    if(dhlDimExtra>0)  extras.push(['Extracargo dimensiones DHL',dhlDimExtra]);
+    if(seguroObj.monto>0)extras.push(['Seguro DHL',seguroObj.monto]);
+    if(remota)         extras.push(['Área remota',Math.max(40,pf*0.8)]);
+    const conGan          =fleteBase*(1+profit);
+    const subtotalConSurge=conGan;
+    const fuelMonto       =subtotalConSurge*fuel;
+    const extrasTotal     =extras.reduce((s,r)=>s+r[1],0);
+    const total           =subtotalConSurge+fuelMonto+extrasTotal;
+    return{
+      servicio:'DHL Express Worldwide',zona,pf,
+      fleteBase,feeUSA:0,surge:0,surgeAmt:0,flete:fleteBase,
+      conGan,subtotalConSurge,fuelMonto,extras,extrasTotal,total,
+      goGreen,dhlDimExtra,seguro:seguroObj.monto,
+      manejoCount:0,contornoExtra:0,contornoWarn:false,manejo:0,
+    };
+  }
+
+  // ── UPS (Expedited o Saver) ───────────────────────────────────────────────────
+  const zonaMap=tipo==='import'?ZONAS_UPS_I:ZONAS_UPS;
+  const zona=zonaMap[pais]||(zonaOverride?Number(zonaOverride):null);
+  if(!zona)return null;
+  const pfRound=Math.ceil(pf*2)/2;
+  // feeUSA: solo exportación (orden canónico del v8)
+  const feeUSA=(tipo==='export'&&(pais==='Estados Unidos'||pais==='Canadá'))?2.50:0;
+  let fleteBase;
+  const servicioLabel=servicio==='UPS_EXP'?'UPS Worldwide Expedited':'UPS Worldwide Saver';
+  if(servicio==='UPS_EXP'){
+    const liqd=tipo==='import'?UPS_I_LIQD:UPS_E_LIQD;
+    const pk  =tipo==='import'?UPS_I_PK  :UPS_E_PK;
+    const mn  =tipo==='import'?UPS_I_MN  :UPS_E_MN;
+    fleteBase=getUPS(liqd,pk,mn,zona,pfRound);
+  } else {
+    const esEsIt=tipo==='export'&&(pais==='España'||pais==='Italia');
+    if(esEsIt){
+      fleteBase=getUPSSaverEsIt(pais,pfRound);
+    } else {
+      const liqd=tipo==='import'?UPS_SI_LIQD:UPS_SE_LIQD;
+      const pk  =tipo==='import'?UPS_SI_PK  :UPS_SE_PK;
+      const mn  =tipo==='import'?UPS_SI_MN  :UPS_SE_MN;
+      fleteBase=getUPS(liqd,pk,mn,zona,pfRound);
+    }
+  }
+  const surge=getSurge(pais,tipo,pfRound);
+  const flete=fleteBase+feeUSA;
+  const{manejoCount,contornoExtra,contornoWarn}=calcUPSDimExtras(bultosProc);
+  const seguroObj=calcSeguroUPS(fob);
+  const manejo=parseFloat((manejoCount*27.65+contornoExtra).toFixed(2));
+  const extras=[];
+  if(manejoCount>0)  extras.push([`Manejo adicional (${manejoCount} bulto${manejoCount>1?'s':''})`,manejoCount*27.65]);
+  if(contornoExtra>0)extras.push(['Paquete mayor tamaño — contorno >300 cm',contornoExtra]);
+  if(seguroObj.monto>0)extras.push(['Seguro',seguroObj.monto]);
+  if(remota)         extras.push(['Área remota',Math.max(42.15,pf*0.92)]);
+  if(residencial)    extras.push(['Entrega residencial',6]);
+  const conGan          =flete*(1+profit);
+  const subtotalConSurge=conGan+surge;
+  const fuelMonto       =subtotalConSurge*fuel;
+  const extrasTotal     =extras.reduce((s,r)=>s+r[1],0);
+  const total           =subtotalConSurge+fuelMonto+extrasTotal;
+  return{
+    servicio:servicioLabel,zona,pf:pfRound,
+    fleteBase,feeUSA,surge,surgeAmt:surge,flete,
+    conGan,subtotalConSurge,fuelMonto,extras,extrasTotal,total,
+    manejoCount,contornoExtra,contornoWarn,manejo,
+    seguro:seguroObj.monto,goGreen:0,dhlDimExtra:0,
+  };
+}
+
 // ── Export Node.js ────────────────────────────────────────────────────────────
 if(typeof module!=='undefined'&&module.exports){
   module.exports={
@@ -185,5 +290,6 @@ if(typeof module!=='undefined'&&module.exports){
     UPS_SAVER_ES_IT,UPS_SAVER_ES_PK,UPS_SAVER_IT_PK,
     getPesoVol,getDHL,getDHLBig,getUPS,getUPSSaverEsIt,
     getSurge,calcSeguroUPS,calcSeguroDHL,calcUPSDimExtras,calcImpuestos,
+    cotizarServicio,
   };
 }
