@@ -1,7 +1,7 @@
 const { getDb } = require('../db');
 const configuracionModel = require('./configuracion.model');
 const envioModel = require('./envio.model');
-const { calcularFleteFuel, redondear2, cotizarEnvio } = require('../services/calculos.service');
+const { calcularFleteFuel, redondear2, cotizarEnvio, calcularSeguro, calcSeguroDHL } = require('../services/calculos.service');
 
 // Migración automática: agrega columnas nuevas si no existen
 async function migrarColumnas() {
@@ -24,22 +24,110 @@ async function migrarColumnas() {
 
 migrarColumnas().catch(() => {});
 
+// Descompone cot.precioBase (resultado de cotizarEnvio con profitPct=0) en flete/fuel/seguro
+// para poblar las columnas de liquidacion_items manteniendo flete+fuel+seguro = precioBase.
+//
+// UPS: precioBase = (fleteBase + surge) * (1 + fuel%) + manejo + seguro
+//   → flete = fleteBase + surge + manejo (surge y manejo combinados con flete)
+//   → fuel  = aplicado sobre (fleteBase + surge)
+//   → seguro = calcularSeguro(fob)
+//
+// DHL: precioBase = fleteBase * (1 + fuel%) + seguroDHL + goGreen
+//   → flete  = fleteBase (tarifa tabla pura)
+//   → fuel   = aplicado sobre flete
+//   → seguro = seguroDHL + goGreen combinados
+function descomponerPrecioBase(cot, envio, fuelPct) {
+  const fuelDecimal = fuelPct / 100;
+  const pf = envio.peso_facturable || 0;
+
+  if (envio.courier === 'DHL') {
+    const goGreen = redondear2(pf * 0.98);
+    const seguroDHL = calcSeguroDHL(envio.fob || 0).monto;
+    const seguro = redondear2(seguroDHL + goGreen);
+    const fleteConFuel = redondear2(cot.precioBase - seguro);
+    const flete = redondear2(fleteConFuel / (1 + fuelDecimal));
+    const fuel = redondear2(fleteConFuel - flete);
+    return { flete, fuel, seguro };
+  }
+
+  // UPS (EXP o SAV): precioBase = (fleteBase + surge) * (1+fuel%) + manejo + seguro
+  const seguro = calcularSeguro(envio.fob || 0);
+  const manejo = cot.manejo || 0;
+  const fleteConFuel = redondear2(cot.precioBase - seguro - manejo);
+  const fleteConSurge = redondear2(fleteConFuel / (1 + fuelDecimal));
+  const fuel = redondear2(fleteConFuel - fleteConSurge);
+  // Manejo se agrega al flete para mantener flete+fuel+seguro = precioBase
+  return { flete: redondear2(fleteConSurge + manejo), fuel, seguro };
+}
+
 async function calcularItem(envio, adicional = 0, cotizacion = null) {
   const fuelCfg = await configuracionModel.obtenerFuel(envio.courier);
   const fuelPct = fuelCfg?.fuel_pct ?? 0;
-  const { seguro, flete, fuel } = calcularFleteFuel(
-    envio.total_cobrado,
-    envio.fob,
-    fuelPct
-  );
   const adic = redondear2(adicional);
-  const totalUsd = redondear2(flete + fuel + seguro + adic);
 
-  // Datos del cotizador (opcionales)
-  const precioCotizado = cotizacion?.precioFinal ?? null;
-  const profitPct = cotizacion?.profitPct ?? null;
-  const utilidadUsd = cotizacion?.utilidad ?? null;
-  const servicioCotizado = cotizacion?.servicio ?? null;
+  // Leer tarifa_pct del cliente, igual que hace el cotizador al seleccionar un cliente.
+  // Fallback 20%: coincide con el value="20" hardcodeado en los inputs del cotizador cuando
+  // el cliente no tiene tarifa configurada (tarifa_pct null o 0).
+  const db = getDb();
+  const clienteRow = await db.prepare('SELECT tarifa_pct FROM clientes WHERE id = ?').get(envio.cliente_id);
+  const tarifaPct = (clienteRow?.tarifa_pct > 0) ? clienteRow.tarifa_pct : 20;
+
+  // Suposición: courier 'UPS' → UPS Expedited (no hay columna que distinga EXP/SAV en envios).
+  // Suposición: tipo_envio 'exportacion' → 'export'; cualquier otro → 'import'.
+  const servicio = envio.courier === 'DHL' ? 'DHL' : 'UPS_EXP';
+  const tipo = (envio.tipo_envio || '').toLowerCase().includes('import') ? 'import' : 'export';
+
+  // Cotizamos con la tarifa del cliente para obtener el precio completo (igual que el cotizador).
+  // cot.precioBase = flete+surge+fuel+manejo+seguro sin profit; cot.precioFinal incluye tarifaPct.
+  const bultos = envio.peso_real != null
+    ? [{ pesoReal: envio.peso_real, largo: envio.largo, ancho: envio.ancho, alto: envio.alto }]
+    : [];
+  const cot = cotizarEnvio({
+    pais: envio.pais_destino,
+    tipo,
+    servicio,
+    pesoFacturable: envio.peso_facturable || 0,
+    fob: envio.fob || 0,
+    fuelPct,
+    profitPct: tarifaPct,
+    zonaOverride: envio.zona,
+    bultos,
+  });
+
+  let flete, fuel, seguro, totalUsd;
+  let precioCotizado, profitPctUsado, utilidadUsd, servicioCotizado;
+
+  if (cot) {
+    // descomponerPrecioBase usa cot.precioBase (sin profit) para flete/fuel/seguro.
+    ({ flete, fuel, seguro } = descomponerPrecioBase(cot, envio, fuelPct));
+
+    if (cotizacion) {
+      // Cotización manual del usuario: su precio y profit tienen precedencia.
+      totalUsd = redondear2(cotizacion.precioFinal + adic);
+      precioCotizado = cotizacion.precioFinal;
+      profitPctUsado = cotizacion.profitPct;
+      utilidadUsd = cotizacion.utilidad;
+      servicioCotizado = cotizacion.servicio;
+    } else {
+      // Auto: precio final = precioBase × (1 + tarifaPct%), igual que el cotizador.
+      totalUsd = redondear2(cot.precioFinal + adic);
+      precioCotizado = cot.precioFinal;
+      profitPctUsado = tarifaPct;
+      utilidadUsd = cot.utilidad;
+      servicioCotizado = cot.servicio;
+    }
+  } else {
+    // Fallback: el país no figura en las tablas de tarifas → comportamiento anterior.
+    const d = calcularFleteFuel(envio.total_cobrado, envio.fob || 0, fuelPct);
+    flete = d.flete;
+    fuel = d.fuel;
+    seguro = d.seguro;
+    totalUsd = redondear2(flete + fuel + seguro + adic);
+    precioCotizado = cotizacion?.precioFinal ?? null;
+    profitPctUsado = cotizacion?.profitPct ?? null;
+    utilidadUsd = cotizacion?.utilidad ?? null;
+    servicioCotizado = cotizacion?.servicio ?? null;
+  }
 
   return {
     envio_id: envio.id,
@@ -50,7 +138,7 @@ async function calcularItem(envio, adicional = 0, cotizacion = null) {
     total_usd: totalUsd,
     fuel_pct_usado: fuelPct,
     precio_cotizado: precioCotizado,
-    profit_pct: profitPct,
+    profit_pct: profitPctUsado,
     utilidad_usd: utilidadUsd,
     servicio_cotizado: servicioCotizado,
     envio,

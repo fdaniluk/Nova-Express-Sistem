@@ -167,11 +167,12 @@
     const profitPct = parseFloat(document.getElementById('cot-profit').value) || 0;
     const pesoFacturable = parseFloat(document.getElementById('peso-preview').dataset.facturable) || 0;
 
+    const zona = parseInt(document.getElementById('zona')?.value, 10) || undefined;
     const panel = document.getElementById('cot-panel');
     const resultado = document.getElementById('cot-resultado');
 
-    // Necesita al menos país y peso para cotizar
-    if (!pais || pesoFacturable <= 0) {
+    // Necesita al menos país (o zona manual) y peso para cotizar
+    if ((!pais && !zona) || pesoFacturable <= 0) {
       panel.classList.add('hidden');
       return;
     }
@@ -183,6 +184,16 @@
     const fuelPct = fuelPctActual[courier] || 39;
 
     try {
+      const pesoReal1 = parseFloat(document.getElementById('peso_real').value) || 0;
+      const bultosParaCotizar = [
+        {
+          pesoReal: pesoReal1,
+          largo: parseFloat(document.getElementById('largo').value) || 0,
+          ancho: parseFloat(document.getElementById('ancho').value) || 0,
+          alto: parseFloat(document.getElementById('alto').value) || 0,
+        },
+        ...getBultosFromForm().map(b => ({ pesoReal: b.peso_real || 0, largo: b.largo, ancho: b.ancho, alto: b.alto })),
+      ];
       const res = await NovaAPI.liquidaciones.cotizar({
         pais,
         tipo,
@@ -191,6 +202,8 @@
         fob,
         fuelPct,
         profitPct,
+        zona,
+        bultos: bultosParaCotizar,
       });
 
       panel.classList.remove('hidden');

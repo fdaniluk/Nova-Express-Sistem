@@ -210,7 +210,7 @@
                   <input type="number" class="cot-fuel" step="0.1" min="0" value="39">
                 </div>
               </div>
-              <button type="button" class="btn btn-primary btn-calc-cot" data-envio-id="${e.id}" data-pais="${e.pais_destino || ''}" data-fob="${e.fob || 0}">
+              <button type="button" class="btn btn-primary btn-calc-cot" data-envio-id="${e.id}" data-pais="${e.pais_destino || ''}" data-fob="${e.fob || 0}" data-zona="${e.zona || ''}">
                 Calcular
               </button>
               <div class="cot-detalle hidden" id="cot-det-${e.id}"></div>
@@ -249,6 +249,7 @@
     const envioId = parseInt(btn.dataset.envioId, 10);
     const pais = btn.dataset.pais;
     const fob = parseFloat(btn.dataset.fob) || 0;
+    const zona = parseInt(btn.dataset.zona, 10) || undefined;
     const panel = btn.closest('.cotizador-inline');
     const servicio = panel.querySelector('.cot-servicio').value;
     const pesoFacturable = parseFloat(panel.querySelector('.cot-peso').value) || 0;
@@ -256,8 +257,8 @@
     const profitPct = parseFloat(panel.querySelector('.cot-profit').value) || 0;
     const fuelPct = parseFloat(panel.querySelector('.cot-fuel').value) || 0;
 
-    if (!pais || pais === '—') {
-      NovaUtils.showAlert(alertBox, 'El envío no tiene país de destino asignado', 'error');
+    if ((!pais || pais === '—') && !zona) {
+      NovaUtils.showAlert(alertBox, 'El envío no tiene país ni zona asignados', 'error');
       return;
     }
 
@@ -265,7 +266,7 @@
       btn.textContent = '...';
       btn.disabled = true;
 
-      const res = await NovaAPI.liquidaciones.cotizar({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct });
+      const res = await NovaAPI.liquidaciones.cotizar({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zona });
 
       // Guardar resultado en el mapa
       cotizacionesMap[envioId] = {
