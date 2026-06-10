@@ -72,9 +72,12 @@ async function calcularItem(envio, adicional = 0, cotizacion = null) {
   const clienteRow = await db.prepare('SELECT tarifa_pct FROM clientes WHERE id = ?').get(envio.cliente_id);
   const tarifaPct = (clienteRow?.tarifa_pct > 0) ? clienteRow.tarifa_pct : 20;
 
-  // Suposición: courier 'UPS' → UPS Expedited (no hay columna que distinga EXP/SAV en envios).
-  // Suposición: tipo_envio 'exportacion' → 'export'; cualquier otro → 'import'.
-  const servicio = envio.courier === 'DHL' ? 'DHL' : 'UPS_EXP';
+  // tipo_envio 'exportacion' → 'export'; cualquier otro → 'import'.
+  const servicio = envio.courier === 'DHL'
+    ? 'DHL'
+    : (envio.servicio_ups === 'UPS_SAV' || envio.servicio_ups === 'UPS_EXP')
+      ? envio.servicio_ups
+      : 'UPS_EXP'; // fallback para envíos viejos sin servicio_ups
   const tipo = (envio.tipo_envio || '').toLowerCase().includes('import') ? 'import' : 'export';
 
   // Cotizamos con la tarifa del cliente para obtener el precio completo (igual que el cotizador).

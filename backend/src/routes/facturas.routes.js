@@ -107,7 +107,7 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
 
           const total_cobrado = envio.total_cobrado ?? 0;
           const costo_facturado = guia.costo_total;
-          let estado_revision = 'ok';
+          let estado_revision = 'revisado_ok';
 
           if (costo_facturado > 0) {
             const ganancia_pct = (total_cobrado - costo_facturado) / costo_facturado * 100;

@@ -201,7 +201,7 @@
     const tr = document.createElement('tr');
     tr.dataset.id = g.id;
 
-    const estado = g.estado_revision || 'ok';
+    const estado = g.estado_revision || '';
     if (estado === 'a_revisar') tr.classList.add('row-a-revisar');
     else if (estado === 'reclamar') tr.classList.add('row-reclamar');
 
@@ -263,7 +263,6 @@
       'a_revisar':   ['badge-a-revisar',   '⚠ A revisar'],
       'revisado_ok': ['badge-revisado-ok',  '✓ Revisado OK'],
       'reclamar':    ['badge-reclamar',     '⚑ Reclamar'],
-      'ok':          ['badge-revisado-ok',  '✓ OK'],
     };
     const [cls, label] = map[estado] || ['', estado];
     return `<span class="badge ${cls}">${label}</span>`;
