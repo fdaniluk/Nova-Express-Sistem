@@ -4,6 +4,7 @@ const path = require('path');
 const config = require('./config');
 const routes = require('./routes');
 const { initDb } = require('./db');
+const { migrarColumnas: migrarColumnasliquidacion } = require('./models/liquidacion.model');
 
 const app = express();
 
@@ -24,7 +25,9 @@ app.use((err, req, res, next) => {
 });
 
 initDb()
-  .then(() => {
+  .then(async () => {
+    await migrarColumnasliquidacion();
+    console.log('[liquidacion.model] Migración de columnas OK');
     app.listen(config.port, () => {
       console.log(`Nova Express API en http://localhost:${config.port}`);
       console.log(`Base de datos: ${config.dbPath}`);

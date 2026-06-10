@@ -22,10 +22,6 @@ async function migrarColumnas() {
   }
 }
 
-migrarColumnas().catch((err) => {
-  console.error('[liquidacion.model] Error en migración de columnas:', err);
-});
-
 // Descompone cot.precioBase (resultado de cotizarEnvio con profitPct=0) en flete/fuel/seguro
 // para poblar las columnas de liquidacion_items manteniendo flete+fuel+seguro = precioBase.
 //
@@ -342,6 +338,7 @@ async function listar(filtros = {}) {
 }
 
 module.exports = {
+  migrarColumnas,
   preview,
   crear,
   confirmar,
