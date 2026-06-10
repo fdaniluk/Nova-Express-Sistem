@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pickups — Nova Express</title>
   <link rel="stylesheet" href="../css/main.css?v=2">
-  <link rel="stylesheet" href="../css/modules/pickups.css?v=2">
+  <link rel="stylesheet" href="../css/modules/pickups.css?v=3">
 </head>
 <body>
 <div class="app-layout">
@@ -90,8 +90,9 @@
           <span class="dia-count" id="dia-count"></span>
         </div>
         <div class="resumen-bar">
+          <div class="resumen-card pend" id="count-pend">● 0 sin confirmar</div>
+          <div class="resumen-card conf" id="count-conf">⚑ 0 Ricardo</div>
           <div class="resumen-card rec" id="count-rec">✓ 0 recolectados</div>
-          <div class="resumen-card pend" id="count-pend">⏱ 0 pendientes</div>
         </div>
         <div class="pickup-cards-list" id="pickups-dia-list">
           <div class="dia-empty">Cargando...</div>
@@ -204,6 +205,6 @@
 
 <script src="../js/api.js?v=2"></script>
 <script src="../js/main.js?v=2"></script>
-<script src="../js/modules/pickups.js?v=2"></script>
+<script src="../js/modules/pickups.js?v=3"></script>
 </body>
 </html>

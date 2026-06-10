@@ -127,7 +127,9 @@ async function migratePickups() {
     ['check_guia',      'INTEGER DEFAULT 0'],
     ['check_proforma',  'INTEGER DEFAULT 0'],
     ['check_despachado','INTEGER DEFAULT 0'],
-    ['courier',         'TEXT'],
+    ['courier',            'TEXT'],
+    ['confirmado_ricardo', 'TEXT'],
+    ['confirmado_juanqui', 'TEXT'],
   ];
   for (const [col, def] of toAdd) {
     if (!cols.includes(col)) {

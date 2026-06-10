@@ -122,6 +122,65 @@ router.put('/:id', async (req, res, next) => {
   }
 });
 
+router.patch('/:id', async (req, res, next) => {
+  try {
+    const db = getDb();
+    const { id } = req.params;
+
+    const current = await db.prepare('SELECT * FROM pickups WHERE id = ?').get(id);
+    if (!current) return res.status(404).json({ error: 'Pickup no encontrado' });
+
+    const { confirmar_ricardo, confirmar_juanqui } = req.body;
+    const updates = {};
+
+    if (confirmar_ricardo !== undefined) {
+      if (confirmar_ricardo) {
+        const ts = await db.prepare("SELECT datetime('now','localtime') AS ts").get();
+        updates.confirmado_ricardo = ts.ts;
+      } else {
+        updates.confirmado_ricardo = null;
+      }
+    }
+    if (confirmar_juanqui !== undefined) {
+      if (confirmar_juanqui) {
+        const ts = await db.prepare("SELECT datetime('now','localtime') AS ts").get();
+        updates.confirmado_juanqui = ts.ts;
+      } else {
+        updates.confirmado_juanqui = null;
+      }
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ error: 'No hay campos para actualizar' });
+    }
+
+    const nextJuanqui = 'confirmado_juanqui' in updates
+      ? updates.confirmado_juanqui
+      : current.confirmado_juanqui;
+    updates.estado = nextJuanqui ? 'recolectado' : 'pendiente';
+
+    const wasRecolectado = current.estado === 'recolectado';
+    const setClauses = Object.keys(updates).map((k) => `${k} = ?`).join(', ');
+    await db
+      .prepare(`UPDATE pickups SET ${setClauses} WHERE id = ?`)
+      .run(...Object.values(updates), id);
+
+    if (updates.estado === 'recolectado' && !wasRecolectado) {
+      await db
+        .prepare(
+          `UPDATE envios SET estado_operativo = 'en_deposito'
+           WHERE cliente_id = ? AND fecha = ? AND estado_operativo = 'pendiente'`
+        )
+        .run(current.cliente_id, current.fecha);
+    }
+
+    const updated = await db.prepare('SELECT * FROM pickups WHERE id = ?').get(id);
+    res.json(updated);
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.delete('/:id', async (req, res, next) => {
   try {
     const db = getDb();

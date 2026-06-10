@@ -103,6 +103,14 @@
     }
   }
 
+  // ── Estado 3-color ────────────────────────────────────────────────────
+
+  function estadoPickup(p) {
+    if (p.confirmado_juanqui) return 'rec';
+    if (p.confirmado_ricardo) return 'conf';
+    return 'pend';
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────
 
   function render() {
@@ -133,7 +141,13 @@
       const delDia = pickups.filter(p => p.fecha === ymd);
       let dotClass = '';
       if (delDia.length > 0) {
-        dotClass = delDia.some(p => (p.estado || 'pendiente') !== 'recolectado') ? 'pend' : 'rec';
+        if (delDia.every(p => !!p.confirmado_juanqui)) {
+          dotClass = 'rec';
+        } else if (delDia.some(p => !!p.confirmado_ricardo && !p.confirmado_juanqui)) {
+          dotClass = 'conf';
+        } else {
+          dotClass = 'pend';
+        }
       }
       const classes = ['day-pill', isActive ? 'active' : '', isHoy && !isActive ? 'today' : '']
         .filter(Boolean).join(' ');
@@ -156,16 +170,18 @@
   function renderVistaDia() {
     const ymd = toYMD(diaActual);
     const delDia = pickups.filter(p => p.fecha === ymd);
-    const recCount = delDia.filter(p => (p.estado || 'pendiente') === 'recolectado').length;
-    const pendCount = delDia.filter(p => (p.estado || 'pendiente') !== 'recolectado').length;
+    const recCount  = delDia.filter(p => !!p.confirmado_juanqui).length;
+    const confCount = delDia.filter(p => !!p.confirmado_ricardo && !p.confirmado_juanqui).length;
+    const pendCount = delDia.filter(p => !p.confirmado_ricardo && !p.confirmado_juanqui).length;
 
     const titulo = formatDiaTitulo(diaActual);
     document.getElementById('dia-titulo').textContent = titulo.charAt(0).toUpperCase() + titulo.slice(1);
     document.getElementById('dia-count').textContent = delDia.length === 0
       ? 'Sin pickups'
       : `${delDia.length} pickup${delDia.length !== 1 ? 's' : ''}`;
-    document.getElementById('count-rec').textContent = `✓ ${recCount} recolectado${recCount !== 1 ? 's' : ''}`;
-    document.getElementById('count-pend').textContent = `⏱ ${pendCount} pendiente${pendCount !== 1 ? 's' : ''}`;
+    document.getElementById('count-rec').textContent  = `✓ ${recCount} recolectado${recCount !== 1 ? 's' : ''}`;
+    document.getElementById('count-conf').textContent = `⚑ ${confCount} Ricardo`;
+    document.getElementById('count-pend').textContent = `● ${pendCount} sin confirmar`;
 
     const list = document.getElementById('pickups-dia-list');
     if (delDia.length === 0) {
@@ -175,8 +191,17 @@
 
     list.innerHTML = delDia.map(p => buildPickupCard(p)).join('');
 
-    list.querySelectorAll('[data-action="confirmar"]').forEach(btn => {
-      btn.addEventListener('click', () => confirmarRecoleccion(Number(btn.dataset.id), btn));
+    list.querySelectorAll('[data-action="conf-ricardo"]').forEach(btn => {
+      btn.addEventListener('click', () => toggleConfirmacion(Number(btn.dataset.id), 'ricardo', true, btn));
+    });
+    list.querySelectorAll('[data-action="desconf-ricardo"]').forEach(btn => {
+      btn.addEventListener('click', () => toggleConfirmacion(Number(btn.dataset.id), 'ricardo', false, btn));
+    });
+    list.querySelectorAll('[data-action="conf-juanqui"]').forEach(btn => {
+      btn.addEventListener('click', () => toggleConfirmacion(Number(btn.dataset.id), 'juanqui', true, btn));
+    });
+    list.querySelectorAll('[data-action="desconf-juanqui"]').forEach(btn => {
+      btn.addEventListener('click', () => toggleConfirmacion(Number(btn.dataset.id), 'juanqui', false, btn));
     });
     list.querySelectorAll('[data-action="detalle"]').forEach(btn => {
       btn.addEventListener('click', () => abrirDetalle(Number(btn.dataset.id)));
@@ -184,15 +209,22 @@
   }
 
   function buildPickupCard(p) {
-    const esRec = (p.estado || 'pendiente') === 'recolectado';
-    const sc = esRec ? 'rec' : 'pend';
-    const badgeText = esRec ? '✓ Listo' : '⏱ Pendiente';
-    const acciones = esRec
-      ? `<div class="pickup-recolectado-label">✓ Recolectado</div>
-         <button class="btn-detalle" data-action="detalle" data-id="${p.id}">Ver detalle</button>`
-      : `<button class="btn-confirmar" data-action="confirmar" data-id="${p.id}">✓ Confirmar recolección</button>
-         <button class="btn-detalle" data-action="detalle" data-id="${p.id}">Ver detalle</button>`;
-    return `<div class="pickup-card-v2${esRec ? ' recolectado' : ''}" id="pickup-card-${p.id}">
+    const sc = estadoPickup(p);
+    const badgeText = sc === 'rec' ? '✓ Recolectado' : sc === 'conf' ? '⚑ Ricardo' : '● Sin confirmar';
+    const cardExtra = sc === 'rec' ? ' recolectado' : sc === 'conf' ? ' confirmado' : '';
+
+    const horaR = p.confirmado_ricardo ? p.confirmado_ricardo.slice(11, 16) : null;
+    const horaJ = p.confirmado_juanqui ? p.confirmado_juanqui.slice(11, 16) : null;
+
+    const btnRicardo = horaR
+      ? `<button class="btn-conf btn-conf-on btn-conf-ricardo" data-action="desconf-ricardo" data-id="${p.id}" title="Confirma a las ${horaR} — clic para deshacer">✓ Ricardo ${horaR}</button>`
+      : `<button class="btn-conf btn-conf-off btn-conf-ricardo" data-action="conf-ricardo" data-id="${p.id}">Confirmar Ricardo</button>`;
+
+    const btnJuanqui = horaJ
+      ? `<button class="btn-conf btn-conf-on btn-conf-juanqui" data-action="desconf-juanqui" data-id="${p.id}" title="Confirma a las ${horaJ} — clic para deshacer">✓ Juanqui ${horaJ}</button>`
+      : `<button class="btn-conf btn-conf-off btn-conf-juanqui" data-action="conf-juanqui" data-id="${p.id}">Confirmar Juanqui</button>`;
+
+    return `<div class="pickup-card-v2${cardExtra}" id="pickup-card-${p.id}">
       <div class="pickup-card-v2-header">
         <div class="pickup-avatar ${sc}">${escHtml(getInitials(p.cliente_nombre))}</div>
         <div class="pickup-card-v2-info">
@@ -205,7 +237,11 @@
         <span class="pickup-badge ${sc}">${badgeText}</span>
       </div>
       <div class="pickup-direccion">📍 ${escHtml(p.direccion)}</div>
-      <div class="pickup-actions">${acciones}</div>
+      <div class="pickup-actions">
+        ${btnRicardo}
+        ${btnJuanqui}
+        <button class="btn-detalle" data-action="detalle" data-id="${p.id}">Ver detalle</button>
+      </div>
     </div>`;
   }
 
@@ -227,14 +263,14 @@
       const rowsHtml = delDia.length === 0
         ? '<div class="semana-empty">Sin pickups programados</div>'
         : delDia.map(p => {
-            const esRec = (p.estado || 'pendiente') === 'recolectado';
-            const sc = esRec ? 'rec' : 'pend';
+            const sc = estadoPickup(p);
+            const badgeLabel = sc === 'rec' ? '✓ Listo' : sc === 'conf' ? 'Ricardo ✓' : 'Sin confirmar';
             return `<div class="semana-row ${sc}" data-action="goto-dia" data-ymd="${ymd}">
               <span class="semana-dot ${sc}"></span>
               <span class="semana-row-name">${escHtml(p.cliente_nombre)}</span>
               ${courierBadgeHtml(p.courier)}
               <span class="semana-row-hora">${escHtml(p.hora_inicio)}</span>
-              <span class="semana-row-badge ${sc}">${esRec ? '✓ Listo' : 'Pendiente'}</span>
+              <span class="semana-row-badge ${sc}">${badgeLabel}</span>
             </div>`;
           }).join('');
 
@@ -266,14 +302,17 @@
     render();
   }
 
-  // ── Confirmar recolección ──────────────────────────────────────────────
+  // ── Confirmaciones 3-estado ────────────────────────────────────────────
 
-  async function confirmarRecoleccion(id, btn) {
+  async function toggleConfirmacion(id, quien, valor, btn) {
     if (btn) { btn.disabled = true; btn.classList.add('loading'); }
     try {
-      await NovaAPI.pickups.editar(id, { estado: 'recolectado' });
+      const payload = quien === 'ricardo'
+        ? { confirmar_ricardo: valor }
+        : { confirmar_juanqui: valor };
+      const updated = await NovaAPI.pickups.confirmar(id, payload);
       const idx = pickups.findIndex(p => p.id === id);
-      if (idx !== -1) pickups[idx] = { ...pickups[idx], estado: 'recolectado' };
+      if (idx !== -1) pickups[idx] = { ...pickups[idx], ...updated };
       renderDayStrip();
       renderVistaDia();
     } catch (e) {
@@ -294,8 +333,15 @@
     document.getElementById('detalle-dir').textContent = p.direccion;
     document.getElementById('detalle-notas').textContent = p.notas || '—';
     document.getElementById('detalle-courier').textContent = p.courier || '—';
-    const esRec = (p.estado || 'pendiente') === 'recolectado';
-    document.getElementById('detalle-estado').textContent = esRec ? '✓ Recolectado' : '⏱ Pendiente';
+    const sc = estadoPickup(p);
+    const horaR = p.confirmado_ricardo ? p.confirmado_ricardo.slice(11, 16) : null;
+    const horaJ = p.confirmado_juanqui ? p.confirmado_juanqui.slice(11, 16) : null;
+    const estadoTexto = sc === 'rec'
+      ? `✓ Recolectado (Juanqui ${horaJ})`
+      : sc === 'conf'
+      ? `⚑ Confirmado Ricardo ${horaR} — pendiente Juanqui`
+      : '● Sin confirmar';
+    document.getElementById('detalle-estado').textContent = estadoTexto;
     detalleOverlay.classList.remove('hidden');
   }
 

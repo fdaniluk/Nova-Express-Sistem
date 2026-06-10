@@ -1,12 +1,19 @@
 /* ── Colores estado pickups ──────────────────────────────── */
 :root {
+  /* Verde: Juanqui confirmó (recolectado) */
   --rec-bg: #EAF3DE;
   --rec-border: #97C459;
   --rec-text: #27500A;
   --rec-badge-bg: #C0DD97;
-  --pend-border: #FAC775;
-  --pend-badge-bg: #FAC775;
-  --pend-badge-text: #633806;
+  /* Amarillo: Ricardo confirmó */
+  --conf-bg: #FFFBEB;
+  --conf-border: #FBBF24;
+  --conf-badge-bg: #FDE68A;
+  --conf-badge-text: #78350F;
+  /* Rojo: sin confirmar */
+  --pend-border: #F87171;
+  --pend-badge-bg: #FCA5A5;
+  --pend-badge-text: #7F1D1D;
   --pku-green: #3B6D11;
   --pku-green-hover: #2d5509;
 }
@@ -146,9 +153,11 @@
   margin-top: 1px;
 }
 
-.day-pill-dot.pend { background: #FAC775; }
+.day-pill-dot.pend { background: #F87171; }
+.day-pill-dot.conf { background: #FBBF24; }
 .day-pill-dot.rec  { background: #97C459; }
 .day-pill.active .day-pill-dot.pend { background: rgba(255,255,255,0.7); }
+.day-pill.active .day-pill-dot.conf { background: rgba(255,255,255,0.8); }
 .day-pill.active .day-pill-dot.rec  { background: rgba(255,255,255,0.9); }
 
 /* ── Vista Día ───────────────────────────────────────────── */
@@ -195,8 +204,14 @@
   color: var(--rec-text);
 }
 
+.resumen-card.conf {
+  background: var(--conf-bg);
+  border-color: var(--conf-border);
+  color: var(--conf-badge-text);
+}
+
 .resumen-card.pend {
-  background: #fffbeb;
+  background: #FFF5F5;
   border-color: var(--pend-border);
   color: var(--pend-badge-text);
 }
@@ -209,10 +224,15 @@
 }
 
 .pickup-card-v2 {
-  background: var(--color-surface);
+  background: #FFF5F5;
   border: 1.5px solid var(--pend-border);
   border-radius: 10px;
   padding: 1rem 1.1rem;
+}
+
+.pickup-card-v2.confirmado {
+  background: var(--conf-bg);
+  border-color: var(--conf-border);
 }
 
 .pickup-card-v2.recolectado {
@@ -244,6 +264,11 @@
 .pickup-avatar.rec {
   background: var(--rec-border);
   color: var(--rec-text);
+}
+
+.pickup-avatar.conf {
+  background: var(--conf-badge-bg);
+  color: var(--conf-badge-text);
 }
 
 .pickup-card-v2-info {
@@ -289,6 +314,7 @@
 }
 
 .pickup-badge.rec  { background: var(--rec-badge-bg);  color: var(--rec-text); }
+.pickup-badge.conf { background: var(--conf-badge-bg); color: var(--conf-badge-text); }
 .pickup-badge.pend { background: var(--pend-badge-bg); color: var(--pend-badge-text); }
 
 .pickup-direccion {
@@ -303,30 +329,55 @@
   flex-wrap: wrap;
 }
 
-.btn-confirmar {
+.btn-conf {
   flex: 1;
   min-height: 44px;
-  background: var(--pku-green);
-  color: #fff;
   border: none;
   border-radius: 6px;
   font: inherit;
   font-weight: 600;
-  font-size: 0.9rem;
+  font-size: 0.85rem;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 0.4rem;
+  gap: 0.35rem;
+  white-space: nowrap;
+  transition: opacity 0.12s, background 0.12s;
 }
 
-.btn-confirmar:hover { background: var(--pku-green-hover); }
-.btn-confirmar:active { opacity: 0.85; }
+.btn-conf.loading { opacity: 0.6; cursor: wait; }
+.btn-conf:active  { opacity: 0.82; }
 
-.btn-confirmar.loading {
-  opacity: 0.6;
-  cursor: wait;
+/* Botón sin confirmar (estado off) */
+.btn-conf-off.btn-conf-ricardo {
+  background: #FEF3C7;
+  color: var(--conf-badge-text);
+  border: 1.5px solid var(--conf-border);
 }
+.btn-conf-off.btn-conf-ricardo:hover { background: var(--conf-badge-bg); }
+
+.btn-conf-off.btn-conf-juanqui {
+  background: #f0fdf4;
+  color: #14532d;
+  border: 1.5px solid #86efac;
+}
+.btn-conf-off.btn-conf-juanqui:hover { background: #dcfce7; }
+
+/* Botón confirmado (estado on) */
+.btn-conf-on.btn-conf-ricardo {
+  background: var(--conf-badge-bg);
+  color: var(--conf-badge-text);
+  border: 1.5px solid var(--conf-border);
+}
+.btn-conf-on.btn-conf-ricardo:hover { background: #fcd34d; }
+
+.btn-conf-on.btn-conf-juanqui {
+  background: var(--rec-badge-bg);
+  color: var(--rec-text);
+  border: 1.5px solid var(--rec-border);
+}
+.btn-conf-on.btn-conf-juanqui:hover { background: #a3d86a; }
 
 .btn-detalle {
   min-height: 44px;
@@ -427,8 +478,10 @@
 
 .semana-row:hover { background: #f8fafc; }
 
-.semana-row.rec { background: #f5faee; }
-.semana-row.rec:hover { background: #eef6e0; }
+.semana-row.rec  { background: #f5faee; }
+.semana-row.rec:hover  { background: #eef6e0; }
+.semana-row.conf { background: #fffdf0; }
+.semana-row.conf:hover { background: #fef9c3; }
 
 .semana-dot {
   width: 10px;
@@ -438,7 +491,8 @@
 }
 
 .semana-dot.rec  { background: #97C459; }
-.semana-dot.pend { background: #FAC775; }
+.semana-dot.conf { background: #FBBF24; }
+.semana-dot.pend { background: #F87171; }
 
 .semana-row-name {
   flex: 1;
@@ -467,6 +521,7 @@
 }
 
 .semana-row-badge.rec  { background: var(--rec-badge-bg);  color: var(--rec-text); }
+.semana-row-badge.conf { background: var(--conf-badge-bg); color: var(--conf-badge-text); }
 .semana-row-badge.pend { background: var(--pend-badge-bg); color: var(--pend-badge-text); }
 
 .semana-empty {

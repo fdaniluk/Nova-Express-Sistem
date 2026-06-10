@@ -25,7 +25,8 @@ router.get('/', async (req, res, next) => {
     const pickups = await db
       .prepare(
         `SELECT id, cliente_id, cliente_nombre, direccion, hora_inicio, hora_fin, estado,
-                check_datos, check_guia, check_proforma, check_despachado
+                check_datos, check_guia, check_proforma, check_despachado,
+                confirmado_ricardo, confirmado_juanqui
          FROM pickups
          WHERE fecha = ?
          ORDER BY hora_inicio ASC`
@@ -93,7 +94,7 @@ router.patch('/pickups/:id', async (req, res, next) => {
     const current = await db.prepare('SELECT * FROM pickups WHERE id = ?').get(id);
     if (!current) return res.status(404).json({ error: 'Pickup no encontrado' });
 
-    const { check_datos, check_guia, check_proforma, check_despachado } = req.body;
+    const { check_datos, check_guia, check_proforma, check_despachado, confirmar_ricardo, confirmar_juanqui } = req.body;
 
     const updates = {};
     if (check_datos !== undefined) updates.check_datos = Number(check_datos);
@@ -101,8 +102,32 @@ router.patch('/pickups/:id', async (req, res, next) => {
     if (check_proforma !== undefined) updates.check_proforma = Number(check_proforma);
     if (check_despachado !== undefined) updates.check_despachado = Number(check_despachado);
 
+    if (confirmar_ricardo !== undefined) {
+      if (confirmar_ricardo) {
+        const ts = await db.prepare("SELECT datetime('now','localtime') AS ts").get();
+        updates.confirmado_ricardo = ts.ts;
+      } else {
+        updates.confirmado_ricardo = null;
+      }
+    }
+    if (confirmar_juanqui !== undefined) {
+      if (confirmar_juanqui) {
+        const ts = await db.prepare("SELECT datetime('now','localtime') AS ts").get();
+        updates.confirmado_juanqui = ts.ts;
+      } else {
+        updates.confirmado_juanqui = null;
+      }
+    }
+
     if (Object.keys(updates).length === 0) {
       return res.status(400).json({ error: 'No hay campos para actualizar' });
+    }
+
+    if (confirmar_juanqui !== undefined || confirmar_ricardo !== undefined) {
+      const nextJuanqui = 'confirmado_juanqui' in updates
+        ? updates.confirmado_juanqui
+        : current.confirmado_juanqui;
+      updates.estado = nextJuanqui ? 'recolectado' : 'pendiente';
     }
 
     const setClauses = Object.keys(updates).map((k) => `${k} = ?`).join(', ');
