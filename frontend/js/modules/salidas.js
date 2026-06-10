@@ -181,7 +181,7 @@
       <td>${fmtNum(e.numero_salida)}</td>
       <td>${courierBadge(e.courier)}</td>
       <td>${NovaUtils.formatDate(e.fecha)}</td>
-      <td class="mono">${esc(e.numero_guia)}${e.courier === 'UPS' ? trackBtnHtml(e.numero_guia) : ''}</td>
+      <td class="mono">${esc(e.numero_guia)}${revisionIconHtml(e)}${e.courier === 'UPS' ? trackBtnHtml(e.numero_guia) : ''}</td>
       <td>${cobroBadge(e.tipo_cobro)}</td>
       <td><a href="clientes-perfil.html?id=${e.cliente_id}">${esc(e.cliente_nombre)}</a></td>
       <td>${esc(e.destino)}</td>
@@ -236,7 +236,7 @@
       <td>${fmtNum(e.numero_salida)}</td>
       <td>${courierBadge(e.courier)}</td>
       <td>${NovaUtils.formatDate(e.fecha)}</td>
-      <td class="mono">${esc(e.numero_guia)}${alertIcon}${e.courier === 'UPS' ? trackBtnHtml(e.numero_guia) : ''}</td>
+      <td class="mono">${esc(e.numero_guia)}${revisionIconHtml(e)}${alertIcon}${e.courier === 'UPS' ? trackBtnHtml(e.numero_guia) : ''}</td>
       <td>${cobroBadge(e.tipo_cobro)}</td>
       <td><a href="clientes-perfil.html?id=${e.cliente_id}">${esc(e.cliente_nombre)}</a></td>
       <td>${esc(e.destino)}</td>
@@ -283,6 +283,16 @@
   function alertIconHtml(level, e) {
     const color = level === 'rojo' ? '#dc2626' : '#d97706';
     return `<span class="alert-icon" title="${alertMsg(e)}" style="color:${color}">⚠</span>`;
+  }
+
+  function revisionIconHtml(e) {
+    if (e.estado_revision === 'a_revisar') {
+      return `<span class="alert-icon" title="A revisar" style="color:#d97706">⚑</span>`;
+    }
+    if (e.estado_revision === 'reclamar') {
+      return `<span class="alert-icon" title="Reclamar" style="color:#dc2626">⚑</span>`;
+    }
+    return '';
   }
 
   // ── Auto 5: semáforo de antigüedad ──────────────────────────────────────────
@@ -722,6 +732,7 @@
           <button class="sal-modal-close" id="sal-modal-close" title="Cerrar">×</button>
         </div>
         <div class="sal-modal-body">
+          <div id="sal-modal-alert"></div>
           <div>
             <div class="sal-section-title">Identificación</div>
             <div class="sal-form-grid">
@@ -817,6 +828,7 @@
     }
     document.getElementById('saled-observaciones').value = envio.observaciones ?? '';
 
+    document.getElementById('sal-modal-alert').innerHTML = '';
     document.getElementById('sal-edit-overlay').classList.remove('hidden');
     document.getElementById('saled-guia').focus();
     document.getElementById('saled-guia').select();
@@ -833,7 +845,7 @@
     const guia = document.getElementById('saled-guia').value.trim();
 
     if (!guia) {
-      NovaUtils.showAlert(alertBox, 'El número de guía no puede estar vacío', 'error');
+      NovaUtils.showAlert(document.getElementById('sal-modal-alert'), 'El número de guía no puede estar vacío', 'error');
       document.getElementById('saled-guia').focus();
       return;
     }
@@ -863,7 +875,9 @@
       applyAll();
       NovaUtils.showAlert(alertBox, 'Cambios guardados correctamente', 'success');
     } catch (err) {
-      NovaUtils.showAlert(alertBox, err.message, 'error');
+      const modalAlert = document.getElementById('sal-modal-alert');
+      NovaUtils.showAlert(modalAlert, err.message, 'error');
+      document.querySelector('.sal-modal-body').scrollTop = 0;
     } finally {
       saveBtn.disabled = false;
       saveBtn.textContent = 'Guardar cambios';

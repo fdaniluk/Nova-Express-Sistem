@@ -39,6 +39,7 @@ router.get('/', async (req, res, next) => {
         e.profit,
         e.porcentaje,
         e.observaciones,
+        e.estado_revision,
         e.liquidado,
         e.fecha_liquidacion,
         e.liquidacion_id,
@@ -99,6 +100,7 @@ router.get('/', async (req, res, next) => {
       profit: row.profit,
       porcentaje: row.porcentaje,
       observaciones: row.observaciones,
+      estado_revision: row.estado_revision ?? null,
       liquidado: Boolean(row.liquidado),
       fecha_liquidacion: row.fecha_liquidacion,
     }));
