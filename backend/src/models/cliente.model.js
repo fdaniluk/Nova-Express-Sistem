@@ -120,4 +120,4 @@ function parseTarifa(cliente) {
   return cliente;
 }
 
-module.exports = { listar, buscarPorId, crear, actualizar, eliminar, parseTarifa, mapCliente };
+module.exports = { listar, buscarPorId, crear, actualizar, eliminar, parseTarifa };

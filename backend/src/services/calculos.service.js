@@ -53,16 +53,6 @@ function redondear2(n) {
   return Math.round(Number(n) * 100) / 100;
 }
 
-function calcUPSManejo(bultos) {
-  if (!bultos || !bultos.length) return 0;
-  let count = 0;
-  for (const b of bultos) {
-    const pr   = Number(b.pesoReal ?? b.peso_real) || 0;
-    const dims = [Number(b.largo) || 0, Number(b.ancho) || 0, Number(b.alto) || 0].sort((x, y) => y - x);
-    if (pr > 25 || dims[0] > 120 || dims[1] > 76) count++;
-  }
-  return count > 0 ? redondear2(count * 27.65) : 0;
-}
 
 const _DIACRITICS_RE = new RegExp('[\\u0300-\\u036f]', 'g');
 function normPais(s) {
@@ -196,7 +186,6 @@ module.exports = {
   calcularFleteFuel,
   redondear2,
   cotizarEnvio,
-  calcUPSManejo,
   calcSeguroDHL,
   calcularPrecioDHL,
   buscarZona,

@@ -366,6 +366,7 @@
       const dirs = await NovaAPI.clientes.direcciones.listar(clienteId);
       renderDirInput(dirs);
     } catch (e) {
+      console.warn('[pickups] No se pudieron cargar direcciones del cliente:', e.message);
       wrap.innerHTML = '<input type="text" id="m-direccion" placeholder="Dirección de pickup">';
     }
   }

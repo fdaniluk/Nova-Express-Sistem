@@ -52,7 +52,9 @@
       for (const c of configs) {
         fuelPctActual[c.courier] = c.fuel_pct;
       }
-    } catch (_) { /* usa defaults si falla */ }
+    } catch (err) {
+      console.warn('[envios] No se pudo cargar fuel config, usando defaults:', err.message);
+    }
   }
 
   async function loadClientes() {
@@ -184,7 +186,8 @@
       document.getElementById('peso-preview').textContent =
         `Peso volumétrico: ${p.pesoVolumetrico} kg | Peso facturable: ${p.pesoFacturable} kg`;
       document.getElementById('peso-preview').dataset.facturable = p.pesoFacturable;
-    } catch {
+    } catch (err) {
+      console.warn('[envios] Error al calcular pesos:', err.message);
       document.getElementById('peso-preview').textContent = 'Peso volumétrico: — | Peso facturable: —';
       document.getElementById('peso-preview').dataset.facturable = '';
     }
