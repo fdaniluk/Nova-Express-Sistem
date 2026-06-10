@@ -28,7 +28,7 @@ router.post('/chequear', upload.single('pdf'), async (req, res, next) => {
 
     for (const guia of guias) {
       const envio = await db
-        .prepare('SELECT numero_guia, costo_facturado, fecha_facturado FROM envios WHERE numero_guia = ?')
+        .prepare('SELECT numero_guia, costo_facturado, fecha_facturado FROM envios WHERE UPPER(numero_guia) = UPPER(?)')
         .get(guia.numero_guia);
 
       if (envio && envio.costo_facturado != null) {
@@ -85,7 +85,7 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
         await db.exec('SAVEPOINT factura_row');
         try {
           const envio = await db
-            .prepare('SELECT id, total_cobrado, costo_facturado FROM envios WHERE numero_guia = ?')
+            .prepare('SELECT id, total_cobrado, costo_facturado FROM envios WHERE UPPER(numero_guia) = UPPER(?)')
             .get(guia.numero_guia);
 
           if (!envio) {

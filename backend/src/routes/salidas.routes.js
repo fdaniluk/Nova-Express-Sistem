@@ -139,6 +139,10 @@ router.patch('/:id', async (req, res, next) => {
       return res.status(400).json({ error: 'No hay campos para actualizar' });
     }
 
+    if (picked.numero_guia !== undefined) {
+      picked.numero_guia = String(picked.numero_guia ?? '').trim().toUpperCase() || picked.numero_guia;
+    }
+
     // numero_guia es UNIQUE: validar que no exista en otro envío
     if (picked.numero_guia !== undefined && picked.numero_guia !== existing.numero_guia) {
       if (!picked.numero_guia) {

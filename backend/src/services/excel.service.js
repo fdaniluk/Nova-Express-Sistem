@@ -162,7 +162,7 @@ async function importarSalidas(buffer) {
       if (isSkippableRow(m)) continue;
 
       try {
-        const guia = String(m.numero_guia ?? '').trim();
+        const guia = String(m.numero_guia ?? '').trim().toUpperCase();
         const clienteNombre = String(m.cliente ?? '').trim();
 
         if (!guia) {
