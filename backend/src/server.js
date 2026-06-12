@@ -5,6 +5,7 @@ const config = require('./config');
 const routes = require('./routes');
 const { initDb } = require('./db');
 const { migrarColumnas: migrarColumnasliquidacion } = require('./models/liquidacion.model');
+const { hacerBackup } = require('./services/backup.service');
 
 const app = express();
 
@@ -28,6 +29,8 @@ initDb()
   .then(async () => {
     await migrarColumnasliquidacion();
     console.log('[liquidacion.model] Migración de columnas OK');
+    await hacerBackup();
+    setInterval(hacerBackup, 24 * 60 * 60 * 1000);
     app.listen(config.port, () => {
       console.log(`Nova Express API en http://localhost:${config.port}`);
       console.log(`Base de datos: ${config.dbPath}`);
