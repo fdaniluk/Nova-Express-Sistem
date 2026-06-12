@@ -24,7 +24,8 @@ function sha256(str) {
 
 router.post('/login', async (req, res, next) => {
   try {
-    const { usuario, password } = req.body || {};
+    const usuario = (req.body?.usuario || '').trim();
+    const password = (req.body?.password || '').trim();
     if (!usuario || !password) {
       return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
     }

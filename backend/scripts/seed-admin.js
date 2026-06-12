@@ -23,7 +23,7 @@ async function main() {
     process.exit(1);
   }
 
-  const existing = await db.prepare('SELECT id FROM usuarios WHERE usuario = ?').get(usuario);
+  const existing = await db.prepare('SELECT id FROM usuarios WHERE usuario = ? COLLATE NOCASE').get(usuario);
   if (existing) {
     console.log(`El usuario "${usuario}" ya existe. No se creó duplicado.`);
     process.exit(0);

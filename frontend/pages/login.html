@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ingresar — Nova Express</title>
+  <link rel="stylesheet" href="../css/main.css">
+  <style>
+    body {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      background: var(--color-primary);
+    }
+    .login-wrap {
+      width: 100%;
+      max-width: 360px;
+      padding: 1rem;
+    }
+    .login-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      justify-content: center;
+      margin-bottom: 1.75rem;
+    }
+    .login-logo {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      background: var(--color-accent);
+      color: #1e293b;
+      font-weight: 800;
+      font-size: 0.9rem;
+      border-radius: 8px;
+      flex-shrink: 0;
+    }
+    .login-brand-title {
+      font-weight: 700;
+      font-size: 1.1rem;
+      color: #fff;
+      line-height: 1.2;
+    }
+    .login-brand-sub {
+      font-size: 0.7rem;
+      color: #94a3b8;
+    }
+    .login-card {
+      background: var(--color-surface);
+      border-radius: var(--radius);
+      padding: 2rem;
+      box-shadow: 0 4px 24px rgba(0, 0, 0, 0.25);
+    }
+    .login-card h2 {
+      margin: 0 0 1.5rem;
+      font-size: 1rem;
+      color: var(--color-primary);
+      font-weight: 600;
+    }
+    .login-card .form-group {
+      margin-bottom: 1rem;
+    }
+    .login-card input {
+      width: 100%;
+      padding: 0.6rem 0.75rem;
+      font-size: 0.95rem;
+    }
+    .login-card .btn-primary {
+      width: 100%;
+      padding: 0.65rem;
+      font-size: 0.95rem;
+      margin-top: 0.5rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="login-wrap">
+    <div class="login-brand">
+      <div class="login-logo">NE</div>
+      <div>
+        <div class="login-brand-title">Nova Express</div>
+        <div class="login-brand-sub">Courier DHL / UPS</div>
+      </div>
+    </div>
+    <div class="login-card">
+      <h2>Iniciar sesión</h2>
+      <div id="login-error" class="alert alert-error hidden"></div>
+      <form id="form-login">
+        <div class="form-group">
+          <label for="usuario">Usuario</label>
+          <input type="text" id="usuario" autocomplete="username" required>
+        </div>
+        <div class="form-group">
+          <label for="password">Contraseña</label>
+          <input type="password" id="password" autocomplete="current-password" required>
+        </div>
+        <button type="submit" class="btn btn-primary">Ingresar</button>
+      </form>
+    </div>
+  </div>
+  <script src="/js/login.js"></script>
+</body>
+</html>

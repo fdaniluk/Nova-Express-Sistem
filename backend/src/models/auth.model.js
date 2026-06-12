@@ -1,7 +1,7 @@
 const { getDb } = require('../db');
 
 async function buscarUsuarioPorNombre(usuario) {
-  return getDb().prepare('SELECT * FROM usuarios WHERE usuario = ?').get(usuario);
+  return getDb().prepare('SELECT * FROM usuarios WHERE usuario = ? COLLATE NOCASE').get(usuario);
 }
 
 async function crearSesion(usuario_id, token_hash, expira_en) {

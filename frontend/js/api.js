@@ -13,6 +13,10 @@ async function request(path, options = {}) {
   }
 
   const res = await fetch(url, config);
+  if (res.status === 401 && !path.startsWith('/auth/')) {
+    location.replace('/pages/login.html');
+    throw new Error('Sesión expirada');
+  }
   if (!res.ok) {
     let msg = `Error ${res.status}`;
     try {
