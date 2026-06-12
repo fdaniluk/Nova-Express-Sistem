@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const cookieParser = require('cookie-parser');
 const path = require('path');
 const config = require('./config');
 const routes = require('./routes');
@@ -11,6 +12,7 @@ const app = express();
 
 app.use(cors({ origin: config.corsOrigin }));
 app.use(express.json({ limit: '2mb' }));
+app.use(cookieParser());
 
 app.use('/api', routes);
 

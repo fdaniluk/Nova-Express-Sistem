@@ -216,3 +216,23 @@ CREATE TABLE IF NOT EXISTS facturas_cargadas (
 -- Fuel inicial DHL y UPS al 39.5%
 INSERT OR IGNORE INTO configuracion (courier, fuel_pct) VALUES ('DHL', 39.5);
 INSERT OR IGNORE INTO configuracion (courier, fuel_pct) VALUES ('UPS', 39.5);
+
+-- Autenticación
+CREATE TABLE IF NOT EXISTS usuarios (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  usuario        TEXT UNIQUE NOT NULL,
+  password_hash  TEXT NOT NULL,
+  rol            TEXT NOT NULL DEFAULT 'empleado' CHECK(rol IN ('admin','empleado')),
+  ver_dashboard  INTEGER NOT NULL DEFAULT 0,
+  activo         INTEGER NOT NULL DEFAULT 1,
+  creado_en      TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS sesiones (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  token_hash  TEXT UNIQUE NOT NULL,
+  usuario_id  INTEGER NOT NULL,
+  creado_en   TEXT DEFAULT (datetime('now')),
+  expira_en   TEXT NOT NULL,
+  FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
+);

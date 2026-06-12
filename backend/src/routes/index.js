@@ -10,23 +10,31 @@ const operacionesRoutes = require('./operaciones');
 const salidasRoutes = require('./salidas.routes');
 const trackingRoutes = require('./tracking.routes');
 const facturasRoutes = require('./facturas.routes');
+const authRoutes = require('./auth.routes');
+const { requireAuth, requireDashboard } = require('../middleware/auth');
 
 const router = Router();
 
+// Rutas públicas (sin autenticación)
+router.get('/health', (req, res) => res.json({ ok: true, service: 'nova-express-api' }));
+router.use('/auth', authRoutes);
+
+// A partir de acá todo requiere sesión válida
+router.use(requireAuth);
+
+// Dashboard requiere además ver_dashboard=1
+router.use('/dashboard', requireDashboard, dashboardRoutes);
+
+// Resto de rutas protegidas
 router.use('/clientes', clientesRoutes);
 router.use('/clientes/:id/direcciones', clienteDireccionesRoutes);
 router.use('/envios', enviosRoutes);
 router.use('/salidas', salidasRoutes);
 router.use('/liquidaciones', liquidacionesRoutes);
 router.use('/configuracion', configuracionRoutes);
-router.use('/dashboard', dashboardRoutes);
 router.use('/pickups', pickupsRoutes);
 router.use('/operaciones', operacionesRoutes);
 router.use('/tracking', trackingRoutes);
 router.use('/facturas', facturasRoutes);
-
-router.get('/health', (req, res) => {
-  res.json({ ok: true, service: 'nova-express-api' });
-});
 
 module.exports = router;
