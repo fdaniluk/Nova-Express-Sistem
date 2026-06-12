@@ -3,29 +3,38 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Clientes – Nova Express</title>
+  <title>Usuarios – Nova Express</title>
   <link rel="stylesheet" href="../css/main.css">
   <style>
-    .form-clientes {
+    .usuarios-form-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
       gap: 0.75rem 1rem;
+      align-items: end;
     }
-    .tipo-cobro-hint {
-      font-size: 0.75rem;
-      color: var(--color-muted);
-      margin-top: 0.2rem;
+    .usuarios-form-grid .checkbox-group {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding-bottom: 0.45rem;
     }
-    .btn-link {
-      background: none;
-      border: none;
-      padding: 0;
-      color: var(--color-primary-light);
+    .usuarios-form-grid .checkbox-group label {
+      font-weight: 500;
       cursor: pointer;
-      font: inherit;
-      text-decoration: underline;
-      font-size: 0.9rem;
+      margin: 0;
     }
+    .inline-select {
+      padding: 0.25rem 0.4rem;
+      font-size: 0.85rem;
+      border: 1px solid var(--color-border, #d1d5db);
+      border-radius: 4px;
+      background: #fff;
+      cursor: pointer;
+      max-width: 140px;
+    }
+    .tabla-usuarios td { vertical-align: middle; }
+    .tabla-usuarios .actions-cell { display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap; }
+    .estado-cell { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
   </style>
 </head>
 <body>
@@ -44,7 +53,7 @@
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
         <span>Dashboard</span>
       </a>
-      <a href="clientes.html" class="nav-item active">
+      <a href="clientes.html" class="nav-item">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
         <span>Clientes</span>
       </a>
@@ -76,7 +85,7 @@
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></span>
         <span>Facturas</span>
       </a>
-      <a href="usuarios.html" class="nav-item">
+      <a href="usuarios.html" class="nav-item active">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg></span>
         <span>Usuarios</span>
       </a>
@@ -91,96 +100,57 @@
 
   <div class="page-content">
     <div class="page-header">
-      <h1>Clientes</h1>
-      <button class="btn btn-primary" id="btn-nuevo">+ Nuevo cliente</button>
+      <h1>Usuarios</h1>
     </div>
 
     <div class="page-body">
       <div id="alert-box"></div>
 
-      <!-- Formulario add/edit (oculto por defecto) -->
-      <div class="card hidden" id="form-panel">
-        <h2 id="form-title">Nuevo cliente</h2>
-        <form id="form-cliente">
-          <input type="hidden" id="cliente-id">
-          <div class="form-clientes">
+      <div class="card">
+        <h2>Crear usuario</h2>
+        <form id="form-usuario">
+          <div class="usuarios-form-grid">
             <div class="form-group">
-              <label for="f-razon_social">Razón social *</label>
-              <input type="text" id="f-razon_social" required>
+              <label for="u-usuario">Usuario *</label>
+              <input type="text" id="u-usuario" autocomplete="off" required>
             </div>
             <div class="form-group">
-              <label for="f-cuit">CUIT</label>
-              <input type="text" id="f-cuit" placeholder="30-12345678-9">
+              <label for="u-password">Contraseña *</label>
+              <input type="password" id="u-password" autocomplete="new-password" minlength="6" required>
             </div>
             <div class="form-group">
-              <label for="f-tipo_cobro">Tipo de cobro</label>
-              <select id="f-tipo_cobro">
-                <option value="CC">Cuenta Corriente</option>
-                <option value="D">Diario</option>
-                <option value="S">Semanal</option>
-                <option value="Q">Quincenal</option>
+              <label for="u-rol">Rol *</label>
+              <select id="u-rol">
+                <option value="empleado">Empleado</option>
+                <option value="admin">Administrador</option>
               </select>
             </div>
-            <div class="form-group">
-              <label for="f-tarifa_pct">% Tarifa (profit)</label>
-              <input type="number" id="f-tarifa_pct" min="0" max="100" step="0.5" value="0">
-            </div>
-            <div class="form-group">
-              <label for="f-tipo_facturacion">Tipo facturación</label>
-              <select id="f-tipo_facturacion">
-                <option value="Responsable inscripto">Responsable inscripto</option>
-                <option value="Monotributista">Monotributista</option>
-                <option value="Exento">Exento</option>
-                <option value="Consumidor final">Consumidor final</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="f-contacto">Contacto</label>
-              <input type="text" id="f-contacto">
-            </div>
-            <div class="form-group">
-              <label for="f-email">Email</label>
-              <input type="email" id="f-email">
-            </div>
-            <div class="form-group">
-              <label for="f-whatsapp">WhatsApp</label>
-              <input type="text" id="f-whatsapp" placeholder="+54 9 11 ...">
-            </div>
-            <div class="form-group">
-              <label for="f-codigo_postal">Código postal</label>
-              <input type="text" id="f-codigo_postal">
-            </div>
-            <div class="form-group full">
-              <label for="f-direccion_recoleccion">Dirección de recolección</label>
-              <input type="text" id="f-direccion_recoleccion">
-              <small class="tipo-cobro-hint">Las direcciones adicionales se gestionan desde el perfil del cliente.</small>
+            <div class="form-group checkbox-group">
+              <input type="checkbox" id="u-ver-dashboard">
+              <label for="u-ver-dashboard">Puede ver el Dashboard</label>
             </div>
           </div>
           <div class="actions">
-            <button type="submit" class="btn btn-primary">Guardar</button>
-            <button type="button" class="btn btn-secondary" id="btn-cancelar">Cancelar</button>
+            <button type="submit" class="btn btn-primary">Crear usuario</button>
           </div>
         </form>
       </div>
 
-      <!-- Tabla de clientes -->
       <div class="card">
+        <h2>Usuarios del sistema</h2>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>Razón social</th>
-                <th>CUIT</th>
-                <th>Contacto</th>
-                <th>Email</th>
-                <th>Tipo cobro</th>
-                <th>Tarifa %</th>
+                <th>Usuario</th>
+                <th>Rol</th>
+                <th style="text-align:center">Dashboard</th>
                 <th>Estado</th>
-                <th></th>
+                <th>Acciones</th>
               </tr>
             </thead>
-            <tbody id="tabla-clientes">
-              <tr><td colspan="8" class="empty">Cargando...</td></tr>
+            <tbody id="tabla-usuarios" class="tabla-usuarios">
+              <tr><td colspan="5" class="empty">Cargando...</td></tr>
             </tbody>
           </table>
         </div>
@@ -192,6 +162,6 @@
 <script src="/js/auth-guard.js"></script>
 <script src="../js/api.js"></script>
 <script src="../js/main.js"></script>
-<script src="../js/modules/clientes.js"></script>
+<script src="../js/modules/usuarios.js"></script>
 </body>
 </html>

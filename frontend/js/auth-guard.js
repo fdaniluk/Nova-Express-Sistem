@@ -23,6 +23,19 @@
           }
         }
 
+        if (user.rol !== 'admin') {
+          document.querySelectorAll(
+            'a[href="usuarios.html"], a[href="pages/usuarios.html"], a[href="/pages/usuarios.html"]'
+          ).forEach(function (el) {
+            el.style.display = 'none';
+          });
+          const path = window.location.pathname;
+          if (path.endsWith('usuarios.html')) {
+            location.replace('/pages/envios.html');
+            return;
+          }
+        }
+
         const btnLogout = document.getElementById('btn-logout');
         if (btnLogout) {
           btnLogout.addEventListener('click', function () {
