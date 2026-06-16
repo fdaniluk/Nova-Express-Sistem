@@ -149,6 +149,22 @@ function calcSeguroDHL(v){
   return{monto:m,desc:`Seguro DHL: 1.5% × USD ${v.toLocaleString('es-AR')} = USD ${m.toFixed(2)}`};
 }
 
+// Extracargos DHL por bulto: sobrepeso (>70 kg real o facturable) y exceso de tamaño
+// b.pf puede ser provisto por el caller; si no está, se usa solo b.pr
+function calcDHLExtras(bultosProc){
+  let sobrepesoTotal=0;
+  let excesoTotal=0;
+  bultosProc.forEach(b=>{
+    const tieneSobrepeso=b.pr>70||(b.pf!==undefined&&b.pf>70);
+    if(tieneSobrepeso){
+      sobrepesoTotal+=125;
+    } else if(b.dims[0]>100||b.dims[1]>80){
+      excesoTotal+=23;
+    }
+  });
+  return{sobrepesoTotal,excesoTotal};
+}
+
 // Extracargos UPS por bulto: manejo adicional ($27.65) y contorno >300 cm ($120)
 function calcUPSDimExtras(bultosProc){
   let manejoCount=0;
@@ -192,6 +208,7 @@ function cotizarServicio(servicio, params) {
     residencial=false, remota=false,
     contenido='paquete',
     zonaOverride,
+    ddp=false,
   } = params;
   const fuel   = fuelPct   / 100;
   const profit = profitPct / 100;
@@ -211,14 +228,15 @@ function cotizarServicio(servicio, params) {
     if(!fleteBase)return null;
     const aplicaGoGreen=!(tipo==='import'&&pf>50);
     const goGreen=aplicaGoGreen?parseFloat((pf*0.98).toFixed(2)):0;
-    let dhlDimExtra=0;
-    bultosProc.forEach(b=>{if(b.dims[0]>100)dhlDimExtra+=23;if(b.dims[1]>80)dhlDimExtra+=23;});
+    const{sobrepesoTotal,excesoTotal}=calcDHLExtras(bultosProc);
     const seguroObj=calcSeguroDHL(fob);
     const extras=[];
-    if(goGreen>0)      extras.push([`GoGreen (${pf.toFixed(1)} kg × USD 0.98)`,goGreen]);
-    if(dhlDimExtra>0)  extras.push(['Extracargo dimensiones DHL',dhlDimExtra]);
-    if(seguroObj.monto>0)extras.push(['Seguro DHL',seguroObj.monto]);
-    if(remota)         extras.push(['Área remota',Math.max(40,pf*0.8)]);
+    if(goGreen>0)           extras.push([`GoGreen (${pf.toFixed(1)} kg × USD 0.98)`,goGreen]);
+    if(sobrepesoTotal>0)    extras.push(['Sobrepeso (DHL)',sobrepesoTotal]);
+    if(excesoTotal>0)       extras.push(['Exceso de tamaño (DHL)',excesoTotal]);
+    if(seguroObj.monto>0)   extras.push(['Seguro DHL',seguroObj.monto]);
+    if(remota)              extras.push(['Área remota',Math.max(40,pf*0.8)]);
+    if(ddp)                 extras.push(['DDP',24.05]);
     const conGan          =fleteBase*(1+profit);
     const subtotalConSurge=conGan;
     const fuelMonto       =subtotalConSurge*fuel;
@@ -228,7 +246,7 @@ function cotizarServicio(servicio, params) {
       servicio:'DHL Express Worldwide',zona,pf,
       fleteBase,feeUSA:0,surge:0,surgeAmt:0,flete:fleteBase,
       conGan,subtotalConSurge,fuelMonto,extras,extrasTotal,total,
-      goGreen,dhlDimExtra,seguro:seguroObj.monto,
+      goGreen,sobrepesoTotal,excesoTotal,seguro:seguroObj.monto,
       manejoCount:0,contornoExtra:0,contornoWarn:false,manejo:0,
     };
   }
@@ -268,6 +286,7 @@ function cotizarServicio(servicio, params) {
   if(seguroObj.monto>0)extras.push(['Seguro',seguroObj.monto]);
   if(remota)         extras.push(['Área remota',Math.max(42.15,pf*0.92)]);
   if(residencial)    extras.push(['Entrega residencial',6]);
+  if(ddp)            extras.push(['DDP',24.05]);
   const conGan          =flete*(1+profit);
   const subtotalConSurge=conGan+surge;
   const fuelMonto       =subtotalConSurge*fuel;
@@ -295,7 +314,7 @@ if(typeof module!=='undefined'&&module.exports){
     UPS_SAVER_ES_IT,UPS_SAVER_ES_PK,UPS_SAVER_IT_PK,
     resolverZona,
     getPesoVol,getDHL,getDHLBig,getUPS,getUPSSaverEsIt,
-    getSurge,calcSeguroUPS,calcSeguroDHL,calcUPSDimExtras,calcImpuestos,
+    getSurge,calcSeguroUPS,calcSeguroDHL,calcDHLExtras,calcUPSDimExtras,calcImpuestos,
     cotizarServicio,
   };
 }
