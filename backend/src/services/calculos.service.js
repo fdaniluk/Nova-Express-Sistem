@@ -90,7 +90,7 @@ function mkBultosProc(bultos) {
   }));
 }
 
-function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zonaOverride, bultos = [], residencial = false }) {
+function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zonaOverride, bultos = [], residencial = false, ddp = false }) {
   const pf     = Number(pesoFacturable) || 0;
   const fuel   = (Number(fuelPct)   || 0) / 100;
   const profit = (Number(profitPct) || 0) / 100;
@@ -109,6 +109,7 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
     bultosProc: mkBultosProc(bultos),
     residencial,
     zonaOverride,
+    ddp,
   });
   if (!r) return null;
 
@@ -125,6 +126,7 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
       precioFinal: redondear2(r.total),
       zona: r.zona,
       servicio: 'DHL Express',
+      extras: r.extras,
     };
   }
 
@@ -138,45 +140,8 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
     manejo:  redondear2(r.manejo),
     contorno: r.contornoExtra,
     servicio: servicio === 'UPS_EXP' ? 'UPS Expedited' : 'UPS Saver',
+    extras: r.extras,
   };
-}
-
-function calcularPrecioDHL({ pais, tipo, contenido, pfTotal, bultosProc, valor, g, f, exR }) {
-  const zona = ZONAS_DHL[pais];
-  if (!zona) return null;
-  const esDoc = contenido === 'documento' && pfTotal <= 2;
-  let flete;
-  if (tipo === 'import' && !esDoc && pfTotal > 50) {
-    flete = getDHLBig(zona, pfTotal);
-  } else {
-    const tabla = esDoc
-      ? (tipo === 'export' ? DHL_E_DOC : DHL_I_DOC)
-      : (tipo === 'export' ? DHL_E_PKG : DHL_I_PKG);
-    flete = getDHL(tabla, zona, pfTotal);
-  }
-  if (!flete) return null;
-  const ex = [];
-  const aplicaGG = !(tipo === 'import' && pfTotal > 50);
-  if (aplicaGG) {
-    const ggMonto = parseFloat((pfTotal * 0.98).toFixed(2));
-    ex.push([`GoGreen (${pfTotal.toFixed(1)} kg × USD 0.98)`, ggMonto]);
-  }
-  let dhlDimExtra = 0;
-  bultosProc.forEach(b => {
-    const d = b.dims;
-    if (d[0] > 100) dhlDimExtra += 23;
-    if (d[1] > 80)  dhlDimExtra += 23;
-  });
-  if (dhlDimExtra > 0) ex.push([`Extracargo dimensiones DHL`, dhlDimExtra]);
-  const seguroDHL = calcSeguroDHL(valor);
-  if (seguroDHL.monto > 0) ex.push(['Seguro DHL', seguroDHL.monto]);
-  if (exR) ex.push(['Área remota', Math.max(40, pfTotal * 0.8)]);
-  const conGan           = flete * (1 + g / 100);
-  const subtotalConSurge = conGan;
-  const fuelMonto        = subtotalConSurge * (f / 100);
-  const extrasTotal      = ex.reduce((s, r) => s + r[1], 0);
-  const total            = subtotalConSurge + fuelMonto + extrasTotal;
-  return { courier: 'DHL Express Worldwide', zona, pf: pfTotal, conGan, surgeAmt: 0, subtotalConSurge, fuelMonto, total, extraRows: ex };
 }
 
 module.exports = {
@@ -187,7 +152,6 @@ module.exports = {
   redondear2,
   cotizarEnvio,
   calcSeguroDHL,
-  calcularPrecioDHL,
   buscarZona,
   ZONAS_DHL,
   ZONAS_UPS,
