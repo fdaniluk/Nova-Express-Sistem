@@ -270,6 +270,8 @@
       ? `<button class="btn-conf btn-conf-on btn-conf-deposito" data-action="desconf-deposito" data-id="${p.id}" title="En depósito a las ${horaD} — clic para deshacer">✓ En depósito ${horaD}</button>`
       : `<button class="btn-conf btn-conf-off btn-conf-deposito" data-action="conf-deposito" data-id="${p.id}"${!horaJ ? ' disabled' : ''}>Confirmar depósito</button>`;
 
+    const cobroBadgeHtml = p.tiene_cobro ? '<span class="cobro-badge">$ Cobro</span>' : '';
+
     return `<div class="pickup-card-v2${cardExtra}" id="pickup-card-${p.id}">
       <div class="pickup-rec-stripe ${stripeClass}"${stripeAttrs}>${escHtml(stripeLabel)}</div>
       <div class="pickup-card-v2-content">
@@ -283,6 +285,7 @@
             <div class="pickup-hora">${escHtml(p.hora_inicio)} – ${escHtml(p.hora_fin)}</div>
           </div>
           <span class="pickup-badge ${sc}">${badgeText}</span>
+          ${cobroBadgeHtml}
         </div>
         <div class="pickup-direccion">📍 ${escHtml(p.direccion)}</div>
         <div class="pickup-actions">
@@ -326,10 +329,12 @@
         : delDia.map(p => {
             const sc = estadoPickup(p);
             const badgeLabel = sc === 'dep' ? 'En depósito' : sc === 'cam' ? 'En camioneta' : sc === 'conf' ? (p.visto_juanqui_at ? 'Ricardo ✓ · 👁' : 'Ricardo ✓') : 'Sin confirmar';
+            const cobroChip = p.tiene_cobro ? '<span class="cobro-chip-sm">$</span>' : '';
             return `<div class="semana-row ${sc}" data-action="goto-dia" data-ymd="${ymd}">
               <span class="semana-dot ${sc}"></span>
               <span class="semana-row-name">${escHtml(p.cliente_nombre)}</span>
               ${courierBadgeHtml(p.courier)}
+              ${cobroChip}
               <span class="semana-row-hora">${escHtml(p.hora_inicio)}</span>
               ${recChipHtml(p.recolector)}
               <span class="semana-row-badge ${sc}">${badgeLabel}</span>
@@ -529,6 +534,7 @@
     document.getElementById('m-hora-inicio').value = '09:00';
     document.getElementById('m-hora-fin').value = '11:00';
     document.getElementById('m-courier').value = '';
+    document.getElementById('m-tiene-cobro').checked = false;
     document.getElementById('m-notas').value = '';
     const primerCliente = clientes[0];
     if (primerCliente) cargarDirecciones(primerCliente.id);
@@ -548,6 +554,7 @@
     document.getElementById('m-hora-inicio').value = p.hora_inicio;
     document.getElementById('m-hora-fin').value = p.hora_fin;
     document.getElementById('m-courier').value = p.courier || '';
+    document.getElementById('m-tiene-cobro').checked = !!p.tiene_cobro;
     document.getElementById('m-notas').value = p.notas || '';
     await cargarDirecciones(p.cliente_id);
     setDireccionEnModal(p.direccion);
@@ -567,6 +574,7 @@
     const hora_fin = document.getElementById('m-hora-fin').value;
     const courierEl = document.getElementById('m-courier');
     const courier = courierEl ? (courierEl.value || null) : null;
+    const tiene_cobro = document.getElementById('m-tiene-cobro').checked ? 1 : 0;
     const notas = document.getElementById('m-notas').value.trim() || null;
     if (!cliente_id || !direccion || !fecha || !hora_inicio || !hora_fin) {
       NovaUtils.showAlert(alertBox, 'Completá todos los campos obligatorios.');
@@ -574,9 +582,9 @@
     }
     try {
       if (pickupEditandoId) {
-        await NovaAPI.pickups.editar(pickupEditandoId, { cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, notas });
+        await NovaAPI.pickups.editar(pickupEditandoId, { cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, tiene_cobro, notas });
       } else {
-        await NovaAPI.pickups.crear({ cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, notas });
+        await NovaAPI.pickups.crear({ cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, tiene_cobro, notas });
       }
       cerrarModal();
       await cargarPickups();
