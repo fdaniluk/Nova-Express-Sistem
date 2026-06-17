@@ -197,7 +197,9 @@ CREATE TABLE IF NOT EXISTS pickups (
   check_despachado    INTEGER DEFAULT 0,
   courier             TEXT,
   confirmado_ricardo  TEXT,
-  confirmado_juanqui  TEXT
+  confirmado_juanqui  TEXT,
+  en_deposito_at      TEXT,
+  recolector          TEXT
 );
 
 -- Historial de facturas cargadas (módulo Control de Facturas)

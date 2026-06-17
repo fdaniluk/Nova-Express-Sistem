@@ -1,5 +1,6 @@
 const { Router } = require('express');
 const { getDb } = require('../db');
+const { procesarConfirmacion } = require('../services/pickups.service');
 
 const router = Router();
 
@@ -26,7 +27,7 @@ router.get('/', async (req, res, next) => {
       .prepare(
         `SELECT id, cliente_id, cliente_nombre, direccion, hora_inicio, hora_fin, estado,
                 check_datos, check_guia, check_proforma, check_despachado,
-                confirmado_ricardo, confirmado_juanqui
+                confirmado_ricardo, confirmado_juanqui, en_deposito_at, recolector
          FROM pickups
          WHERE fecha = ?
          ORDER BY hora_inicio ASC`
@@ -91,53 +92,41 @@ router.patch('/pickups/:id', async (req, res, next) => {
     const db = getDb();
     const { id } = req.params;
 
-    const current = await db.prepare('SELECT * FROM pickups WHERE id = ?').get(id);
-    if (!current) return res.status(404).json({ error: 'Pickup no encontrado' });
+    // check_* son exclusivos del contexto operaciones; se aplican por separado
+    const { check_datos, check_guia, check_proforma, check_despachado } = req.body;
+    const checkUpdates = {};
+    if (check_datos     !== undefined) checkUpdates.check_datos     = Number(check_datos);
+    if (check_guia      !== undefined) checkUpdates.check_guia      = Number(check_guia);
+    if (check_proforma  !== undefined) checkUpdates.check_proforma  = Number(check_proforma);
+    if (check_despachado !== undefined) checkUpdates.check_despachado = Number(check_despachado);
 
-    const { check_datos, check_guia, check_proforma, check_despachado, confirmar_ricardo, confirmar_juanqui } = req.body;
-
-    const updates = {};
-    if (check_datos !== undefined) updates.check_datos = Number(check_datos);
-    if (check_guia !== undefined) updates.check_guia = Number(check_guia);
-    if (check_proforma !== undefined) updates.check_proforma = Number(check_proforma);
-    if (check_despachado !== undefined) updates.check_despachado = Number(check_despachado);
-
-    if (confirmar_ricardo !== undefined) {
-      if (confirmar_ricardo) {
-        const ts = await db.prepare("SELECT datetime('now','localtime') AS ts").get();
-        updates.confirmado_ricardo = ts.ts;
-      } else {
-        updates.confirmado_ricardo = null;
-      }
-    }
-    if (confirmar_juanqui !== undefined) {
-      if (confirmar_juanqui) {
-        const ts = await db.prepare("SELECT datetime('now','localtime') AS ts").get();
-        updates.confirmado_juanqui = ts.ts;
-      } else {
-        updates.confirmado_juanqui = null;
-      }
+    if (Object.keys(checkUpdates).length > 0) {
+      const exists = await db.prepare('SELECT id FROM pickups WHERE id = ?').get(id);
+      if (!exists) return res.status(404).json({ error: 'Pickup no encontrado' });
+      const setClauses = Object.keys(checkUpdates).map(k => `${k} = ?`).join(', ');
+      await db.prepare(`UPDATE pickups SET ${setClauses} WHERE id = ?`).run(...Object.values(checkUpdates), id);
     }
 
-    if (Object.keys(updates).length === 0) {
+    // Confirmaciones via helper compartido (incluye regla de cadena + side-effects sobre envios)
+    const { confirmar_ricardo, confirmar_juanqui, confirmar_deposito } = req.body;
+    const hasConfirmation = confirmar_ricardo !== undefined
+      || confirmar_juanqui  !== undefined
+      || confirmar_deposito !== undefined;
+
+    if (hasConfirmation) {
+      const updated = await procesarConfirmacion(db, id, req.body);
+      if (!updated) return res.status(404).json({ error: 'Pickup no encontrado' });
+      return res.json(updated);
+    }
+
+    if (Object.keys(checkUpdates).length === 0) {
       return res.status(400).json({ error: 'No hay campos para actualizar' });
     }
-
-    if (confirmar_juanqui !== undefined || confirmar_ricardo !== undefined) {
-      const nextJuanqui = 'confirmado_juanqui' in updates
-        ? updates.confirmado_juanqui
-        : current.confirmado_juanqui;
-      updates.estado = nextJuanqui ? 'recolectado' : 'pendiente';
-    }
-
-    const setClauses = Object.keys(updates).map((k) => `${k} = ?`).join(', ');
-    await db
-      .prepare(`UPDATE pickups SET ${setClauses} WHERE id = ?`)
-      .run(...Object.values(updates), id);
 
     const updated = await db.prepare('SELECT * FROM pickups WHERE id = ?').get(id);
     res.json(updated);
   } catch (e) {
+    if (e.status) return res.status(e.status).json({ error: e.message });
     next(e);
   }
 });

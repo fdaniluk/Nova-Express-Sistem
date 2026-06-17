@@ -130,12 +130,22 @@ async function migratePickups() {
     ['courier',            'TEXT'],
     ['confirmado_ricardo', 'TEXT'],
     ['confirmado_juanqui', 'TEXT'],
+    ['en_deposito_at',     'TEXT'],
+    ['recolector',         'TEXT'],
   ];
   for (const [col, def] of toAdd) {
     if (!cols.includes(col)) {
       await dbApi.exec(`ALTER TABLE pickups ADD COLUMN ${col} ${def}`);
     }
   }
+
+  // Pickups anteriores: confirmado_juanqui implicaba "en depósito" en el viejo modelo.
+  // Los backfilleamos para que no queden como "en_camioneta" sin haber llegado a depósito.
+  await dbApi.exec(`
+    UPDATE pickups
+    SET en_deposito_at = confirmado_juanqui, estado = 'en_deposito'
+    WHERE confirmado_juanqui IS NOT NULL AND en_deposito_at IS NULL
+  `);
 }
 
 async function migrateEnvios() {

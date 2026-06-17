@@ -1,7 +1,13 @@
 const { Router } = require('express');
 const { getDb } = require('../db');
+const { RECOLECTORES, derivarEstado, procesarConfirmacion } = require('../services/pickups.service');
 
 const router = Router();
+
+// GET /recolectores — antes de rutas /:id para evitar colisiones futuras
+router.get('/recolectores', (req, res) => {
+  res.json(RECOLECTORES);
+});
 
 router.get('/', async (req, res, next) => {
   try {
@@ -38,8 +44,8 @@ router.get('/', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const db = getDb();
-    const { cliente_id, direccion, fecha, hora_inicio, hora_fin, notas, courier } = req.body;
-    console.log('[POST /pickups] req.body.courier:', JSON.stringify(courier), '| body completo:', JSON.stringify(req.body));
+    const { cliente_id, direccion, fecha, hora_inicio, hora_fin, notas, courier, recolector } = req.body;
+    console.log('[POST /pickups] body:', JSON.stringify(req.body));
 
     if (!cliente_id || !direccion || !fecha || !hora_inicio || !hora_fin) {
       return res
@@ -47,19 +53,32 @@ router.post('/', async (req, res, next) => {
         .json({ error: 'cliente_id, direccion, fecha, hora_inicio y hora_fin son obligatorios' });
     }
 
+    if (recolector != null && !RECOLECTORES.includes(recolector)) {
+      return res.status(400).json({ error: `Recolector inválido. Valores permitidos: ${RECOLECTORES.join(', ')}` });
+    }
+
     const cliente = await db
       .prepare('SELECT nombre FROM clientes WHERE id = ?')
       .get(cliente_id);
     if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
 
-    const insertParams = [cliente_id, cliente.nombre, direccion, fecha, hora_inicio, hora_fin, notas || null, courier || null];
-    console.log('[POST /pickups] INSERT params:', JSON.stringify(insertParams));
-
     const result = await db
       .prepare(
-        'INSERT INTO pickups (cliente_id, cliente_nombre, direccion, fecha, hora_inicio, hora_fin, notas, courier) VALUES (?, ?, ?, ?, ?, ?, ?, ?)'
+        `INSERT INTO pickups
+           (cliente_id, cliente_nombre, direccion, fecha, hora_inicio, hora_fin, notas, courier, recolector)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
-      .run(...insertParams);
+      .run(
+        cliente_id,
+        cliente.nombre,
+        direccion,
+        fecha,
+        hora_inicio,
+        hora_fin,
+        notas || null,
+        courier || null,
+        recolector || null
+      );
 
     const created = await db.prepare('SELECT * FROM pickups WHERE id = ?').get(result.lastInsertRowid);
     res.status(201).json(created);
@@ -76,11 +95,14 @@ router.put('/:id', async (req, res, next) => {
     const existing = await db.prepare('SELECT * FROM pickups WHERE id = ?').get(id);
     if (!existing) return res.status(404).json({ error: 'Pickup no encontrado' });
 
-    const { cliente_id, direccion, fecha, hora_inicio, hora_fin, notas, estado, courier } = req.body;
+    // `estado` no se acepta como campo libre: se deriva de los timestamps actuales
+    const { cliente_id, direccion, fecha, hora_inicio, hora_fin, notas, courier, recolector } = req.body;
+
+    if (recolector != null && !RECOLECTORES.includes(recolector)) {
+      return res.status(400).json({ error: `Recolector inválido. Valores permitidos: ${RECOLECTORES.join(', ')}` });
+    }
 
     const newClienteId = cliente_id != null ? cliente_id : existing.cliente_id;
-    const newFecha = fecha != null ? fecha : existing.fecha;
-    const newEstado = estado !== undefined ? estado : existing.estado;
     let clienteNombre = existing.cliente_nombre;
 
     if (cliente_id != null && String(cliente_id) !== String(existing.cliente_id)) {
@@ -89,31 +111,29 @@ router.put('/:id', async (req, res, next) => {
       clienteNombre = cliente.nombre;
     }
 
+    // El PUT no altera los timestamps de confirmación; estado se re-deriva de ellos.
+    const estado = derivarEstado(existing.confirmado_juanqui, existing.en_deposito_at);
+
     await db
       .prepare(
-        'UPDATE pickups SET cliente_id=?, cliente_nombre=?, direccion=?, fecha=?, hora_inicio=?, hora_fin=?, notas=?, estado=?, courier=? WHERE id=?'
+        `UPDATE pickups
+         SET cliente_id=?, cliente_nombre=?, direccion=?, fecha=?, hora_inicio=?, hora_fin=?,
+             notas=?, estado=?, courier=?, recolector=?
+         WHERE id=?`
       )
       .run(
         newClienteId,
         clienteNombre,
-        direccion != null ? direccion : existing.direccion,
-        newFecha,
-        hora_inicio != null ? hora_inicio : existing.hora_inicio,
-        hora_fin != null ? hora_fin : existing.hora_fin,
-        notas !== undefined ? notas : existing.notas,
-        newEstado,
-        courier !== undefined ? courier : existing.courier,
+        direccion     != null      ? direccion     : existing.direccion,
+        fecha         != null      ? fecha         : existing.fecha,
+        hora_inicio   != null      ? hora_inicio   : existing.hora_inicio,
+        hora_fin      != null      ? hora_fin      : existing.hora_fin,
+        notas         !== undefined ? notas         : existing.notas,
+        estado,
+        courier       !== undefined ? courier       : existing.courier,
+        recolector    !== undefined ? recolector    : existing.recolector,
         id
       );
-
-    if (newEstado === 'recolectado' && existing.estado !== 'recolectado') {
-      await db
-        .prepare(
-          `UPDATE envios SET estado_operativo = 'en_deposito'
-           WHERE cliente_id = ? AND fecha = ? AND estado_operativo = 'pendiente'`
-        )
-        .run(newClienteId, newFecha);
-    }
 
     const updated = await db.prepare('SELECT * FROM pickups WHERE id = ?').get(id);
     res.json(updated);
@@ -125,58 +145,11 @@ router.put('/:id', async (req, res, next) => {
 router.patch('/:id', async (req, res, next) => {
   try {
     const db = getDb();
-    const { id } = req.params;
-
-    const current = await db.prepare('SELECT * FROM pickups WHERE id = ?').get(id);
-    if (!current) return res.status(404).json({ error: 'Pickup no encontrado' });
-
-    const { confirmar_ricardo, confirmar_juanqui } = req.body;
-    const updates = {};
-
-    if (confirmar_ricardo !== undefined) {
-      if (confirmar_ricardo) {
-        const ts = await db.prepare("SELECT datetime('now','localtime') AS ts").get();
-        updates.confirmado_ricardo = ts.ts;
-      } else {
-        updates.confirmado_ricardo = null;
-      }
-    }
-    if (confirmar_juanqui !== undefined) {
-      if (confirmar_juanqui) {
-        const ts = await db.prepare("SELECT datetime('now','localtime') AS ts").get();
-        updates.confirmado_juanqui = ts.ts;
-      } else {
-        updates.confirmado_juanqui = null;
-      }
-    }
-
-    if (Object.keys(updates).length === 0) {
-      return res.status(400).json({ error: 'No hay campos para actualizar' });
-    }
-
-    const nextJuanqui = 'confirmado_juanqui' in updates
-      ? updates.confirmado_juanqui
-      : current.confirmado_juanqui;
-    updates.estado = nextJuanqui ? 'recolectado' : 'pendiente';
-
-    const wasRecolectado = current.estado === 'recolectado';
-    const setClauses = Object.keys(updates).map((k) => `${k} = ?`).join(', ');
-    await db
-      .prepare(`UPDATE pickups SET ${setClauses} WHERE id = ?`)
-      .run(...Object.values(updates), id);
-
-    if (updates.estado === 'recolectado' && !wasRecolectado) {
-      await db
-        .prepare(
-          `UPDATE envios SET estado_operativo = 'en_deposito'
-           WHERE cliente_id = ? AND fecha = ? AND estado_operativo = 'pendiente'`
-        )
-        .run(current.cliente_id, current.fecha);
-    }
-
-    const updated = await db.prepare('SELECT * FROM pickups WHERE id = ?').get(id);
+    const updated = await procesarConfirmacion(db, req.params.id, req.body);
+    if (!updated) return res.status(404).json({ error: 'Pickup no encontrado' });
     res.json(updated);
   } catch (e) {
+    if (e.status) return res.status(e.status).json({ error: e.message });
     next(e);
   }
 });
