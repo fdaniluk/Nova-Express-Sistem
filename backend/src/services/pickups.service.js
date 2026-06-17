@@ -20,7 +20,7 @@ async function procesarConfirmacion(db, id, body) {
   const current = await db.prepare('SELECT * FROM pickups WHERE id = ?').get(id);
   if (!current) return null;
 
-  const { confirmar_ricardo, confirmar_juanqui, confirmar_deposito, recolector } = body;
+  const { confirmar_ricardo, confirmar_juanqui, confirmar_deposito, confirmar_visto, recolector } = body;
   const updates = {};
 
   if (confirmar_ricardo !== undefined) {
@@ -37,15 +37,38 @@ async function procesarConfirmacion(db, id, body) {
     } else {
       // Desconfirmar Ricardo limpia toda la cadena
       updates.confirmado_ricardo = null;
+      updates.visto_juanqui_at   = null;
       updates.confirmado_juanqui = null;
       updates.en_deposito_at = null;
       updates.recolector = null;
     }
   }
 
+  if (confirmar_visto !== undefined) {
+    if (confirmar_visto) {
+      const ricardoActual = 'confirmado_ricardo' in updates ? updates.confirmado_ricardo : current.confirmado_ricardo;
+      if (!ricardoActual) {
+        const err = new Error('No se puede marcar como visto sin confirmación de Ricardo');
+        err.status = 400;
+        throw err;
+      }
+      updates.visto_juanqui_at = await getTimestamp(db);
+    } else {
+      // Deshacer visto limpia también los pasos posteriores
+      updates.visto_juanqui_at   = null;
+      updates.confirmado_juanqui = null;
+      updates.en_deposito_at     = null;
+    }
+  }
+
   if (confirmar_juanqui !== undefined) {
     if (confirmar_juanqui) {
       updates.confirmado_juanqui = await getTimestamp(db);
+      // Autocompletar visto si todavía no fue marcado
+      const vistoActual = 'visto_juanqui_at' in updates ? updates.visto_juanqui_at : current.visto_juanqui_at;
+      if (!vistoActual) {
+        updates.visto_juanqui_at = updates.confirmado_juanqui;
+      }
     } else {
       // Desconfirmar Juanqui limpia también depósito
       updates.confirmado_juanqui = null;

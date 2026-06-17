@@ -132,6 +132,7 @@ async function migratePickups() {
     ['confirmado_juanqui', 'TEXT'],
     ['en_deposito_at',     'TEXT'],
     ['recolector',         'TEXT'],
+    ['visto_juanqui_at',   'TEXT'],
   ];
   for (const [col, def] of toAdd) {
     if (!cols.includes(col)) {

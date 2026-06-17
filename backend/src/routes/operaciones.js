@@ -27,7 +27,7 @@ router.get('/', async (req, res, next) => {
       .prepare(
         `SELECT id, cliente_id, cliente_nombre, direccion, hora_inicio, hora_fin, estado,
                 check_datos, check_guia, check_proforma, check_despachado,
-                confirmado_ricardo, confirmado_juanqui, en_deposito_at, recolector
+                confirmado_ricardo, visto_juanqui_at, confirmado_juanqui, en_deposito_at, recolector
          FROM pickups
          WHERE fecha = ?
          ORDER BY hora_inicio ASC`
