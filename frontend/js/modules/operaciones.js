@@ -46,7 +46,7 @@
     dateLabel.textContent = formatearFechaTitulo(fechaActual);
     datePicker.value = toYMD(fechaActual);
 
-    const pendientes = pickupsDelDia.filter((p) => p.estado !== 'recolectado').length;
+    const pendientes = pickupsDelDia.filter((p) => estadoPickup(p) !== 'dep').length;
     const partes = [`${envios.length} envío${envios.length !== 1 ? 's' : ''}`];
     if (pendientes > 0) partes.push(`${pendientes} pickup${pendientes !== 1 ? 's' : ''} pendiente${pendientes !== 1 ? 's' : ''}`);
     subtitleEl.textContent = partes.join(' · ');
@@ -59,6 +59,12 @@
     return pickupsDelDia.filter((p) => !clientesConEnvio.has(p.cliente_id));
   }
 
+  function estadoPickup(p) {
+    if (p.en_deposito_at || p.estado === 'en_deposito') return 'dep';
+    if (p.confirmado_juanqui || p.estado === 'en_camioneta') return 'cam';
+    return 'pend';
+  }
+
   // ── Render lista ──────────────────────────────────────
 
   function renderLista() {
@@ -67,11 +73,11 @@
     pickupsDelDia.forEach((p) => { pickupPorCliente[p.cliente_id] = p; });
 
     const standalonesPendientes = standalone
-      .filter((p) => p.estado !== 'recolectado')
+      .filter((p) => estadoPickup(p) !== 'dep')
       .sort((a, b) => a.hora_inicio.localeCompare(b.hora_inicio));
 
-    const standalonesRecolectados = standalone
-      .filter((p) => p.estado === 'recolectado')
+    const standalonesDeposito = standalone
+      .filter((p) => estadoPickup(p) === 'dep')
       .sort((a, b) => a.cliente_nombre.localeCompare(b.cliente_nombre));
 
     const enviosActivos = envios
@@ -82,21 +88,20 @@
       .filter((e) => e.estado_operativo === 'despachado')
       .sort((a, b) => a.cliente_nombre.localeCompare(b.cliente_nombre));
 
-    if (!standalonesPendientes.length && !standalonesRecolectados.length && !envios.length) {
+    if (!standalonesPendientes.length && !standalonesDeposito.length && !envios.length) {
       opsList.innerHTML = '<div class="ops-empty">No hay envíos ni pickups registrados para este día.</div>';
       return;
     }
 
     const partes = [
       ...standalonesPendientes.map((p) => renderCardPickupStandalone(p)),
-      ...standalonesRecolectados.map((p) => renderCardPickupStandalone(p)),
+      ...standalonesDeposito.map((p) => renderCardPickupStandalone(p)),
       ...enviosActivos.map((e) => renderCardEnvio(e, pickupPorCliente[e.cliente_id] || null)),
       ...enviosDespachados.map((e) => renderCardEnvio(e, pickupPorCliente[e.cliente_id] || null)),
     ];
 
     opsList.innerHTML = partes.join('');
     bindCheckboxes();
-    bindConfirmarPickups();
   }
 
   // ── Cards de envío ────────────────────────────────────
@@ -125,16 +130,17 @@
     if (envio.estado_operativo === 'despachado') {
       return `<div class="envio-card-header header-despachado"><span>✓ Despachado</span></div>`;
     }
-    if (pickup && pickup.estado !== 'recolectado') {
+    if (pickup) {
+      const sc = estadoPickup(pickup);
+      if (sc === 'dep') {
+        return `<div class="envio-card-header en-deposito"><span>🏭 En depósito</span></div>`;
+      }
+      if (sc === 'cam') {
+        return `<div class="envio-card-header en-camioneta-pickup"><span>🚐 En camioneta</span></div>`;
+      }
       return `<div class="envio-card-header pickup-pendiente">
         <span>🕐 Pickup pendiente · ${escHtml(pickup.hora_inicio)}–${escHtml(pickup.hora_fin)}</span>
-        <button class="btn-confirmar-pickup" data-pickup-id="${pickup.id}" data-contexto="envio">
-          ✓ Confirmar recolección
-        </button>
       </div>`;
-    }
-    if (pickup && pickup.estado === 'recolectado') {
-      return `<div class="envio-card-header en-deposito"><span>🏭 En depósito · recolectado</span></div>`;
     }
     return `<div class="envio-card-header en-deposito"><span>🏭 En depósito · ingreso directo</span></div>`;
   }
@@ -142,15 +148,17 @@
   // ── Cards de pickup standalone ────────────────────────
 
   function renderCardPickupStandalone(pickup) {
-    const esPendiente = pickup.estado !== 'recolectado';
-    const headerHtml = esPendiente
-      ? `<div class="envio-card-header pickup-pendiente">
+    const sc = estadoPickup(pickup);
+    let headerHtml;
+    if (sc === 'dep') {
+      headerHtml = `<div class="envio-card-header en-deposito"><span>🏭 En depósito</span></div>`;
+    } else if (sc === 'cam') {
+      headerHtml = `<div class="envio-card-header en-camioneta-pickup"><span>🚐 En camioneta</span></div>`;
+    } else {
+      headerHtml = `<div class="envio-card-header pickup-pendiente">
            <span>🕐 Pickup pendiente · ${escHtml(pickup.hora_inicio)}–${escHtml(pickup.hora_fin)}</span>
-           <button class="btn-confirmar-pickup" data-pickup-id="${pickup.id}" data-contexto="standalone">
-             ✓ Confirmar recolección
-           </button>
-         </div>`
-      : `<div class="envio-card-header en-deposito"><span>🏭 En depósito · recolectado</span></div>`;
+         </div>`;
+    }
 
     return `<div class="envio-card standalone-pickup" data-pickup-id="${pickup.id}">
       ${headerHtml}
@@ -226,39 +234,6 @@
       cb.checked = !cb.checked;
       NovaUtils.showAlert(alertBox, 'Error al guardar: ' + e.message);
     }
-  }
-
-  // ── Confirmar recolección ─────────────────────────────
-
-  function bindConfirmarPickups() {
-    opsList.querySelectorAll('.btn-confirmar-pickup').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const pickupId = Number(btn.dataset.pickupId);
-        const contexto = btn.dataset.contexto;
-        const pickup = pickupsDelDia.find((p) => p.id === pickupId);
-        if (!confirm(`¿Confirmar recolección del pickup de ${pickup ? pickup.cliente_nombre : 'este cliente'}?`)) return;
-        try {
-          await NovaAPI.pickups.editar(pickupId, { estado: 'recolectado' });
-          const idx = pickupsDelDia.findIndex((p) => p.id === pickupId);
-          if (idx >= 0) pickupsDelDia[idx].estado = 'recolectado';
-
-          // Si el pickup tiene envíos asociados, actualizar su estado_operativo
-          if (contexto === 'envio' && pickup) {
-            envios.forEach((e) => {
-              if (e.cliente_id === pickup.cliente_id && e.estado_operativo === 'pendiente') {
-                e.estado_operativo = 'en_deposito';
-              }
-            });
-          }
-
-          actualizarHeader();
-          renderLista();
-          NovaUtils.showAlert(alertBox, 'Recolección confirmada', 'success');
-        } catch (e) {
-          NovaUtils.showAlert(alertBox, 'Error: ' + e.message);
-        }
-      });
-    });
   }
 
   // ── Navegación ────────────────────────────────────────

@@ -16,6 +16,12 @@
   --pend-badge-text: #7F1D1D;
   --pku-green: #3B6D11;
   --pku-green-hover: #2d5509;
+  /* Azul: en camioneta */
+  --cam-bg: #EFF6FF;
+  --cam-border: #60A5FA;
+  --cam-text: #1E3A5F;
+  --cam-badge-bg: #BFDBFE;
+  --cam-badge-text: #1E40AF;
 }
 
 /* ── Page header controls ────────────────────────────────── */
@@ -155,10 +161,12 @@
 
 .day-pill-dot.pend { background: #F87171; }
 .day-pill-dot.conf { background: #FBBF24; }
-.day-pill-dot.rec  { background: #97C459; }
+.day-pill-dot.cam  { background: #60A5FA; }
+.day-pill-dot.dep  { background: #97C459; }
 .day-pill.active .day-pill-dot.pend { background: rgba(255,255,255,0.7); }
 .day-pill.active .day-pill-dot.conf { background: rgba(255,255,255,0.8); }
-.day-pill.active .day-pill-dot.rec  { background: rgba(255,255,255,0.9); }
+.day-pill.active .day-pill-dot.cam  { background: rgba(255,255,255,0.85); }
+.day-pill.active .day-pill-dot.dep  { background: rgba(255,255,255,0.9); }
 
 /* ── Vista Día ───────────────────────────────────────────── */
 .dia-header {
@@ -198,7 +206,13 @@
   border: 1.5px solid;
 }
 
-.resumen-card.rec {
+.resumen-card.cam {
+  background: var(--cam-bg);
+  border-color: var(--cam-border);
+  color: var(--cam-text);
+}
+
+.resumen-card.dep {
   background: var(--rec-bg);
   border-color: var(--rec-border);
   color: var(--rec-text);
@@ -227,7 +241,15 @@
   background: #FFF5F5;
   border: 1.5px solid var(--pend-border);
   border-radius: 10px;
+  display: flex;
+  flex-direction: row;
+  overflow: hidden;
+}
+
+.pickup-card-v2-content {
+  flex: 1;
   padding: 1rem 1.1rem;
+  min-width: 0;
 }
 
 .pickup-card-v2.confirmado {
@@ -235,10 +257,38 @@
   border-color: var(--conf-border);
 }
 
-.pickup-card-v2.recolectado {
+.pickup-card-v2.en-camioneta {
+  background: var(--cam-bg);
+  border-color: var(--cam-border);
+}
+
+.pickup-card-v2.en-deposito {
   background: var(--rec-bg);
   border-color: var(--rec-border);
 }
+
+/* ── Franja recolector ───────────────────────────────── */
+.pickup-rec-stripe {
+  width: 56px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  transform: rotate(180deg);
+  font-weight: 700;
+  font-size: 0.68rem;
+  color: #fff;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 0.5rem 0;
+  word-break: break-all;
+}
+
+.pickup-rec-stripe.stripe-juanqui { background: #F97316; }
+.pickup-rec-stripe.stripe-otro    { background: #8B5CF6; }
+.pickup-rec-stripe.stripe-ninguno { background: #9CA3AF; }
 
 .pickup-card-v2-header {
   display: flex;
@@ -261,14 +311,19 @@
   color: var(--pend-badge-text);
 }
 
-.pickup-avatar.rec {
-  background: var(--rec-border);
-  color: var(--rec-text);
+.pickup-avatar.cam {
+  background: var(--cam-badge-bg);
+  color: var(--cam-badge-text);
 }
 
 .pickup-avatar.conf {
   background: var(--conf-badge-bg);
   color: var(--conf-badge-text);
+}
+
+.pickup-avatar.dep {
+  background: var(--rec-border);
+  color: var(--rec-text);
 }
 
 .pickup-card-v2-info {
@@ -294,7 +349,7 @@
   min-width: 0;
 }
 
-.recolectado .pickup-client-name {
+.en-deposito .pickup-client-name {
   color: var(--rec-text);
 }
 
@@ -313,7 +368,8 @@
   white-space: nowrap;
 }
 
-.pickup-badge.rec  { background: var(--rec-badge-bg);  color: var(--rec-text); }
+.pickup-badge.dep  { background: var(--rec-badge-bg);  color: var(--rec-text); }
+.pickup-badge.cam  { background: var(--cam-badge-bg);  color: var(--cam-badge-text); }
 .pickup-badge.conf { background: var(--conf-badge-bg); color: var(--conf-badge-text); }
 .pickup-badge.pend { background: var(--pend-badge-bg); color: var(--pend-badge-text); }
 
@@ -324,6 +380,12 @@
 }
 
 .pickup-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.pickup-actions-row {
   display: flex;
   gap: 0.5rem;
   flex-wrap: wrap;
@@ -358,11 +420,12 @@
 .btn-conf-off.btn-conf-ricardo:hover { background: var(--conf-badge-bg); }
 
 .btn-conf-off.btn-conf-juanqui {
-  background: #f0fdf4;
-  color: #14532d;
-  border: 1.5px solid #86efac;
+  background: var(--cam-bg);
+  color: var(--cam-badge-text);
+  border: 1.5px solid var(--cam-border);
 }
-.btn-conf-off.btn-conf-juanqui:hover { background: #dcfce7; }
+.btn-conf-off.btn-conf-juanqui:hover { background: var(--cam-badge-bg); }
+.btn-conf-off.btn-conf-juanqui:disabled { opacity: 0.45; cursor: not-allowed; }
 
 /* Botón confirmado (estado on) */
 .btn-conf-on.btn-conf-ricardo {
@@ -373,11 +436,11 @@
 .btn-conf-on.btn-conf-ricardo:hover { background: #fcd34d; }
 
 .btn-conf-on.btn-conf-juanqui {
-  background: var(--rec-badge-bg);
-  color: var(--rec-text);
-  border: 1.5px solid var(--rec-border);
+  background: var(--cam-badge-bg);
+  color: var(--cam-badge-text);
+  border: 1.5px solid var(--cam-border);
 }
-.btn-conf-on.btn-conf-juanqui:hover { background: #a3d86a; }
+.btn-conf-on.btn-conf-juanqui:hover { background: #93c5fd; }
 
 .btn-detalle {
   min-height: 44px;
@@ -397,18 +460,21 @@
   background: #f8fafc;
 }
 
-.pickup-recolectado-label {
-  flex: 1;
-  min-height: 44px;
+.btn-conf-off.btn-conf-deposito {
+  background: var(--rec-bg);
+  color: var(--rec-text);
+  border: 1.5px solid var(--rec-border);
+}
+.btn-conf-off.btn-conf-deposito:hover { background: var(--rec-badge-bg); }
+.btn-conf-off.btn-conf-deposito:disabled { opacity: 0.45; cursor: not-allowed; }
+
+.btn-conf-on.btn-conf-deposito {
   background: var(--rec-badge-bg);
   color: var(--rec-text);
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 600;
-  font-size: 0.9rem;
+  border: 1.5px solid var(--rec-border);
 }
+.btn-conf-on.btn-conf-deposito:hover { background: #a3d86a; }
+
 
 .dia-empty {
   text-align: center;
@@ -478,8 +544,10 @@
 
 .semana-row:hover { background: #f8fafc; }
 
-.semana-row.rec  { background: #f5faee; }
-.semana-row.rec:hover  { background: #eef6e0; }
+.semana-row.dep  { background: #f5faee; }
+.semana-row.dep:hover  { background: #eef6e0; }
+.semana-row.cam  { background: #eff6ff; }
+.semana-row.cam:hover  { background: #dbeafe; }
 .semana-row.conf { background: #fffdf0; }
 .semana-row.conf:hover { background: #fef9c3; }
 
@@ -490,7 +558,8 @@
   flex-shrink: 0;
 }
 
-.semana-dot.rec  { background: #97C459; }
+.semana-dot.dep  { background: #97C459; }
+.semana-dot.cam  { background: #60A5FA; }
 .semana-dot.conf { background: #FBBF24; }
 .semana-dot.pend { background: #F87171; }
 
@@ -520,7 +589,8 @@
   white-space: nowrap;
 }
 
-.semana-row-badge.rec  { background: var(--rec-badge-bg);  color: var(--rec-text); }
+.semana-row-badge.dep  { background: var(--rec-badge-bg);  color: var(--rec-text); }
+.semana-row-badge.cam  { background: var(--cam-badge-bg);  color: var(--cam-badge-text); }
 .semana-row-badge.conf { background: var(--conf-badge-bg); color: var(--conf-badge-text); }
 .semana-row-badge.pend { background: var(--pend-badge-bg); color: var(--pend-badge-text); }
 
@@ -713,10 +783,24 @@
   .dia-titulo { font-size: 1rem; }
 }
 
+/* ── Chips recolector (vista semana) ─────────────────── */
+.semana-rec-chip {
+  padding: 0.12rem 0.45rem;
+  border-radius: 20px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.semana-rec-chip.chip-juanqui { background: #FDBA74; color: #7C2D12; }
+.semana-rec-chip.chip-otro    { background: #C4B5FD; color: #3B0764; }
+.semana-rec-chip.chip-ninguno { background: #E5E7EB; color: #6B7280; }
+
 @media (max-width: 480px) {
   .day-strip { padding: 0.5rem 1rem; }
 
-  .pickup-card-v2 { padding: 0.85rem 0.9rem; }
+  .pickup-card-v2-content { padding: 0.85rem 0.9rem; }
 
   .btn-confirmar, .btn-detalle { font-size: 0.85rem; }
 }

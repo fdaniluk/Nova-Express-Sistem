@@ -93,25 +93,16 @@
   border-bottom: 1px solid var(--color-border);
 }
 
+.envio-card-header.en-camioneta-pickup {
+  background: #eff6ff;
+  color: #1e40af;
+  border-bottom: 1px solid #bfdbfe;
+}
+
 .envio-card-header.header-despachado {
   background: #f0fdf4;
   color: #15803d;
   border-bottom: 1px solid #bbf7d0;
-}
-
-.btn-confirmar-pickup {
-  font-size: 0.78rem;
-  padding: 0.2rem 0.6rem;
-  background: #92400e;
-  color: #fff;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.btn-confirmar-pickup:hover {
-  background: #78350f;
 }
 
 /* Card body */

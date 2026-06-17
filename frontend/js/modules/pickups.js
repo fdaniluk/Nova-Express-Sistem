@@ -7,6 +7,7 @@
   let clientes = [];
   let pickupEditandoId = null;
   let detallePickupId = null;
+  let recolectores = [];
 
   // ── DOM refs ───────────────────────────────────────────────────────────
   const alertBox      = document.getElementById('alert-box');
@@ -103,10 +104,19 @@
     }
   }
 
-  // ── Estado 3-color ────────────────────────────────────────────────────
+  async function cargarRecolectores() {
+    try {
+      recolectores = await NovaAPI.get('/pickups/recolectores');
+    } catch (e) {
+      console.warn('[pickups] No se pudieron cargar recolectores:', e.message);
+    }
+  }
+
+  // ── Estado 4-color ────────────────────────────────────────────────────
 
   function estadoPickup(p) {
-    if (p.confirmado_juanqui) return 'rec';
+    if (p.en_deposito_at)     return 'dep';
+    if (p.confirmado_juanqui) return 'cam';
     if (p.confirmado_ricardo) return 'conf';
     return 'pend';
   }
@@ -141,8 +151,10 @@
       const delDia = pickups.filter(p => p.fecha === ymd);
       let dotClass = '';
       if (delDia.length > 0) {
-        if (delDia.every(p => !!p.confirmado_juanqui)) {
-          dotClass = 'rec';
+        if (delDia.every(p => !!p.en_deposito_at)) {
+          dotClass = 'dep';
+        } else if (delDia.some(p => !!p.confirmado_juanqui && !p.en_deposito_at)) {
+          dotClass = 'cam';
         } else if (delDia.some(p => !!p.confirmado_ricardo && !p.confirmado_juanqui)) {
           dotClass = 'conf';
         } else {
@@ -170,16 +182,18 @@
   function renderVistaDia() {
     const ymd = toYMD(diaActual);
     const delDia = pickups.filter(p => p.fecha === ymd);
-    const recCount  = delDia.filter(p => !!p.confirmado_juanqui).length;
+    const depCount  = delDia.filter(p => !!p.en_deposito_at).length;
+    const camCount  = delDia.filter(p => !!p.confirmado_juanqui && !p.en_deposito_at).length;
     const confCount = delDia.filter(p => !!p.confirmado_ricardo && !p.confirmado_juanqui).length;
-    const pendCount = delDia.filter(p => !p.confirmado_ricardo && !p.confirmado_juanqui).length;
+    const pendCount = delDia.filter(p => !p.confirmado_ricardo).length;
 
     const titulo = formatDiaTitulo(diaActual);
     document.getElementById('dia-titulo').textContent = titulo.charAt(0).toUpperCase() + titulo.slice(1);
     document.getElementById('dia-count').textContent = delDia.length === 0
       ? 'Sin pickups'
       : `${delDia.length} pickup${delDia.length !== 1 ? 's' : ''}`;
-    document.getElementById('count-rec').textContent  = `✓ ${recCount} recolectado${recCount !== 1 ? 's' : ''}`;
+    document.getElementById('count-dep').textContent  = `✓ ${depCount} en depósito`;
+    document.getElementById('count-cam').textContent  = `🚐 ${camCount} en camioneta`;
     document.getElementById('count-conf').textContent = `⚑ ${confCount} Ricardo`;
     document.getElementById('count-pend').textContent = `● ${pendCount} sin confirmar`;
 
@@ -203,6 +217,12 @@
     list.querySelectorAll('[data-action="desconf-juanqui"]').forEach(btn => {
       btn.addEventListener('click', () => toggleConfirmacion(Number(btn.dataset.id), 'juanqui', false, btn));
     });
+    list.querySelectorAll('[data-action="conf-deposito"]').forEach(btn => {
+      btn.addEventListener('click', () => toggleConfirmacion(Number(btn.dataset.id), 'deposito', true, btn));
+    });
+    list.querySelectorAll('[data-action="desconf-deposito"]').forEach(btn => {
+      btn.addEventListener('click', () => toggleConfirmacion(Number(btn.dataset.id), 'deposito', false, btn));
+    });
     list.querySelectorAll('[data-action="detalle"]').forEach(btn => {
       btn.addEventListener('click', () => abrirDetalle(Number(btn.dataset.id)));
     });
@@ -210,39 +230,60 @@
 
   function buildPickupCard(p) {
     const sc = estadoPickup(p);
-    const badgeText = sc === 'rec' ? '✓ Recolectado' : sc === 'conf' ? '⚑ Ricardo' : '● Sin confirmar';
-    const cardExtra = sc === 'rec' ? ' recolectado' : sc === 'conf' ? ' confirmado' : '';
+    const cardExtra = sc === 'dep' ? ' en-deposito' : sc === 'cam' ? ' en-camioneta' : sc === 'conf' ? ' confirmado' : '';
+    const badgeText = sc === 'dep' ? 'En depósito' : sc === 'cam' ? 'En camioneta' : sc === 'conf' ? 'Ricardo ✓' : 'Sin confirmar';
+    const stripeClass = p.recolector === 'Juanqui' ? 'stripe-juanqui' : p.recolector ? 'stripe-otro' : 'stripe-ninguno';
+    const stripeLabel = p.recolector || 'Sin asignar';
 
     const horaR = p.confirmado_ricardo ? p.confirmado_ricardo.slice(11, 16) : null;
     const horaJ = p.confirmado_juanqui ? p.confirmado_juanqui.slice(11, 16) : null;
+    const horaD = p.en_deposito_at ? p.en_deposito_at.slice(11, 16) : null;
 
     const btnRicardo = horaR
       ? `<button class="btn-conf btn-conf-on btn-conf-ricardo" data-action="desconf-ricardo" data-id="${p.id}" title="Confirma a las ${horaR} — clic para deshacer">✓ Ricardo ${horaR}</button>`
       : `<button class="btn-conf btn-conf-off btn-conf-ricardo" data-action="conf-ricardo" data-id="${p.id}">Confirmar Ricardo</button>`;
 
     const btnJuanqui = horaJ
-      ? `<button class="btn-conf btn-conf-on btn-conf-juanqui" data-action="desconf-juanqui" data-id="${p.id}" title="Confirma a las ${horaJ} — clic para deshacer">✓ Juanqui ${horaJ}</button>`
-      : `<button class="btn-conf btn-conf-off btn-conf-juanqui" data-action="conf-juanqui" data-id="${p.id}">Confirmar Juanqui</button>`;
+      ? `<button class="btn-conf btn-conf-on btn-conf-juanqui" data-action="desconf-juanqui" data-id="${p.id}" title="Confirma a las ${horaJ} — clic para deshacer">✓ En camioneta ${horaJ}</button>`
+      : `<button class="btn-conf btn-conf-off btn-conf-juanqui" data-action="conf-juanqui" data-id="${p.id}"${!horaR ? ' disabled' : ''}>En camioneta</button>`;
+
+    const btnDeposito = horaD
+      ? `<button class="btn-conf btn-conf-on btn-conf-deposito" data-action="desconf-deposito" data-id="${p.id}" title="En depósito a las ${horaD} — clic para deshacer">✓ En depósito ${horaD}</button>`
+      : `<button class="btn-conf btn-conf-off btn-conf-deposito" data-action="conf-deposito" data-id="${p.id}"${!horaJ ? ' disabled' : ''}>Confirmar depósito</button>`;
 
     return `<div class="pickup-card-v2${cardExtra}" id="pickup-card-${p.id}">
-      <div class="pickup-card-v2-header">
-        <div class="pickup-avatar ${sc}">${escHtml(getInitials(p.cliente_nombre))}</div>
-        <div class="pickup-card-v2-info">
-          <div class="pickup-name-row">
-            <div class="pickup-client-name">${escHtml(p.cliente_nombre)}</div>
-            ${courierBadgeHtml(p.courier)}
+      <div class="pickup-rec-stripe ${stripeClass}">${escHtml(stripeLabel)}</div>
+      <div class="pickup-card-v2-content">
+        <div class="pickup-card-v2-header">
+          <div class="pickup-avatar ${sc}">${escHtml(getInitials(p.cliente_nombre))}</div>
+          <div class="pickup-card-v2-info">
+            <div class="pickup-name-row">
+              <div class="pickup-client-name">${escHtml(p.cliente_nombre)}</div>
+              ${courierBadgeHtml(p.courier)}
+            </div>
+            <div class="pickup-hora">${escHtml(p.hora_inicio)} – ${escHtml(p.hora_fin)}</div>
           </div>
-          <div class="pickup-hora">${escHtml(p.hora_inicio)} – ${escHtml(p.hora_fin)}</div>
+          <span class="pickup-badge ${sc}">${badgeText}</span>
         </div>
-        <span class="pickup-badge ${sc}">${badgeText}</span>
-      </div>
-      <div class="pickup-direccion">📍 ${escHtml(p.direccion)}</div>
-      <div class="pickup-actions">
-        ${btnRicardo}
-        ${btnJuanqui}
-        <button class="btn-detalle" data-action="detalle" data-id="${p.id}">Ver detalle</button>
+        <div class="pickup-direccion">📍 ${escHtml(p.direccion)}</div>
+        <div class="pickup-actions">
+          <div class="pickup-actions-row">
+            ${btnRicardo}
+          </div>
+          <div class="pickup-actions-row">
+            ${btnJuanqui}
+            ${btnDeposito}
+            <button class="btn-detalle" data-action="detalle" data-id="${p.id}">Ver detalle</button>
+          </div>
+        </div>
       </div>
     </div>`;
+  }
+
+  function recChipHtml(recolector) {
+    if (!recolector) return '<span class="semana-rec-chip chip-ninguno">Sin asignar</span>';
+    const cls = recolector === 'Juanqui' ? 'chip-juanqui' : 'chip-otro';
+    return `<span class="semana-rec-chip ${cls}">${escHtml(recolector)}</span>`;
   }
 
   function renderVistaSemana() {
@@ -264,12 +305,13 @@
         ? '<div class="semana-empty">Sin pickups programados</div>'
         : delDia.map(p => {
             const sc = estadoPickup(p);
-            const badgeLabel = sc === 'rec' ? '✓ Listo' : sc === 'conf' ? 'Ricardo ✓' : 'Sin confirmar';
+            const badgeLabel = sc === 'dep' ? 'En depósito' : sc === 'cam' ? 'En camioneta' : sc === 'conf' ? 'Ricardo ✓' : 'Sin confirmar';
             return `<div class="semana-row ${sc}" data-action="goto-dia" data-ymd="${ymd}">
               <span class="semana-dot ${sc}"></span>
               <span class="semana-row-name">${escHtml(p.cliente_nombre)}</span>
               ${courierBadgeHtml(p.courier)}
               <span class="semana-row-hora">${escHtml(p.hora_inicio)}</span>
+              ${recChipHtml(p.recolector)}
               <span class="semana-row-badge ${sc}">${badgeLabel}</span>
             </div>`;
           }).join('');
@@ -302,14 +344,19 @@
     render();
   }
 
-  // ── Confirmaciones 3-estado ────────────────────────────────────────────
+  // ── Confirmaciones ────────────────────────────────────────────────────
 
   async function toggleConfirmacion(id, quien, valor, btn) {
     if (btn) { btn.disabled = true; btn.classList.add('loading'); }
     try {
-      const payload = quien === 'ricardo'
-        ? { confirmar_ricardo: valor }
-        : { confirmar_juanqui: valor };
+      let payload;
+      if (quien === 'ricardo') {
+        payload = { confirmar_ricardo: valor };
+      } else if (quien === 'juanqui') {
+        payload = { confirmar_juanqui: valor };
+      } else {
+        payload = { confirmar_deposito: valor };
+      }
       const updated = await NovaAPI.pickups.confirmar(id, payload);
       const idx = pickups.findIndex(p => p.id === id);
       if (idx !== -1) pickups[idx] = { ...pickups[idx], ...updated };
@@ -336,8 +383,11 @@
     const sc = estadoPickup(p);
     const horaR = p.confirmado_ricardo ? p.confirmado_ricardo.slice(11, 16) : null;
     const horaJ = p.confirmado_juanqui ? p.confirmado_juanqui.slice(11, 16) : null;
-    const estadoTexto = sc === 'rec'
-      ? `✓ Recolectado (Juanqui ${horaJ})`
+    const horaD = p.en_deposito_at ? p.en_deposito_at.slice(11, 16) : null;
+    const estadoTexto = sc === 'dep'
+      ? `✓ En depósito (${horaD})`
+      : sc === 'cam'
+      ? `🚐 En camioneta — Juanqui ${horaJ}`
       : sc === 'conf'
       ? `⚑ Confirmado Ricardo ${horaR} — pendiente Juanqui`
       : '● Sin confirmar';
@@ -357,6 +407,13 @@
     sel.innerHTML = clientes
       .map(c => `<option value="${c.id}">${escHtml(c.nombre)}</option>`)
       .join('');
+  }
+
+  function poblarSelectRecolectores(valorActual) {
+    const sel = document.getElementById('m-recolector');
+    if (!sel) return;
+    sel.innerHTML = '<option value="">— Sin asignar —</option>' +
+      recolectores.map(r => `<option value="${escAttr(r)}"${valorActual === r ? ' selected' : ''}>${escHtml(r)}</option>`).join('');
   }
 
   async function cargarDirecciones(clienteId) {
@@ -444,6 +501,7 @@
     document.getElementById('m-hora-fin').value = '11:00';
     document.getElementById('m-courier').value = '';
     document.getElementById('m-notas').value = '';
+    poblarSelectRecolectores('');
     const primerCliente = clientes[0];
     if (primerCliente) cargarDirecciones(primerCliente.id);
     else document.getElementById('dir-input-wrap').innerHTML = '<input type="text" id="m-direccion" placeholder="Dirección de pickup">';
@@ -463,6 +521,7 @@
     document.getElementById('m-hora-fin').value = p.hora_fin;
     document.getElementById('m-courier').value = p.courier || '';
     document.getElementById('m-notas').value = p.notas || '';
+    poblarSelectRecolectores(p.recolector || '');
     await cargarDirecciones(p.cliente_id);
     setDireccionEnModal(p.direccion);
     modalOverlay.classList.remove('hidden');
@@ -482,18 +541,17 @@
     const courierEl = document.getElementById('m-courier');
     const courier = courierEl ? (courierEl.value || null) : null;
     const notas = document.getElementById('m-notas').value.trim() || null;
-    console.log('[guardarPickup] courierEl:', courierEl, '| value:', courierEl?.value, '| courier enviado:', courier);
-    const payload = { cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, notas };
-    console.log('[guardarPickup] payload completo:', JSON.stringify(payload));
+    const recolectorEl = document.getElementById('m-recolector');
+    const recolector = recolectorEl ? (recolectorEl.value || null) : null;
     if (!cliente_id || !direccion || !fecha || !hora_inicio || !hora_fin) {
       NovaUtils.showAlert(alertBox, 'Completá todos los campos obligatorios.');
       return;
     }
     try {
       if (pickupEditandoId) {
-        await NovaAPI.pickups.editar(pickupEditandoId, { cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, notas });
+        await NovaAPI.pickups.editar(pickupEditandoId, { cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, notas, recolector });
       } else {
-        await NovaAPI.pickups.crear({ cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, notas });
+        await NovaAPI.pickups.crear({ cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, notas, recolector });
       }
       cerrarModal();
       await cargarPickups();
@@ -590,6 +648,7 @@
   // ── Init ───────────────────────────────────────────────────────────────
 
   async function init() {
+    await cargarRecolectores();
     await cargarClientes();
     await cargarPickups();
     render();
