@@ -214,6 +214,12 @@
     list.querySelectorAll('[data-action="desconf-ricardo"]').forEach(btn => {
       btn.addEventListener('click', () => toggleConfirmacion(Number(btn.dataset.id), 'ricardo', false, btn));
     });
+    list.querySelectorAll('[data-action="conf-visto"]').forEach(btn => {
+      btn.addEventListener('click', () => toggleConfirmacion(Number(btn.dataset.id), 'visto', true, btn));
+    });
+    list.querySelectorAll('[data-action="desconf-visto"]').forEach(btn => {
+      btn.addEventListener('click', () => toggleConfirmacion(Number(btn.dataset.id), 'visto', false, btn));
+    });
     list.querySelectorAll('[data-action="conf-juanqui"]').forEach(btn => {
       btn.addEventListener('click', () => toggleConfirmacion(Number(btn.dataset.id), 'juanqui', true, btn));
     });
@@ -237,7 +243,7 @@
   function buildPickupCard(p) {
     const sc = estadoPickup(p);
     const cardExtra = sc === 'dep' ? ' en-deposito' : sc === 'cam' ? ' en-camioneta' : sc === 'conf' ? ' confirmado' : '';
-    const badgeText = sc === 'dep' ? 'En depósito' : sc === 'cam' ? 'En camioneta' : sc === 'conf' ? 'Ricardo ✓' : 'Sin confirmar';
+    const badgeText = sc === 'dep' ? 'En depósito' : sc === 'cam' ? 'En camioneta' : sc === 'conf' ? (p.visto_juanqui_at ? 'Ricardo ✓ · 👁' : 'Ricardo ✓') : 'Sin confirmar';
     const stripeClass = p.recolector === 'Juanqui' ? 'stripe-juanqui' : p.recolector ? 'stripe-otro' : 'stripe-ninguno';
     const stripeLabel = p.recolector || 'Sin asignar';
     const stripeAttrs = p.confirmado_ricardo ? ` data-action="reasignar-rec" data-id="${p.id}" style="cursor:pointer"` : '';
@@ -246,9 +252,15 @@
     const horaJ = p.confirmado_juanqui ? p.confirmado_juanqui.slice(11, 16) : null;
     const horaD = p.en_deposito_at ? p.en_deposito_at.slice(11, 16) : null;
 
+    const horaV = p.visto_juanqui_at ? p.visto_juanqui_at.slice(11, 16) : null;
+
     const btnRicardo = horaR
       ? `<button class="btn-conf btn-conf-on btn-conf-ricardo" data-action="desconf-ricardo" data-id="${p.id}" title="Confirma a las ${horaR} — clic para deshacer">✓ Ricardo ${horaR}</button>`
       : `<button class="btn-conf btn-conf-off btn-conf-ricardo" data-action="conf-ricardo" data-id="${p.id}">Confirmar Ricardo</button>`;
+
+    const btnVisto = horaV
+      ? `<button class="btn-conf btn-conf-on btn-conf-visto" data-action="desconf-visto" data-id="${p.id}" title="Visto a las ${horaV} — clic para desmarcar">✓ Visto ${horaV}</button>`
+      : `<button class="btn-conf btn-conf-off btn-conf-visto" data-action="conf-visto" data-id="${p.id}"${!horaR ? ' disabled' : ''}>Marcar visto</button>`;
 
     const btnJuanqui = horaJ
       ? `<button class="btn-conf btn-conf-on btn-conf-juanqui" data-action="desconf-juanqui" data-id="${p.id}" title="Confirma a las ${horaJ} — clic para deshacer">✓ En camioneta ${horaJ}</button>`
@@ -276,6 +288,7 @@
         <div class="pickup-actions">
           <div class="pickup-actions-row">
             ${btnRicardo}
+            ${btnVisto}
           </div>
           <div class="pickup-actions-row">
             ${btnJuanqui}
@@ -312,7 +325,7 @@
         ? '<div class="semana-empty">Sin pickups programados</div>'
         : delDia.map(p => {
             const sc = estadoPickup(p);
-            const badgeLabel = sc === 'dep' ? 'En depósito' : sc === 'cam' ? 'En camioneta' : sc === 'conf' ? 'Ricardo ✓' : 'Sin confirmar';
+            const badgeLabel = sc === 'dep' ? 'En depósito' : sc === 'cam' ? 'En camioneta' : sc === 'conf' ? (p.visto_juanqui_at ? 'Ricardo ✓ · 👁' : 'Ricardo ✓') : 'Sin confirmar';
             return `<div class="semana-row ${sc}" data-action="goto-dia" data-ymd="${ymd}">
               <span class="semana-dot ${sc}"></span>
               <span class="semana-row-name">${escHtml(p.cliente_nombre)}</span>
@@ -363,6 +376,8 @@
       let payload;
       if (quien === 'ricardo') {
         payload = { confirmar_ricardo: valor };
+      } else if (quien === 'visto') {
+        payload = { confirmar_visto: valor };
       } else if (quien === 'juanqui') {
         payload = { confirmar_juanqui: valor };
       } else {
@@ -393,6 +408,7 @@
     document.getElementById('detalle-courier').textContent = p.courier || '—';
     const sc = estadoPickup(p);
     const horaR = p.confirmado_ricardo ? p.confirmado_ricardo.slice(11, 16) : null;
+    const horaV = p.visto_juanqui_at ? p.visto_juanqui_at.slice(11, 16) : null;
     const horaJ = p.confirmado_juanqui ? p.confirmado_juanqui.slice(11, 16) : null;
     const horaD = p.en_deposito_at ? p.en_deposito_at.slice(11, 16) : null;
     const estadoTexto = sc === 'dep'
@@ -403,6 +419,15 @@
       ? `⚑ Confirmado Ricardo ${horaR} — pendiente Juanqui`
       : '● Sin confirmar';
     document.getElementById('detalle-estado').textContent = estadoTexto;
+    const vistoWrap = document.getElementById('detalle-visto-wrap');
+    if (vistoWrap) {
+      if (horaV) {
+        vistoWrap.style.display = '';
+        document.getElementById('detalle-visto').textContent = `${p.visto_juanqui_at.slice(0, 10)} ${horaV}`;
+      } else {
+        vistoWrap.style.display = 'none';
+      }
+    }
     detalleOverlay.classList.remove('hidden');
   }
 

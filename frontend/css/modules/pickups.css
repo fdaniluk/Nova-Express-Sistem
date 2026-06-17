@@ -419,6 +419,14 @@
 }
 .btn-conf-off.btn-conf-ricardo:hover { background: var(--conf-badge-bg); }
 
+.btn-conf-off.btn-conf-visto {
+  background: #F5F3FF;
+  color: #5B21B6;
+  border: 1.5px solid #A78BFA;
+}
+.btn-conf-off.btn-conf-visto:hover { background: #EDE9FE; }
+.btn-conf-off.btn-conf-visto:disabled { opacity: 0.45; cursor: not-allowed; }
+
 .btn-conf-off.btn-conf-juanqui {
   background: var(--cam-bg);
   color: var(--cam-badge-text);
@@ -434,6 +442,13 @@
   border: 1.5px solid var(--conf-border);
 }
 .btn-conf-on.btn-conf-ricardo:hover { background: #fcd34d; }
+
+.btn-conf-on.btn-conf-visto {
+  background: #EDE9FE;
+  color: #5B21B6;
+  border: 1.5px solid #7C3AED;
+}
+.btn-conf-on.btn-conf-visto:hover { background: #DDD6FE; }
 
 .btn-conf-on.btn-conf-juanqui {
   background: var(--cam-badge-bg);
