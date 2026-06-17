@@ -8,6 +8,8 @@
   let pickupEditandoId = null;
   let detallePickupId = null;
   let recolectores = [];
+  let pickupChoferPendienteId = null;
+  let modoChoferAccion = null; // 'confirmar-ricardo' | 'reasignar'
 
   // ── DOM refs ───────────────────────────────────────────────────────────
   const alertBox      = document.getElementById('alert-box');
@@ -19,6 +21,7 @@
   const modalTitle    = document.getElementById('modal-title');
   const btnEliminar   = document.getElementById('btn-eliminar-pickup');
   const detalleOverlay = document.getElementById('detalle-overlay');
+  const modalChoferOverlay = document.getElementById('modal-chofer-overlay');
 
   // ── Fecha helpers ──────────────────────────────────────────────────────
 
@@ -226,6 +229,9 @@
     list.querySelectorAll('[data-action="detalle"]').forEach(btn => {
       btn.addEventListener('click', () => abrirDetalle(Number(btn.dataset.id)));
     });
+    list.querySelectorAll('[data-action="reasignar-rec"]').forEach(el => {
+      el.addEventListener('click', () => abrirModalChofer(Number(el.dataset.id), 'reasignar'));
+    });
   }
 
   function buildPickupCard(p) {
@@ -234,6 +240,7 @@
     const badgeText = sc === 'dep' ? 'En depósito' : sc === 'cam' ? 'En camioneta' : sc === 'conf' ? 'Ricardo ✓' : 'Sin confirmar';
     const stripeClass = p.recolector === 'Juanqui' ? 'stripe-juanqui' : p.recolector ? 'stripe-otro' : 'stripe-ninguno';
     const stripeLabel = p.recolector || 'Sin asignar';
+    const stripeAttrs = p.confirmado_ricardo ? ` data-action="reasignar-rec" data-id="${p.id}" style="cursor:pointer"` : '';
 
     const horaR = p.confirmado_ricardo ? p.confirmado_ricardo.slice(11, 16) : null;
     const horaJ = p.confirmado_juanqui ? p.confirmado_juanqui.slice(11, 16) : null;
@@ -252,7 +259,7 @@
       : `<button class="btn-conf btn-conf-off btn-conf-deposito" data-action="conf-deposito" data-id="${p.id}"${!horaJ ? ' disabled' : ''}>Confirmar depósito</button>`;
 
     return `<div class="pickup-card-v2${cardExtra}" id="pickup-card-${p.id}">
-      <div class="pickup-rec-stripe ${stripeClass}">${escHtml(stripeLabel)}</div>
+      <div class="pickup-rec-stripe ${stripeClass}"${stripeAttrs}>${escHtml(stripeLabel)}</div>
       <div class="pickup-card-v2-content">
         <div class="pickup-card-v2-header">
           <div class="pickup-avatar ${sc}">${escHtml(getInitials(p.cliente_nombre))}</div>
@@ -347,6 +354,10 @@
   // ── Confirmaciones ────────────────────────────────────────────────────
 
   async function toggleConfirmacion(id, quien, valor, btn) {
+    if (quien === 'ricardo' && valor === true) {
+      abrirModalChofer(id, 'confirmar-ricardo');
+      return;
+    }
     if (btn) { btn.disabled = true; btn.classList.add('loading'); }
     try {
       let payload;
@@ -407,13 +418,6 @@
     sel.innerHTML = clientes
       .map(c => `<option value="${c.id}">${escHtml(c.nombre)}</option>`)
       .join('');
-  }
-
-  function poblarSelectRecolectores(valorActual) {
-    const sel = document.getElementById('m-recolector');
-    if (!sel) return;
-    sel.innerHTML = '<option value="">— Sin asignar —</option>' +
-      recolectores.map(r => `<option value="${escAttr(r)}"${valorActual === r ? ' selected' : ''}>${escHtml(r)}</option>`).join('');
   }
 
   async function cargarDirecciones(clienteId) {
@@ -501,7 +505,6 @@
     document.getElementById('m-hora-fin').value = '11:00';
     document.getElementById('m-courier').value = '';
     document.getElementById('m-notas').value = '';
-    poblarSelectRecolectores('');
     const primerCliente = clientes[0];
     if (primerCliente) cargarDirecciones(primerCliente.id);
     else document.getElementById('dir-input-wrap').innerHTML = '<input type="text" id="m-direccion" placeholder="Dirección de pickup">';
@@ -521,7 +524,6 @@
     document.getElementById('m-hora-fin').value = p.hora_fin;
     document.getElementById('m-courier').value = p.courier || '';
     document.getElementById('m-notas').value = p.notas || '';
-    poblarSelectRecolectores(p.recolector || '');
     await cargarDirecciones(p.cliente_id);
     setDireccionEnModal(p.direccion);
     modalOverlay.classList.remove('hidden');
@@ -541,17 +543,15 @@
     const courierEl = document.getElementById('m-courier');
     const courier = courierEl ? (courierEl.value || null) : null;
     const notas = document.getElementById('m-notas').value.trim() || null;
-    const recolectorEl = document.getElementById('m-recolector');
-    const recolector = recolectorEl ? (recolectorEl.value || null) : null;
     if (!cliente_id || !direccion || !fecha || !hora_inicio || !hora_fin) {
       NovaUtils.showAlert(alertBox, 'Completá todos los campos obligatorios.');
       return;
     }
     try {
       if (pickupEditandoId) {
-        await NovaAPI.pickups.editar(pickupEditandoId, { cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, notas, recolector });
+        await NovaAPI.pickups.editar(pickupEditandoId, { cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, notas });
       } else {
-        await NovaAPI.pickups.crear({ cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, notas, recolector });
+        await NovaAPI.pickups.crear({ cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, notas });
       }
       cerrarModal();
       await cargarPickups();
@@ -570,6 +570,54 @@
       cerrarModal();
       await cargarPickups();
       render();
+    } catch (e) {
+      NovaUtils.showAlert(alertBox, e.message);
+    }
+  }
+
+  // ── Modal chofer (confirmar Ricardo / reasignar) ──────────────────────
+
+  function poblarSelectChofer(valorActual) {
+    const sel = document.getElementById('m-chofer-select');
+    sel.innerHTML = '<option value="">— Elegir chofer —</option>' +
+      recolectores.map(r => `<option value="${escAttr(r)}"${valorActual === r ? ' selected' : ''}>${escHtml(r)}</option>`).join('');
+    document.getElementById('btn-chofer-confirmar').disabled = !sel.value;
+  }
+
+  function abrirModalChofer(id, modo) {
+    pickupChoferPendienteId = id;
+    modoChoferAccion = modo;
+    const p = pickups.find(x => x.id === id);
+    const valorActual = modo === 'reasignar' && p ? (p.recolector || '') : '';
+    document.getElementById('modal-chofer-title').textContent =
+      modo === 'reasignar' ? 'Cambiar chofer asignado' : '¿Qué chofer pasa a buscar?';
+    poblarSelectChofer(valorActual);
+    modalChoferOverlay.classList.remove('hidden');
+  }
+
+  function cerrarModalChofer() {
+    modalChoferOverlay.classList.add('hidden');
+    pickupChoferPendienteId = null;
+    modoChoferAccion = null;
+  }
+
+  async function confirmarModalChofer() {
+    const recolector = document.getElementById('m-chofer-select').value;
+    if (!recolector) return;
+    const id = pickupChoferPendienteId;
+    const modo = modoChoferAccion;
+    cerrarModalChofer();
+    try {
+      let updated;
+      if (modo === 'confirmar-ricardo') {
+        updated = await NovaAPI.pickups.confirmar(id, { confirmar_ricardo: true, recolector });
+      } else {
+        updated = await NovaAPI.pickups.editar(id, { recolector });
+      }
+      const idx = pickups.findIndex(p => p.id === id);
+      if (idx !== -1) pickups[idx] = { ...pickups[idx], ...updated };
+      renderDayStrip();
+      renderVistaDia();
     } catch (e) {
       NovaUtils.showAlert(alertBox, e.message);
     }
@@ -634,6 +682,14 @@
     modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) cerrarModal(); });
     document.getElementById('btn-modal-guardar').addEventListener('click', guardarPickup);
     btnEliminar.addEventListener('click', eliminarPickup);
+
+    document.getElementById('modal-chofer-close').addEventListener('click', cerrarModalChofer);
+    document.getElementById('btn-chofer-cancelar').addEventListener('click', cerrarModalChofer);
+    modalChoferOverlay.addEventListener('click', e => { if (e.target === modalChoferOverlay) cerrarModalChofer(); });
+    document.getElementById('m-chofer-select').addEventListener('change', e => {
+      document.getElementById('btn-chofer-confirmar').disabled = !e.target.value;
+    });
+    document.getElementById('btn-chofer-confirmar').addEventListener('click', confirmarModalChofer);
 
     document.getElementById('detalle-close').addEventListener('click', cerrarDetalle);
     document.getElementById('detalle-btn-cerrar').addEventListener('click', cerrarDetalle);
