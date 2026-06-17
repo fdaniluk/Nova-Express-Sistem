@@ -95,7 +95,7 @@ footer{margin-top:3rem;text-align:center;font-size:12px;color:var(--text-tertiar
 <header>
   <div>
     <div class="header-title">Cotizador de Envíos Internacionales</div>
-    <div class="header-sub">Tarifas mayoristas 2026 · Argentina · v8</div>
+    <div class="header-sub">Tarifas mayoristas 2026 · Argentina · v10</div>
   </div>
   <div class="badges">
     <span class="badge badge-dhl">DHL Express</span>
@@ -150,12 +150,12 @@ footer{margin-top:3rem;text-align:center;font-size:12px;color:var(--text-tertiar
   <div class="grid3" style="margin-bottom:12px">
     <div class="field">
       <label>% Ganancia</label>
-      <input type="number" id="ganancia" min="0" max="500" step="1" value="20" />
+      <input type="number" id="ganancia" min="0" max="500" step="1" placeholder="Ganancia (%)" />
       <div class="hint">Integrada en el precio final</div>
     </div>
     <div class="field">
       <label>% Fuel</label>
-      <input type="number" id="fuel" min="0" max="200" step="1" value="39" />
+      <input type="number" id="fuel" min="0" max="200" step="1" placeholder="Fuel (%)" />
       <div class="hint">Se muestra al final del desglose</div>
     </div>
     <div class="field">
@@ -208,10 +208,10 @@ function agregarBulto(){
   div.id='bulto-'+bultoId;
   div.innerHTML=`
     <div class="bulto-num">#${wrap.children.length+1}</div>
-    <div class="field"><label>Peso real (kg)</label><input type="number" min="0.5" step="0.5" value="5" class="b-peso" oninput="actualizarBulto(this)" /></div>
-    <div class="field"><label>Largo (cm)</label><input type="number" min="1" step="1" value="30" class="b-largo" oninput="actualizarBulto(this)" /></div>
-    <div class="field"><label>Ancho (cm)</label><input type="number" min="1" step="1" value="20" class="b-ancho" oninput="actualizarBulto(this)" /></div>
-    <div class="field"><label>Alto (cm)</label><input type="number" min="1" step="1" value="15" class="b-alto" oninput="actualizarBulto(this)" /></div>
+    <div class="field"><label>Peso real (kg)</label><input type="number" min="0.5" step="0.5" placeholder="Peso (kg)" class="b-peso" oninput="actualizarBulto(this)" /></div>
+    <div class="field"><label>Largo (cm)</label><input type="number" min="1" step="1" placeholder="Largo (cm)" class="b-largo" oninput="actualizarBulto(this)" /></div>
+    <div class="field"><label>Ancho (cm)</label><input type="number" min="1" step="1" placeholder="Ancho (cm)" class="b-ancho" oninput="actualizarBulto(this)" /></div>
+    <div class="field"><label>Alto (cm)</label><input type="number" min="1" step="1" placeholder="Alto (cm)" class="b-alto" oninput="actualizarBulto(this)" /></div>
     <button class="btn-remove" onclick="eliminarBulto('bulto-${bultoId}')" title="Eliminar bulto">✕</button>
   `;
   wrap.appendChild(div);
@@ -247,6 +247,8 @@ function actualizarBulto(el){
   const l=parseFloat(row.querySelector('.b-largo').value)||0;
   const a=parseFloat(row.querySelector('.b-ancho').value)||0;
   const al=parseFloat(row.querySelector('.b-alto').value)||0;
+  const infoElEarly=document.getElementById('info-bulto-'+id);
+  if(pr===0&&l===0&&a===0&&al===0){if(infoElEarly){infoElEarly.textContent='';infoElEarly.className='bulto-info';}return;}
   const pv=getPesoVol(l,a,al);
   const pf=Math.max(pr,pv);
   const dims=[l,a,al].sort((x,y)=>y-x);
@@ -320,6 +322,9 @@ function cotizar(){
 
   const bultos=getBultos();
   if(!bultos.length||bultos.every(b=>b.pr<=0)){errEl.textContent='Ingresá al menos un bulto con peso válido.';errEl.style.display='block';return;}
+  if(bultos.some(b=>b.l<=0||b.a<=0||b.al<=0)){errEl.textContent='Ingresá las dimensiones completas de cada bulto (largo, ancho y alto).';errEl.style.display='block';return;}
+  const gananciaRaw=document.getElementById('ganancia').value.trim();if(gananciaRaw===''||isNaN(parseFloat(gananciaRaw))){errEl.textContent='Ingresá el porcentaje de ganancia antes de cotizar.';errEl.style.display='block';return;}
+  const fuelRaw=document.getElementById('fuel').value.trim();if(fuelRaw===''||isNaN(parseFloat(fuelRaw))){errEl.textContent='Ingresá el porcentaje de fuel antes de cotizar.';errEl.style.display='block';return;}
 
   const bultosProc=bultos.map((b,i)=>{
     const pvRaw=b.l*b.a*b.al/5000;
