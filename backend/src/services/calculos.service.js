@@ -21,15 +21,23 @@ function pesoVolumetricoBulto(largo, ancho, alto) {
 function calcularPesos(pesoReal, bultos = [], dims = {}) {
   const real = Number(pesoReal) || 0;
   let volTotal = 0;
+  let pfTotal  = 0;
   if (bultos && bultos.length > 0) {
     for (const b of bultos) {
-      volTotal += pesoVolumetricoBulto(b.largo, b.ancho, b.alto);
+      const vol = pesoVolumetricoBulto(b.largo, b.ancho, b.alto);
+      const pr  = Number(b.peso_real) || 0;
+      volTotal += vol;
+      pfTotal  += Math.max(pr, vol);
     }
-  } else if (dims.largo && dims.ancho && dims.alto) {
-    volTotal = pesoVolumetricoBulto(dims.largo, dims.ancho, dims.alto);
+  } else {
+    const vol = (dims.largo && dims.ancho && dims.alto)
+      ? pesoVolumetricoBulto(dims.largo, dims.ancho, dims.alto)
+      : 0;
+    volTotal = vol;
+    pfTotal  = Math.max(real, vol);
   }
   const pesoVolumetrico = Math.round(volTotal * 1000) / 1000;
-  const pesoFacturable  = Math.round(Math.max(real, pesoVolumetrico) * 1000) / 1000;
+  const pesoFacturable  = Math.round(pfTotal * 1000) / 1000;
   return { pesoVolumetrico, pesoFacturable };
 }
 

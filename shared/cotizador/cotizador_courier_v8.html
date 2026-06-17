@@ -195,7 +195,7 @@ footer{margin-top:3rem;text-align:center;font-size:12px;color:var(--text-tertiar
 <footer>Tarifas DHL y UPS vigentes 2026 · Uso interno</footer>
 </div>
 
-<script src="cotizador-core.js"></script>
+<script src="cotizador-core.js?v=2"></script>
 <script>
 let bultoId=0;
 
@@ -322,8 +322,9 @@ function cotizar(){
   if(!bultos.length||bultos.every(b=>b.pr<=0)){errEl.textContent='Ingresá al menos un bulto con peso válido.';errEl.style.display='block';return;}
 
   const bultosProc=bultos.map((b,i)=>{
+    const pvRaw=b.l*b.a*b.al/5000;
     const pv=getPesoVol(b.l,b.a,b.al);
-    const pf=Math.max(b.pr,pv);
+    const pf=Math.max(b.pr,pvRaw);
     // Dimensiones ordenadas de mayor a menor
     const dims=[b.l,b.a,b.al].sort((x,y)=>y-x);
     return{num:i+1,pr:b.pr,pv,pf,l:b.l,a:b.a,al:b.al,dims};

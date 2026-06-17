@@ -231,7 +231,7 @@ function cotizarServicio(servicio, params) {
     const{sobrepesoTotal,excesoTotal}=calcDHLExtras(bultosProc);
     const seguroObj=calcSeguroDHL(fob);
     const extras=[];
-    if(goGreen>0)           extras.push([`GoGreen (${pf.toFixed(1)} kg × USD 0.98)`,goGreen]);
+    if(goGreen>0)           extras.push([`GoGreen (${Number(pf.toFixed(3))} kg × USD 0.98)`,goGreen]);
     if(sobrepesoTotal>0)    extras.push(['Sobrepeso (DHL)',sobrepesoTotal]);
     if(excesoTotal>0)       extras.push(['Exceso de tamaño (DHL)',excesoTotal]);
     if(seguroObj.monto>0)   extras.push(['Seguro DHL',seguroObj.monto]);
