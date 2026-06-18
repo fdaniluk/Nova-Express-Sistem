@@ -66,6 +66,24 @@ router.get('/', async (req, res, next) => {
 
     const rows = await db.prepare(sql).all(...params);
 
+    // Profit y porcentaje derivados AL VUELO desde el desglose congelado (Parte A)
+    // y total_cobrado, para que nunca queden desfasados si se edita el precio.
+    //   costo      = flete - descuento + seguro + fuel + derechos + adicionales + otros
+    //   profit     = total_cobrado - costo
+    //   porcentaje = profit / costo * 100   (margen sobre el costo)
+    // Si el costo es 0 o no hay total_cobrado, no se calcula: se devuelve lo que
+    // tenga la columna en la DB (envíos viejos importados) o vacío.
+    const deriveProfit = (row) => {
+      const costo = (row.flete || 0) - (row.descuento || 0) + (row.seguro || 0)
+        + (row.fuel || 0) + (row.derechos || 0) + (row.adicionales || 0) + (row.otros || 0);
+      if (costo === 0 || row.total == null || row.total === 0) {
+        return { profit: row.profit ?? null, porcentaje: row.porcentaje ?? null };
+      }
+      const profit = Math.round((row.total - costo) * 100) / 100;
+      const porcentaje = Math.round((profit / costo) * 10000) / 100;
+      return { profit, porcentaje };
+    };
+
     const result = rows.map((row) => ({
       id: row.id,
       numero_salida: row.numero_salida,
@@ -97,8 +115,7 @@ router.get('/', async (req, res, next) => {
       adicionales: row.adicionales,
       otros: row.otros,
       total: row.total,
-      profit: row.profit,
-      porcentaje: row.porcentaje,
+      ...deriveProfit(row),
       observaciones: row.observaciones,
       estado_revision: row.estado_revision ?? null,
       liquidado: Boolean(row.liquidado),
