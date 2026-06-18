@@ -139,6 +139,27 @@
     return bultos;
   }
 
+  // Bultos canónicos para cálculo: MISMA fuente que usa el peso facturable
+  // (calcularPesos en el backend). Multi-bulto -> los N bultos reales;
+  // bulto único -> el bulto armado con los campos sueltos del form.
+  function getBultosParaCalculo() {
+    const reales = getBultosFromForm();
+    if (reales.length > 0) {
+      return reales.map(b => ({
+        pesoReal: b.peso_real || 0,
+        largo: b.largo,
+        ancho: b.ancho,
+        alto: b.alto,
+      }));
+    }
+    return [{
+      pesoReal: parseFloat(document.getElementById('peso_real').value) || 0,
+      largo: parseFloat(document.getElementById('largo').value) || 0,
+      ancho: parseFloat(document.getElementById('ancho').value) || 0,
+      alto: parseFloat(document.getElementById('alto').value) || 0,
+    }];
+  }
+
   function bindPesoCalc() {
     ['peso_real', 'largo', 'ancho', 'alto', 'cantidad_bultos'].forEach((id) => {
       document.getElementById(id).addEventListener('input', debounce(updatePesosYCotizacion, 300));
@@ -218,16 +239,7 @@
     const fuelPct = fuelPctActual[courier] || 39;
 
     try {
-      const pesoReal1 = parseFloat(document.getElementById('peso_real').value) || 0;
-      const bultosParaCotizar = [
-        {
-          pesoReal: pesoReal1,
-          largo: parseFloat(document.getElementById('largo').value) || 0,
-          ancho: parseFloat(document.getElementById('ancho').value) || 0,
-          alto: parseFloat(document.getElementById('alto').value) || 0,
-        },
-        ...getBultosFromForm().map(b => ({ pesoReal: b.peso_real || 0, largo: b.largo, ancho: b.ancho, alto: b.alto })),
-      ];
+      const bultosParaCotizar = getBultosParaCalculo();
       const res = await NovaAPI.liquidaciones.cotizar({
         pais,
         tipo,
