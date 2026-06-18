@@ -50,7 +50,7 @@
     } catch (err) {
       NovaUtils.showAlert(alertBox, 'Error al cargar salidas: ' + err.message, 'error');
       document.getElementById('salidas-body').innerHTML =
-        '<tr><td colspan="25" class="salidas-empty">Error al cargar datos</td></tr>';
+        '<tr><td colspan="27" class="salidas-empty">Error al cargar datos</td></tr>';
     }
   }
 
@@ -158,7 +158,7 @@
 
     if (visibleCount === 0 && nextBatch.length === 0) {
       const tr = document.createElement('tr');
-      tr.innerHTML = '<td colspan="25" class="salidas-empty">No hay envíos que coincidan con los filtros</td>';
+      tr.innerHTML = '<td colspan="27" class="salidas-empty">No hay envíos que coincidan con los filtros</td>';
       tbody.appendChild(tr);
     } else {
       tbody.appendChild(fragment);
@@ -196,14 +196,15 @@
       <td class="num">${fmtKg(e.peso_facturable)}</td>
       <td class="num">${fmtUSD(e.valor_declarado)}</td>
       <td class="em">—</td>
-      <td class="num em">—</td>
-      <td class="num em">—</td>
-      <td class="num em">—</td>
-      <td class="num em">—</td>
-      <td class="num em">—</td>
-      <td class="num em">—</td>
-      <td class="num em">—</td>
       <td class="num">${fmtUSD(e.total)}</td>
+      <td class="num em">—</td>
+      <td class="num em">—</td>
+      <td class="num em">—</td>
+      <td class="num em">—</td>
+      <td class="num em">—</td>
+      <td class="num em">—</td>
+      <td class="num em">—</td>
+      <td class="num em">—</td>
       <td class="num em">—</td>
       <td class="num em">—</td>
       <td>${estadoBadge(e, today)}</td>
@@ -247,6 +248,7 @@
       <td class="num">${fmtKg(e.peso_facturable)}</td>
       <td class="num">${fmtUSD(e.valor_declarado)}</td>
       <td>${e.asegurado ? 'Sí' : 'No'}</td>
+      <td class="num">${fmtUSD(e.total)}</td>
       <td class="num">${fmtUSD(e.flete)}</td>
       <td class="num">${fmtUSD(e.descuento)}</td>
       <td class="num">${fmtUSD(e.seguro)}</td>
@@ -254,7 +256,7 @@
       <td class="num">${fmtUSD(e.derechos)}</td>
       <td class="num">${fmtUSD(e.adicionales)}</td>
       <td class="num">${fmtUSD(e.otros)}</td>
-      <td class="num">${fmtUSD(e.total)}</td>
+      <td class="num">${fmtUSD(e.compra_total)}</td>
       <td class="num">${profitCell(e)}</td>
       <td class="num">${pctCell(e)}</td>
       <td>${estadoBadge(e, today)}</td>

@@ -77,11 +77,11 @@ router.get('/', async (req, res, next) => {
       const costo = (row.flete || 0) - (row.descuento || 0) + (row.seguro || 0)
         + (row.fuel || 0) + (row.derechos || 0) + (row.adicionales || 0) + (row.otros || 0);
       if (costo === 0 || row.total == null || row.total === 0) {
-        return { profit: row.profit ?? null, porcentaje: row.porcentaje ?? null };
+        return { compra_total: costo, profit: row.profit ?? null, porcentaje: row.porcentaje ?? null };
       }
       const profit = Math.round((row.total - costo) * 100) / 100;
       const porcentaje = Math.round((profit / costo) * 10000) / 100;
-      return { profit, porcentaje };
+      return { compra_total: costo, profit, porcentaje };
     };
 
     const result = rows.map((row) => ({
