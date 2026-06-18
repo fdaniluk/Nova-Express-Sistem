@@ -1,5 +1,6 @@
 const { getDb } = require('../db');
-const { calcularPesos, pesoVolumetricoBulto } = require('../services/calculos.service');
+const { calcularPesos, pesoVolumetricoBulto, desglosarCosto } = require('../services/calculos.service');
+const configuracionModel = require('./configuracion.model');
 
 function mapEnvio(row) {
   if (!row) return null;
@@ -105,10 +106,46 @@ async function listar(filtros = {}) {
   return rows.map(mapEnvio);
 }
 
+// Calcula el desglose AL COSTO (profit 0) congelado al alta, usando el mismo motor
+// que el cotizador y el liquidador. El fuel% es el autoritativo de config (no el del
+// cliente). Devuelve null si el país no figura en las tablas y no hay zona manual.
+async function calcularDesgloseAlCosto(data, pesoFacturable) {
+  const courier = data.courier;
+  const servicio = courier === 'DHL'
+    ? 'DHL'
+    : (data.servicio_ups === 'UPS_SAV' || data.servicio_ups === 'UPS_EXP')
+      ? data.servicio_ups
+      : 'UPS_EXP'; // fallback si no vino la variante
+  const tipo = (data.tipo_envio || '').toLowerCase().includes('import') ? 'import' : 'export';
+
+  const fuelCfg = await configuracionModel.obtenerFuel(courier);
+  const fuelPct = fuelCfg?.fuel_pct ?? 0;
+
+  // Mismo conjunto de bultos que usó buildPesos para el peso facturable:
+  // si vienen bultos, son el set completo; si no, el bulto único de los campos primarios.
+  const bultos = (data.bultos && data.bultos.length)
+    ? data.bultos.map(b => ({ pesoReal: b.peso_real, largo: b.largo, ancho: b.ancho, alto: b.alto }))
+    : [{ pesoReal: data.peso_real, largo: data.largo, ancho: data.ancho, alto: data.alto }];
+
+  return desglosarCosto({
+    pais: data.pais_destino,
+    tipo,
+    servicio,
+    pesoFacturable,
+    fob: data.fob || 0,
+    fuelPct,
+    zonaOverride: data.zona,
+    bultos,
+  });
+}
+
 async function crear(data) {
   const db = getDb();
   const { pesoVolumetrico, pesoFacturable } = buildPesos(data);
   const hasBultos = data.bultos && data.bultos.length > 0;
+
+  // Desglose al costo (profit 0) congelado al momento del alta.
+  const desglose = await calcularDesgloseAlCosto(data, pesoFacturable);
 
   const doInsert = async () => {
     const result = await db
@@ -146,13 +183,13 @@ async function crear(data) {
         data.bulto ?? null,
         data.tipo_paquete ?? null,
         data.asegurado ?? 0,
-        data.flete ?? null,
-        data.descuento ?? null,
-        data.seguro ?? null,
-        data.fuel ?? null,
-        data.derechos ?? null,
-        data.adicionales ?? null,
-        data.otros ?? null,
+        desglose ? desglose.flete : (data.flete ?? null),
+        desglose ? desglose.descuento : (data.descuento ?? null),
+        desglose ? desglose.seguro : (data.seguro ?? null),
+        desglose ? desglose.fuel : (data.fuel ?? null),
+        desglose ? desglose.derechos : (data.derechos ?? null),
+        desglose ? desglose.adicionales : (data.adicionales ?? null),
+        desglose ? desglose.otros : (data.otros ?? null),
         data.profit ?? null,
         data.porcentaje ?? null,
         data.courier === 'UPS' ? (data.servicio_ups ?? null) : null

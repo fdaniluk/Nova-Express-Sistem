@@ -152,6 +152,43 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
   };
 }
 
+// Desglose AL COSTO (profit 0) que se congela al crear el envío.
+// Sale del MISMO motor que el cotizador y el liquidador (cotizarServicio del core);
+// acá no se recalcula ningún cargo a mano. Mapea el resultado a las columnas de `envios`:
+//   flete       = fleteBase + feeUSA          (el feeUSA de UPS US/Canadá va acá)
+//   seguro      = seguro del motor             (su regla por FOB, tal cual)
+//   fuel        = monto de fuel a profit 0     (DHL: fleteBase·fuel; UPS: (fleteBase+feeUSA+surge)·fuel)
+//   adicionales = todos los recargos restantes (UPS: surge+manejo[+contorno]+remota+residencial;
+//                 DHL: goGreen+sobrepeso+exceso+remota) = total − flete − fuel − seguro
+//   derechos / descuento / otros = 0 (no se usan)
+// Por construcción flete+seguro+fuel+adicionales == total (costo a profit 0).
+// El fuelPct debe ser el autoritativo de config (lo resuelve el caller).
+// Devuelve null si el país no figura en las tablas y no hay zonaOverride.
+function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zonaOverride, bultos = [], residencial = false, ddp = false }) {
+  const paisCanon = canonizarPais(pais) || pais || '';
+  const r = cotizarServicioCore(servicio, {
+    pais: paisCanon,
+    tipo,
+    pf: Number(pesoFacturable) || 0,
+    fob,
+    fuelPct:   Number(fuelPct) || 0,
+    profitPct: 0,
+    bultosProc: mkBultosProc(bultos),
+    residencial,
+    zonaOverride,
+    ddp,
+  });
+  if (!r) return null;
+
+  const flete  = redondear2(r.flete);
+  const seguro = redondear2(r.seguro);
+  const fuel   = redondear2(r.fuelMonto);
+  const total  = redondear2(r.total);
+  const adicionales = redondear2(total - flete - seguro - fuel);
+
+  return { flete, seguro, fuel, adicionales, derechos: 0, descuento: 0, otros: 0, total, zona: r.zona };
+}
+
 module.exports = {
   pesoVolumetricoBulto,
   calcularPesos,
@@ -159,6 +196,7 @@ module.exports = {
   calcularFleteFuel,
   redondear2,
   cotizarEnvio,
+  desglosarCosto,
   calcSeguroDHL,
   buscarZona,
   ZONAS_DHL,
