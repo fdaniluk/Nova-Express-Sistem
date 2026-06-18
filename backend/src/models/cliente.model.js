@@ -32,8 +32,8 @@ async function crear(data) {
     .prepare(
       `INSERT INTO clientes
         (nombre, tipo_cobro, tarifa_especial, cuit, direccion_recoleccion, contacto,
-         email, whatsapp, codigo_postal, tipo_facturacion, tarifa_pct)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         email, whatsapp, codigo_postal, localidad, tipo_facturacion, tarifa_pct)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       nombre,
@@ -45,6 +45,7 @@ async function crear(data) {
       data.email ?? null,
       data.whatsapp ?? null,
       data.codigo_postal ?? null,
+      data.localidad ?? null,
       data.tipo_facturacion ?? 'Responsable inscripto',
       data.tarifa_pct ?? 0
     );
@@ -73,6 +74,7 @@ async function actualizar(id, data) {
         email               = COALESCE(?, email),
         whatsapp            = COALESCE(?, whatsapp),
         codigo_postal       = COALESCE(?, codigo_postal),
+        localidad           = COALESCE(?, localidad),
         tipo_facturacion    = COALESCE(?, tipo_facturacion),
         tarifa_pct          = COALESCE(?, tarifa_pct),
         updated_at          = datetime('now', 'localtime')
@@ -89,6 +91,7 @@ async function actualizar(id, data) {
       data.email ?? null,
       data.whatsapp ?? null,
       data.codigo_postal ?? null,
+      data.localidad ?? null,
       data.tipo_facturacion ?? null,
       data.tarifa_pct !== undefined ? data.tarifa_pct : null,
       id

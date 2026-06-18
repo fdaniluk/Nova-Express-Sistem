@@ -40,6 +40,7 @@
     { key: 'email',                label: 'Email',                 type: 'email',  full: false },
     { key: 'whatsapp',             label: 'WhatsApp',              type: 'text',   full: false },
     { key: 'codigo_postal',        label: 'Código postal',         type: 'text',   full: false },
+    { key: 'localidad',            label: 'Localidad',             type: 'text',   full: false },
     { key: 'direccion_recoleccion',label: 'Dirección recolección', type: 'text',   full: true  },
   ];
 

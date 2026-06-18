@@ -118,6 +118,7 @@
     setField('f-email', c.email || '');
     setField('f-whatsapp', c.whatsapp || '');
     setField('f-codigo_postal', c.codigo_postal || '');
+    setField('f-localidad', c.localidad || '');
     setField('f-direccion_recoleccion', c.direccion_recoleccion || '');
     formPanel.classList.remove('hidden');
     formPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -147,6 +148,7 @@
       email: document.getElementById('f-email').value.trim() || null,
       whatsapp: document.getElementById('f-whatsapp').value.trim() || null,
       codigo_postal: document.getElementById('f-codigo_postal').value.trim() || null,
+      localidad: document.getElementById('f-localidad').value.trim() || null,
       direccion_recoleccion: document.getElementById('f-direccion_recoleccion').value.trim() || null,
     };
   }

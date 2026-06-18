@@ -109,6 +109,7 @@ async function migrateClientes() {
     ['email',                 'TEXT'],
     ['whatsapp',              'TEXT'],
     ['codigo_postal',         'TEXT'],
+    ['localidad',             'TEXT'],
     ['tipo_facturacion',      "TEXT DEFAULT 'Responsable inscripto'"],
     ['tarifa_pct',            'REAL DEFAULT 0'],
   ];
