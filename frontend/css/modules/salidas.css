@@ -330,6 +330,54 @@ th:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: '⇅'; }
 
 .track-btn:hover { opacity: 1; background: #fef3c7; }
 
+/* ── Edición inline de la guía por bulto ── */
+.bulto-guia-edit {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  padding: 1px 3px;
+  margin-left: 4px;
+  border-radius: 3px;
+  vertical-align: middle;
+  opacity: 0.5;
+  line-height: 1;
+}
+
+.bulto-guia-edit:hover { opacity: 1; background: #e0e7ff; }
+
+.bulto-guia-edit-box {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.bulto-guia-input {
+  width: 110px;
+  font-family: 'Courier New', monospace;
+  font-size: 11.5px;
+  padding: 2px 4px;
+  border: 1px solid var(--color-border);
+  border-radius: 3px;
+}
+
+.bulto-guia-save,
+.bulto-guia-cancel {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 1px 4px;
+  border-radius: 3px;
+  line-height: 1;
+}
+
+.bulto-guia-save { color: #15803d; }
+.bulto-guia-save:hover { background: #dcfce7; }
+.bulto-guia-save:disabled { opacity: 0.5; cursor: default; }
+.bulto-guia-cancel { color: #dc2626; }
+.bulto-guia-cancel:hover { background: #fee2e2; }
+
 .tracking-popup {
   position: absolute;
   z-index: 60;

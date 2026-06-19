@@ -132,6 +132,7 @@ api.salidas = {
     return api.get(`/salidas${q ? `?${q}` : ''}`);
   },
   actualizar: (id, data) => request(`/salidas/${id}`, { method: 'PATCH', body: data }),
+  actualizarBulto: (id, data) => request(`/salidas/bultos/${id}`, { method: 'PATCH', body: data }),
 };
 
 api.tracking = {

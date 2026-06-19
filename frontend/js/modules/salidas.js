@@ -37,6 +37,7 @@
     bindLoadMore();
     bindTracking();
     bindRowEdit();
+    bindBultoGuiaEdit();
     await loadData();
   }
 
@@ -157,6 +158,10 @@
       ? `${revisionIconHtml(e)}${alert ? alertIconHtml(alert, e) : ''}${e.courier === 'UPS' ? trackBtnHtml(e.numero_guia) : ''}`
       : '';
 
+    // Lápiz para editar la guía de ESTE bulto: solo en bultos reales (id no nulo).
+    // En el bulto único (sintético, id null) la guía se edita con el modal del envío.
+    const bultoGuiaEdit = (b.id != null) ? bultoGuiaEditBtnHtml(b) : '';
+
     // env(html): celda solo en el primer renglón; en los siguientes va en blanco.
     const env = (html) => (isFirst ? html : '');
 
@@ -164,7 +169,7 @@
       <td>${fmtNum(e.num_sal)}</td>
       <td>${env(courierBadge(e.courier))}</td>
       <td>${env(NovaUtils.formatDate(e.fecha))}</td>
-      <td class="mono">${esc(bultoGuia)}${guiaIcons}</td>
+      <td class="mono"><span class="bulto-guia-text">${esc(bultoGuia)}</span>${bultoGuiaEdit}${guiaIcons}</td>
       <td>${env(cobroBadge(e.tipo_cobro))}</td>
       <td>${env(`<a href="clientes-perfil.html?id=${e.cliente_id}">${esc(e.cliente_nombre)}</a>`)}</td>
       <td>${env(esc(e.destino))}</td>
@@ -817,12 +822,85 @@
 
   function bindRowEdit() {
     document.getElementById('salidas-body').addEventListener('click', (e) => {
-      // No abrir modal si el click fue en un botón o link interactivo de la fila
+      // No abrir modal si el click fue en un botón o link interactivo de la fila,
+      // ni si fue en el lápiz / editor inline de la guía del bulto.
       if (e.target.closest('.track-btn') || e.target.closest('a')) return;
+      if (e.target.closest('.bulto-guia-edit') || e.target.closest('.bulto-guia-edit-box')) return;
       const tr = e.target.closest('tr[data-envio-id]');
       if (!tr) return;
       const envio = allData.find((d) => d.id === Number(tr.dataset.envioId));
       if (envio) openEditModal(envio);
+    });
+  }
+
+  // ── Edición inline de la guía por bulto ──────────────────────────────────────
+  function bultoGuiaEditBtnHtml(b) {
+    return `<button class="bulto-guia-edit" data-bulto-id="${b.id}" title="Editar guía de este bulto">✎</button>`;
+  }
+
+  function bindBultoGuiaEdit() {
+    document.getElementById('salidas-body').addEventListener('click', (e) => {
+      const btn = e.target.closest('.bulto-guia-edit');
+      if (!btn) return;
+      e.stopPropagation();   // que NO abra el modal del envío
+      openBultoGuiaEdit(btn);
+    });
+  }
+
+  function openBultoGuiaEdit(btn) {
+    const cell = btn.closest('td');
+    const tr = btn.closest('tr[data-envio-id]');
+    if (!cell || !tr) return;
+
+    const envio = allData.find((d) => d.id === Number(tr.dataset.envioId));
+    if (!envio) return;
+    const bultoId = Number(btn.dataset.bultoId);
+    const bulto = (envio.bultos || []).find((b) => b.id === bultoId);
+    if (!bulto) return;
+
+    const original = cell.innerHTML;            // para cancelar / restaurar
+    const current = bulto.numero_guia || '';
+
+    cell.innerHTML = `
+      <span class="bulto-guia-edit-box">
+        <input type="text" class="bulto-guia-input" value="${esc(current)}">
+        <button class="bulto-guia-save" title="Guardar">✓</button>
+        <button class="bulto-guia-cancel" title="Cancelar">×</button>
+      </span>`;
+
+    const input = cell.querySelector('.bulto-guia-input');
+    const saveBtn = cell.querySelector('.bulto-guia-save');
+    const cancelBtn = cell.querySelector('.bulto-guia-cancel');
+    input.focus();
+    input.select();
+
+    const cancel = (ev) => {
+      ev.stopPropagation();
+      cell.innerHTML = original;
+    };
+
+    const save = async (ev) => {
+      ev.stopPropagation();
+      saveBtn.disabled = true;
+      try {
+        const updated = await NovaAPI.salidas.actualizarBulto(bultoId, { numero_guia: input.value });
+        bulto.numero_guia = updated.numero_guia;   // refresca el dato en memoria
+        // Restaurar la celda (con lápiz e iconos) y refrescar solo el texto de la guía:
+        // vacío en el bulto → fallback a la guía del envío (igual que en el render).
+        cell.innerHTML = original;
+        cell.querySelector('.bulto-guia-text').textContent = bulto.numero_guia || envio.numero_guia || '';
+      } catch (err) {
+        saveBtn.disabled = false;
+        NovaUtils.showAlert(alertBox, 'No se pudo guardar la guía del bulto: ' + err.message, 'error');
+      }
+    };
+
+    saveBtn.addEventListener('click', save);
+    cancelBtn.addEventListener('click', cancel);
+    input.addEventListener('keydown', (ev) => {
+      ev.stopPropagation();
+      if (ev.key === 'Enter') save(ev);
+      else if (ev.key === 'Escape') cancel(ev);
     });
   }
 
