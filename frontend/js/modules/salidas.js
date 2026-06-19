@@ -5,15 +5,13 @@
 
   // ── Estado ──────────────────────────────────────────────────────────────────
   let allData = [];          // todos los envíos cargados del servidor
-  let filteredData = [];     // resultado de aplicar todos los filtros
-  let groupedRows = [];      // filas agrupadas listas para renderizar
-  let visibleCount = 0;      // cuántas filas ya mostramos
+  let filteredData = [];     // resultado de aplicar todos los filtros (lista de envíos)
+  let visibleCount = 0;      // cuántos ENVÍOS ya mostramos (la paginación cuenta envíos)
   let sortCol = 'fecha';
   let sortDir = 'desc';
   let searchTerm = '';
   let soloAlertas = false;
   const colFilters = {};     // { courier: Set(['UPS','DHL']), ... }
-  const expandedGuias = new Set(); // guías expandidas (multi-bulto)
 
   // dropdown flotante
   let ddColumn = null;
@@ -50,14 +48,13 @@
     } catch (err) {
       NovaUtils.showAlert(alertBox, 'Error al cargar salidas: ' + err.message, 'error');
       document.getElementById('salidas-body').innerHTML =
-        '<tr><td colspan="27" class="salidas-empty">Error al cargar datos</td></tr>';
+        '<tr><td colspan="30" class="salidas-empty">Error al cargar datos</td></tr>';
     }
   }
 
   // ── Pipeline de filtrado / agrupado / render ─────────────────────────────────
   function applyAll() {
     filtered();
-    grouped();
     visibleCount = 0;
     renderPage();
     updateCounter();
@@ -101,64 +98,28 @@
     return String(e[col] ?? '');
   }
 
-  // ── Auto 1: agrupar bultos ───────────────────────────────────────────────────
-  function grouped() {
-    // Agrupa por numero_guia + cliente_id. Envíos con una sola fila quedan sin grupo.
-    const map = new Map();
-    for (const e of filteredData) {
-      const key = `${e.numero_guia}||${e.cliente_id}`;
-      if (!map.has(key)) map.set(key, []);
-      map.get(key).push(e);
-    }
-
-    groupedRows = [];
-    for (const rows of map.values()) {
-      if (rows.length === 1) {
-        groupedRows.push({ type: 'single', data: rows[0] });
-      } else {
-        // Fila resumen
-        const first = rows[0];
-        const totalPeso = rows.reduce((s, r) => s + (r.peso || 0), 0);
-        const totalFact = rows.reduce((s, r) => s + (r.peso_facturable || 0), 0);
-        const totalMonto = rows.reduce((s, r) => s + (r.total || 0), 0);
-        const expanded = expandedGuias.has(first.numero_guia + first.cliente_id);
-        groupedRows.push({
-          type: 'group',
-          key: first.numero_guia + first.cliente_id,
-          summary: { ...first, peso: totalPeso, peso_facturable: totalFact, total: totalMonto },
-          bultoCount: rows.length,
-          rows,
-          expanded,
-        });
-      }
-    }
-  }
-
-  // ── Render ──────────────────────────────────────────────────────────────────
+  // ── Render: fila por bulto ───────────────────────────────────────────────────
+  // El sort y el filtro operan sobre la lista de ENVÍOS (filteredData). La expansión
+  // a N renglones por bulto es un paso puro de render: cada envío ya ordenado/filtrado
+  // se convierte en e.bultos.length renglones. La paginación cuenta ENVÍOS.
   function renderPage() {
     const today = todayStr();
     const tbody = document.getElementById('salidas-body');
     const fragment = document.createDocumentFragment();
-    const nextBatch = groupedRows.slice(visibleCount, visibleCount + PAGE_SIZE);
+    const nextBatch = filteredData.slice(visibleCount, visibleCount + PAGE_SIZE);
 
     if (visibleCount === 0) tbody.innerHTML = '';
 
-    for (const grp of nextBatch) {
-      if (grp.type === 'single') {
-        fragment.appendChild(buildRow(grp.data, today, null, null));
-      } else {
-        fragment.appendChild(buildGroupRow(grp, today));
-        if (grp.expanded) {
-          for (const r of grp.rows) {
-            fragment.appendChild(buildRow(r, today, grp.key, true));
-          }
-        }
-      }
+    for (const e of nextBatch) {
+      const bultos = (e.bultos && e.bultos.length) ? e.bultos : [null];
+      bultos.forEach((bulto, idx) => {
+        fragment.appendChild(buildRow(e, bulto, idx, bultos.length, today, idx === 0));
+      });
     }
 
     if (visibleCount === 0 && nextBatch.length === 0) {
       const tr = document.createElement('tr');
-      tr.innerHTML = '<td colspan="27" class="salidas-empty">No hay envíos que coincidan con los filtros</td>';
+      tr.innerHTML = '<td colspan="30" class="salidas-empty">No hay envíos que coincidan con los filtros</td>';
       tbody.appendChild(tr);
     } else {
       tbody.appendChild(fragment);
@@ -166,101 +127,70 @@
 
     visibleCount += nextBatch.length;
     const loadMoreWrap = document.getElementById('load-more-wrap');
-    loadMoreWrap.style.display = visibleCount < groupedRows.length ? '' : 'none';
+    loadMoreWrap.style.display = visibleCount < filteredData.length ? '' : 'none';
   }
 
-  function buildGroupRow(grp, today) {
-    const e = grp.summary;
+  // Arma un renglón. `bulto` son los datos de ESTE bulto; `isFirst` es el primer
+  // renglón del envío (lleva todos los datos/costo del envío). Los renglones
+  // siguientes solo llevan #Sal (repetido) y las columnas del bulto.
+  function buildRow(e, bulto, idx, totalBultos, today, isFirst) {
     const tr = document.createElement('tr');
-    const expanded = grp.expanded;
+    tr.dataset.envioId = e.id;
+    if (!isFirst) tr.classList.add('bulto-detail-row');
+
+    // Alertas: resaltar TODOS los renglones del envío (se ve como una unidad).
     const alert = alertLevel(e, today);
     if (alert === 'rojo') tr.classList.add('row-alert-rojo');
     else if (alert === 'ambar') tr.classList.add('row-alert-ambar');
 
-    tr.innerHTML = `
-      <td>${fmtNum(e.numero_salida)}</td>
-      <td>${courierBadge(e.courier)}</td>
-      <td>${NovaUtils.formatDate(e.fecha)}</td>
-      <td class="mono">${esc(e.numero_guia)}${revisionIconHtml(e)}${e.courier === 'UPS' ? trackBtnHtml(e.numero_guia) : ''}</td>
-      <td>${cobroBadge(e.tipo_cobro)}</td>
-      <td><a href="clientes-perfil.html?id=${e.cliente_id}">${esc(e.cliente_nombre)}</a></td>
-      <td>${esc(e.destino)}</td>
-      <td>
-        <button class="expand-btn" data-grp-key="${esc(grp.key)}">
-          ${expanded ? '▼' : '▶'} ${grp.bultoCount} bultos
-        </button>
-      </td>
-      <td>${tipoBadge(e.tipo_paquete)}</td>
-      <td>${dirBadge(e.direccion)}</td>
-      <td class="num">${fmtKg(e.peso)}</td>
-      <td class="num">${fmtKg(e.peso_facturable)}</td>
-      <td class="num">${fmtUSD(e.valor_declarado)}</td>
-      <td class="em">—</td>
-      <td class="num">${fmtUSD(e.total)}</td>
-      <td class="num em">—</td>
-      <td class="num em">—</td>
-      <td class="num em">—</td>
-      <td class="num em">—</td>
-      <td class="num em">—</td>
-      <td class="num em">—</td>
-      <td class="num em">—</td>
-      <td class="num em">—</td>
-      <td class="num em">—</td>
-      <td class="num em">—</td>
-      <td>${estadoBadge(e, today)}</td>
-      <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis">${esc(e.observaciones)}</td>
-    `;
+    // Datos del bulto de este renglón (fallback a campos del envío para el bulto sintético).
+    const b = bulto || {};
+    const bultoGuia = b.numero_guia || e.numero_guia;
+    const pesoReal = b.peso_real != null ? b.peso_real : e.peso;
+    const largo = b.largo != null ? b.largo : e.largo;
+    const ancho = b.ancho != null ? b.ancho : e.ancho;
+    const alto = b.alto != null ? b.alto : e.alto;
+    const numBulto = b.numero_bulto != null ? b.numero_bulto : (idx + 1);
 
-    tr.querySelector('.expand-btn').addEventListener('click', () => {
-      if (expandedGuias.has(grp.key)) expandedGuias.delete(grp.key);
-      else expandedGuias.add(grp.key);
-      applyAll();
-    });
+    // Iconos (revisión/alerta/tracking) solo en el primer renglón del envío.
+    const guiaIcons = isFirst
+      ? `${revisionIconHtml(e)}${alert ? alertIconHtml(alert, e) : ''}${e.courier === 'UPS' ? trackBtnHtml(e.numero_guia) : ''}`
+      : '';
 
-    return tr;
-  }
-
-  function buildRow(e, today, grpKey, isDetail) {
-    const tr = document.createElement('tr');
-    tr.dataset.envioId = e.id;
-    if (isDetail) tr.classList.add('bulto-detail-row');
-
-    const alert = alertLevel(e, today);
-    if (!isDetail) {
-      if (alert === 'rojo') tr.classList.add('row-alert-rojo');
-      else if (alert === 'ambar') tr.classList.add('row-alert-ambar');
-    }
-
-    const alertIcon = alert ? alertIconHtml(alert, e) : '';
+    // env(html): celda solo en el primer renglón; en los siguientes va en blanco.
+    const env = (html) => (isFirst ? html : '');
 
     tr.innerHTML = `
-      <td>${fmtNum(e.numero_salida)}</td>
-      <td>${courierBadge(e.courier)}</td>
-      <td>${NovaUtils.formatDate(e.fecha)}</td>
-      <td class="mono">${esc(e.numero_guia)}${revisionIconHtml(e)}${alertIcon}${e.courier === 'UPS' ? trackBtnHtml(e.numero_guia) : ''}</td>
-      <td>${cobroBadge(e.tipo_cobro)}</td>
-      <td><a href="clientes-perfil.html?id=${e.cliente_id}">${esc(e.cliente_nombre)}</a></td>
-      <td>${esc(e.destino)}</td>
-      <td>${dash(e.bulto)}</td>
-      <td>${tipoBadge(e.tipo_paquete)}</td>
-      <td>${dirBadge(e.direccion)}</td>
-      <td class="num">${fmtKg(e.peso)}</td>
-      <td class="num">${fmtKg(e.peso_facturable)}</td>
-      <td class="num">${fmtUSD(e.valor_declarado)}</td>
-      <td>${e.asegurado ? 'Sí' : 'No'}</td>
-      <td class="num">${fmtUSD(e.total)}</td>
-      <td class="num">${fmtUSD(e.flete)}</td>
-      <td class="num">${fmtUSD(e.descuento)}</td>
-      <td class="num">${fmtUSD(e.seguro)}</td>
-      <td class="num">${fmtUSD(e.fuel)}</td>
-      <td class="num">${fmtUSD(e.derechos)}</td>
-      <td class="num">${fmtUSD(e.adicionales)}</td>
-      <td class="num">${fmtUSD(e.otros)}</td>
-      <td class="num">${fmtUSD(e.compra_total)}</td>
-      <td class="num">${profitCell(e)}</td>
-      <td class="num">${pctCell(e)}</td>
-      <td>${estadoBadge(e, today)}</td>
-      <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis" title="${esc(e.observaciones)}">${esc(e.observaciones)}</td>
+      <td>${fmtNum(e.num_sal)}</td>
+      <td>${env(courierBadge(e.courier))}</td>
+      <td>${env(NovaUtils.formatDate(e.fecha))}</td>
+      <td class="mono">${esc(bultoGuia)}${guiaIcons}</td>
+      <td>${env(cobroBadge(e.tipo_cobro))}</td>
+      <td>${env(`<a href="clientes-perfil.html?id=${e.cliente_id}">${esc(e.cliente_nombre)}</a>`)}</td>
+      <td>${env(esc(e.destino))}</td>
+      <td>${numBulto}/${totalBultos}</td>
+      <td>${env(tipoBadge(e.tipo_paquete))}</td>
+      <td>${env(dirBadge(e.direccion))}</td>
+      <td class="num">${fmtDim(largo)}</td>
+      <td class="num">${fmtDim(ancho)}</td>
+      <td class="num">${fmtDim(alto)}</td>
+      <td class="num">${fmtKg(pesoReal)}</td>
+      <td class="num">${env(fmtKg(e.peso_facturable))}</td>
+      <td class="num">${env(fmtUSD(e.valor_declarado))}</td>
+      <td>${env(e.asegurado ? 'Sí' : 'No')}</td>
+      <td class="num">${env(fmtUSD(e.total))}</td>
+      <td class="num">${env(fmtUSD(e.flete))}</td>
+      <td class="num">${env(fmtUSD(e.descuento))}</td>
+      <td class="num">${env(fmtUSD(e.seguro))}</td>
+      <td class="num">${env(fmtUSD(e.fuel))}</td>
+      <td class="num">${env(fmtUSD(e.derechos))}</td>
+      <td class="num">${env(fmtUSD(e.adicionales))}</td>
+      <td class="num">${env(fmtUSD(e.otros))}</td>
+      <td class="num">${env(fmtUSD(e.compra_total))}</td>
+      <td class="num">${env(profitCell(e))}</td>
+      <td class="num">${env(pctCell(e))}</td>
+      <td>${env(estadoBadge(e, today))}</td>
+      <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis" title="${isFirst ? esc(e.observaciones) : ''}">${env(esc(e.observaciones))}</td>
     `;
 
     return tr;
@@ -364,6 +294,7 @@
 
   function getSortVal(e, col, today) {
     if (col === 'estado') return e.liquidado ? 0 : diffDias(e.fecha, today);
+    if (col === 'numero_salida') return e.num_sal;  // #Sal ordena por el correlativo nuevo
     if (col === 'peso') return e.peso;
     return e[col] ?? null;
   }
@@ -544,15 +475,8 @@
   }
 
   function exportarExcel() {
-    // Desagrupar: si hay grupos, expandimos todos para exportar fila por fila
-    const rows = [];
-    for (const grp of groupedRows) {
-      if (grp.type === 'single') {
-        rows.push(grp.data);
-      } else {
-        rows.push(...grp.rows);
-      }
-    }
+    // Una fila por ENVÍO, sobre la lista filtrada (mismas columnas/formato de siempre).
+    const rows = filteredData;
 
     if (!rows.length) {
       NovaUtils.showAlert(alertBox, 'No hay datos para exportar', 'error');
@@ -677,6 +601,11 @@
   function fmtKg(v) {
     if (v == null || v === '') return '<span class="em">—</span>';
     return `${Number(v).toFixed(1)} kg`;
+  }
+
+  function fmtDim(v) {
+    if (v == null || v === '') return '<span class="em">—</span>';
+    return String(Number(v));
   }
 
   function fmtNum(v) {
@@ -889,7 +818,7 @@
   function bindRowEdit() {
     document.getElementById('salidas-body').addEventListener('click', (e) => {
       // No abrir modal si el click fue en un botón o link interactivo de la fila
-      if (e.target.closest('.track-btn') || e.target.closest('.expand-btn') || e.target.closest('a')) return;
+      if (e.target.closest('.track-btn') || e.target.closest('a')) return;
       const tr = e.target.closest('tr[data-envio-id]');
       if (!tr) return;
       const envio = allData.find((d) => d.id === Number(tr.dataset.envioId));
