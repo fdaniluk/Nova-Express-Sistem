@@ -241,4 +241,34 @@ router.patch('/:id', async (req, res, next) => {
   }
 });
 
+// Edita el numero_guia de UN bulto individual (una fila de envio_bultos).
+// Las guías reasignadas (p. ej. UPS) las carga el usuario tal cual. No se valida
+// unicidad: el cruce de facturas todavía usa la guía del envío. Guía vacía → NULL,
+// para que el frontend vuelva a usar la guía del envío como fallback.
+router.patch('/bultos/:id', async (req, res, next) => {
+  try {
+    const db = getDb();
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: 'ID inválido' });
+
+    const numeroGuia = String(req.body.numero_guia ?? '').trim().toUpperCase() || null;
+
+    const result = await db
+      .prepare('UPDATE envio_bultos SET numero_guia = ? WHERE id = ?')
+      .run(numeroGuia, id);
+
+    if (result.changes === 0) {
+      return res.status(404).json({ error: 'Bulto no encontrado' });
+    }
+
+    const bulto = await db
+      .prepare('SELECT id, envio_id, numero_bulto, numero_guia FROM envio_bultos WHERE id = ?')
+      .get(id);
+
+    res.json(bulto);
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
