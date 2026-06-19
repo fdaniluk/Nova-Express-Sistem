@@ -66,6 +66,51 @@ router.get('/', async (req, res, next) => {
 
     const rows = await db.prepare(sql).all(...params);
 
+    // Bultos por envío: una sola query (sin N+1) y se indexan en memoria por envio_id.
+    const bultosPorEnvio = new Map();
+    const envioIds = rows.map((r) => r.id);
+    if (envioIds.length > 0) {
+      const placeholders = envioIds.map(() => '?').join(', ');
+      const bultoRows = await db
+        .prepare(`
+          SELECT id, envio_id, numero_bulto, peso_real, largo, ancho, alto, peso_volumetrico, numero_guia
+          FROM envio_bultos
+          WHERE envio_id IN (${placeholders})
+          ORDER BY envio_id, numero_bulto`)
+        .all(...envioIds);
+      for (const b of bultoRows) {
+        if (!bultosPorEnvio.has(b.envio_id)) bultosPorEnvio.set(b.envio_id, []);
+        bultosPorEnvio.get(b.envio_id).push({
+          id: b.id,
+          numero_bulto: b.numero_bulto,
+          peso_real: b.peso_real,
+          largo: b.largo,
+          ancho: b.ancho,
+          alto: b.alto,
+          peso_volumetrico: b.peso_volumetrico,
+          numero_guia: b.numero_guia,
+        });
+      }
+    }
+
+    // Devuelve el array de bultos del envío. Multi-bulto: filas reales (id no nulo).
+    // Bulto único (sin filas en envio_bultos): un bulto sintético (id null) armado
+    // desde los campos primarios del propio envío.
+    const bultosDe = (row) => {
+      const reales = bultosPorEnvio.get(row.id);
+      if (reales && reales.length > 0) return reales;
+      return [{
+        id: null,
+        numero_bulto: 1,
+        peso_real: row.peso,
+        largo: row.largo,
+        ancho: row.ancho,
+        alto: row.alto,
+        peso_volumetrico: row.peso_volumetrico,
+        numero_guia: null,
+      }];
+    };
+
     // Profit y porcentaje derivados AL VUELO desde el desglose congelado (Parte A)
     // y total_cobrado, para que nunca queden desfasados si se edita el precio.
     //   costo      = flete - descuento + seguro + fuel + derechos + adicionales + otros
@@ -120,6 +165,7 @@ router.get('/', async (req, res, next) => {
       estado_revision: row.estado_revision ?? null,
       liquidado: Boolean(row.liquidado),
       fecha_liquidacion: row.fecha_liquidacion,
+      bultos: bultosDe(row),
     }));
 
     res.json(result);

@@ -189,6 +189,18 @@ async function migrateEnvios() {
   }
 }
 
+async function migrateEnvioBultos() {
+  const cols = (await dbApi.prepare('PRAGMA table_info(envio_bultos)').all()).map((c) => c.name);
+  const toAdd = [
+    ['numero_guia', 'TEXT'],
+  ];
+  for (const [col, def] of toAdd) {
+    if (!cols.includes(col)) {
+      await dbApi.exec(`ALTER TABLE envio_bultos ADD COLUMN ${col} ${def}`);
+    }
+  }
+}
+
 async function migrateConfiguracion() {
   const cols = (await dbApi.prepare('PRAGMA table_info(configuracion)').all()).map((c) => c.name);
   if (!cols.includes('ganancia_minima_pct')) {
@@ -202,6 +214,7 @@ async function initSchema() {
   await migrateClientes();
   await migratePickups();
   await migrateEnvios();
+  await migrateEnvioBultos();
   await migrateConfiguracion();
   await seedIfEmpty();
 }
