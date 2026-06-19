@@ -317,6 +317,7 @@
         fecha: document.getElementById('fecha').value,
         courier: document.getElementById('courier').value,
         tipo_envio: document.getElementById('tipo_envio').value,
+        tipo_paquete: document.getElementById('tipo_paquete').value,
         numero_guia: document.getElementById('numero_guia').value.trim(),
         pais_destino: document.getElementById('pais_destino').value.trim(),
         zona: document.getElementById('zona').value.trim() || null,
@@ -376,6 +377,7 @@
       document.getElementById('cot-ups-variante').value = envio.servicio_ups;
     }
     document.getElementById('tipo_envio').value = envio.tipo_envio;
+    document.getElementById('tipo_paquete').value = envio.tipo_paquete || 'm';
     document.getElementById('numero_guia').value = envio.numero_guia;
     document.getElementById('pais_destino').value = envio.pais_destino;
     document.getElementById('zona').value = envio.zona || '';
