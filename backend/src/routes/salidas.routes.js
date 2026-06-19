@@ -66,6 +66,15 @@ router.get('/', async (req, res, next) => {
 
     const rows = await db.prepare(sql).all(...params);
 
+    // Número correlativo de salida (num_sal): se calcula al vuelo sobre TODOS los
+    // envíos en orden cronológico de carga (id ASC), NO sobre el subconjunto filtrado.
+    // Es global y estable: el id más bajo es 1, el siguiente 2, etc. Filtrar por fecha
+    // no renumera nada. No se persiste: al borrar un envío los números se recalculan
+    // solos sin huecos en el próximo request.
+    const numSalPorEnvio = new Map();
+    const todosLosIds = await db.prepare('SELECT id FROM envios ORDER BY id ASC').all();
+    todosLosIds.forEach((r, i) => numSalPorEnvio.set(r.id, i + 1));
+
     // Bultos por envío: una sola query (sin N+1) y se indexan en memoria por envio_id.
     const bultosPorEnvio = new Map();
     const envioIds = rows.map((r) => r.id);
@@ -131,6 +140,7 @@ router.get('/', async (req, res, next) => {
 
     const result = rows.map((row) => ({
       id: row.id,
+      num_sal: numSalPorEnvio.get(row.id),
       numero_salida: row.numero_salida,
       courier: row.courier,
       fecha: row.fecha,
