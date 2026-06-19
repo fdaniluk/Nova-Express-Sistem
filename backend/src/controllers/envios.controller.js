@@ -40,7 +40,12 @@ async function crear(req, res, next) {
     res.status(201).json(envio);
   } catch (e) {
     if (e.message?.includes('UNIQUE')) {
-      return res.status(409).json({ error: 'Ya existe un envío con ese número de guía' });
+      const guia = String(req.body.numero_guia ?? '').trim().toUpperCase();
+      return res.status(409).json({
+        error: guia
+          ? `Ya existe un envío con la guía "${guia}"`
+          : 'Ya existe un envío con ese número de guía',
+      });
     }
     next(e);
   }
