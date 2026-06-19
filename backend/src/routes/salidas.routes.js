@@ -271,4 +271,50 @@ router.patch('/bultos/:id', async (req, res, next) => {
   }
 });
 
+// Borra un envío entero, incluso si está liquidado.
+// envio_bultos y cargos_adicionales se van solos por ON DELETE CASCADE.
+// liquidacion_items es RESTRICT: hay que sacar sus filas a mano antes de borrar el
+// envío, y mantener consistente el liquidaciones.total (snapshot, no se recalcula solo).
+// Si el envío era el único de su liquidación, la liquidación queda vacía y se borra.
+router.delete('/:id', async (req, res, next) => {
+  try {
+    const db = getDb();
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: 'ID inválido' });
+
+    const existing = await db.prepare('SELECT id FROM envios WHERE id = ?').get(id);
+    if (!existing) return res.status(404).json({ error: 'Envío no encontrado' });
+
+    await db.transaction(async () => {
+      // Normalmente a lo sumo un item por envío, pero manejamos varios por robustez.
+      const items = await db
+        .prepare('SELECT id, liquidacion_id, total_usd FROM liquidacion_items WHERE envio_id = ?')
+        .all(id);
+
+      for (const item of items) {
+        // El total de la liquidación es un snapshot: le restamos el aporte de este item.
+        await db
+          .prepare('UPDATE liquidaciones SET total = ROUND(total - ?, 2) WHERE id = ?')
+          .run(item.total_usd, item.liquidacion_id);
+        await db
+          .prepare('DELETE FROM liquidacion_items WHERE id = ?')
+          .run(item.id);
+        // Si la liquidación quedó sin items, era exclusiva de este envío: se borra.
+        const restantes = await db
+          .prepare('SELECT COUNT(*) AS n FROM liquidacion_items WHERE liquidacion_id = ?')
+          .get(item.liquidacion_id);
+        if (restantes.n === 0) {
+          await db.prepare('DELETE FROM liquidaciones WHERE id = ?').run(item.liquidacion_id);
+        }
+      }
+
+      await db.prepare('DELETE FROM envios WHERE id = ?').run(id);
+    });
+
+    res.json({ ok: true, id });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
