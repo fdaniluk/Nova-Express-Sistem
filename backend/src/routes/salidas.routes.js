@@ -291,6 +291,9 @@ router.delete('/:id', async (req, res, next) => {
         .prepare('SELECT id, liquidacion_id, total_usd FROM liquidacion_items WHERE envio_id = ?')
         .all(id);
 
+      // Liquidaciones tocadas por este envío: candidatas a quedar vacías.
+      const liquidacionesAfectadas = new Set();
+
       for (const item of items) {
         // El total de la liquidación es un snapshot: le restamos el aporte de este item.
         await db
@@ -299,16 +302,24 @@ router.delete('/:id', async (req, res, next) => {
         await db
           .prepare('DELETE FROM liquidacion_items WHERE id = ?')
           .run(item.id);
-        // Si la liquidación quedó sin items, era exclusiva de este envío: se borra.
-        const restantes = await db
-          .prepare('SELECT COUNT(*) AS n FROM liquidacion_items WHERE liquidacion_id = ?')
-          .get(item.liquidacion_id);
-        if (restantes.n === 0) {
-          await db.prepare('DELETE FROM liquidaciones WHERE id = ?').run(item.liquidacion_id);
-        }
+        liquidacionesAfectadas.add(item.liquidacion_id);
       }
 
+      // Borramos el envío ANTES de tocar las liquidaciones: envios.liquidacion_id
+      // todavía referencia la liquidación (FK RESTRICT), así que la liquidación no
+      // puede borrarse mientras el envío exista. envio_bultos y cargos_adicionales
+      // se van solos por ON DELETE CASCADE.
       await db.prepare('DELETE FROM envios WHERE id = ?').run(id);
+
+      // Recién ahora, sin el envío refiriéndolas, borramos las liquidaciones vacías.
+      for (const liquidacionId of liquidacionesAfectadas) {
+        const restantes = await db
+          .prepare('SELECT COUNT(*) AS n FROM liquidacion_items WHERE liquidacion_id = ?')
+          .get(liquidacionId);
+        if (restantes.n === 0) {
+          await db.prepare('DELETE FROM liquidaciones WHERE id = ?').run(liquidacionId);
+        }
+      }
     });
 
     res.json({ ok: true, id });

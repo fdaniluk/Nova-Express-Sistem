@@ -728,6 +728,7 @@
           </div>
         </div>
         <div class="sal-modal-footer">
+          <button class="btn btn-danger" id="sal-modal-delete" style="margin-right:auto">Eliminar</button>
           <button class="btn btn-secondary" id="sal-modal-cancel">Cancelar</button>
           <button class="btn btn-primary" id="sal-modal-save">Guardar cambios</button>
         </div>
@@ -738,6 +739,7 @@
     document.getElementById('sal-modal-close').addEventListener('click', closeEditModal);
     document.getElementById('sal-modal-cancel').addEventListener('click', closeEditModal);
     document.getElementById('sal-modal-save').addEventListener('click', saveEditModal);
+    document.getElementById('sal-modal-delete').addEventListener('click', deleteEditModal);
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && !document.getElementById('sal-edit-overlay').classList.contains('hidden')) {
@@ -817,6 +819,41 @@
     } finally {
       saveBtn.disabled = false;
       saveBtn.textContent = 'Guardar cambios';
+    }
+  }
+
+  async function deleteEditModal() {
+    if (!editEnvio) return;
+    const envio = editEnvio;
+
+    // Mensaje de confirmación: deja claro que se borra el envío entero (todos sus
+    // bultos) y es definitivo. Si está liquidado, avisa que se ajustará la liquidación.
+    const nBultos = (envio.bultos && envio.bultos.length) ? envio.bultos.length : 1;
+    let msg = `Vas a eliminar el envío de guía ${envio.numero_guia} (con sus ${nBultos} bulto${nBultos === 1 ? '' : 's'}). Esta acción es definitiva.`;
+    if (envio.liquidado || envio.liquidacion_id) {
+      msg += `\n\nATENCIÓN: este envío está liquidado. Al borrarlo se ajustará su liquidación.`;
+    }
+    msg += `\n\n¿Confirmás?`;
+    if (!confirm(msg)) return;
+
+    const deleteBtn = document.getElementById('sal-modal-delete');
+    deleteBtn.disabled = true;
+    deleteBtn.textContent = 'Eliminando…';
+
+    try {
+      await NovaAPI.salidas.eliminar(envio.id);
+      closeEditModal();
+      // Recargar desde el backend: el num_sal se recalcula allá, así que la lista
+      // se renumera sin huecos al volver a pedir y re-renderizar.
+      await loadData();
+      NovaUtils.showAlert(alertBox, 'Envío eliminado correctamente', 'success');
+    } catch (err) {
+      const modalAlert = document.getElementById('sal-modal-alert');
+      NovaUtils.showAlert(modalAlert, err.message, 'error');
+      document.querySelector('.sal-modal-body').scrollTop = 0;
+    } finally {
+      deleteBtn.disabled = false;
+      deleteBtn.textContent = 'Eliminar';
     }
   }
 

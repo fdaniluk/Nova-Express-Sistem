@@ -133,6 +133,7 @@ api.salidas = {
   },
   actualizar: (id, data) => request(`/salidas/${id}`, { method: 'PATCH', body: data }),
   actualizarBulto: (id, data) => request(`/salidas/bultos/${id}`, { method: 'PATCH', body: data }),
+  eliminar: (id) => request(`/salidas/${id}`, { method: 'DELETE' }),
 };
 
 api.tracking = {
