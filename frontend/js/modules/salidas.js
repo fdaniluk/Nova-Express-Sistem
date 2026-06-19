@@ -195,7 +195,7 @@
       <td class="num">${env(profitCell(e))}</td>
       <td class="num">${env(pctCell(e))}</td>
       <td>${env(estadoBadge(e, today))}</td>
-      <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis" title="${isFirst ? esc(e.observaciones) : ''}">${env(esc(e.observaciones))}</td>
+      <td class="obs-cell" title="${isFirst ? escAttr(e.observaciones) : ''}">${obsCell(e.observaciones, isFirst)}</td>
     `;
 
     return tr;
@@ -592,6 +592,20 @@
   // ── Helpers de formato ───────────────────────────────────────────────────────
   function esc(s) {
     return String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  }
+
+  // Escape para usar texto libre dentro de un atributo entre comillas dobles (ej. title).
+  function escAttr(s) {
+    return esc(s).replace(/"/g, '&quot;');
+  }
+
+  // Preview de observaciones en la fila: solo en el primer renglón del envío.
+  // Texto corto → tal cual; largo → truncado por CSS (.obs-preview) con "…".
+  // El texto completo va en el title de la celda (ver el <td class="obs-cell">).
+  function obsCell(v, isFirst) {
+    if (!isFirst) return '';
+    if (v == null || v === '') return '<span class="em">—</span>';
+    return `<span class="obs-preview">${esc(v)}</span>`;
   }
 
   function dash(v) {

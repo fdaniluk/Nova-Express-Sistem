@@ -293,6 +293,17 @@ th:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: '⇅'; }
 /* ── Dash for empty values ── */
 .em { color: #cbd5e1; }
 
+/* ── Observaciones: preview truncado en la fila (texto completo en el title) ── */
+.obs-cell { max-width: 220px; }
+.obs-cell .obs-preview {
+  display: inline-block;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
 /* ── Empty state ── */
 .salidas-empty {
   text-align: center;
