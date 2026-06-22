@@ -18,6 +18,13 @@
   padding-bottom: 0.45rem;
 }
 
+/* Campo atenuado/no editable (medidas y peso balanza en multi-bulto) */
+.campo-bloqueado {
+  background: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
 .cliente-row {
   display: flex;
   gap: 0.35rem;

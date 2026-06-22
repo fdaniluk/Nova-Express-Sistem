@@ -86,6 +86,39 @@
     });
   }
 
+  function esMultibulto() {
+    return (parseInt(document.getElementById('cantidad_bultos').value, 10) || 1) >= 2;
+  }
+
+  // Habilita/atenúa un campo del form superior (readonly + estilo gris).
+  function setCampoBloqueado(el, bloqueado) {
+    if (!el) return;
+    el.readOnly = bloqueado;
+    el.classList.toggle('campo-bloqueado', bloqueado);
+  }
+
+  // En multi-bulto, el PESO BALANZA de arriba = suma de los pesos de cada bulto.
+  // Suma directa de los inputs de peso (independiente de si el bulto tiene medidas),
+  // recalculada en vivo. No toca el peso facturable (ese sale del motor).
+  function recalcPesoBalanza() {
+    if (!esMultibulto()) return;
+    let suma = 0;
+    document
+      .querySelectorAll('#bultos-container [data-field="peso_real"]')
+      .forEach((inp) => { suma += parseFloat(inp.value) || 0; });
+    document.getElementById('peso_real').value = Math.round(suma * 1000) / 1000;
+  }
+
+  // Bloquea (multi-bulto) o libera (1 bulto) los campos superiores:
+  // las medidas salen de los bultos y el peso balanza es la suma de sus pesos.
+  function aplicarBloqueoMultibulto() {
+    const multi = esMultibulto();
+    ['peso_real', 'largo', 'ancho', 'alto'].forEach((id) => {
+      setCampoBloqueado(document.getElementById(id), multi);
+    });
+    if (multi) recalcPesoBalanza();
+  }
+
   function renderBultos() {
     const n = parseInt(document.getElementById('cantidad_bultos').value, 10) || 1;
     const section = document.getElementById('bultos-extra');
@@ -93,6 +126,7 @@
     if (n <= 1) {
       section.classList.add('hidden');
       container.innerHTML = '';
+      aplicarBloqueoMultibulto();
       updatePesos();
       return;
     }
@@ -106,13 +140,18 @@
         <input type="number" data-bulto="${i}" data-field="largo" placeholder="Largo" step="0.1" min="0">
         <input type="number" data-bulto="${i}" data-field="ancho" placeholder="Ancho" step="0.1" min="0">
         <input type="number" data-bulto="${i}" data-field="alto" placeholder="Alto" step="0.1" min="0">
-        <input type="number" data-bulto="${i}" data-field="peso_real" placeholder="Peso (opt.)" step="0.001" min="0">
+        <input type="number" data-bulto="${i}" data-field="peso_real" placeholder="Peso (kg) *" step="0.001" min="0">
       `;
       container.appendChild(row);
     }
     container.querySelectorAll('input').forEach((inp) => {
       inp.addEventListener('input', debounce(updatePesosYCotizacion, 300));
     });
+    // El peso balanza de arriba se suma al vuelo (sin esperar al debounce).
+    container.querySelectorAll('[data-field="peso_real"]').forEach((inp) => {
+      inp.addEventListener('input', recalcPesoBalanza);
+    });
+    aplicarBloqueoMultibulto();
     updatePesosYCotizacion();
   }
 
@@ -311,6 +350,18 @@
     document.getElementById('form-envio').addEventListener('submit', async (e) => {
       e.preventDefault();
       const id = document.getElementById('envio-id').value;
+
+      // Multi-bulto: peso obligatorio por bulto; el peso balanza guardado = suma.
+      if (esMultibulto()) {
+        const pesos = [...document.querySelectorAll('#bultos-container [data-field="peso_real"]')];
+        const faltaPeso = pesos.some((inp) => !(parseFloat(inp.value) > 0));
+        if (faltaPeso) {
+          NovaUtils.showAlert(alertBox, 'En multi-bulto cada bulto debe tener un peso mayor a 0.', 'error');
+          return;
+        }
+        recalcPesoBalanza();
+      }
+
       const bultos = getBultosFromForm();
       const data = {
         cliente_id: parseInt(document.getElementById('cliente_id').value, 10),
@@ -357,6 +408,8 @@
     document.getElementById('fecha').value = new Date().toISOString().slice(0, 10);
     document.getElementById('cantidad_bultos').value = 1;
     document.getElementById('bultos-extra').classList.add('hidden');
+    document.getElementById('bultos-container').innerHTML = '';
+    aplicarBloqueoMultibulto();
     document.getElementById('btn-cancelar-edit').classList.add('hidden');
     document.getElementById('cot-panel').classList.add('hidden');
     document.getElementById('cot-resultado').innerHTML = '';
@@ -405,6 +458,8 @@
         set('peso_real', b.peso_real);
       }
     }
+    // Tras cargar los pesos de cada bulto, sincronizar el peso balanza y el bloqueo.
+    aplicarBloqueoMultibulto();
     updatePesosYCotizacion();
   }
 
