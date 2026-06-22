@@ -22,6 +22,8 @@
 
   // estado del modal de edición
   let editEnvio = null;
+  let editBultos = [];      // bultos del envío en edición (multi-bulto)
+  let editMulti = false;    // true si el envío tiene más de un bulto
 
   const alertBox = document.getElementById('alert-box');
 
@@ -723,6 +725,25 @@
             </div>
           </div>
           <div>
+            <div class="sal-section-title">Peso y medidas</div>
+            <div class="sal-form-grid">
+              <div class="form-group"><label>Peso balanza (kg)</label><input type="number" id="saled-peso-real" step="0.001" min="0"></div>
+              <div class="form-group"><label>Largo (cm)</label><input type="number" id="saled-largo" step="0.1" min="0"></div>
+              <div class="form-group"><label>Ancho (cm)</label><input type="number" id="saled-ancho" step="0.1" min="0"></div>
+              <div class="form-group"><label>Alto (cm)</label><input type="number" id="saled-alto" step="0.1" min="0"></div>
+              <div class="form-group"><label>Peso facturable (kg)</label><input type="number" id="saled-peso-facturable" readonly class="campo-bloqueado"></div>
+              <div class="form-group"><label>Peso volumétrico (kg)</label><input type="number" id="saled-peso-volumetrico" readonly class="campo-bloqueado"></div>
+            </div>
+            <div id="saled-bultos-section" class="hidden">
+              <div class="saled-bultos-label">Dimensiones por bulto</div>
+              <div id="saled-bultos-container"></div>
+            </div>
+            <div class="saled-recalc-bar">
+              <button type="button" class="btn btn-secondary" id="saled-recalcular">Recalcular</button>
+              <span id="saled-recalc-status" class="saled-recalc-status"></span>
+            </div>
+          </div>
+          <div>
             <div class="sal-section-title">Costos (USD)</div>
             <div class="sal-form-grid sal-form-grid--nums">
               <div class="form-group"><label>Flete</label><input type="number" id="saled-flete" step="0.01"></div>
@@ -754,6 +775,13 @@
     document.getElementById('sal-modal-cancel').addEventListener('click', closeEditModal);
     document.getElementById('sal-modal-save').addEventListener('click', saveEditModal);
     document.getElementById('sal-modal-delete').addEventListener('click', deleteEditModal);
+    document.getElementById('saled-recalcular').addEventListener('click', recalcularDesglose);
+
+    // Profit/% se re-derivan en vivo: total cobrado fijo − suma de costos. Aplica tanto
+    // al editar un costo a mano como tras Recalcular (que también repuebla estos campos).
+    for (const f of ['flete', 'descuento', 'seguro', 'fuel', 'derechos', 'adicionales', 'otros']) {
+      document.getElementById(`saled-${f}`).addEventListener('input', recalcProfit);
+    }
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && !document.getElementById('sal-edit-overlay').classList.contains('hidden')) {
@@ -780,10 +808,173 @@
     }
     document.getElementById('saled-observaciones').value = envio.observaciones ?? '';
 
+    // Peso y medidas. Multi-bulto = más de un bulto: las medidas salen de cada bulto y el
+    // peso balanza es la suma (no editable arriba). Bulto único = campos sueltos editables.
+    editBultos = (envio.bultos || []).map((b) => ({ ...b }));
+    editMulti = editBultos.length > 1;
+
+    document.getElementById('saled-peso-real').value = envio.peso ?? '';
+    document.getElementById('saled-largo').value = envio.largo ?? '';
+    document.getElementById('saled-ancho').value = envio.ancho ?? '';
+    document.getElementById('saled-alto').value = envio.alto ?? '';
+    document.getElementById('saled-peso-facturable').value = envio.peso_facturable ?? '';
+    document.getElementById('saled-peso-volumetrico').value = envio.peso_volumetrico ?? '';
+    renderEditBultos();
+    document.getElementById('saled-recalc-status').textContent = '';
+
     document.getElementById('sal-modal-alert').innerHTML = '';
     document.getElementById('sal-edit-overlay').classList.remove('hidden');
     document.getElementById('saled-guia').focus();
     document.getElementById('saled-guia').select();
+  }
+
+  // Atenúa/libera un campo del modal (readonly + estilo gris). Mismo criterio que
+  // "Cargar envío": en multi-bulto el peso balanza y las medidas de arriba no se editan.
+  function setCampoBloqueado(el, bloqueado) {
+    if (!el) return;
+    el.readOnly = bloqueado;
+    el.classList.toggle('campo-bloqueado', bloqueado);
+  }
+
+  // Renderiza las filas por bulto (multi-bulto) o las oculta (bulto único). Sigue el
+  // mismo patrón visual que "Dimensiones por bulto" de Cargar envío.
+  function renderEditBultos() {
+    const section = document.getElementById('saled-bultos-section');
+    const container = document.getElementById('saled-bultos-container');
+    ['saled-peso-real', 'saled-largo', 'saled-ancho', 'saled-alto']
+      .forEach((id) => setCampoBloqueado(document.getElementById(id), editMulti));
+
+    if (!editMulti) {
+      section.classList.add('hidden');
+      container.innerHTML = '';
+      return;
+    }
+
+    section.classList.remove('hidden');
+    container.innerHTML = '';
+    editBultos.forEach((b, i) => {
+      const row = document.createElement('div');
+      row.className = 'saled-bulto-row';
+      row.innerHTML = `
+        <span>Bulto ${b.numero_bulto != null ? b.numero_bulto : i + 1}</span>
+        <input type="number" data-bidx="${i}" data-field="largo" placeholder="Largo" step="0.1" min="0" value="${b.largo ?? ''}">
+        <input type="number" data-bidx="${i}" data-field="ancho" placeholder="Ancho" step="0.1" min="0" value="${b.ancho ?? ''}">
+        <input type="number" data-bidx="${i}" data-field="alto" placeholder="Alto" step="0.1" min="0" value="${b.alto ?? ''}">
+        <input type="number" data-bidx="${i}" data-field="peso_real" placeholder="Peso (kg)" step="0.001" min="0" value="${b.peso_real ?? ''}">
+      `;
+      container.appendChild(row);
+    });
+    // El peso balanza de arriba = suma de los pesos de bulto, recalculada en vivo.
+    container.querySelectorAll('[data-field="peso_real"]').forEach((inp) => {
+      inp.addEventListener('input', recalcEditPesoBalanza);
+    });
+    recalcEditPesoBalanza();
+  }
+
+  // Suma de los pesos de bulto → peso balanza (solo lectura) en multi-bulto.
+  function recalcEditPesoBalanza() {
+    if (!editMulti) return;
+    let suma = 0;
+    document
+      .querySelectorAll('#saled-bultos-container [data-field="peso_real"]')
+      .forEach((inp) => { suma += parseFloat(inp.value) || 0; });
+    document.getElementById('saled-peso-real').value = Math.round(suma * 1000) / 1000;
+  }
+
+  // Lee las filas por bulto del modal como [{ id, numero_bulto, peso_real, largo, ancho, alto }].
+  function readBultosFromModal() {
+    return editBultos.map((b, i) => {
+      const val = (field) => {
+        const inp = document.querySelector(`#saled-bultos-container [data-bidx="${i}"][data-field="${field}"]`);
+        const v = inp ? inp.value : '';
+        return v !== '' ? Number(v) : null;
+      };
+      return {
+        id: b.id,
+        numero_bulto: b.numero_bulto,
+        peso_real: val('peso_real'),
+        largo: val('largo'),
+        ancho: val('ancho'),
+        alto: val('alto'),
+      };
+    });
+  }
+
+  // Re-deriva profit y % en vivo. El total cobrado al cliente NO cambia (editEnvio.total);
+  // lo que cambia es el costo (suma del desglose). profit = cobrado − costo;
+  // porcentaje = profit / costo × 100 (margen sobre el costo, igual que el backend).
+  // Si no hay total cobrado, no toca los campos.
+  function recalcProfit() {
+    const num = (id) => {
+      const v = document.getElementById(id).value;
+      return v !== '' ? Number(v) : 0;
+    };
+    const total = editEnvio && editEnvio.total != null ? Number(editEnvio.total) : null;
+    if (total == null || total === 0) return;
+
+    const costo = num('saled-flete') - num('saled-descuento') + num('saled-seguro')
+      + num('saled-fuel') + num('saled-derechos') + num('saled-adicionales') + num('saled-otros');
+    const profit = Math.round((total - costo) * 100) / 100;
+    document.getElementById('saled-profit').value = profit;
+    document.getElementById('saled-porcentaje').value = costo > 0
+      ? Math.round((profit / costo) * 10000) / 100
+      : '';
+  }
+
+  // Recalcula el desglose contra el motor (POST /salidas/:id/recalcular) con el peso/medidas
+  // editados, repuebla flete/seguro/fuel/adicionales y los pesos de solo lectura, y re-deriva
+  // profit/%. NO toca derechos/descuento/otros (esos no los calcula el motor).
+  async function recalcularDesglose() {
+    if (!editEnvio) return;
+    const btn = document.getElementById('saled-recalcular');
+    const status = document.getElementById('saled-recalc-status');
+
+    const body = {
+      asegurado: document.getElementById('saled-asegurado').checked ? 1 : 0,
+    };
+    if (editMulti) {
+      recalcEditPesoBalanza();
+      const bultos = readBultosFromModal();
+      body.bultos = bultos.map((b) => ({
+        peso_real: b.peso_real, largo: b.largo, ancho: b.ancho, alto: b.alto,
+      }));
+      body.peso_real = parseFloat(document.getElementById('saled-peso-real').value) || null;
+    } else {
+      const num = (id) => {
+        const v = document.getElementById(id).value;
+        return v !== '' ? Number(v) : null;
+      };
+      body.peso_real = num('saled-peso-real');
+      body.largo = num('saled-largo');
+      body.ancho = num('saled-ancho');
+      body.alto = num('saled-alto');
+    }
+
+    btn.disabled = true;
+    status.className = 'saled-recalc-status';
+    status.textContent = 'Recalculando…';
+
+    try {
+      const r = await NovaAPI.salidas.recalcular(editEnvio.id, body);
+      document.getElementById('saled-flete').value = r.flete ?? '';
+      document.getElementById('saled-seguro').value = r.seguro ?? '';
+      document.getElementById('saled-fuel').value = r.fuel ?? '';
+      document.getElementById('saled-adicionales').value = r.adicionales ?? '';
+      document.getElementById('saled-peso-facturable').value = r.peso_facturable ?? '';
+      document.getElementById('saled-peso-volumetrico').value = r.peso_volumetrico ?? '';
+      recalcProfit();
+      status.className = 'saled-recalc-status saled-recalc-ok';
+      status.textContent = 'Desglose actualizado. Revisá y guardá para persistir.';
+    } catch (err) {
+      // Caso típico 422: país/zona que el motor no reconoce para este envío.
+      const msg = /zona|pa[ií]s|desglose/i.test(err.message)
+        ? 'No se pudo recalcular: país o zona no reconocidos por el motor.'
+        : `No se pudo recalcular: ${err.message}`;
+      status.className = 'saled-recalc-status saled-recalc-err';
+      status.textContent = msg;
+    } finally {
+      btn.disabled = false;
+    }
   }
 
   function closeEditModal() {
@@ -819,10 +1010,51 @@
       payload[f] = v !== '' ? Number(v) : null;
     }
 
+    // Peso y medidas (nombres de columna del backend). En multi-bulto las medidas viajan en
+    // el array de bultos; el peso balanza de arriba es la suma. peso_facturable/volumétrico
+    // son los que dejó el último Recalcular (solo lectura).
+    const numField = (id) => {
+      const v = document.getElementById(id).value;
+      return v !== '' ? Number(v) : null;
+    };
+    payload.peso_real        = numField('saled-peso-real');
+    payload.largo            = numField('saled-largo');
+    payload.ancho            = numField('saled-ancho');
+    payload.alto             = numField('saled-alto');
+    payload.peso_facturable  = numField('saled-peso-facturable');
+    payload.peso_volumetrico = numField('saled-peso-volumetrico');
+
+    // Bultos editados: el PATCH actualiza cada fila por id (ignora id null del bulto único).
+    const bultosPayload = editMulti
+      ? readBultosFromModal().map((b) => ({
+          id: b.id, peso_real: b.peso_real, largo: b.largo, ancho: b.ancho, alto: b.alto,
+        }))
+      : [];
+    if (bultosPayload.length > 0) payload.bultos = bultosPayload;
+
     try {
       await NovaAPI.salidas.actualizar(editEnvio.id, payload);
       const idx = allData.findIndex((d) => d.id === editEnvio.id);
-      if (idx !== -1) Object.assign(allData[idx], payload);
+      if (idx !== -1) {
+        const d = allData[idx];
+        Object.assign(d, payload);
+        // Alias que usa la tabla (el GET expone peso_real como `peso`) y refresco de bultos.
+        d.peso = payload.peso_real;
+        d.asegurado = Boolean(payload.asegurado);
+        d.compra_total = (payload.flete || 0) - (payload.descuento || 0) + (payload.seguro || 0)
+          + (payload.fuel || 0) + (payload.derechos || 0) + (payload.adicionales || 0) + (payload.otros || 0);
+        if (editMulti && Array.isArray(d.bultos)) {
+          for (const eb of bultosPayload) {
+            const target = d.bultos.find((x) => x.id === eb.id);
+            if (target) Object.assign(target, eb);
+          }
+        } else if (Array.isArray(d.bultos) && d.bultos.length === 1) {
+          // Bulto único sintético: refleja el peso/medidas del envío en su única fila.
+          Object.assign(d.bultos[0], {
+            peso_real: payload.peso_real, largo: payload.largo, ancho: payload.ancho, alto: payload.alto,
+          });
+        }
+      }
       closeEditModal();
       applyAll();
       NovaUtils.showAlert(alertBox, 'Cambios guardados correctamente', 'success');

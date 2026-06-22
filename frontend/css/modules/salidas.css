@@ -541,6 +541,50 @@ th:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: '⇅'; }
   grid-template-columns: repeat(auto-fill, minmax(105px, 1fr));
 }
 
+/* Campo atenuado/no editable: peso facturable/volumétrico, y en multi-bulto el peso
+   balanza y las medidas de arriba (mismo criterio visual que Cargar envío). */
+.campo-bloqueado {
+  background: #f1f5f9;
+  color: #94a3b8;
+  cursor: not-allowed;
+}
+
+/* Dimensiones por bulto dentro del modal de edición (multi-bulto). */
+.saled-bultos-label {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--color-muted);
+  margin: 0.6rem 0 0.4rem;
+}
+
+.saled-bulto-row {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr 1fr 1fr;
+  gap: 0.5rem;
+  align-items: center;
+  margin-bottom: 0.4rem;
+}
+
+.saled-bulto-row span {
+  font-weight: 600;
+  font-size: 0.8rem;
+}
+
+.saled-recalc-bar {
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  margin-top: 0.7rem;
+}
+
+.saled-recalc-status {
+  font-size: 12px;
+  color: var(--color-muted);
+}
+
+.saled-recalc-ok { color: #15803d; }
+.saled-recalc-err { color: #dc2626; }
+
 .sal-modal-footer {
   padding: 0.9rem 1.25rem;
   border-top: 1px solid var(--color-border);

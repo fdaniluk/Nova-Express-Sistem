@@ -132,6 +132,7 @@ api.salidas = {
     return api.get(`/salidas${q ? `?${q}` : ''}`);
   },
   actualizar: (id, data) => request(`/salidas/${id}`, { method: 'PATCH', body: data }),
+  recalcular: (id, data) => request(`/salidas/${id}/recalcular`, { method: 'POST', body: data }),
   actualizarBulto: (id, data) => request(`/salidas/bultos/${id}`, { method: 'PATCH', body: data }),
   eliminar: (id) => request(`/salidas/${id}`, { method: 'DELETE' }),
 };
