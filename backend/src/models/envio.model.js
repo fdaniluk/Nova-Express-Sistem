@@ -338,4 +338,6 @@ module.exports = {
   listarPendientesPorCliente,
   marcarLiquidados,
   getBultos,
+  buildPesos,
+  calcularDesgloseAlCosto,
 };

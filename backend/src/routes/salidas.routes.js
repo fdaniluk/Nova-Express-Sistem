@@ -1,5 +1,7 @@
 const { Router } = require('express');
 const { getDb } = require('../db');
+const { buildPesos, calcularDesgloseAlCosto } = require('../models/envio.model');
+const { pesoVolumetricoBulto } = require('../services/calculos.service');
 
 const router = Router();
 
@@ -27,6 +29,8 @@ router.get('/', async (req, res, next) => {
         e.peso_volumetrico,
         e.peso_facturable,
         e.asegurado,
+        e.zona,
+        e.servicio_ups,
         e.fob                 AS valor_declarado,
         e.flete,
         e.descuento,
@@ -161,6 +165,8 @@ router.get('/', async (req, res, next) => {
       peso_volumetrico: row.peso_volumetrico,
       peso_facturable: row.peso_facturable,
       asegurado: Boolean(row.asegurado),
+      zona: row.zona,
+      servicio_ups: row.servicio_ups,
       valor_declarado: row.valor_declarado,
       flete: row.flete,
       descuento: row.descuento,
@@ -184,10 +190,78 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// Recálculo SOLO-CÁLCULO del desglose al editar peso/medidas desde el modal de Salidas.
+// NO persiste nada: el frontend muestra el resultado y, si el usuario guarda, lo manda
+// al PATCH (que persiste lo recibido, ver más abajo). Reusa el MISMO motor y armado de
+// inputs que el alta (buildPesos + calcularDesgloseAlCosto de envio.model.js): los campos
+// que NO se editan en el modal (pais, tipo, courier, servicio_ups, fob, zona) se toman del
+// envío guardado; el fuel% lo resuelve calcularDesgloseAlCosto del backend (no del cliente).
+// Body: { peso_real, largo, ancho, alto, bultos?: [{ peso_real, largo, ancho, alto }] }
+//   - bulto único: campos sueltos (peso_real/largo/ancho/alto), sin array bultos.
+//   - multi-bulto: array bultos; el peso facturable sale de los bultos.
+// Responde: { flete, seguro, fuel, adicionales, total, peso_facturable, peso_volumetrico, zona }
+router.post('/:id/recalcular', async (req, res, next) => {
+  try {
+    const db = getDb();
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: 'ID inválido' });
+
+    const envio = await db.prepare('SELECT * FROM envios WHERE id = ?').get(id);
+    if (!envio) return res.status(404).json({ error: 'Envío no encontrado' });
+
+    const body = req.body || {};
+    const bultos = (Array.isArray(body.bultos) && body.bultos.length > 0)
+      ? body.bultos.map((b) => ({
+          peso_real: b.peso_real,
+          largo: b.largo,
+          ancho: b.ancho,
+          alto: b.alto,
+        }))
+      : [];
+
+    // Inputs editados (peso/medidas/bultos) + inputs no editables tomados del envío guardado.
+    const data = {
+      courier: envio.courier,
+      servicio_ups: envio.servicio_ups,
+      tipo_envio: envio.tipo_envio,
+      pais_destino: envio.pais_destino,
+      fob: envio.fob,
+      zona: envio.zona,
+      peso_real: body.peso_real,
+      largo: body.largo,
+      ancho: body.ancho,
+      alto: body.alto,
+      bultos,
+    };
+
+    const { pesoVolumetrico, pesoFacturable } = buildPesos(data);
+    const desglose = await calcularDesgloseAlCosto(data, pesoFacturable);
+    if (!desglose) {
+      return res.status(422).json({
+        error: 'No se pudo calcular el desglose: país/zona desconocidos para este envío',
+      });
+    }
+
+    res.json({
+      flete: desglose.flete,
+      seguro: desglose.seguro,
+      fuel: desglose.fuel,
+      adicionales: desglose.adicionales,
+      total: desglose.total,
+      peso_facturable: pesoFacturable,
+      peso_volumetrico: pesoVolumetrico,
+      zona: desglose.zona,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Campos editables desde la vista Salidas.
 // Bloqueados: cliente_id, courier, fecha, pais_destino, liquidado, liquidacion_id.
 const SALIDAS_EDITABLE = [
   'numero_guia', 'numero_salida', 'bulto', 'tipo_paquete', 'asegurado', 'direccion',
+  'peso_real', 'largo', 'ancho', 'alto', 'peso_facturable', 'peso_volumetrico',
   'flete', 'descuento', 'seguro', 'fuel', 'derechos', 'adicionales', 'otros',
   'profit', 'porcentaje', 'observaciones',
 ];
@@ -208,7 +282,13 @@ router.patch('/:id', async (req, res, next) => {
       }
     }
 
-    if (Object.keys(picked).length === 0) {
+    // Bultos editados (multi-bulto): se persisten aparte del UPDATE plano de envios.
+    // Cada bulto se identifica por su id (fila de envio_bultos). El bulto sintético del
+    // bulto único no tiene fila (id null) y se ignora: su peso/medidas viajan en `picked`.
+    const bultosEdit = (Array.isArray(req.body.bultos) ? req.body.bultos : [])
+      .filter((b) => b && b.id != null);
+
+    if (Object.keys(picked).length === 0 && bultosEdit.length === 0) {
       return res.status(400).json({ error: 'No hay campos para actualizar' });
     }
 
@@ -229,11 +309,29 @@ router.patch('/:id', async (req, res, next) => {
       }
     }
 
-    const setClauses = Object.keys(picked).map((f) => `${f} = ?`).join(', ');
-    const values = [...Object.values(picked), id];
-    await db
-      .prepare(`UPDATE envios SET ${setClauses}, updated_at = datetime('now', 'localtime') WHERE id = ?`)
-      .run(...values);
+    // El save persiste lo recibido: NO recalcula el motor ni pisa los costos del payload
+    // (el usuario pudo ajustarlos a mano tras Recalcular). El único derivado es el
+    // peso_volumetrico por bulto, geometría pura (mismo cálculo que saveBultos del alta).
+    await db.transaction(async () => {
+      if (Object.keys(picked).length > 0) {
+        const setClauses = Object.keys(picked).map((f) => `${f} = ?`).join(', ');
+        const values = [...Object.values(picked), id];
+        await db
+          .prepare(`UPDATE envios SET ${setClauses}, updated_at = datetime('now', 'localtime') WHERE id = ?`)
+          .run(...values);
+      }
+
+      for (const b of bultosEdit) {
+        const pv = Math.round(pesoVolumetricoBulto(b.largo, b.ancho, b.alto) * 1000) / 1000;
+        await db
+          .prepare(
+            `UPDATE envio_bultos
+               SET peso_real = ?, largo = ?, ancho = ?, alto = ?, peso_volumetrico = ?
+             WHERE id = ? AND envio_id = ?`
+          )
+          .run(b.peso_real ?? null, b.largo ?? null, b.ancho ?? null, b.alto ?? null, pv, b.id, id);
+      }
+    });
 
     res.json({ ok: true });
   } catch (err) {
