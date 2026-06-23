@@ -54,6 +54,7 @@ async function getTracking(numeroGuia) {
   }
 
   const data = await res.json();
+  console.log('[UPS TRACKING RAW]', JSON.stringify(data, null, 2));
   const shipment = data.trackResponse?.shipment?.[0];
   if (!shipment) throw new Error('No se encontró información del envío en la respuesta UPS');
 
