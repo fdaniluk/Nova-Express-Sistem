@@ -24,6 +24,8 @@
   let editEnvio = null;
   let editBultos = [];      // bultos del envío en edición (multi-bulto)
   let editMulti = false;    // true si el envío tiene más de un bulto
+  let editExtras = [];      // desglose de adicionales [{ tipo, label, monto }]
+  let editExtrasDirty = false; // true solo si el desglose viene de un Recalcular de esta sesión
 
   const alertBox = document.getElementById('alert-box');
 
@@ -619,6 +621,16 @@
     return `$${Number(v).toFixed(2)}`;
   }
 
+  // Lee un valor numérico tolerando la coma decimal con la que se muestran los importes
+  // (es-AR: "99,73"). Number('99,73') daría NaN y rompería comparaciones/sumas; aquí la
+  // coma se normaliza a punto. Vacío o no numérico → 0. Único criterio de parseo numérico
+  // del modal: lo usan recalcProfit, extrasSum y updateExtrasWarn.
+  function parseNum(value) {
+    if (value == null || value === '') return 0;
+    const n = Number(String(value).replace(',', '.'));
+    return Number.isFinite(n) ? n : 0;
+  }
+
   function fmtKg(v) {
     if (v == null || v === '') return '<span class="em">—</span>';
     return `${Number(v).toFixed(1)} kg`;
@@ -756,6 +768,7 @@
               <div class="form-group"><label>Profit</label><input type="number" id="saled-profit" step="0.01"></div>
               <div class="form-group"><label>% Profit</label><input type="number" id="saled-porcentaje" step="0.1"></div>
             </div>
+            <div id="saled-extras-block" class="saled-extras"></div>
           </div>
           <div class="form-group">
             <label>Observaciones</label>
@@ -783,6 +796,9 @@
       document.getElementById(`saled-${f}`).addEventListener('input', recalcProfit);
     }
 
+    // El cartelito de desfase se re-evalúa en vivo cada vez que se edita Adicionales a mano.
+    document.getElementById('saled-adicionales').addEventListener('input', updateExtrasWarn);
+
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && !document.getElementById('sal-edit-overlay').classList.contains('hidden')) {
         closeEditModal();
@@ -807,6 +823,13 @@
       document.getElementById(`saled-${f}`).value = envio[f] ?? '';
     }
     document.getElementById('saled-observaciones').value = envio.observaciones ?? '';
+
+    // Desglose de adicionales: precargar desde el envío. Al abrir no está "dirty" (solo
+    // un Recalcular de esta sesión lo marca como tal). Render tras poblar Adicionales para
+    // que el chequeo del cartelito lea el total actual.
+    editExtras = Array.isArray(envio.extras) ? envio.extras.map((x) => ({ ...x })) : [];
+    editExtrasDirty = false;
+    renderExtrasBlock();
 
     // Peso y medidas. Multi-bulto = más de un bulto: las medidas salen de cada bulto y el
     // peso balanza es la suma (no editable arriba). Bulto único = campos sueltos editables.
@@ -905,10 +928,7 @@
   // porcentaje = profit / costo × 100 (margen sobre el costo, igual que el backend).
   // Si no hay total cobrado, no toca los campos.
   function recalcProfit() {
-    const num = (id) => {
-      const v = document.getElementById(id).value;
-      return v !== '' ? Number(v) : 0;
-    };
+    const num = (id) => parseNum(document.getElementById(id).value);
     const total = editEnvio && editEnvio.total != null ? Number(editEnvio.total) : null;
     if (total == null || total === 0) return;
 
@@ -919,6 +939,64 @@
     document.getElementById('saled-porcentaje').value = costo > 0
       ? Math.round((profit / costo) * 10000) / 100
       : '';
+  }
+
+  // Suma de los montos del desglose de adicionales.
+  function extrasSum() {
+    return editExtras.reduce((acc, x) => acc + parseNum(x.monto), 0);
+  }
+
+  // Render del bloque de solo lectura bajo Costos: una fila por extra (label + monto) y
+  // una fila de total. Envío viejo/sin extras → texto tenue. Tras renderizar, re-evalúa
+  // el cartelito de desfase.
+  function renderExtrasBlock() {
+    const block = document.getElementById('saled-extras-block');
+    console.log('[renderExtras] block:', block, 'editExtras:', JSON.parse(JSON.stringify(editExtras)), 'dirty:', editExtrasDirty);
+    if (!block) return;
+
+    if (!editExtras.length) {
+      block.innerHTML = `
+        <div class="saled-extras-title">Desglose de adicionales</div>
+        <div class="saled-extras-empty">Sin desglose disponible</div>`;
+      return;
+    }
+
+    const rows = editExtras.map((x) => `
+      <div class="saled-extra-row">
+        <span class="saled-extra-label">${esc(x.label || x.tipo || '—')}</span>
+        <span class="saled-extra-monto">${fmtUSD(x.monto)}</span>
+      </div>`).join('');
+
+    block.innerHTML = `
+      <div class="saled-extras-title">Desglose de adicionales</div>
+      <div class="saled-extras-list">
+        ${rows}
+        <div class="saled-extra-row saled-extra-total">
+          <span class="saled-extra-label">Total desglose</span>
+          <span class="saled-extra-monto">${fmtUSD(extrasSum())}</span>
+        </div>
+      </div>
+      <div id="saled-extras-warn" class="saled-extras-warn hidden">Total ajustado a mano — el desglose puede no coincidir.</div>`;
+
+    updateExtrasWarn();
+  }
+
+  // Muestra el cartelito ámbar si el total de Adicionales (editable) ya no coincide con la
+  // suma del desglose. Sin desglose → nunca (no hay con qué comparar).
+  function updateExtrasWarn() {
+    const warn = document.getElementById('saled-extras-warn');
+    console.log('[extrasWarn] warn elem:', warn, 'editExtras.length:', editExtras.length);
+    if (!warn) return;
+    if (!editExtras.length) {
+      warn.classList.add('hidden');
+      return;
+    }
+    const rawAdic = document.getElementById('saled-adicionales').value;
+    const adic = parseNum(rawAdic);
+    const sum = extrasSum();
+    const mismatch = Math.abs(adic - sum) > 0.01;
+    console.log('[extrasWarn] rawAdic:', JSON.stringify(rawAdic), 'adic:', adic, 'extrasSum:', sum, 'mismatch:', mismatch);
+    warn.classList.toggle('hidden', !mismatch);
   }
 
   // Recalcula el desglose contra el motor (POST /salidas/:id/recalcular) con el peso/medidas
@@ -962,6 +1040,11 @@
       document.getElementById('saled-adicionales').value = r.adicionales ?? '';
       document.getElementById('saled-peso-facturable').value = r.peso_facturable ?? '';
       document.getElementById('saled-peso-volumetrico').value = r.peso_volumetrico ?? '';
+      // Desglose nuevo del motor: queda "dirty" para persistirlo al guardar. Tras esto el
+      // total y la suma vuelven a cuadrar, así que el cartelito desaparece solo.
+      editExtras = Array.isArray(r.extras) ? r.extras.map((x) => ({ ...x })) : [];
+      editExtrasDirty = true;
+      renderExtrasBlock();
       recalcProfit();
       status.className = 'saled-recalc-status saled-recalc-ok';
       status.textContent = 'Desglose actualizado. Revisá y guardá para persistir.';
@@ -1032,12 +1115,19 @@
       : [];
     if (bultosPayload.length > 0) payload.bultos = bultosPayload;
 
+    // Desglose: solo se persiste si proviene de un Recalcular de esta sesión. Si el usuario
+    // solo editó el total a mano, no se manda y el backend no pisa la columna (UX acordada).
+    if (editExtrasDirty) payload.extras_json = editExtras;
+
     try {
       await NovaAPI.salidas.actualizar(editEnvio.id, payload);
       const idx = allData.findIndex((d) => d.id === editEnvio.id);
       if (idx !== -1) {
         const d = allData[idx];
         Object.assign(d, payload);
+        // Reflejar el desglose persistido en memoria para que al reabrir se vea igual (el GET
+        // lo expone como `extras`, distinto del `extras_json` que viaja en el PATCH).
+        if (editExtrasDirty) d.extras = editExtras.map((x) => ({ ...x }));
         // Alias que usa la tabla (el GET expone peso_real como `peso`) y refresco de bultos.
         d.peso = payload.peso_real;
         d.asegurado = Boolean(payload.asegurado);
