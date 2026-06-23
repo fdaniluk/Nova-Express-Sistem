@@ -276,16 +276,16 @@
       <div class="pickup-rec-stripe ${stripeClass}"${stripeAttrs}>${escHtml(stripeLabel)}</div>
       <div class="pickup-card-v2-content">
         <div class="pickup-card-v2-header">
-          <div class="pickup-avatar ${sc}">${escHtml(getInitials(p.cliente_nombre))}</div>
-          <div class="pickup-card-v2-info">
-            <div class="pickup-name-row">
-              <div class="pickup-client-name">${escHtml(p.cliente_nombre)}</div>
-              ${courierBadgeHtml(p.courier)}
-            </div>
+          <div class="pickup-header-top">
+            <div class="pickup-avatar ${sc}">${escHtml(getInitials(p.cliente_nombre))}</div>
             <div class="pickup-hora">${escHtml(p.hora_inicio)} – ${escHtml(p.hora_fin)}</div>
+            <div class="pickup-header-badges">
+              ${courierBadgeHtml(p.courier)}
+              <span class="pickup-badge ${sc}">${badgeText}</span>
+              ${cobroBadgeHtml}
+            </div>
           </div>
-          <span class="pickup-badge ${sc}">${badgeText}</span>
-          ${cobroBadgeHtml}
+          <div class="pickup-client-name">${escHtml(p.cliente_nombre)}</div>
         </div>
         <div class="pickup-direccion">📍 ${escHtml(p.direccion)}</div>
         <div class="pickup-actions">
