@@ -156,8 +156,8 @@ async function crear(data) {
           peso_volumetrico, peso_facturable, fob, total_cobrado, observaciones,
           numero_salida, bulto, tipo_paquete, asegurado,
           flete, descuento, seguro, fuel, derechos, adicionales, otros, profit, porcentaje,
-          servicio_ups
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          extras_json, servicio_ups
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         data.cliente_id,
@@ -192,6 +192,7 @@ async function crear(data) {
         desglose ? desglose.otros : (data.otros ?? null),
         data.profit ?? null,
         data.porcentaje ?? null,
+        desglose && desglose.extras && desglose.extras.length ? JSON.stringify(desglose.extras) : null,
         data.courier === 'UPS' ? (data.servicio_ups ?? null) : null
       );
     const envioId = result.lastInsertRowid;

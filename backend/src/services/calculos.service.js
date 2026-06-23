@@ -61,6 +61,43 @@ function redondear2(n) {
   return Math.round(Number(n) * 100) / 100;
 }
 
+// Labels del array `extras` del motor (cotizador-core) que representan el SEGURO.
+// El seguro va en columna propia (no en adicionales), así que se excluye del array.
+const _LABELS_SEGURO = new Set(['Seguro', 'Seguro DHL']);
+
+// Mapea el label humano que arma el motor a un código `tipo` canónico y estable.
+// El motor agrega sufijos dinámicos (pesos, conteos) a algunos labels, por eso el
+// match es por prefijo/contenido. Cualquier label desconocido cae en 'otro' (no rompe).
+function labelATipo(label) {
+  const l = String(label || '');
+  if (l.startsWith('GoGreen'))                                 return 'gogreen';
+  if (l.startsWith('Sobrepeso'))                               return 'sobrepeso';
+  if (l.startsWith('Exceso de tamaño'))                        return 'oversize';
+  if (l.startsWith('Área remota'))                             return 'area_remota';
+  if (l.startsWith('DDP'))                                     return 'ddp';
+  if (l.startsWith('Manejo adicional'))                        return 'manejo';
+  if (l.startsWith('Paquete mayor tamaño') || l.includes('contorno')) return 'contorno';
+  if (l.startsWith('Entrega residencial'))                     return 'residencial';
+  return 'otro';
+}
+
+// Reconstruye el desglose de adicionales como array de { tipo, label, monto } a partir
+// del resultado del motor, de forma que Σ(montos) == adicionales (= total−flete−seguro−fuel):
+//   - excluye la entrada de seguro del array del motor (va en columna propia),
+//   - antepone una entrada sintética de surge cuando el motor lo expone aparte (UPS).
+function construirExtrasDesglose(r) {
+  const out = [];
+  const surge = redondear2(r.surge || 0);
+  if (surge > 0) {
+    out.push({ tipo: 'surge', label: 'Recargo por demanda (surge)', monto: surge });
+  }
+  for (const [label, monto] of (r.extras || [])) {
+    if (_LABELS_SEGURO.has(label)) continue;
+    out.push({ tipo: labelATipo(label), label, monto: redondear2(monto) });
+  }
+  return out;
+}
+
 
 const _DIACRITICS_RE = new RegExp('[\\u0300-\\u036f]', 'g');
 function normPais(s) {
@@ -186,7 +223,20 @@ function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zo
   const total  = redondear2(r.total);
   const adicionales = redondear2(total - flete - seguro - fuel);
 
-  return { flete, seguro, fuel, adicionales, derechos: 0, descuento: 0, otros: 0, total, zona: r.zona };
+  // Array informativo de adicionales por tipo. `adicionales` (residual) sigue siendo la
+  // fuente de verdad del número; el array es puramente aditivo. Verificación interna:
+  // Σ(montos) debe coincidir con adicionales (±0.01 por redondeo). Si no, es un bug de
+  // reconciliación: se reporta sin romper el alta (no se tapa).
+  const extras = construirExtrasDesglose(r);
+  const sumExtras = redondear2(extras.reduce((s, e) => s + e.monto, 0));
+  if (Math.abs(sumExtras - adicionales) > 0.01) {
+    console.warn(
+      `[desglosarCosto] reconciliación de extras no cuadra: Σ=${sumExtras} != adicionales=${adicionales} ` +
+      `(servicio=${servicio}, pais=${paisCanon}, zona=${r.zona})`
+    );
+  }
+
+  return { flete, seguro, fuel, adicionales, derechos: 0, descuento: 0, otros: 0, total, zona: r.zona, extras };
 }
 
 module.exports = {

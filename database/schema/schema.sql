@@ -107,6 +107,7 @@ CREATE TABLE IF NOT EXISTS envios (
   otros               REAL,
   profit              REAL,
   porcentaje          REAL,
+  extras_json         TEXT,
   destino_raw         TEXT,
   direccion           TEXT DEFAULT 'expo',
   -- Control de Facturas

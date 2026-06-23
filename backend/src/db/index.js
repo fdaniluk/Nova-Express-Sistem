@@ -173,6 +173,8 @@ async function migrateEnvios() {
     ['otros',            'REAL'],
     ['profit',           'REAL'],
     ['porcentaje',       'REAL'],
+    // Desglose de extras por tipo (array reconciliado JSON; ver desglosarCosto)
+    ['extras_json',      'TEXT'],
     ['destino_raw',      'TEXT'],
     ['direccion',        "TEXT DEFAULT 'expo'"],
     // Columnas módulo Control de Facturas

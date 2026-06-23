@@ -5,6 +5,18 @@ const { pesoVolumetricoBulto } = require('../services/calculos.service');
 
 const router = Router();
 
+// Parsea el desglose de extras persistido (envios.extras_json). Envíos viejos o
+// importados tienen NULL → array vacío. JSON corrupto tampoco rompe la fila.
+function parseExtras(json) {
+  if (!json) return [];
+  try {
+    const v = JSON.parse(json);
+    return Array.isArray(v) ? v : [];
+  } catch {
+    return [];
+  }
+}
+
 router.get('/', async (req, res, next) => {
   try {
     const db = getDb();
@@ -39,6 +51,7 @@ router.get('/', async (req, res, next) => {
         e.derechos,
         e.adicionales,
         e.otros,
+        e.extras_json,
         e.total_cobrado       AS total,
         e.profit,
         e.porcentaje,
@@ -175,6 +188,7 @@ router.get('/', async (req, res, next) => {
       derechos: row.derechos,
       adicionales: row.adicionales,
       otros: row.otros,
+      extras: parseExtras(row.extras_json),
       total: row.total,
       ...deriveProfit(row),
       observaciones: row.observaciones,
@@ -247,6 +261,7 @@ router.post('/:id/recalcular', async (req, res, next) => {
       seguro: desglose.seguro,
       fuel: desglose.fuel,
       adicionales: desglose.adicionales,
+      extras: desglose.extras || [],
       total: desglose.total,
       peso_facturable: pesoFacturable,
       peso_volumetrico: pesoVolumetrico,
@@ -263,7 +278,7 @@ const SALIDAS_EDITABLE = [
   'numero_guia', 'numero_salida', 'bulto', 'tipo_paquete', 'asegurado', 'direccion',
   'peso_real', 'largo', 'ancho', 'alto', 'peso_facturable', 'peso_volumetrico',
   'flete', 'descuento', 'seguro', 'fuel', 'derechos', 'adicionales', 'otros',
-  'profit', 'porcentaje', 'observaciones',
+  'profit', 'porcentaje', 'observaciones', 'extras_json',
 ];
 
 router.patch('/:id', async (req, res, next) => {
@@ -279,6 +294,19 @@ router.patch('/:id', async (req, res, next) => {
     for (const field of SALIDAS_EDITABLE) {
       if (Object.prototype.hasOwnProperty.call(req.body, field)) {
         picked[field] = req.body[field];
+      }
+    }
+
+    // extras_json: el front lo manda como ARRAY (el desglose por tipo ya reconciliado)
+    // y SOLO después de un Recalcular. Se persiste serializado. Si el campo no vino en
+    // el body nunca entra a `picked` (whitelist) → el UPDATE no lo incluye y la columna
+    // conserva su valor previo (no se pisa con NULL). Si vino pero no es un array, se
+    // descarta el campo: dato inválido no debe romper ni sobrescribir el desglose guardado.
+    if (Object.prototype.hasOwnProperty.call(picked, 'extras_json')) {
+      if (Array.isArray(picked.extras_json)) {
+        picked.extras_json = JSON.stringify(picked.extras_json);
+      } else {
+        delete picked.extras_json;
       }
     }
 
