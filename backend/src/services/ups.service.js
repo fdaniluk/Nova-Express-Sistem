@@ -38,7 +38,7 @@ async function getToken() {
 async function getTracking(numeroGuia) {
   const token = await getToken();
 
-  const url = `${UPS_API_BASE}/api/track/v1/details/${encodeURIComponent(numeroGuia)}?locale=es_419&returnSignature=false`;
+  const url = `${UPS_API_BASE}/api/track/v1/details/${encodeURIComponent(numeroGuia)}?locale=en_US&returnSignature=false`;
 
   const res = await fetch(url, {
     headers: {
