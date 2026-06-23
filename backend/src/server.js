@@ -10,6 +10,8 @@ const { hacerBackup } = require('./services/backup.service');
 
 const app = express();
 
+app.set('trust proxy', 1);
+
 app.use(cors({ origin: config.corsOrigin }));
 app.use(express.json({ limit: '2mb' }));
 app.use(cookieParser());
