@@ -455,6 +455,8 @@ th:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: '⇅'; }
   min-width: 220px;
   padding: 10px 12px;
   font-size: 12.5px;
+  max-height: 360px;
+  overflow-y: auto;
 }
 
 .tracking-header {
@@ -497,6 +499,40 @@ th:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: '⇅'; }
   padding: 4px 0;
   max-width: 260px;
   word-break: break-word;
+}
+
+.tracking-timeline {
+  display: flex;
+  flex-direction: column;
+  margin-top: 2px;
+}
+
+.tracking-event {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 5px 0;
+  border-bottom: 1px solid #f1f5f9;
+  font-size: 11.5px;
+}
+
+.tracking-event:last-child { border-bottom: none; }
+
+.tracking-event-when {
+  color: var(--color-muted);
+  font-size: 11px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.tracking-event-what {
+  text-align: right;
+}
+
+.tracking-event-loc {
+  color: var(--color-muted);
+  font-size: 11px;
 }
 
 /* ── Clickable edit rows ── */
