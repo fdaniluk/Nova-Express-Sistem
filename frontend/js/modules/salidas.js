@@ -11,6 +11,7 @@
   let sortDir = 'desc';
   let searchTerm = '';
   let soloAlertas = false;
+  let selectedMonth = null;  // mes activo de las solapas ("YYYY-MM"); null = sin datos
   const colFilters = {};     // { courier: Set(['UPS','DHL']), ... }
 
   // dropdown flotante
@@ -49,11 +50,86 @@
   async function loadData() {
     try {
       allData = await NovaAPI.salidas.listar();
+      recomputeNumSalMes();
+      ensureSelectedMonth();
       applyAll();
     } catch (err) {
       NovaUtils.showAlert(alertBox, 'Error al cargar salidas: ' + err.message, 'error');
       document.getElementById('salidas-body').innerHTML =
-        '<tr><td colspan="30" class="salidas-empty">Error al cargar datos</td></tr>';
+        '<tr><td colspan="31" class="salidas-empty">Error al cargar datos</td></tr>';
+    }
+  }
+
+  // ── #Sal renumerado por mes (frontend) ──────────────────────────────────────
+  // El backend manda un num_sal global; en pantalla lo ignoramos y mostramos un correlativo
+  // 1..N por mes. Cada envío recibe e.num_sal_mes según su mes (e.fecha "YYYY-MM"), ordenado
+  // por fecha ASC y desempatado por id ASC. Recalcular tras cualquier cambio en allData.
+  function recomputeNumSalMes() {
+    const byMonth = {};
+    for (const e of allData) {
+      const mes = monthOf(e);
+      (byMonth[mes] || (byMonth[mes] = [])).push(e);
+    }
+    for (const mes of Object.keys(byMonth)) {
+      byMonth[mes]
+        .sort((a, b) => {
+          if (a.fecha < b.fecha) return -1;
+          if (a.fecha > b.fecha) return 1;
+          return (a.id || 0) - (b.id || 0);
+        })
+        .forEach((e, i) => { e.num_sal_mes = i + 1; });
+    }
+  }
+
+  // ── Solapas de meses (estilo Excel) ─────────────────────────────────────────
+  const MESES_ABBR = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+
+  function monthOf(e) {
+    return (e.fecha || '').slice(0, 7);
+  }
+
+  // Meses únicos presentes en allData, ordenados DESC (más reciente primero).
+  function getMonths() {
+    const set = new Set();
+    for (const e of allData) {
+      const mes = monthOf(e);
+      if (mes) set.add(mes);
+    }
+    return [...set].sort().reverse();
+  }
+
+  function monthLabel(mes) {
+    const [y, m] = mes.split('-');
+    return `${MESES_ABBR[Number(m) - 1] || m} ${y}`;
+  }
+
+  // Elige el mes activo: el mes actual si tiene envíos, si no el más reciente con datos.
+  // Preserva el mes ya seleccionado mientras siga teniendo envíos (no saltar tras editar/borrar).
+  function ensureSelectedMonth() {
+    const months = getMonths();
+    if (!months.length) { selectedMonth = null; return; }
+    if (selectedMonth && months.includes(selectedMonth)) return;
+    const current = new Date().toISOString().slice(0, 7);
+    selectedMonth = months.includes(current) ? current : months[0];
+  }
+
+  function renderMonthTabs() {
+    const container = document.getElementById('month-tabs');
+    if (!container) return;
+    container.innerHTML = '';
+    for (const mes of getMonths()) {
+      const count = allData.reduce((acc, e) => acc + (monthOf(e) === mes ? 1 : 0), 0);
+      const tab = document.createElement('button');
+      tab.className = 'month-tab' + (mes === selectedMonth ? ' active' : '');
+      tab.dataset.month = mes;
+      tab.innerHTML = `${esc(monthLabel(mes))} <span class="month-tab-count">(${count})</span>`;
+      tab.addEventListener('click', () => {
+        if (selectedMonth === mes) return;
+        selectedMonth = mes;
+        visibleCount = 0;
+        applyAll();
+      });
+      container.appendChild(tab);
     }
   }
 
@@ -64,11 +140,15 @@
     renderPage();
     updateCounter();
     renderChips();
+    renderMonthTabs();
   }
 
   function filtered() {
     const today = todayStr();
     filteredData = allData.filter((e) => {
+      // Solapa de mes activa: solo envíos de ese mes
+      if (selectedMonth && monthOf(e) !== selectedMonth) return false;
+
       // Buscador general
       if (searchTerm) {
         const hay = [
@@ -124,7 +204,7 @@
 
     if (visibleCount === 0 && nextBatch.length === 0) {
       const tr = document.createElement('tr');
-      tr.innerHTML = '<td colspan="30" class="salidas-empty">No hay envíos que coincidan con los filtros</td>';
+      tr.innerHTML = '<td colspan="31" class="salidas-empty">No hay envíos que coincidan con los filtros</td>';
       tbody.appendChild(tr);
     } else {
       tbody.appendChild(fragment);
@@ -152,6 +232,7 @@
     const b = bulto || {};
     const bultoGuia = b.numero_guia || e.numero_guia;
     const pesoReal = b.peso_real != null ? b.peso_real : e.peso;
+    const pesoVol = b.peso_volumetrico != null ? b.peso_volumetrico : e.peso_volumetrico;
     const largo = b.largo != null ? b.largo : e.largo;
     const ancho = b.ancho != null ? b.ancho : e.ancho;
     const alto = b.alto != null ? b.alto : e.alto;
@@ -170,7 +251,7 @@
     const env = (html) => (isFirst ? html : '');
 
     tr.innerHTML = `
-      <td>${fmtNum(e.num_sal)}</td>
+      <td>${fmtNum(e.num_sal_mes)}</td>
       <td>${env(courierBadge(e.courier))}</td>
       <td>${env(NovaUtils.formatDate(e.fecha))}</td>
       <td class="mono"><span class="bulto-guia-text">${esc(bultoGuia)}</span>${bultoGuiaEdit}${guiaIcons}</td>
@@ -184,6 +265,7 @@
       <td class="num">${fmtDim(ancho)}</td>
       <td class="num">${fmtDim(alto)}</td>
       <td class="num">${fmtKg(pesoReal)}</td>
+      <td class="num">${fmtKg(pesoVol)}</td>
       <td class="num">${env(fmtKg(e.peso_facturable))}</td>
       <td class="num">${env(fmtUSD(e.valor_declarado))}</td>
       <td>${env(e.asegurado ? 'Sí' : 'No')}</td>
@@ -303,7 +385,7 @@
 
   function getSortVal(e, col, today) {
     if (col === 'estado') return e.liquidado ? 0 : diffDias(e.fecha, today);
-    if (col === 'numero_salida') return e.num_sal;  // #Sal ordena por el correlativo nuevo
+    if (col === 'numero_salida') return e.num_sal_mes;  // #Sal ordena por el correlativo del mes
     if (col === 'peso') return e.peso;
     return e[col] ?? null;
   }
@@ -1179,8 +1261,8 @@
     try {
       await NovaAPI.salidas.eliminar(envio.id);
       closeEditModal();
-      // Recargar desde el backend: el num_sal se recalcula allá, así que la lista
-      // se renumera sin huecos al volver a pedir y re-renderizar.
+      // Recargar desde el backend: loadData() vuelve a correr recomputeNumSalMes(), así que
+      // el #Sal por mes se renumera sin huecos al re-render.
       await loadData();
       NovaUtils.showAlert(alertBox, 'Envío eliminado correctamente', 'success');
     } catch (err) {

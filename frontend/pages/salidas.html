@@ -98,6 +98,9 @@
         <!-- Filter chips activos -->
         <div class="filter-chips" id="filter-chips"></div>
 
+        <!-- Solapas por mes (estilo Excel) -->
+        <div class="salidas-month-tabs" id="month-tabs"></div>
+
         <!-- Tabla -->
         <div class="salidas-table-wrap" id="table-wrap">
           <table class="salidas-table" id="salidas-table">
@@ -116,11 +119,12 @@
                 <th class="num" style="width:48px"><div class="th-inner">Largo</div></th>
                 <th class="num" style="width:48px"><div class="th-inner">Ancho</div></th>
                 <th class="num" style="width:48px"><div class="th-inner">Alto</div></th>
-                <th class="num" style="width:72px"><div class="th-inner">Peso balanza</div></th>
+                <th class="num" style="width:72px"><div class="th-inner">P.Balanza</div></th>
+                <th class="num" style="width:72px"><div class="th-inner">P.Volumétrico</div></th>
                 <th data-col="peso_facturable" class="num" style="width:62px"><div class="th-inner">P.Fact<span class="sort-icon"></span></div></th>
                 <th data-col="valor_declarado" class="num" style="width:70px"><div class="th-inner">FOB<span class="sort-icon"></span></div></th>
                 <th data-col="asegurado" style="width:52px"><div class="th-inner">Aseg</div></th>
-                <th data-col="total" class="num" style="width:75px"><div class="th-inner">Total<span class="sort-icon"></span></div></th>
+                <th data-col="total" class="num" style="width:75px"><div class="th-inner">Venta Total<span class="sort-icon"></span></div></th>
                 <th data-col="flete" class="num" style="width:70px"><div class="th-inner">Flete<span class="sort-icon"></span></div></th>
                 <th data-col="descuento" class="num" style="width:65px"><div class="th-inner">Dscto<span class="sort-icon"></span></div></th>
                 <th data-col="seguro" class="num" style="width:65px"><div class="th-inner">Seguro<span class="sort-icon"></span></div></th>
@@ -136,7 +140,7 @@
               </tr>
             </thead>
             <tbody id="salidas-body">
-              <tr><td colspan="30" class="salidas-empty">Cargando…</td></tr>
+              <tr><td colspan="31" class="salidas-empty">Cargando…</td></tr>
             </tbody>
           </table>
         </div>
