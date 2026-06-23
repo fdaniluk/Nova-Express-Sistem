@@ -1,15 +1,13 @@
 let _token = null;
 let _tokenExpiry = 0;
 
+const UPS_API_BASE = (process.env.UPS_API_BASE || 'https://onlinetools.ups.com').trim();
+
 async function getToken() {
   if (_token && Date.now() < _tokenExpiry) return _token;
 
   const clientId = (process.env.UPS_CLIENT_ID || '').trim();
   const clientSecret = (process.env.UPS_CLIENT_SECRET || '').trim();
-
-  // DEBUG temporal — borrar después de confirmar
-  console.log(`[UPS] CLIENT_ID  longitud=${clientId.length}  primeros6="${clientId.slice(0, 6)}"`);
-  console.log(`[UPS] CLIENT_SECRET longitud=${clientSecret.length}  primeros6="${clientSecret.slice(0, 6)}"`);
 
   if (!clientId || !clientSecret) {
     throw new Error('Faltan credenciales UPS_CLIENT_ID / UPS_CLIENT_SECRET en .env');
@@ -17,7 +15,7 @@ async function getToken() {
 
   const credentials = Buffer.from(`${clientId}:${clientSecret}`).toString('base64');
 
-  const res = await fetch('https://wwwcie.ups.com/security/v1/oauth/token', {
+  const res = await fetch(`${UPS_API_BASE}/security/v1/oauth/token`, {
     method: 'POST',
     headers: {
       Authorization: `Basic ${credentials}`,
@@ -40,7 +38,7 @@ async function getToken() {
 async function getTracking(numeroGuia) {
   const token = await getToken();
 
-  const url = `https://wwwcie.ups.com/api/track/v1/details/${encodeURIComponent(numeroGuia)}?locale=es_419&returnSignature=false`;
+  const url = `${UPS_API_BASE}/api/track/v1/details/${encodeURIComponent(numeroGuia)}?locale=es_419&returnSignature=false`;
 
   const res = await fetch(url, {
     headers: {
