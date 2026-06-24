@@ -164,6 +164,7 @@ async function migrateEnvios() {
     ['bulto',            'TEXT'],
     ['tipo_paquete',     'TEXT'],
     ['asegurado',        'INTEGER DEFAULT 0'],
+    ['ddp',              'INTEGER DEFAULT 0'],
     ['flete',            'REAL'],
     ['descuento',        'REAL'],
     ['seguro',           'REAL'],

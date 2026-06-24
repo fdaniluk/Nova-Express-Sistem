@@ -98,6 +98,7 @@ CREATE TABLE IF NOT EXISTS envios (
   bulto               TEXT,
   tipo_paquete        TEXT,
   asegurado           INTEGER DEFAULT 0,
+  ddp                 INTEGER DEFAULT 0,
   flete               REAL,
   descuento           REAL,
   seguro              REAL,
