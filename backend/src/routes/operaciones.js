@@ -44,7 +44,23 @@ router.get('/', async (req, res, next) => {
       pickup_id: pickupByCliente[e.cliente_id] || null,
     }));
 
-    res.json({ envios: enviosConPickup, pickups });
+    // Rezagados: envíos NO despachados con fecha anterior al día pedido.
+    // Se arrastran visualmente; su e.fecha real queda intacta.
+    // Condición estricta e.fecha < ? para no duplicar los de fecha exacta.
+    const rezagados = await db
+      .prepare(
+        `SELECT e.id, e.numero_guia, c.nombre AS cliente_nombre, e.cliente_id,
+                e.pais_destino AS pais, e.estado_operativo, e.fecha,
+                e.check_datos, e.check_guia, e.check_proforma, e.check_despachado
+         FROM envios e
+         JOIN clientes c ON e.cliente_id = c.id
+         WHERE (e.check_despachado = 0 OR e.check_despachado IS NULL)
+           AND e.fecha < ?
+         ORDER BY e.fecha ASC, c.nombre ASC`
+      )
+      .all(fecha);
+
+    res.json({ envios: enviosConPickup, pickups, rezagados });
   } catch (e) {
     next(e);
   }

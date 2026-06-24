@@ -9,6 +9,7 @@
   fechaActual.setHours(0, 0, 0, 0);
   let envios = [];
   let pickupsDelDia = [];
+  let rezagados = [];
 
   // ── Helpers de fecha ──────────────────────────────────
 
@@ -17,6 +18,12 @@
     const m = String(d.getMonth() + 1).padStart(2, '0');
     const day = String(d.getDate()).padStart(2, '0');
     return `${y}-${m}-${day}`;
+  }
+
+  function formatDDMM(ymd) {
+    if (!ymd) return '';
+    const [, m, d] = String(ymd).split('-');
+    return `${d}/${m}`;
   }
 
   function formatearFechaTitulo(d) {
@@ -35,6 +42,7 @@
       const data = await NovaAPI.operaciones.delDia(toYMD(fecha));
       envios = data.envios || [];
       pickupsDelDia = data.pickups || [];
+      rezagados = data.rezagados || [];
       actualizarHeader();
       renderLista();
     } catch (e) {
@@ -88,7 +96,7 @@
       .filter((e) => e.estado_operativo === 'despachado')
       .sort((a, b) => a.cliente_nombre.localeCompare(b.cliente_nombre));
 
-    if (!standalonesPendientes.length && !standalonesDeposito.length && !envios.length) {
+    if (!standalonesPendientes.length && !standalonesDeposito.length && !envios.length && !rezagados.length) {
       opsList.innerHTML = '<div class="ops-empty">No hay envíos ni pickups registrados para este día.</div>';
       return;
     }
@@ -100,21 +108,44 @@
       ...enviosDespachados.map((e) => renderCardEnvio(e, pickupPorCliente[e.cliente_id] || null)),
     ];
 
-    opsList.innerHTML = partes.join('');
+    let html = partes.join('');
+
+    // Sección de rezagados (arrastre visual de días anteriores), debajo de lo de hoy.
+    if (rezagados.length) {
+      const rezOrdenados = rezagados
+        .slice()
+        .sort((a, b) =>
+          a.fecha === b.fecha
+            ? a.cliente_nombre.localeCompare(b.cliente_nombre)
+            : a.fecha.localeCompare(b.fecha)
+        );
+      html += `<div class="ops-rezagados-header">
+        <span>Pendientes de días anteriores</span>
+        <span class="ops-rezagados-count">${rezOrdenados.length}</span>
+      </div>`;
+      html += rezOrdenados.map((e) => renderCardEnvio(e, null, true)).join('');
+    }
+
+    opsList.innerHTML = html;
     bindCheckboxes();
   }
 
   // ── Cards de envío ────────────────────────────────────
 
-  function renderCardEnvio(envio, pickup) {
+  function renderCardEnvio(envio, pickup, esRezagado) {
     const esDespachado = envio.estado_operativo === 'despachado';
-    return `<div class="envio-card${esDespachado ? ' despachado' : ''}" data-envio-id="${envio.id}">
+    const clases = `envio-card${esDespachado ? ' despachado' : ''}${esRezagado ? ' rezagado' : ''}`;
+    const badgeRezagado = esRezagado
+      ? `<div class="envio-card-rezagado-badge">cargado el ${formatDDMM(envio.fecha)}</div>`
+      : '';
+    return `<div class="${clases}" data-envio-id="${envio.id}">
       ${buildHeaderEnvio(envio, pickup)}
       <div class="envio-card-body">
         <div class="envio-card-info">
           <div class="envio-card-cliente">${escHtml(envio.cliente_nombre)}</div>
           <div class="envio-card-guia">${escHtml(envio.numero_guia)}</div>
           <div class="envio-card-pais">${escHtml(envio.pais)}</div>
+          ${badgeRezagado}
         </div>
         <div class="envio-card-checks">
           ${renderCheck('envio', envio.id, 'check_datos', envio.check_datos, 'Datos completos')}
@@ -209,11 +240,20 @@
   async function onCheckboxEnvioChange(envioId, campo, valor, cb) {
     try {
       await NovaAPI.operaciones.actualizarEnvio(envioId, { [campo]: valor });
-      const idx = envios.findIndex((e) => e.id === Number(envioId));
+      const id = Number(envioId);
+      const idx = envios.findIndex((e) => e.id === id);
+      const esRezagado = idx < 0 && rezagados.some((e) => e.id === id);
       if (idx >= 0) {
         envios[idx][campo] = valor;
         if (campo === 'check_despachado' && valor === 1) {
           envios[idx].estado_operativo = 'despachado';
+        }
+      } else if (esRezagado) {
+        const rIdx = rezagados.findIndex((e) => e.id === id);
+        rezagados[rIdx][campo] = valor;
+        // Al marcar Despachado, el rezagado deja de arrastrarse: lo sacamos de la sección.
+        if (campo === 'check_despachado' && valor === 1) {
+          rezagados.splice(rIdx, 1);
         }
       }
       if (campo === 'check_despachado' && valor === 1) {
