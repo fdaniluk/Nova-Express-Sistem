@@ -204,8 +204,28 @@ CREATE TABLE IF NOT EXISTS pickups (
   en_deposito_at      TEXT,
   recolector          TEXT,
   visto_juanqui_at    TEXT,
-  tiene_cobro         INTEGER DEFAULT 0
+  tiene_cobro         INTEGER DEFAULT 0,
+  tipo_recoleccion    TEXT DEFAULT 'normal'
 );
+
+-- Cuadrantes: "envíos manuales" que operaciones crea copiando el cliente de un
+-- envío existente, para trackear por separado un segundo envío del mismo cliente
+-- en un mismo pickup. Persisten, tienen los 4 checks y se arrastran como rezagados.
+CREATE TABLE IF NOT EXISTS cuadrantes (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  cliente_id        INTEGER NOT NULL REFERENCES clientes(id),
+  envio_origen_id   INTEGER REFERENCES envios(id),
+  titulo            TEXT,
+  fecha             TEXT NOT NULL,
+  check_datos       INTEGER DEFAULT 0,
+  check_guia        INTEGER DEFAULT 0,
+  check_proforma    INTEGER DEFAULT 0,
+  check_despachado  INTEGER DEFAULT 0,
+  estado_operativo  TEXT DEFAULT 'en_deposito',
+  created_at        TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_cuadrantes_fecha  ON cuadrantes(fecha);
 
 -- Historial de facturas cargadas (módulo Control de Facturas)
 CREATE TABLE IF NOT EXISTS facturas_cargadas (

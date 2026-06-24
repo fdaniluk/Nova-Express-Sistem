@@ -1,6 +1,6 @@
 const { Router } = require('express');
 const { getDb } = require('../db');
-const { RECOLECTORES, derivarEstado, procesarConfirmacion } = require('../services/pickups.service');
+const { RECOLECTORES, TIPOS_RECOLECCION, derivarEstado, procesarConfirmacion } = require('../services/pickups.service');
 
 const router = Router();
 
@@ -44,7 +44,7 @@ router.get('/', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const db = getDb();
-    const { cliente_id, direccion, fecha, hora_inicio, hora_fin, notas, courier, recolector, tiene_cobro } = req.body;
+    const { cliente_id, direccion, fecha, hora_inicio, hora_fin, notas, courier, recolector, tiene_cobro, tipo_recoleccion } = req.body;
     console.log('[POST /pickups] body:', JSON.stringify(req.body));
 
     if (!cliente_id || !direccion || !fecha || !hora_inicio || !hora_fin) {
@@ -57,16 +57,24 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ error: `Recolector inválido. Valores permitidos: ${RECOLECTORES.join(', ')}` });
     }
 
+    if (tipo_recoleccion != null && !TIPOS_RECOLECCION.includes(tipo_recoleccion)) {
+      return res.status(400).json({ error: `Tipo de recolección inválido. Valores permitidos: ${TIPOS_RECOLECCION.join(', ')}` });
+    }
+
     const cliente = await db
       .prepare('SELECT nombre FROM clientes WHERE id = ?')
       .get(cliente_id);
     if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
 
+    const tipo = tipo_recoleccion || 'normal';
+    // Estado inicial: 'courier' nace terminal; los demás nacen 'pendiente'.
+    const estadoInicial = derivarEstado(null, null, tipo);
+
     const result = await db
       .prepare(
         `INSERT INTO pickups
-           (cliente_id, cliente_nombre, direccion, fecha, hora_inicio, hora_fin, notas, courier, recolector, tiene_cobro)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           (cliente_id, cliente_nombre, direccion, fecha, hora_inicio, hora_fin, notas, courier, recolector, tiene_cobro, tipo_recoleccion, estado)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         cliente_id,
@@ -78,7 +86,9 @@ router.post('/', async (req, res, next) => {
         notas || null,
         courier || null,
         recolector || null,
-        tiene_cobro ? 1 : 0
+        tiene_cobro ? 1 : 0,
+        tipo,
+        estadoInicial
       );
 
     const created = await db.prepare('SELECT * FROM pickups WHERE id = ?').get(result.lastInsertRowid);
@@ -97,10 +107,14 @@ router.put('/:id', async (req, res, next) => {
     if (!existing) return res.status(404).json({ error: 'Pickup no encontrado' });
 
     // `estado` no se acepta como campo libre: se deriva de los timestamps actuales
-    const { cliente_id, direccion, fecha, hora_inicio, hora_fin, notas, courier, recolector, tiene_cobro } = req.body;
+    const { cliente_id, direccion, fecha, hora_inicio, hora_fin, notas, courier, recolector, tiene_cobro, tipo_recoleccion } = req.body;
 
     if (recolector != null && !RECOLECTORES.includes(recolector)) {
       return res.status(400).json({ error: `Recolector inválido. Valores permitidos: ${RECOLECTORES.join(', ')}` });
+    }
+
+    if (tipo_recoleccion != null && !TIPOS_RECOLECCION.includes(tipo_recoleccion)) {
+      return res.status(400).json({ error: `Tipo de recolección inválido. Valores permitidos: ${TIPOS_RECOLECCION.join(', ')}` });
     }
 
     const newClienteId = cliente_id != null ? cliente_id : existing.cliente_id;
@@ -112,14 +126,18 @@ router.put('/:id', async (req, res, next) => {
       clienteNombre = cliente.nombre;
     }
 
-    // El PUT no altera los timestamps de confirmación; estado se re-deriva de ellos.
-    const estado = derivarEstado(existing.confirmado_juanqui, existing.en_deposito_at);
+    // tipo_recoleccion: si viene actualiza, si no conserva.
+    const newTipo = tipo_recoleccion !== undefined ? tipo_recoleccion : existing.tipo_recoleccion;
+
+    // El PUT no altera los timestamps de confirmación; estado se re-deriva de ellos
+    // y del tipo de recolección resultante.
+    const estado = derivarEstado(existing.confirmado_juanqui, existing.en_deposito_at, newTipo);
 
     await db
       .prepare(
         `UPDATE pickups
          SET cliente_id=?, cliente_nombre=?, direccion=?, fecha=?, hora_inicio=?, hora_fin=?,
-             notas=?, estado=?, courier=?, recolector=?, tiene_cobro=?
+             notas=?, estado=?, courier=?, recolector=?, tiene_cobro=?, tipo_recoleccion=?
          WHERE id=?`
       )
       .run(
@@ -134,6 +152,7 @@ router.put('/:id', async (req, res, next) => {
         courier       !== undefined ? courier       : existing.courier,
         recolector    !== undefined ? recolector    : existing.recolector,
         tiene_cobro   !== undefined ? (tiene_cobro ? 1 : 0) : existing.tiene_cobro,
+        newTipo,
         id
       );
 

@@ -135,6 +135,7 @@ async function migratePickups() {
     ['recolector',         'TEXT'],
     ['visto_juanqui_at',   'TEXT'],
     ['tiene_cobro',        'INTEGER DEFAULT 0'],
+    ['tipo_recoleccion',   "TEXT DEFAULT 'normal'"],
   ];
   for (const [col, def] of toAdd) {
     if (!cols.includes(col)) {

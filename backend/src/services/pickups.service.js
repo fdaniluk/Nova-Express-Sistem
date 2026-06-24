@@ -1,7 +1,13 @@
 const RECOLECTORES = ['Juanqui', 'Felipe', 'Ricardo', 'Marcelo'];
+const TIPOS_RECOLECCION = ['normal', 'cliente', 'courier'];
 
-function derivarEstado(confirmado_juanqui, en_deposito_at) {
+function derivarEstado(confirmado_juanqui, en_deposito_at, tipo_recoleccion = 'normal') {
+  // 'courier': lo levanta UPS/DHL. Estado terminal, sin cadena ni confirmaciones.
+  if (tipo_recoleccion === 'courier') return 'courier';
   if (en_deposito_at) return 'en_deposito';
+  // 'cliente': lo trae el cliente. Sin cadena de chofer (ricardo/visto/juanqui);
+  // solo el paso de depósito lo saca de 'pendiente'.
+  if (tipo_recoleccion === 'cliente') return 'pendiente';
   if (confirmado_juanqui) return 'en_camioneta';
   return 'pendiente';
 }
@@ -22,6 +28,23 @@ async function procesarConfirmacion(db, id, body) {
 
   const { confirmar_ricardo, confirmar_juanqui, confirmar_deposito, confirmar_visto, recolector } = body;
   const updates = {};
+
+  const tipo = current.tipo_recoleccion || 'normal';
+
+  // 'courier' es terminal: no admite ninguna confirmación (no tiene botones).
+  if (tipo === 'courier') {
+    const err = new Error('Pickup tipo courier no admite confirmaciones');
+    err.status = 400;
+    throw err;
+  }
+
+  // 'cliente' solo admite el paso de depósito (reversible); no entra en la cadena de chofer.
+  if (tipo === 'cliente' &&
+      (confirmar_ricardo !== undefined || confirmar_visto !== undefined || confirmar_juanqui !== undefined)) {
+    const err = new Error('Pickup tipo cliente solo admite el paso de depósito');
+    err.status = 400;
+    throw err;
+  }
 
   if (confirmar_ricardo !== undefined) {
     if (confirmar_ricardo) {
@@ -93,7 +116,7 @@ async function procesarConfirmacion(db, id, body) {
   // Estado resultante derivado de timestamps
   const nextJuanqui  = 'confirmado_juanqui' in updates ? updates.confirmado_juanqui : current.confirmado_juanqui;
   const nextDeposito = 'en_deposito_at'     in updates ? updates.en_deposito_at     : current.en_deposito_at;
-  updates.estado = derivarEstado(nextJuanqui, nextDeposito);
+  updates.estado = derivarEstado(nextJuanqui, nextDeposito, tipo);
 
   const wasDeposito  = !!current.en_deposito_at;
   const willDeposito = !!nextDeposito;
@@ -101,7 +124,9 @@ async function procesarConfirmacion(db, id, body) {
   const setClauses = Object.keys(updates).map(k => `${k} = ?`).join(', ');
   await db.prepare(`UPDATE pickups SET ${setClauses} WHERE id = ?`).run(...Object.values(updates), id);
 
-  // Side-effect sobre envios: solo cambia cuando el estado de depósito cambia
+  // Side-effect sobre envios: solo cambia cuando el estado de depósito cambia.
+  // Para tipo 'cliente' puede no haber envío nuestro asociado: el UPDATE matchea por
+  // cliente_id+fecha y, si no hay filas, afecta 0 sin fallar. (courier no llega acá.)
   if (!wasDeposito && willDeposito) {
     await db.prepare(
       `UPDATE envios SET estado_operativo = 'en_deposito'
@@ -117,4 +142,4 @@ async function procesarConfirmacion(db, id, body) {
   return db.prepare('SELECT * FROM pickups WHERE id = ?').get(id);
 }
 
-module.exports = { RECOLECTORES, derivarEstado, procesarConfirmacion };
+module.exports = { RECOLECTORES, TIPOS_RECOLECCION, derivarEstado, procesarConfirmacion };
