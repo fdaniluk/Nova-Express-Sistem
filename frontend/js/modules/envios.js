@@ -226,6 +226,9 @@
     // Recalcular al cambiar variante UPS o % profit
     document.getElementById('cot-ups-variante').addEventListener('change', debounce(updateCotizacion, 400));
     document.getElementById('cot-profit').addEventListener('input', debounce(updateCotizacion, 400));
+
+    // Recalcular al tildar/destildar DDP (passthrough +24.05)
+    document.getElementById('ddp').addEventListener('change', debounce(updateCotizacion, 400));
   }
 
   async function updatePesosYCotizacion() {
@@ -289,6 +292,7 @@
         profitPct,
         zona,
         bultos: bultosParaCotizar,
+        ddp: document.getElementById('ddp').checked,
       });
 
       panel.classList.remove('hidden');
