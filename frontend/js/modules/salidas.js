@@ -28,6 +28,12 @@
   let editExtras = [];      // desglose de adicionales [{ tipo, label, monto }]
   let editExtrasDirty = false; // true solo si el desglose viene de un Recalcular de esta sesión
 
+  // ── Navegación por celdas (estilo Excel) ────────────────────────────────────
+  // activeCell es una COORDENADA LÓGICA, no un nodo: { rowIndex, colIndex } | null.
+  // El re-render destruye los td, por eso se guardan índices y se vuelve a resolver el td.
+  const GRID_MAX_COL = 30;   // 31 columnas fijas → índices 0..30
+  let activeCell = null;
+
   const alertBox = document.getElementById('alert-box');
 
   // ── Init ────────────────────────────────────────────────────────────────────
@@ -43,6 +49,7 @@
     bindTracking();
     bindRowEdit();
     bindBultoGuiaEdit();
+    bindGridNav();
     await loadData();
   }
 
@@ -213,6 +220,10 @@
     visibleCount += nextBatch.length;
     const loadMoreWrap = document.getElementById('load-more-wrap');
     loadMoreWrap.style.display = visibleCount < filteredData.length ? '' : 'none';
+
+    // El tbody se reconstruyó: re-resolver la celda activa por coordenadas y reaplicar
+    // el resaltado (o limpiarlo si la coordenada ya no existe).
+    reconcileActiveCell();
   }
 
   // Arma un renglón. `bulto` son los datos de ESTE bulto; `isFirst` es el primer
@@ -1164,6 +1175,13 @@
   function closeEditModal() {
     document.getElementById('sal-edit-overlay').classList.add('hidden');
     editEnvio = null;
+    // Devolver el foco al wrapper de la tabla para que las flechas vuelvan a navegar
+    // sobre la última celda activa. Solo si hay celda activa, para no robar el foco si
+    // el usuario nunca tocó la grilla.
+    if (activeCell) {
+      const wrap = document.getElementById('table-wrap');
+      if (wrap) wrap.focus({ preventScroll: true });
+    }
   }
 
   async function saveEditModal() {
@@ -1376,6 +1394,152 @@
       if (ev.key === 'Enter') save(ev);
       else if (ev.key === 'Escape') cancel(ev);
     });
+  }
+
+  // ── Navegación por celdas tipo Excel ─────────────────────────────────────────
+  // Las flechas mueven una celda activa por la grilla. El estado vive como coordenada
+  // lógica (activeCell) y sobrevive al re-render destructivo de renderPage.
+  function bindGridNav() {
+    const wrap = document.getElementById('table-wrap');
+    if (!wrap) return;
+    // El wrapper necesita poder recibir foco para capturar las flechas.
+    wrap.setAttribute('tabindex', '0');
+    wrap.addEventListener('keydown', onGridKeydown);
+
+    // Click en una celda de datos: fija la celda activa SIN interferir con el modal.
+    // No hace stopPropagation ni preventDefault, así que el handler de fila sigue abriendo
+    // el modal igual que hoy; solo deja la coordenada lista para navegar con flechas.
+    document.getElementById('salidas-body').addEventListener('click', (e) => {
+      const td = e.target.closest('td');
+      const tr = e.target.closest('tr[data-envio-id]');
+      if (!td || !tr || td.parentElement !== tr) return;
+      setActiveCell(dataRowIndexOf(tr), td.cellIndex, false);
+      // Dar foco al wrapper para que las flechas lleguen al listener. bindRowEdit está
+      // registrado ANTES que este listener, así que si el click abrió el modal el overlay
+      // ya es visible y su input ya tiene foco: en ese caso NO robamos el foco. Solo
+      // enfocamos el wrapper cuando el click NO terminó abriendo el modal.
+      const overlay = document.getElementById('sal-edit-overlay');
+      if (!overlay || overlay.classList.contains('hidden')) {
+        wrap.focus({ preventScroll: true });
+      }
+    });
+  }
+
+  // Filas de datos = las que tienen data-envio-id. Excluye automáticamente las filas
+  // "Cargando…" / "No hay envíos" (td colspan 31 sin data-envio-id).
+  function getDataRows() {
+    const tbody = document.getElementById('salidas-body');
+    if (!tbody) return [];
+    return Array.from(tbody.querySelectorAll('tr[data-envio-id]'));
+  }
+
+  function dataRowIndexOf(tr) {
+    return getDataRows().indexOf(tr);
+  }
+
+  function getActiveTd() {
+    if (!activeCell) return null;
+    const tr = getDataRows()[activeCell.rowIndex];
+    if (!tr) return null;
+    return tr.cells[activeCell.colIndex] || null;
+  }
+
+  function clearActiveCellHighlight() {
+    const tbody = document.getElementById('salidas-body');
+    if (!tbody) return;
+    tbody.querySelectorAll('td.cell-active').forEach((td) => td.classList.remove('cell-active'));
+  }
+
+  function applyActiveCellHighlight() {
+    clearActiveCellHighlight();
+    const td = getActiveTd();
+    if (td) td.classList.add('cell-active');
+  }
+
+  function setActiveCell(rowIndex, colIndex, scroll) {
+    if (rowIndex < 0 || colIndex < 0) return;
+    activeCell = { rowIndex, colIndex };
+    applyActiveCellHighlight();
+    if (scroll) scrollActiveCellIntoView();
+  }
+
+  // Tras un re-render: clampear la coordenada al set de filas actual y reaplicar el
+  // resaltado. Si ya no hay filas de datos, limpiar (sin resaltado fantasma).
+  function reconcileActiveCell() {
+    if (!activeCell) return;
+    const rows = getDataRows();
+    if (!rows.length) { activeCell = null; clearActiveCellHighlight(); return; }
+    const rowIndex = Math.min(Math.max(activeCell.rowIndex, 0), rows.length - 1);
+    const colIndex = Math.min(Math.max(activeCell.colIndex, 0), GRID_MAX_COL);
+    activeCell = { rowIndex, colIndex };
+    applyActiveCellHighlight();
+  }
+
+  // La navegación de grilla CEDE el control (no hace nada) cuando el foco está en un
+  // input/textarea/select, dentro del editor inline de guía, o con el modal abierto.
+  function shouldYieldGridNav(e) {
+    const ae = document.activeElement;
+    if (ae && (ae.tagName === 'INPUT' || ae.tagName === 'TEXTAREA' || ae.tagName === 'SELECT')) return true;
+    if (e.target.closest && e.target.closest('.bulto-guia-edit-box')) return true;
+    const overlay = document.getElementById('sal-edit-overlay');
+    if (overlay && !overlay.classList.contains('hidden')) return true;
+    return false;
+  }
+
+  function onGridKeydown(e) {
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
+    if (shouldYieldGridNav(e)) return;
+
+    const rows = getDataRows();
+    if (!rows.length) return;
+
+    // Sin celda activa: la primera flecha activa la primera celda de datos.
+    if (!activeCell) {
+      setActiveCell(0, 0, true);
+      e.preventDefault();
+      return;
+    }
+
+    let { rowIndex, colIndex } = activeCell;
+    if (e.key === 'ArrowUp') rowIndex = Math.max(0, rowIndex - 1);
+    else if (e.key === 'ArrowDown') rowIndex = Math.min(rows.length - 1, rowIndex + 1);
+    else if (e.key === 'ArrowLeft') colIndex = Math.max(0, colIndex - 1);
+    else if (e.key === 'ArrowRight') colIndex = Math.min(GRID_MAX_COL, colIndex + 1);
+
+    // En el borde no hay movimiento: NO bloquear el scroll normal de la página.
+    if (rowIndex === activeCell.rowIndex && colIndex === activeCell.colIndex) return;
+
+    setActiveCell(rowIndex, colIndex, true);
+    e.preventDefault();
+  }
+
+  // Scroll automático a la celda activa, dos ejes.
+  function scrollActiveCellIntoView() {
+    const td = getActiveTd();
+    if (!td) return;
+
+    // Horizontal: el scroll real es del wrapper (overflow-x auto).
+    const wrap = document.getElementById('table-wrap');
+    if (wrap) {
+      const cellLeft = td.offsetLeft;                 // relativo a la tabla (origen del wrapper)
+      const cellRight = cellLeft + td.offsetWidth;
+      if (cellLeft < wrap.scrollLeft) {
+        wrap.scrollLeft = cellLeft - 8;
+      } else if (cellRight > wrap.scrollLeft + wrap.clientWidth) {
+        wrap.scrollLeft = cellRight - wrap.clientWidth + 8;
+      }
+    }
+
+    // Vertical: scroll de la ventana, corrigiendo el thead sticky para que no tape la celda.
+    const thead = document.querySelector('.salidas-table thead');
+    const headH = thead ? thead.getBoundingClientRect().height : 0;
+    const rect = td.getBoundingClientRect();
+    const viewH = window.innerHeight || document.documentElement.clientHeight;
+    if (rect.top < headH + 4) {
+      window.scrollBy(0, rect.top - headH - 8);
+    } else if (rect.bottom > viewH) {
+      window.scrollBy(0, rect.bottom - viewH + 8);
+    }
   }
 
   init();

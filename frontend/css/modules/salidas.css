@@ -539,6 +539,16 @@ th:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: '⇅'; }
 .salidas-table tbody tr[data-envio-id] { cursor: pointer; }
 .salidas-table tbody tr[data-envio-id]:hover { background: #eef2ff; }
 
+/* ── Navegación por celdas tipo Excel ── */
+/* El wrapper recibe foco para capturar las flechas; sin anillo nativo. */
+#table-wrap:focus { outline: none; }
+.salidas-table td.cell-active {
+  outline: 2px solid var(--color-primary);
+  outline-offset: -2px;
+  background: #e0e7ff !important;
+  box-shadow: inset 0 0 0 1px rgba(79, 70, 229, 0.25);
+}
+
 /* ── Edit modal ── */
 .sal-modal-overlay {
   position: fixed;
