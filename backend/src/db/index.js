@@ -205,6 +205,20 @@ async function migrateEnvioBultos() {
   }
 }
 
+async function migrateCuadrantes() {
+  const cols = (await dbApi.prepare('PRAGMA table_info(cuadrantes)').all()).map((c) => c.name);
+  const toAdd = [
+    // Vínculo opcional a un pickup standalone (mutuamente excluyente con envio_origen_id).
+    // SQLite no permite agregar FK por ALTER; basta la columna INTEGER.
+    ['pickup_id', 'INTEGER'],
+  ];
+  for (const [col, def] of toAdd) {
+    if (!cols.includes(col)) {
+      await dbApi.exec(`ALTER TABLE cuadrantes ADD COLUMN ${col} ${def}`);
+    }
+  }
+}
+
 async function migrateConfiguracion() {
   const cols = (await dbApi.prepare('PRAGMA table_info(configuracion)').all()).map((c) => c.name);
   if (!cols.includes('ganancia_minima_pct')) {
@@ -219,6 +233,7 @@ async function initSchema() {
   await migratePickups();
   await migrateEnvios();
   await migrateEnvioBultos();
+  await migrateCuadrantes();
   await migrateConfiguracion();
   await seedIfEmpty();
 }

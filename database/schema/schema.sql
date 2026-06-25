@@ -215,6 +215,7 @@ CREATE TABLE IF NOT EXISTS cuadrantes (
   id                INTEGER PRIMARY KEY AUTOINCREMENT,
   cliente_id        INTEGER NOT NULL REFERENCES clientes(id),
   envio_origen_id   INTEGER REFERENCES envios(id),
+  pickup_id         INTEGER REFERENCES pickups(id),
   titulo            TEXT,
   fecha             TEXT NOT NULL,
   check_datos       INTEGER DEFAULT 0,
