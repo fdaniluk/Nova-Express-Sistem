@@ -136,6 +136,7 @@ async function migratePickups() {
     ['visto_juanqui_at',   'TEXT'],
     ['tiene_cobro',        'INTEGER DEFAULT 0'],
     ['tipo_recoleccion',   "TEXT DEFAULT 'normal'"],
+    ['titulo',             'TEXT'],
   ];
   for (const [col, def] of toAdd) {
     if (!cols.includes(col)) {
@@ -160,6 +161,9 @@ async function migrateEnvios() {
     ['check_guia',       'INTEGER DEFAULT 0'],
     ['check_proforma',   'INTEGER DEFAULT 0'],
     ['check_despachado', 'INTEGER DEFAULT 0'],
+    // Nota/título operativo editable por envío (consistente con cuadrantes.titulo).
+    // Persiste para que los envíos arrastrados de un día a otro no pierdan la nota.
+    ['titulo',           'TEXT'],
     // Columnas módulo Salidas
     ['numero_salida',    'INTEGER'],
     ['bulto',            'TEXT'],

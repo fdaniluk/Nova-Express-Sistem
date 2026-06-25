@@ -14,7 +14,7 @@ router.get('/', async (req, res, next) => {
     const envios = await db
       .prepare(
         `SELECT e.id, e.numero_guia, c.nombre AS cliente_nombre, e.cliente_id,
-                e.pais_destino AS pais, e.estado_operativo,
+                e.pais_destino AS pais, e.estado_operativo, e.titulo,
                 e.check_datos, e.check_guia, e.check_proforma, e.check_despachado
          FROM envios e
          JOIN clientes c ON e.cliente_id = c.id
@@ -25,7 +25,7 @@ router.get('/', async (req, res, next) => {
 
     const pickups = await db
       .prepare(
-        `SELECT id, cliente_id, cliente_nombre, direccion, fecha, hora_inicio, hora_fin, estado, tipo_recoleccion,
+        `SELECT id, cliente_id, cliente_nombre, direccion, fecha, hora_inicio, hora_fin, estado, tipo_recoleccion, titulo,
                 check_datos, check_guia, check_proforma, check_despachado,
                 confirmado_ricardo, visto_juanqui_at, confirmado_juanqui, en_deposito_at, recolector
          FROM pickups
@@ -50,7 +50,7 @@ router.get('/', async (req, res, next) => {
     const rezagados = await db
       .prepare(
         `SELECT e.id, e.numero_guia, c.nombre AS cliente_nombre, e.cliente_id,
-                e.pais_destino AS pais, e.estado_operativo, e.fecha,
+                e.pais_destino AS pais, e.estado_operativo, e.titulo, e.fecha,
                 e.check_datos, e.check_guia, e.check_proforma, e.check_despachado
          FROM envios e
          JOIN clientes c ON e.cliente_id = c.id
@@ -107,9 +107,10 @@ router.patch('/envios/:id', async (req, res, next) => {
     const current = await db.prepare('SELECT * FROM envios WHERE id = ?').get(id);
     if (!current) return res.status(404).json({ error: 'Envío no encontrado' });
 
-    const { estado_operativo, check_datos, check_guia, check_proforma, check_despachado } = req.body;
+    const { titulo, estado_operativo, check_datos, check_guia, check_proforma, check_despachado } = req.body;
 
     const updates = {};
+    if (titulo !== undefined) updates.titulo = titulo;
     if (estado_operativo !== undefined) updates.estado_operativo = estado_operativo;
     if (check_datos !== undefined) updates.check_datos = Number(check_datos);
     if (check_guia !== undefined) updates.check_guia = Number(check_guia);
@@ -141,13 +142,14 @@ router.patch('/pickups/:id', async (req, res, next) => {
     const db = getDb();
     const { id } = req.params;
 
-    // check_* son exclusivos del contexto operaciones; se aplican por separado
-    const { check_datos, check_guia, check_proforma, check_despachado } = req.body;
+    // check_* y titulo son exclusivos del contexto operaciones; se aplican por separado
+    const { check_datos, check_guia, check_proforma, check_despachado, titulo } = req.body;
     const checkUpdates = {};
     if (check_datos     !== undefined) checkUpdates.check_datos     = Number(check_datos);
     if (check_guia      !== undefined) checkUpdates.check_guia      = Number(check_guia);
     if (check_proforma  !== undefined) checkUpdates.check_proforma  = Number(check_proforma);
     if (check_despachado !== undefined) checkUpdates.check_despachado = Number(check_despachado);
+    if (titulo          !== undefined) checkUpdates.titulo          = titulo;
 
     if (Object.keys(checkUpdates).length > 0) {
       const exists = await db.prepare('SELECT id FROM pickups WHERE id = ?').get(id);

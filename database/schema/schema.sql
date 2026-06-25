@@ -93,6 +93,7 @@ CREATE TABLE IF NOT EXISTS envios (
   check_guia          INTEGER DEFAULT 0,
   check_proforma      INTEGER DEFAULT 0,
   check_despachado    INTEGER DEFAULT 0,
+  titulo              TEXT,
   -- Salidas
   numero_salida       INTEGER,
   bulto               TEXT,
@@ -205,7 +206,8 @@ CREATE TABLE IF NOT EXISTS pickups (
   recolector          TEXT,
   visto_juanqui_at    TEXT,
   tiene_cobro         INTEGER DEFAULT 0,
-  tipo_recoleccion    TEXT DEFAULT 'normal'
+  tipo_recoleccion    TEXT DEFAULT 'normal',
+  titulo              TEXT
 );
 
 -- Cuadrantes: "envíos manuales" que operaciones crea copiando el cliente de un
