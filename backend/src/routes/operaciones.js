@@ -11,18 +11,6 @@ router.get('/', async (req, res, next) => {
 
     const db = getDb();
 
-    const envios = await db
-      .prepare(
-        `SELECT e.id, e.numero_guia, c.nombre AS cliente_nombre, e.cliente_id,
-                e.pais_destino AS pais, e.estado_operativo, e.titulo,
-                e.check_datos, e.check_guia, e.check_proforma, e.check_despachado
-         FROM envios e
-         JOIN clientes c ON e.cliente_id = c.id
-         WHERE e.fecha = ?
-         ORDER BY c.nombre ASC`
-      )
-      .all(fecha);
-
     const pickups = await db
       .prepare(
         `SELECT id, cliente_id, cliente_nombre, direccion, fecha, hora_inicio, hora_fin, estado, tipo_recoleccion, titulo,
@@ -34,29 +22,19 @@ router.get('/', async (req, res, next) => {
       )
       .all(fecha);
 
-    const pickupByCliente = {};
-    pickups.forEach((p) => {
-      pickupByCliente[p.cliente_id] = p.id;
-    });
-
-    const enviosConPickup = envios.map((e) => ({
-      ...e,
-      pickup_id: pickupByCliente[e.cliente_id] || null,
-    }));
-
-    // Rezagados: envíos NO despachados con fecha anterior al día pedido.
-    // Se arrastran visualmente; su e.fecha real queda intacta.
-    // Condición estricta e.fecha < ? para no duplicar los de fecha exacta.
+    // Rezagados: pickups NO despachados con fecha anterior al día pedido.
+    // Se arrastran visualmente; su fecha real queda intacta.
+    // Condición estricta fecha < ? para no duplicar los del día exacto.
+    // Mismas columnas que la query de pickups del día → el frontend los renderiza igual.
     const rezagados = await db
       .prepare(
-        `SELECT e.id, e.numero_guia, c.nombre AS cliente_nombre, e.cliente_id,
-                e.pais_destino AS pais, e.estado_operativo, e.titulo, e.fecha,
-                e.check_datos, e.check_guia, e.check_proforma, e.check_despachado
-         FROM envios e
-         JOIN clientes c ON e.cliente_id = c.id
-         WHERE (e.check_despachado = 0 OR e.check_despachado IS NULL)
-           AND e.fecha < ?
-         ORDER BY e.fecha ASC, c.nombre ASC`
+        `SELECT id, cliente_id, cliente_nombre, direccion, fecha, hora_inicio, hora_fin, estado, tipo_recoleccion, titulo,
+                check_datos, check_guia, check_proforma, check_despachado,
+                confirmado_ricardo, visto_juanqui_at, confirmado_juanqui, en_deposito_at, recolector
+         FROM pickups
+         WHERE (check_despachado = 0 OR check_despachado IS NULL)
+           AND fecha < ?
+         ORDER BY fecha ASC, hora_inicio ASC`
       )
       .all(fecha);
 
@@ -88,7 +66,6 @@ router.get('/', async (req, res, next) => {
       .all(fecha);
 
     res.json({
-      envios: enviosConPickup,
       pickups,
       rezagados,
       cuadrantes,
