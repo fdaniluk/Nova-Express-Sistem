@@ -7,7 +7,6 @@
 
   let fechaActual = new Date();
   fechaActual.setHours(0, 0, 0, 0);
-  let envios = [];
   let pickupsDelDia = [];
   let rezagados = [];
   let cuadrantes = [];
@@ -42,7 +41,6 @@
   async function cargarDia(fecha) {
     try {
       const data = await NovaAPI.operaciones.delDia(toYMD(fecha));
-      envios = data.envios || [];
       pickupsDelDia = data.pickups || [];
       rezagados = data.rezagados || [];
       cuadrantes = data.cuadrantes || [];
@@ -58,17 +56,11 @@
     dateLabel.textContent = formatearFechaTitulo(fechaActual);
     datePicker.value = toYMD(fechaActual);
 
+    const total = pickupsDelDia.length;
     const pendientes = pickupsDelDia.filter((p) => estadoPickup(p) !== 'dep').length;
-    const partes = [`${envios.length} envío${envios.length !== 1 ? 's' : ''}`];
-    if (pendientes > 0) partes.push(`${pendientes} pickup${pendientes !== 1 ? 's' : ''} pendiente${pendientes !== 1 ? 's' : ''}`);
+    const partes = [`${total} pickup${total !== 1 ? 's' : ''}`];
+    if (pendientes > 0) partes.push(`${pendientes} pendiente${pendientes !== 1 ? 's' : ''}`);
     subtitleEl.textContent = partes.join(' · ');
-  }
-
-  // ── Pickups standalone (sin envíos para ese cliente ese día) ──
-
-  function getStandalonePickups() {
-    const clientesConEnvio = new Set(envios.map((e) => e.cliente_id));
-    return pickupsDelDia.filter((p) => !clientesConEnvio.has(p.cliente_id));
   }
 
   function estadoPickup(p) {
@@ -90,63 +82,49 @@
   // ── Render lista ──────────────────────────────────────
 
   function renderLista() {
-    const standalone = getStandalonePickups();
-    const pickupPorCliente = {};
-    pickupsDelDia.forEach((p) => { pickupPorCliente[p.cliente_id] = p; });
-
-    // Los pickups despachados se separan ANTES de la sectorización normal y
-    // bajan a la sección verde "Despachado", junto con los envíos despachados.
-    const standalonesDespachados = standalone
+    // Operaciones ahora muestra SOLO pickups. Todos los pickups del día se
+    // renderizan como cards de pickup (ya no hay envíos que los "absorban").
+    // Los despachados se separan ANTES de la sectorización normal y bajan a la
+    // sección verde "Despachado".
+    const pickupsDespachados = pickupsDelDia
       .filter((p) => pickupDespachado(p))
       .sort((a, b) => a.cliente_nombre.localeCompare(b.cliente_nombre));
 
-    const standalonesPendientes = standalone
+    const pickupsPendientes = pickupsDelDia
       .filter((p) => !pickupDespachado(p) && estadoPickup(p) !== 'dep')
       .sort((a, b) => a.hora_inicio.localeCompare(b.hora_inicio));
 
-    const standalonesDeposito = standalone
+    const pickupsDeposito = pickupsDelDia
       .filter((p) => !pickupDespachado(p) && estadoPickup(p) === 'dep')
       .sort((a, b) => a.cliente_nombre.localeCompare(b.cliente_nombre));
 
-    const enviosActivos = envios
-      .filter((e) => e.estado_operativo !== 'despachado')
-      .sort((a, b) => a.cliente_nombre.localeCompare(b.cliente_nombre));
-
-    const enviosDespachados = envios
-      .filter((e) => e.estado_operativo === 'despachado')
-      .sort((a, b) => a.cliente_nombre.localeCompare(b.cliente_nombre));
-
     if (
-      !standalonesPendientes.length &&
-      !standalonesDeposito.length &&
-      !standalonesDespachados.length &&
-      !envios.length &&
+      !pickupsPendientes.length &&
+      !pickupsDeposito.length &&
+      !pickupsDespachados.length &&
       !rezagados.length &&
       !cuadrantesRezagados.length
     ) {
-      opsList.innerHTML = '<div class="ops-empty">No hay envíos ni pickups registrados para este día.</div>';
+      opsList.innerHTML = '<div class="ops-empty">No hay pickups registrados para este día.</div>';
       return;
     }
 
-    // Cada envío se renderiza con sus cuadrantes pegados debajo (matcheados por envio_origen_id).
-    const renderEnvioConCuadrantes = (e, pickup) =>
-      renderCardEnvio(e, pickup) + cuadrantesDe(e.id).map((q) => renderCardCuadrante(q)).join('');
-
-    // Cada pickup standalone se renderiza con sus cuadrantes pegados debajo (matcheados por pickup_id).
-    const renderPickupConCuadrantes = (p) =>
-      renderCardPickupStandalone(p) + cuadrantesDePickup(p.id).map((q) => renderCardCuadrante(q)).join('');
+    // Cada pickup se renderiza con sus cuadrantes pegados debajo (matcheados por
+    // pickup_id). Para rezagados la fuente de cuadrantes es cuadrantesRezagados.
+    const renderPickupConCuadrantes = (p, esRezagado) =>
+      renderCardPickupStandalone(p, esRezagado) +
+      cuadrantesDePickup(p.id, esRezagado).map((q) => renderCardCuadrante(q, esRezagado)).join('');
 
     const partes = [
-      ...standalonesPendientes.map((p) => renderPickupConCuadrantes(p)),
-      ...standalonesDeposito.map((p) => renderPickupConCuadrantes(p)),
-      ...enviosActivos.map((e) => renderEnvioConCuadrantes(e, pickupPorCliente[e.cliente_id] || null)),
-      ...enviosDespachados.map((e) => renderEnvioConCuadrantes(e, pickupPorCliente[e.cliente_id] || null)),
-      ...standalonesDespachados.map((p) => renderPickupConCuadrantes(p)),
+      ...pickupsPendientes.map((p) => renderPickupConCuadrantes(p, false)),
+      ...pickupsDeposito.map((p) => renderPickupConCuadrantes(p, false)),
+      ...pickupsDespachados.map((p) => renderPickupConCuadrantes(p, false)),
     ];
 
     let html = partes.join('');
 
-    // Sección de rezagados (arrastre visual de días anteriores), debajo de lo de hoy.
+    // Sección de rezagados (arrastre visual de días anteriores), debajo de lo de
+    // hoy. Los rezagados ahora son PICKUPS y se renderizan igual que los del día.
     if (rezagados.length || cuadrantesRezagados.length) {
       const rezOrdenados = rezagados
         .slice()
@@ -160,8 +138,12 @@
         <span>Pendientes de días anteriores</span>
         <span class="ops-rezagados-count">${totalRezagados}</span>
       </div>`;
-      html += rezOrdenados.map((e) => renderCardEnvio(e, null, true)).join('');
-      html += cuadrantesRezagados.map((q) => renderCardCuadrante(q, true)).join('');
+      html += rezOrdenados.map((p) => renderPickupConCuadrantes(p, true)).join('');
+      // Cuadrantes rezagados que no cuelgan de ningún pickup rezagado mostrado
+      // (su pickup ya fue despachado) se renderizan sueltos para no perderlos.
+      const idsRezagados = new Set(rezOrdenados.map((p) => p.id));
+      const cuadrantesSueltos = cuadrantesRezagados.filter((q) => !idsRezagados.has(q.pickup_id));
+      html += cuadrantesSueltos.map((q) => renderCardCuadrante(q, true)).join('');
     }
 
     opsList.innerHTML = html;
@@ -169,70 +151,16 @@
     bindCuadranteAcciones();
   }
 
-  // Cuadrantes de hoy que cuelgan de un envío origen dado.
-  function cuadrantesDe(envioOrigenId) {
-    return cuadrantes
-      .filter((q) => q.envio_origen_id === envioOrigenId)
-      .sort((a, b) => (a.titulo || '').localeCompare(b.titulo || '') || a.id - b.id);
-  }
-
-  // Cuadrantes de hoy que cuelgan de un pickup standalone dado.
-  function cuadrantesDePickup(pickupId) {
-    return cuadrantes
+  // Cuadrantes que cuelgan de un pickup dado, por pickup_id. Para los rezagados
+  // la fuente es cuadrantesRezagados; para el día, los cuadrantes de hoy.
+  function cuadrantesDePickup(pickupId, esRezagado) {
+    const fuente = esRezagado ? cuadrantesRezagados : cuadrantes;
+    return fuente
       .filter((q) => q.pickup_id === pickupId)
       .sort((a, b) => (a.titulo || '').localeCompare(b.titulo || '') || a.id - b.id);
   }
 
-  // ── Cards de envío ────────────────────────────────────
-
-  function renderCardEnvio(envio, pickup, esRezagado) {
-    const esDespachado = envio.estado_operativo === 'despachado';
-    const clases = `envio-card${esDespachado ? ' despachado' : ''}${esRezagado ? ' rezagado' : ''}`;
-    const badgeRezagado = esRezagado
-      ? `<div class="envio-card-rezagado-badge">cargado el ${formatDDMM(envio.fecha)}</div>`
-      : '';
-    return `<div class="${clases}" data-envio-id="${envio.id}">
-      ${buildHeaderEnvio(envio, pickup)}
-      <div class="envio-card-body">
-        <div class="envio-card-info">
-          <div class="envio-card-cliente">${escHtml(envio.cliente_nombre)}</div>
-          <div class="envio-card-guia">${escHtml(envio.numero_guia)}</div>
-          <div class="envio-card-pais">${escHtml(envio.pais)}</div>
-          ${badgeRezagado}
-        </div>
-        <div class="envio-card-checks">
-          ${renderCheck('envio', envio.id, 'check_datos', envio.check_datos, 'Datos completos')}
-          ${renderCheck('envio', envio.id, 'check_guia', envio.check_guia, 'Guía aérea')}
-          ${renderCheck('envio', envio.id, 'check_proforma', envio.check_proforma, 'Proforma')}
-          ${renderCheck('envio', envio.id, 'check_despachado', envio.check_despachado, 'Despachado')}
-        </div>
-      </div>
-      <div class="envio-card-footer">
-        <button type="button" class="btn-add-cuadrante" data-add-cuadrante="${envio.id}">+ agregar cuadrante</button>
-      </div>
-    </div>`;
-  }
-
-  function buildHeaderEnvio(envio, pickup) {
-    if (envio.estado_operativo === 'despachado') {
-      return `<div class="envio-card-header header-despachado"><span>✓ Despachado</span></div>`;
-    }
-    if (pickup) {
-      const sc = estadoPickup(pickup);
-      if (sc === 'dep') {
-        return `<div class="envio-card-header en-deposito"><span>🏭 En depósito</span></div>`;
-      }
-      if (sc === 'cam') {
-        return `<div class="envio-card-header en-camioneta-pickup"><span>🚐 En camioneta</span></div>`;
-      }
-      return `<div class="envio-card-header pickup-pendiente">
-        <span>🕐 Pickup pendiente · ${escHtml(pickup.hora_inicio)}–${escHtml(pickup.hora_fin)}</span>
-      </div>`;
-    }
-    return `<div class="envio-card-header en-deposito"><span>🏭 En depósito · ingreso directo</span></div>`;
-  }
-
-  // ── Cards de cuadrante (envío manual colgado de un envío origen) ──
+  // ── Cards de cuadrante (envío manual colgado de un pickup origen) ──
 
   function renderCardCuadrante(cuadrante, esRezagado) {
     const clases = `envio-card cuadrante-card${esRezagado ? ' rezagado' : ''}`;
@@ -263,7 +191,7 @@
 
   // ── Cards de pickup standalone ────────────────────────
 
-  function renderCardPickupStandalone(pickup) {
+  function renderCardPickupStandalone(pickup, esRezagado) {
     const despachado = pickupDespachado(pickup);
     const sc = estadoPickup(pickup);
     let headerHtml;
@@ -287,7 +215,11 @@
          </div>`;
     }
 
-    return `<div class="envio-card standalone-pickup${despachado ? ' despachado' : ''}" data-pickup-id="${pickup.id}">
+    const badgeRezagado = esRezagado
+      ? `<div class="envio-card-rezagado-badge">cargado el ${formatDDMM(pickup.fecha)}</div>`
+      : '';
+
+    return `<div class="envio-card standalone-pickup${despachado ? ' despachado' : ''}${esRezagado ? ' rezagado' : ''}" data-pickup-id="${pickup.id}">
       ${headerHtml}
       <div class="envio-card-body">
         <div class="envio-card-info">
@@ -295,6 +227,7 @@
           <div class="envio-card-guia" style="color:var(--color-muted)">📍 ${escHtml(pickup.direccion)}</div>
           <input type="text" class="cuadrante-titulo-input" placeholder="Nota…"
             value="${escHtml(pickup.titulo || '')}" data-pickup-titulo="${pickup.id}">
+          ${badgeRezagado}
         </div>
         <div class="envio-card-checks">
           ${renderCheck('pickup', pickup.id, 'check_datos', pickup.check_datos, 'Datos completos')}
@@ -333,8 +266,6 @@
           await onCheckboxPickupChange(itemId, campo, valor, cb);
         } else if (tipo === 'cuadrante') {
           await onCheckboxCuadranteChange(itemId, campo, valor, cb);
-        } else {
-          await onCheckboxEnvioChange(itemId, campo, valor, cb);
         }
       });
     });
@@ -416,7 +347,7 @@
     const titulo = input.value.trim();
     try {
       await NovaAPI.operaciones.actualizarPickup(id, { titulo });
-      const p = pickupsDelDia.find((x) => x.id === id);
+      const p = pickupsDelDia.find((x) => x.id === id) || rezagados.find((x) => x.id === id);
       if (p) p.titulo = titulo;
     } catch (err) {
       NovaUtils.showAlert(alertBox, 'Error al guardar nota: ' + err.message);
@@ -444,39 +375,22 @@
     }
   }
 
-  async function onCheckboxEnvioChange(envioId, campo, valor, cb) {
-    try {
-      await NovaAPI.operaciones.actualizarEnvio(envioId, { [campo]: valor });
-      const id = Number(envioId);
-      const idx = envios.findIndex((e) => e.id === id);
-      const esRezagado = idx < 0 && rezagados.some((e) => e.id === id);
-      if (idx >= 0) {
-        envios[idx][campo] = valor;
-        if (campo === 'check_despachado' && valor === 1) {
-          envios[idx].estado_operativo = 'despachado';
-        }
-      } else if (esRezagado) {
-        const rIdx = rezagados.findIndex((e) => e.id === id);
-        rezagados[rIdx][campo] = valor;
-        // Al marcar Despachado, el rezagado deja de arrastrarse: lo sacamos de la sección.
-        if (campo === 'check_despachado' && valor === 1) {
-          rezagados.splice(rIdx, 1);
-        }
-      }
-      if (campo === 'check_despachado' && valor === 1) {
-        renderLista();
-      }
-    } catch (e) {
-      cb.checked = !cb.checked;
-      NovaUtils.showAlert(alertBox, 'Error al guardar: ' + e.message);
-    }
-  }
-
   async function onCheckboxPickupChange(pickupId, campo, valor, cb) {
     try {
       await NovaAPI.operaciones.actualizarPickup(pickupId, { [campo]: valor });
-      const idx = pickupsDelDia.findIndex((p) => p.id === Number(pickupId));
-      if (idx >= 0) pickupsDelDia[idx][campo] = valor;
+      const id = Number(pickupId);
+      const idx = pickupsDelDia.findIndex((p) => p.id === id);
+      if (idx >= 0) {
+        pickupsDelDia[idx][campo] = valor;
+      } else {
+        // Pickup rezagado (arrastre de días anteriores).
+        const rIdx = rezagados.findIndex((p) => p.id === id);
+        if (rIdx >= 0) {
+          rezagados[rIdx][campo] = valor;
+          // Al despachar, el rezagado deja de arrastrarse: lo sacamos de la sección.
+          if (campo === 'check_despachado' && valor === 1) rezagados.splice(rIdx, 1);
+        }
+      }
       // Al tildar o destildar Despachado, re-renderizamos para que la card se
       // reubique sola: baja a la sección verde "Despachado" o vuelve a su
       // sección original (pendientes / depósito).
