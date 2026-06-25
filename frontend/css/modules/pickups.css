@@ -865,6 +865,22 @@
 .semana-rec-chip.chip-otro    { background: #C4B5FD; color: #3B0764; }
 .semana-rec-chip.chip-ninguno { background: #E5E7EB; color: #6B7280; }
 
+/* ── Tipos cliente / courier: gris reusado (#9CA3AF "sin asignar") ──────── */
+.pickup-card-v2.tipo-gris {
+  background: #F9FAFB;
+  border-color: #9CA3AF;
+}
+.pickup-badge.cliente,
+.pickup-badge.courier  { background: #E5E7EB; color: #6B7280; }
+.pickup-avatar.cliente,
+.pickup-avatar.courier { background: #E5E7EB; color: #6B7280; }
+.day-pill-dot.gris { background: #9CA3AF; }
+.day-pill.active .day-pill-dot.gris { background: rgba(255,255,255,0.7); }
+.semana-dot.cliente,
+.semana-dot.courier { background: #9CA3AF; }
+.semana-row-badge.cliente,
+.semana-row-badge.courier { background: #E5E7EB; color: #6B7280; }
+
 @media (max-width: 480px) {
   .day-strip { padding: 0.5rem 1rem; }
 

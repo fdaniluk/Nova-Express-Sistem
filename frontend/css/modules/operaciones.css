@@ -105,6 +105,13 @@
   border-bottom: 1px solid #bbf7d0;
 }
 
+/* Pickups tipo cliente / courier: gris reusado (#9CA3AF "sin asignar") */
+.envio-card-header.tipo-gris {
+  background: #f3f4f6;
+  color: #4b5563;
+  border-bottom: 1px solid #9CA3AF;
+}
+
 /* Card body */
 .envio-card-body {
   display: flex;
@@ -210,4 +217,100 @@
   height: 15px;
   cursor: pointer;
   accent-color: var(--color-primary);
+}
+
+/* Botón "agregar cuadrante" en el pie de cada envío */
+.envio-card-footer {
+  padding: 0 1rem 0.6rem;
+}
+
+.btn-add-cuadrante {
+  background: transparent;
+  border: 1px dashed var(--color-border);
+  border-radius: 4px;
+  color: var(--color-primary);
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.25rem 0.6rem;
+  cursor: pointer;
+}
+
+.btn-add-cuadrante:hover {
+  background: #f1f5f9;
+  border-color: var(--color-primary-light);
+}
+
+.btn-add-cuadrante:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* Cuadrante: card indentada con acento, colgada de su envío origen */
+.cuadrante-card {
+  margin-left: 2rem;
+  border-left: 4px solid var(--color-primary);
+  box-shadow: none;
+}
+
+.cuadrante-card.rezagado {
+  border-left: 4px solid #f59e0b;
+  border-color: #fcd34d;
+}
+
+.cuadrante-top {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.cuadrante-badge {
+  display: inline-block;
+  padding: 0.1rem 0.45rem;
+  background: #eef2ff;
+  color: #4338ca;
+  border: 1px solid #c7d2fe;
+  border-radius: 4px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.cuadrante-titulo-input {
+  width: 100%;
+  max-width: 320px;
+  padding: 0.3rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  font-size: 0.85rem;
+  color: var(--color-text);
+  background: var(--color-surface);
+}
+
+.cuadrante-titulo-input:focus {
+  outline: none;
+  border-color: var(--color-primary-light);
+}
+
+.btn-del-cuadrante {
+  margin-top: 0.2rem;
+  background: transparent;
+  border: 1px solid #fecaca;
+  border-radius: 4px;
+  color: #b91c1c;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.2rem 0.5rem;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btn-del-cuadrante:hover {
+  background: #fef2f2;
+}
+
+.btn-del-cuadrante:disabled {
+  opacity: 0.5;
+  cursor: default;
 }

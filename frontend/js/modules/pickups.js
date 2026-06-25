@@ -118,6 +118,10 @@
   // ── Estado 4-color ────────────────────────────────────────────────────
 
   function estadoPickup(p) {
+    // Tipos especiales: 'cliente' y 'courier' se muestran en gris (estado propio),
+    // fuera de la cadena de chofer. El 'normal' deriva exactamente como antes.
+    const tipo = p.tipo_recoleccion || 'normal';
+    if (tipo === 'cliente' || tipo === 'courier') return tipo;
     if (p.en_deposito_at)     return 'dep';
     if (p.confirmado_juanqui) return 'cam';
     if (p.confirmado_ricardo) return 'conf';
@@ -152,17 +156,22 @@
       const isActive = ymd === activoYmd;
       const isHoy = ymd === hoyYmd;
       const delDia = pickups.filter(p => p.fecha === ymd);
+      // El dot agregado se calcula solo sobre los 'normal' (comportamiento intacto).
+      // Si el día solo tiene cliente/courier, se muestra en gris.
+      const normales = delDia.filter(p => (p.tipo_recoleccion || 'normal') === 'normal');
       let dotClass = '';
-      if (delDia.length > 0) {
-        if (delDia.every(p => !!p.en_deposito_at)) {
+      if (normales.length > 0) {
+        if (normales.every(p => !!p.en_deposito_at)) {
           dotClass = 'dep';
-        } else if (delDia.some(p => !!p.confirmado_juanqui && !p.en_deposito_at)) {
+        } else if (normales.some(p => !!p.confirmado_juanqui && !p.en_deposito_at)) {
           dotClass = 'cam';
-        } else if (delDia.some(p => !!p.confirmado_ricardo && !p.confirmado_juanqui)) {
+        } else if (normales.some(p => !!p.confirmado_ricardo && !p.confirmado_juanqui)) {
           dotClass = 'conf';
         } else {
           dotClass = 'pend';
         }
+      } else if (delDia.length > 0) {
+        dotClass = 'gris';
       }
       const classes = ['day-pill', isActive ? 'active' : '', isHoy && !isActive ? 'today' : '']
         .filter(Boolean).join(' ');
@@ -241,34 +250,69 @@
   }
 
   function buildPickupCard(p) {
+    const tipo = p.tipo_recoleccion || 'normal';
+    const esGris = tipo === 'cliente' || tipo === 'courier';
     const sc = estadoPickup(p);
-    const cardExtra = sc === 'dep' ? ' en-deposito' : sc === 'cam' ? ' en-camioneta' : sc === 'conf' ? ' confirmado' : '';
-    const badgeText = sc === 'dep' ? 'En depósito' : sc === 'cam' ? 'En camioneta' : sc === 'conf' ? (p.visto_juanqui_at ? 'Ricardo ✓ · 👁' : 'Ricardo ✓') : 'Sin confirmar';
+
+    const cardExtra = esGris ? ' tipo-gris'
+      : sc === 'dep' ? ' en-deposito' : sc === 'cam' ? ' en-camioneta' : sc === 'conf' ? ' confirmado' : '';
+    const badgeText = tipo === 'cliente' ? 'lo trae el cliente'
+      : tipo === 'courier' ? 'lo levanta UPS/DHL'
+      : sc === 'dep' ? 'En depósito' : sc === 'cam' ? 'En camioneta'
+      : sc === 'conf' ? (p.visto_juanqui_at ? 'Ricardo ✓ · 👁' : 'Ricardo ✓') : 'Sin confirmar';
     const stripeClass = p.recolector === 'Juanqui' ? 'stripe-juanqui' : p.recolector ? 'stripe-otro' : 'stripe-ninguno';
     const stripeLabel = p.recolector || 'Sin asignar';
-    const stripeAttrs = p.confirmado_ricardo ? ` data-action="reasignar-rec" data-id="${p.id}" style="cursor:pointer"` : '';
+    const stripeAttrs = (!esGris && p.confirmado_ricardo) ? ` data-action="reasignar-rec" data-id="${p.id}" style="cursor:pointer"` : '';
 
-    const horaR = p.confirmado_ricardo ? p.confirmado_ricardo.slice(11, 16) : null;
-    const horaJ = p.confirmado_juanqui ? p.confirmado_juanqui.slice(11, 16) : null;
-    const horaD = p.en_deposito_at ? p.en_deposito_at.slice(11, 16) : null;
+    let actionsHtml;
+    if (tipo === 'courier') {
+      // Terminal: lo levanta UPS/DHL, sin botones de confirmación.
+      actionsHtml = `<div class="pickup-actions-row">
+            <button class="btn-detalle" data-action="detalle" data-id="${p.id}">Ver detalle</button>
+          </div>`;
+    } else if (tipo === 'cliente') {
+      // Solo el paso de depósito, reversible (reusa el toggle conf/desconf-deposito).
+      const horaD = p.en_deposito_at ? p.en_deposito_at.slice(11, 16) : null;
+      const btnDeposito = horaD
+        ? `<button class="btn-conf btn-conf-on btn-conf-deposito" data-action="desconf-deposito" data-id="${p.id}" title="En depósito a las ${horaD} — clic para deshacer">✓ En depósito ${horaD}</button>`
+        : `<button class="btn-conf btn-conf-off btn-conf-deposito" data-action="conf-deposito" data-id="${p.id}">En depósito</button>`;
+      actionsHtml = `<div class="pickup-actions-row">
+            ${btnDeposito}
+            <button class="btn-detalle" data-action="detalle" data-id="${p.id}">Ver detalle</button>
+          </div>`;
+    } else {
+      // 'normal': cadena de chofer completa, idéntica a hoy.
+      const horaR = p.confirmado_ricardo ? p.confirmado_ricardo.slice(11, 16) : null;
+      const horaJ = p.confirmado_juanqui ? p.confirmado_juanqui.slice(11, 16) : null;
+      const horaD = p.en_deposito_at ? p.en_deposito_at.slice(11, 16) : null;
+      const horaV = p.visto_juanqui_at ? p.visto_juanqui_at.slice(11, 16) : null;
 
-    const horaV = p.visto_juanqui_at ? p.visto_juanqui_at.slice(11, 16) : null;
+      const btnRicardo = horaR
+        ? `<button class="btn-conf btn-conf-on btn-conf-ricardo" data-action="desconf-ricardo" data-id="${p.id}" title="Confirma a las ${horaR} — clic para deshacer">✓ Ricardo ${horaR}</button>`
+        : `<button class="btn-conf btn-conf-off btn-conf-ricardo" data-action="conf-ricardo" data-id="${p.id}">Confirmar Ricardo</button>`;
 
-    const btnRicardo = horaR
-      ? `<button class="btn-conf btn-conf-on btn-conf-ricardo" data-action="desconf-ricardo" data-id="${p.id}" title="Confirma a las ${horaR} — clic para deshacer">✓ Ricardo ${horaR}</button>`
-      : `<button class="btn-conf btn-conf-off btn-conf-ricardo" data-action="conf-ricardo" data-id="${p.id}">Confirmar Ricardo</button>`;
+      const btnVisto = horaV
+        ? `<button class="btn-conf btn-conf-on btn-conf-visto" data-action="desconf-visto" data-id="${p.id}" title="Visto a las ${horaV} — clic para desmarcar">✓ Visto ${horaV}</button>`
+        : `<button class="btn-conf btn-conf-off btn-conf-visto" data-action="conf-visto" data-id="${p.id}"${!horaR ? ' disabled' : ''}>Marcar visto</button>`;
 
-    const btnVisto = horaV
-      ? `<button class="btn-conf btn-conf-on btn-conf-visto" data-action="desconf-visto" data-id="${p.id}" title="Visto a las ${horaV} — clic para desmarcar">✓ Visto ${horaV}</button>`
-      : `<button class="btn-conf btn-conf-off btn-conf-visto" data-action="conf-visto" data-id="${p.id}"${!horaR ? ' disabled' : ''}>Marcar visto</button>`;
+      const btnJuanqui = horaJ
+        ? `<button class="btn-conf btn-conf-on btn-conf-juanqui" data-action="desconf-juanqui" data-id="${p.id}" title="Confirma a las ${horaJ} — clic para deshacer">✓ En camioneta ${horaJ}</button>`
+        : `<button class="btn-conf btn-conf-off btn-conf-juanqui" data-action="conf-juanqui" data-id="${p.id}"${!horaR ? ' disabled' : ''}>En camioneta</button>`;
 
-    const btnJuanqui = horaJ
-      ? `<button class="btn-conf btn-conf-on btn-conf-juanqui" data-action="desconf-juanqui" data-id="${p.id}" title="Confirma a las ${horaJ} — clic para deshacer">✓ En camioneta ${horaJ}</button>`
-      : `<button class="btn-conf btn-conf-off btn-conf-juanqui" data-action="conf-juanqui" data-id="${p.id}"${!horaR ? ' disabled' : ''}>En camioneta</button>`;
+      const btnDeposito = horaD
+        ? `<button class="btn-conf btn-conf-on btn-conf-deposito" data-action="desconf-deposito" data-id="${p.id}" title="En depósito a las ${horaD} — clic para deshacer">✓ En depósito ${horaD}</button>`
+        : `<button class="btn-conf btn-conf-off btn-conf-deposito" data-action="conf-deposito" data-id="${p.id}"${!horaJ ? ' disabled' : ''}>Confirmar depósito</button>`;
 
-    const btnDeposito = horaD
-      ? `<button class="btn-conf btn-conf-on btn-conf-deposito" data-action="desconf-deposito" data-id="${p.id}" title="En depósito a las ${horaD} — clic para deshacer">✓ En depósito ${horaD}</button>`
-      : `<button class="btn-conf btn-conf-off btn-conf-deposito" data-action="conf-deposito" data-id="${p.id}"${!horaJ ? ' disabled' : ''}>Confirmar depósito</button>`;
+      actionsHtml = `<div class="pickup-actions-row">
+            ${btnRicardo}
+            ${btnVisto}
+          </div>
+          <div class="pickup-actions-row">
+            ${btnJuanqui}
+            ${btnDeposito}
+            <button class="btn-detalle" data-action="detalle" data-id="${p.id}">Ver detalle</button>
+          </div>`;
+    }
 
     const cobroBadgeHtml = p.tiene_cobro ? '<span class="cobro-badge">$ Cobro</span>' : '';
 
@@ -289,15 +333,7 @@
         </div>
         <div class="pickup-direccion">📍 ${escHtml(p.direccion)}</div>
         <div class="pickup-actions">
-          <div class="pickup-actions-row">
-            ${btnRicardo}
-            ${btnVisto}
-          </div>
-          <div class="pickup-actions-row">
-            ${btnJuanqui}
-            ${btnDeposito}
-            <button class="btn-detalle" data-action="detalle" data-id="${p.id}">Ver detalle</button>
-          </div>
+          ${actionsHtml}
         </div>
       </div>
     </div>`;
@@ -328,7 +364,10 @@
         ? '<div class="semana-empty">Sin pickups programados</div>'
         : delDia.map(p => {
             const sc = estadoPickup(p);
-            const badgeLabel = sc === 'dep' ? 'En depósito' : sc === 'cam' ? 'En camioneta' : sc === 'conf' ? (p.visto_juanqui_at ? 'Ricardo ✓ · 👁' : 'Ricardo ✓') : 'Sin confirmar';
+            const badgeLabel = sc === 'cliente' ? 'lo trae el cliente'
+              : sc === 'courier' ? 'lo levanta UPS/DHL'
+              : sc === 'dep' ? 'En depósito' : sc === 'cam' ? 'En camioneta'
+              : sc === 'conf' ? (p.visto_juanqui_at ? 'Ricardo ✓ · 👁' : 'Ricardo ✓') : 'Sin confirmar';
             const cobroChip = p.tiene_cobro ? '<span class="cobro-chip-sm">$</span>' : '';
             return `<div class="semana-row ${sc}" data-action="goto-dia" data-ymd="${ymd}">
               <span class="semana-dot ${sc}"></span>
@@ -534,6 +573,7 @@
     document.getElementById('m-hora-inicio').value = '09:00';
     document.getElementById('m-hora-fin').value = '11:00';
     document.getElementById('m-courier').value = '';
+    document.getElementById('m-tipo-recoleccion').value = 'normal';
     document.getElementById('m-tiene-cobro').checked = false;
     document.getElementById('m-notas').value = '';
     const primerCliente = clientes[0];
@@ -554,6 +594,7 @@
     document.getElementById('m-hora-inicio').value = p.hora_inicio;
     document.getElementById('m-hora-fin').value = p.hora_fin;
     document.getElementById('m-courier').value = p.courier || '';
+    document.getElementById('m-tipo-recoleccion').value = p.tipo_recoleccion || 'normal';
     document.getElementById('m-tiene-cobro').checked = !!p.tiene_cobro;
     document.getElementById('m-notas').value = p.notas || '';
     await cargarDirecciones(p.cliente_id);
@@ -575,6 +616,7 @@
     const courierEl = document.getElementById('m-courier');
     const courier = courierEl ? (courierEl.value || null) : null;
     const tiene_cobro = document.getElementById('m-tiene-cobro').checked ? 1 : 0;
+    const tipo_recoleccion = document.getElementById('m-tipo-recoleccion').value || 'normal';
     const notas = document.getElementById('m-notas').value.trim() || null;
     if (!cliente_id || !direccion || !fecha || !hora_inicio || !hora_fin) {
       NovaUtils.showAlert(alertBox, 'Completá todos los campos obligatorios.');
@@ -582,9 +624,9 @@
     }
     try {
       if (pickupEditandoId) {
-        await NovaAPI.pickups.editar(pickupEditandoId, { cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, tiene_cobro, notas });
+        await NovaAPI.pickups.editar(pickupEditandoId, { cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, tiene_cobro, tipo_recoleccion, notas });
       } else {
-        await NovaAPI.pickups.crear({ cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, tiene_cobro, notas });
+        await NovaAPI.pickups.crear({ cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, tiene_cobro, tipo_recoleccion, notas });
       }
       cerrarModal();
       await cargarPickups();
