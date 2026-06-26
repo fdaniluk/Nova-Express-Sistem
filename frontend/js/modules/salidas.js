@@ -269,7 +269,7 @@
       <td>${env(cobroBadge(e.tipo_cobro))}</td>
       <td>${env(`<a href="clientes-perfil.html?id=${e.cliente_id}">${esc(e.cliente_nombre)}</a>`)}</td>
       <td>${env(esc(e.destino))}</td>
-      <td>${numBulto}/${totalBultos}</td>
+      <td>${estadoCajaDotHtml(b.estado_caja)}${numBulto}/${totalBultos}</td>
       <td>${env(tipoBadge(e.tipo_paquete))}</td>
       <td>${env(dirBadge(e.direccion))}</td>
       <td class="num">${fmtDim(largo)}</td>
@@ -793,6 +793,21 @@
     return `<span class="badge ${cls}">${esc(d)}</span>`;
   }
 
+  // ── Semáforo de estado de caja por bulto ─────────────────────────────────────
+  // El backend guarda estado_caja por bulto: 'rojo' | 'amarillo' | 'verde' | null.
+  // null = sin estado: se PINTA rojo, pero no se fuerza a guardar 'rojo'.
+  const ESTADO_CAJA_INFO = {
+    rojo:     { cls: 'estado-rojo',     label: 'No escaneada', btn: 'Rojo' },
+    amarillo: { cls: 'estado-amarillo', label: 'En tránsito',  btn: 'Amarillo' },
+    verde:    { cls: 'estado-verde',    label: 'Entregada',    btn: 'Verde' },
+  };
+
+  // Punto de color para la celda de bulto. Cualquier valor no reconocido (incl. null) → rojo.
+  function estadoCajaDotHtml(estado) {
+    const info = ESTADO_CAJA_INFO[estado] || ESTADO_CAJA_INFO.rojo;
+    return `<span class="bulto-estado-dot ${info.cls}" title="${info.label}"></span>`;
+  }
+
   // ── Modal de edición ────────────────────────────────────────────────────────
   function buildEditModal() {
     const overlay = document.createElement('div');
@@ -849,6 +864,10 @@
             </div>
           </div>
           <div>
+            <div class="sal-section-title">Estado de la caja</div>
+            <div id="saled-estado-caja" class="saled-estado-caja"></div>
+          </div>
+          <div>
             <div class="sal-section-title">Peso y medidas</div>
             <div class="sal-form-grid">
               <div class="form-group"><label>Peso balanza (kg)</label><input type="number" id="saled-peso-real" step="0.001" min="0"></div>
@@ -901,6 +920,7 @@
     document.getElementById('sal-modal-save').addEventListener('click', saveEditModal);
     document.getElementById('sal-modal-delete').addEventListener('click', deleteEditModal);
     document.getElementById('saled-recalcular').addEventListener('click', recalcularDesglose);
+    document.getElementById('saled-estado-caja').addEventListener('click', onEstadoCajaClick);
 
     // Profit/% se re-derivan en vivo: total cobrado fijo − suma de costos. Aplica tanto
     // al editar un costo a mano como tras Recalcular (que también repuebla estos campos).
@@ -955,6 +975,7 @@
     document.getElementById('saled-peso-facturable').value = envio.peso_facturable ?? '';
     document.getElementById('saled-peso-volumetrico').value = envio.peso_volumetrico ?? '';
     renderEditBultos();
+    renderEstadoCajaSection();
     document.getElementById('saled-recalc-status').textContent = '';
 
     document.getElementById('sal-modal-alert').innerHTML = '';
@@ -1033,6 +1054,72 @@
         alto: val('alto'),
       };
     });
+  }
+
+  // Render de la sección "Estado de la caja" del modal. Un solo grupo de 3 botones si el
+  // envío tiene UN bulto; una fila por bulto si tiene varios. El botón del estado actual
+  // queda resaltado (null se considera rojo, igual que el punto de la tabla).
+  function renderEstadoCajaSection() {
+    const container = document.getElementById('saled-estado-caja');
+    if (!container) return;
+    const multi = editBultos.length > 1;
+    container.innerHTML = '';
+    editBultos.forEach((b, i) => {
+      const row = document.createElement('div');
+      row.className = 'saled-estado-row';
+      const labelHtml = multi
+        ? `<span class="saled-estado-label">Bulto ${b.numero_bulto != null ? b.numero_bulto : i + 1}</span>`
+        : '';
+      const actual = b.estado_caja || 'rojo';   // null/undefined → rojo
+      const btns = ['rojo', 'amarillo', 'verde'].map((est) => {
+        const info = ESTADO_CAJA_INFO[est];
+        const active = actual === est ? ' active' : '';
+        return `<button type="button" class="saled-estado-btn${active}" data-estado="${est}" title="${info.label}">
+          <span class="bulto-estado-dot ${info.cls}"></span>${info.btn}
+        </button>`;
+      }).join('');
+      row.innerHTML = `${labelHtml}<div class="saled-estado-btns" data-bidx="${i}">${btns}</div>`;
+      container.appendChild(row);
+    });
+  }
+
+  // Click en un botón de estado: persiste enseguida (no requiere Guardar). Caso A si el
+  // bulto tiene id real; Caso B (materializa la fila) si el bulto es único sintético (id
+  // null), y con el id devuelto los próximos cambios ya van por Caso A.
+  async function onEstadoCajaClick(e) {
+    const btn = e.target.closest('.saled-estado-btn');
+    if (!btn || !editEnvio) return;
+    const group = btn.closest('.saled-estado-btns');
+    const i = Number(group.dataset.bidx);
+    const estado = btn.dataset.estado;
+    const bulto = editBultos[i];
+    if (!bulto) return;
+
+    group.querySelectorAll('button').forEach((x) => { x.disabled = true; });
+    try {
+      const updated = (bulto.id != null)
+        ? await NovaAPI.salidas.actualizarBulto(bulto.id, { estado_caja: estado })
+        : await NovaAPI.salidas.actualizarEstadoBultoUnico(editEnvio.id, { estado_caja: estado });
+      // Bulto recién materializado: ahora tiene id real → los próximos toques usan Caso A.
+      bulto.id = updated.id;
+      bulto.estado_caja = updated.estado_caja;
+      syncEnvioBulto(i, updated);
+      renderEstadoCajaSection();   // refresca el resaltado del botón activo
+      await loadData();                  // repinta el punto de color en la tabla
+    } catch (err) {
+      group.querySelectorAll('button').forEach((x) => { x.disabled = false; });
+      NovaUtils.showAlert(document.getElementById('sal-modal-alert'),
+        'No se pudo actualizar el estado de la caja: ' + err.message, 'error');
+    }
+  }
+
+  // Refleja el cambio de estado/materialización en la fila real de allData (editEnvio es la
+  // referencia viva). editBultos[i] y editEnvio.bultos[i] comparten orden e índice.
+  function syncEnvioBulto(i, updated) {
+    if (!editEnvio || !Array.isArray(editEnvio.bultos) || !editEnvio.bultos[i]) return;
+    editEnvio.bultos[i].id = updated.id;
+    editEnvio.bultos[i].estado_caja = updated.estado_caja;
+    if (updated.numero_bulto != null) editEnvio.bultos[i].numero_bulto = updated.numero_bulto;
   }
 
   // Re-deriva profit y % en vivo. El total cobrado al cliente NO cambia (editEnvio.total);
@@ -1243,7 +1330,13 @@
       const idx = allData.findIndex((d) => d.id === editEnvio.id);
       if (idx !== -1) {
         const d = allData[idx];
-        Object.assign(d, payload);
+        // NO pisar d.bultos con payload.bultos: esos objetos llevan solo dims (id, peso,
+        // medidas) SIN estado_caja, y reemplazarían el array vivo borrando el semáforo de
+        // caja recién traído del GET (se vería rojo hasta refrescar). Las dims por bulto se
+        // mergean más abajo sobre las filas vivas (Object.assign(target, eb)), conservando
+        // estado_caja. Por eso aquí se asignan solo los campos del envío, sin `bultos`.
+        const { bultos: _ignorarBultos, ...envioFields } = payload;
+        Object.assign(d, envioFields);
         // Reflejar el desglose persistido en memoria para que al reabrir se vea igual (el GET
         // lo expone como `extras`, distinto del `extras_json` que viaja en el PATCH).
         if (editExtrasDirty) d.extras = editExtras.map((x) => ({ ...x }));
