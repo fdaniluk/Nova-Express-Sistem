@@ -55,6 +55,21 @@
     } catch (err) {
       console.warn('[envios] No se pudo cargar fuel config, usando defaults:', err.message);
     }
+    setFuelPctDefault();
+  }
+
+  // Precarga el input Fuel % con el valor de config del courier seleccionado. El usuario
+  // puede editarlo; el valor del input es el que se usa al cotizar y se guarda por envío.
+  function setFuelPctDefault() {
+    const courier = document.getElementById('courier').value;
+    document.getElementById('fuel_pct').value = fuelPctActual[courier] ?? '';
+  }
+
+  // Fuel % vigente en el form: el input editable manda; si quedó vacío, el de config.
+  function getFuelPctForm() {
+    const v = parseFloat(document.getElementById('fuel_pct').value);
+    const courier = document.getElementById('courier').value;
+    return (!isNaN(v) && v >= 0) ? v : (fuelPctActual[courier] ?? 0);
   }
 
   async function loadClientes() {
@@ -218,14 +233,16 @@
       document.getElementById(id).addEventListener('input', debounce(updateCotizacion, 400));
     });
 
-    // Mostrar selector de variante UPS solo cuando courier = UPS
+    // Mostrar selector de variante UPS solo cuando courier = UPS y precargar el fuel del courier
     document.getElementById('courier').addEventListener('change', function () {
       document.getElementById('cot-ups-wrap').style.display = this.value === 'UPS' ? '' : 'none';
+      setFuelPctDefault();
     });
 
-    // Recalcular al cambiar variante UPS o % profit
+    // Recalcular al cambiar variante UPS, % profit o Fuel %
     document.getElementById('cot-ups-variante').addEventListener('change', debounce(updateCotizacion, 400));
     document.getElementById('cot-profit').addEventListener('input', debounce(updateCotizacion, 400));
+    document.getElementById('fuel_pct').addEventListener('input', debounce(updateCotizacion, 400));
 
     // Recalcular al tildar/destildar DDP (passthrough +24.05)
     document.getElementById('ddp').addEventListener('change', debounce(updateCotizacion, 400));
@@ -278,7 +295,7 @@
     const servicioUPS = document.getElementById('cot-ups-variante')?.value || 'UPS_EXP';
     const servicio = courier === 'DHL' ? 'DHL' : servicioUPS;
     const tipo = tipo_envio === 'exportacion' ? 'export' : 'import';
-    const fuelPct = fuelPctActual[courier] || 39;
+    const fuelPct = getFuelPctForm();
 
     try {
       const bultosParaCotizar = getBultosParaCalculo();
@@ -382,6 +399,7 @@
         ancho: parseFloat(document.getElementById('ancho').value) || null,
         alto: parseFloat(document.getElementById('alto').value) || null,
         fob: parseFloat(document.getElementById('fob').value) || 0,
+        fuel_pct: getFuelPctForm(),
         asegurado: document.getElementById('asegurado').checked ? 1 : 0,
         ddp: document.getElementById('ddp').checked ? 1 : 0,
         total_cobrado: parseFloat(document.getElementById('total_cobrado').value) || 0,
@@ -412,6 +430,7 @@
     document.getElementById('form-title').textContent = 'Cargar envío';
     document.getElementById('fecha').value = new Date().toISOString().slice(0, 10);
     document.getElementById('cantidad_bultos').value = 1;
+    setFuelPctDefault();
     document.getElementById('bultos-extra').classList.add('hidden');
     document.getElementById('bultos-container').innerHTML = '';
     aplicarBloqueoMultibulto();
@@ -445,6 +464,9 @@
     document.getElementById('ancho').value = envio.ancho || '';
     document.getElementById('alto').value = envio.alto || '';
     document.getElementById('fob').value = envio.fob;
+    // Fuel% guardado del envío; si es viejo (NULL) cae al de config del courier.
+    document.getElementById('fuel_pct').value =
+      envio.fuel_pct != null ? envio.fuel_pct : (fuelPctActual[envio.courier] ?? '');
     document.getElementById('asegurado').checked = Boolean(envio.asegurado);
     document.getElementById('ddp').checked = Boolean(envio.ddp);
     document.getElementById('total_cobrado').value = envio.total_cobrado;

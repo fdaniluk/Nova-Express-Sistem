@@ -118,8 +118,14 @@ async function calcularDesgloseAlCosto(data, pesoFacturable) {
       : 'UPS_EXP'; // fallback si no vino la variante
   const tipo = (data.tipo_envio || '').toLowerCase().includes('import') ? 'import' : 'export';
 
+  // Fuel% por envío: si el usuario lo editó en Cargar envío viene en data.fuel_pct y manda;
+  // si no, se precarga el autoritativo de config del courier. El valor usado se congela en
+  // la columna envios.fuel_pct (lo devuelve desglosarCosto como fuel_pct).
   const fuelCfg = await configuracionModel.obtenerFuel(courier);
-  const fuelPct = fuelCfg?.fuel_pct ?? 0;
+  const fuelOverride = data.fuel_pct;
+  const fuelPct = (fuelOverride !== undefined && fuelOverride !== null && fuelOverride !== '')
+    ? Number(fuelOverride)
+    : (fuelCfg?.fuel_pct ?? 0);
 
   // Mismo conjunto de bultos que usó buildPesos para el peso facturable:
   // si vienen bultos, son el set completo; si no, el bulto único de los campos primarios.
@@ -156,9 +162,9 @@ async function crear(data) {
           cantidad_bultos, peso_real, largo, ancho, alto,
           peso_volumetrico, peso_facturable, fob, total_cobrado, observaciones,
           numero_salida, bulto, tipo_paquete, asegurado, ddp,
-          flete, descuento, seguro, fuel, derechos, adicionales, otros, profit, porcentaje,
+          flete, descuento, seguro, fuel, fuel_pct, derechos, adicionales, otros, profit, porcentaje,
           extras_json, servicio_ups
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         data.cliente_id,
@@ -189,6 +195,7 @@ async function crear(data) {
         desglose ? desglose.descuento : (data.descuento ?? null),
         desglose ? desglose.seguro : (data.seguro ?? null),
         desglose ? desglose.fuel : (data.fuel ?? null),
+        desglose ? desglose.fuel_pct : (data.fuel_pct ?? null),
         desglose ? desglose.derechos : (data.derechos ?? null),
         desglose ? desglose.adicionales : (data.adicionales ?? null),
         desglose ? desglose.otros : (data.otros ?? null),
@@ -238,7 +245,7 @@ async function actualizar(id, data) {
         cantidad_bultos = ?, peso_real = ?, largo = ?, ancho = ?, alto = ?,
         peso_volumetrico = ?, peso_facturable = ?,
         fob = ?, total_cobrado = ?, observaciones = ?,
-        servicio_ups = ?,
+        servicio_ups = ?, fuel_pct = ?,
         updated_at = datetime('now', 'localtime')
        WHERE id = ?`
     ).run(
@@ -260,6 +267,7 @@ async function actualizar(id, data) {
       data.total_cobrado ?? actual.total_cobrado,
       data.observaciones !== undefined ? data.observaciones : actual.observaciones,
       (data.courier ?? actual.courier) === 'UPS' ? (data.servicio_ups !== undefined ? data.servicio_ups : actual.servicio_ups) : null,
+      data.fuel_pct !== undefined ? data.fuel_pct : actual.fuel_pct,
       id
     );
     if (data.bultos !== undefined) {

@@ -236,7 +236,9 @@ function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zo
     );
   }
 
-  return { flete, seguro, fuel, adicionales, derechos: 0, descuento: 0, otros: 0, total, zona: r.zona, extras };
+  // El fuel% efectivamente usado se devuelve para congelarlo por envío (columna fuel_pct).
+  // No altera ningún monto: es el mismo valor que entró por el parámetro fuelPct.
+  return { flete, seguro, fuel, fuel_pct: Number(fuelPct) || 0, adicionales, derechos: 0, descuento: 0, otros: 0, total, zona: r.zona, extras };
 }
 
 module.exports = {

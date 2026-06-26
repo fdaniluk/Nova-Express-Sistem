@@ -174,6 +174,7 @@ async function migrateEnvios() {
     ['descuento',        'REAL'],
     ['seguro',           'REAL'],
     ['fuel',             'REAL'],
+    ['fuel_pct',         'REAL'],
     ['derechos',         'REAL'],
     ['adicionales',      'REAL'],
     ['otros',            'REAL'],

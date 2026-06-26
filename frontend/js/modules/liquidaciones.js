@@ -365,9 +365,9 @@
       lastPreview = { cliente_id, envio_ids, cargos, cotizaciones, preview };
 
       const tbody = document.getElementById('liq-preview-body');
-      tbody.innerHTML = preview.items.map((i) => {
-        const tieneCot = i.precio_cotizado != null;
-        return `
+      // Desglose de cara al cliente: solo lo que pagó. NO se muestran % Profit ni Utilidad
+      // empresa (datos internos). El desglose cierra exacto en Total USD = total_cobrado.
+      tbody.innerHTML = preview.items.map((i) => `
         <tr>
           <td>${i.envio?.numero_guia || i.envio_id}</td>
           <td>${NovaUtils.formatMoney(i.flete)}</td>
@@ -375,22 +375,12 @@
           <td>${NovaUtils.formatMoney(i.seguro)}</td>
           <td>${NovaUtils.formatMoney(i.adicional)}</td>
           <td>${NovaUtils.formatMoney(i.total_usd)}</td>
-          <td>${tieneCot ? `<span class="badge badge-cotizado">${NovaUtils.formatMoney(i.precio_cotizado)}</span>` : '—'}</td>
-          <td>${tieneCot ? `<span class="util-badge">💰 ${NovaUtils.formatMoney(i.utilidad_usd)}</span>` : '—'}</td>
-          <td>${i.profit_pct != null ? `${i.profit_pct}%` : '—'}</td>
-        </tr>`;
-      }).join('');
+        </tr>`).join('');
 
       document.getElementById('liq-total').innerHTML = `<strong>${NovaUtils.formatMoney(preview.total)}</strong>`;
 
-      // Mostrar utilidad total si hay cotizaciones
-      const utilBlock = document.getElementById('liq-utilidad-total');
-      if (preview.utilidad_total > 0) {
-        utilBlock.innerHTML = `<span class="util-total">💰 Utilidad total empresa: <strong>${NovaUtils.formatMoney(preview.utilidad_total)}</strong></span>`;
-        utilBlock.classList.remove('hidden');
-      } else {
-        utilBlock.classList.add('hidden');
-      }
+      // Utilidad total empresa: dato interno, no se muestra en el documento del cliente.
+      document.getElementById('liq-utilidad-total').classList.add('hidden');
 
       const fuels = [...new Set(preview.items.map((i) => `${i.envio?.courier || ''}: ${i.fuel_pct_usado}%`))];
       document.getElementById('fuel-info').textContent =

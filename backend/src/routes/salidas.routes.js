@@ -261,6 +261,8 @@ router.post('/:id/recalcular', async (req, res, next) => {
       pais_destino: envio.pais_destino,
       fob: envio.fob,
       zona: envio.zona,
+      // Fuel% congelado del envío: el recálculo respeta el guardado (no el de config actual).
+      fuel_pct: envio.fuel_pct,
       peso_real: body.peso_real,
       largo: body.largo,
       ancho: body.ancho,
@@ -280,6 +282,7 @@ router.post('/:id/recalcular', async (req, res, next) => {
       flete: desglose.flete,
       seguro: desglose.seguro,
       fuel: desglose.fuel,
+      fuel_pct: desglose.fuel_pct,
       adicionales: desglose.adicionales,
       extras: desglose.extras || [],
       total: desglose.total,
@@ -297,7 +300,7 @@ router.post('/:id/recalcular', async (req, res, next) => {
 const SALIDAS_EDITABLE = [
   'numero_guia', 'numero_salida', 'bulto', 'tipo_paquete', 'asegurado', 'direccion',
   'peso_real', 'largo', 'ancho', 'alto', 'peso_facturable', 'peso_volumetrico',
-  'flete', 'descuento', 'seguro', 'fuel', 'derechos', 'adicionales', 'otros',
+  'flete', 'descuento', 'seguro', 'fuel', 'fuel_pct', 'derechos', 'adicionales', 'otros',
   'profit', 'porcentaje', 'observaciones', 'extras_json',
 ];
 

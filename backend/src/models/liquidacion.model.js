@@ -58,89 +58,82 @@ function descomponerPrecioBase(cot, envio, fuelPct) {
   return { flete: redondear2(fleteConSurge + manejo), fuel, seguro };
 }
 
-async function calcularItem(envio, adicional = 0, cotizacion = null) {
-  const fuelCfg = await configuracionModel.obtenerFuel(envio.courier);
-  const fuelPct = fuelCfg?.fuel_pct ?? 0;
-  const adic = redondear2(adicional);
-
-  // Leer tarifa_pct del cliente, igual que hace el cotizador al seleccionar un cliente.
-  // Fallback 20%: coincide con el value="20" hardcodeado en los inputs del cotizador cuando
-  // el cliente no tiene tarifa configurada (tarifa_pct null o 0).
-  const db = getDb();
-  const clienteRow = await db.prepare('SELECT tarifa_pct FROM clientes WHERE id = ?').get(envio.cliente_id);
-  const tarifaPct = (clienteRow?.tarifa_pct > 0) ? clienteRow.tarifa_pct : 20;
-
-  // tipo_envio 'exportacion' → 'export'; cualquier otro → 'import'.
-  const servicio = envio.courier === 'DHL'
-    ? 'DHL'
-    : (envio.servicio_ups === 'UPS_SAV' || envio.servicio_ups === 'UPS_EXP')
-      ? envio.servicio_ups
-      : 'UPS_EXP'; // fallback para envíos viejos sin servicio_ups
-  const tipo = (envio.tipo_envio || '').toLowerCase().includes('import') ? 'import' : 'export';
-
-  // Cotizamos con la tarifa del cliente para obtener el precio completo (igual que el cotizador).
-  // cot.precioBase = flete+surge+fuel+manejo+seguro sin profit; cot.precioFinal incluye tarifaPct.
-  const bultos = envio.peso_real != null
-    ? [{ pesoReal: envio.peso_real, largo: envio.largo, ancho: envio.ancho, alto: envio.alto }]
-    : [];
-  const cot = cotizarEnvio({
-    pais: envio.pais_destino,
-    tipo,
-    servicio,
-    pesoFacturable: envio.peso_facturable || 0,
-    fob: envio.fob || 0,
-    fuelPct,
-    profitPct: tarifaPct,
-    zonaOverride: envio.zona,
-    bultos,
-  });
-
-  let flete, fuel, seguro, totalUsd;
-  let precioCotizado, profitPctUsado, utilidadUsd, servicioCotizado;
-
-  if (cot) {
-    // descomponerPrecioBase usa cot.precioBase (sin profit) para flete/fuel/seguro.
-    ({ flete, fuel, seguro } = descomponerPrecioBase(cot, envio, fuelPct));
-
-    if (cotizacion) {
-      // Cotización manual del usuario: su precio y profit tienen precedencia.
-      totalUsd = redondear2(cotizacion.precioFinal + adic);
-      precioCotizado = cotizacion.precioFinal;
-      profitPctUsado = cotizacion.profitPct;
-      utilidadUsd = cotizacion.utilidad;
-      servicioCotizado = cotizacion.servicio;
-    } else {
-      // Auto: precio final = precioBase × (1 + tarifaPct%), igual que el cotizador.
-      totalUsd = redondear2(cot.precioFinal + adic);
-      precioCotizado = cot.precioFinal;
-      profitPctUsado = tarifaPct;
-      utilidadUsd = cot.utilidad;
-      servicioCotizado = cot.servicio;
-    }
+// Liquidación = documento de cara al cliente: LEE los valores ya guardados del envío y
+// los presenta de forma que el desglose cierre EXACTO en total_cobrado. NO recotiza: no
+// llama al motor cotizarEnvio, no usa descomponerPrecioBase, no lee clientes.tarifa_pct,
+// no aplica ningún profit. El profit ya está incluido en total_cobrado (lo cargó el dueño)
+// y no se expone al cliente.
+//
+// Detalle del dato: las columnas flete/fuel/seguro/adicionales del envío se congelan en el
+// alta con desglosarCosto(profitPct:0) → son el COSTO base y suman MENOS que total_cobrado
+// (la diferencia es el profit). Por eso no se pueden leer tal cual para el desglose cliente.
+// Criterio (definido por el dueño): seguro y adicionales (cargos itemizados reales) se
+// muestran tal cual; flete+fuel balancean el resto para que la suma = total_cobrado.
+async function calcularItem(envio, adicional = 0) {
+  // Fuel% del desglose: si el envío tiene fuel_pct propio (congelado al cargarlo) se usa ESE
+  // y NO se lee config (un envío viejo se liquida con el fuel de su época, no con el de hoy).
+  // Si es NULL (envíos previos a la columna), se cae al reparto proporcional con el fuel de
+  // config, que es la conducta histórica que ya cerraba en total_cobrado.
+  let fuelPct;
+  if (envio.fuel_pct !== null && envio.fuel_pct !== undefined) {
+    fuelPct = envio.fuel_pct;
   } else {
-    // Fallback: el país no figura en las tablas de tarifas → comportamiento anterior.
-    const d = calcularFleteFuel(envio.total_cobrado, envio.fob || 0, fuelPct);
-    flete = d.flete;
-    fuel = d.fuel;
-    seguro = d.seguro;
-    totalUsd = redondear2(flete + fuel + seguro + adic);
-    precioCotizado = cotizacion?.precioFinal ?? null;
-    profitPctUsado = cotizacion?.profitPct ?? null;
-    utilidadUsd = cotizacion?.utilidad ?? null;
-    servicioCotizado = cotizacion?.servicio ?? null;
+    const fuelCfg = await configuracionModel.obtenerFuel(envio.courier);
+    fuelPct = fuelCfg?.fuel_pct ?? 0;
   }
+  const fuelDecimal = fuelPct / 100;
+
+  // Adicional manual de la fila (input ADICIONAL USD): EXTRA que el dueño agrega a mano en
+  // esta liquidación, encima de lo cobrado. No está incluido en total_cobrado → se suma.
+  const adicManual = redondear2(adicional);
+
+  // Valores guardados que se muestran tal cual (forman parte de total_cobrado):
+  const totalCobrado = redondear2(envio.total_cobrado || 0);
+  const seguro = redondear2(envio.seguro || 0);
+  // Adicionales itemizados guardados (surge en extras_json, derechos, otros). desglosarCosto
+  // deja derechos/otros en 0; se suman por robustez ante datos viejos. NO se duplican con el
+  // adicional manual: ese es un cargo aparte que se agrega aparte.
+  const adicGuardado = redondear2(
+    (envio.adicionales || 0) + (envio.derechos || 0) + (envio.otros || 0)
+  );
+
+  // flete+fuel balancean el resto del total cobrado, respetando la proporción de fuel.
+  // No se recotiza ni se aplica profit: el profit ya está dentro de total_cobrado.
+  const base = redondear2(totalCobrado - seguro - adicGuardado);
+  const flete = redondear2(base / (1 + fuelDecimal));
+  const fuel = redondear2(base - flete);
+
+  // Columna Adicional de cara al cliente: cargos guardados + extra manual de la fila.
+  const adicionalItem = redondear2(adicGuardado + adicManual);
+  // Total = lo que el cliente pagó + el extra manual agregado en esta liquidación.
+  // Invariante: flete + fuel + seguro + adicionalItem = total_cobrado + adicManual = totalUsd.
+  const totalUsd = redondear2(totalCobrado + adicManual);
+
+  // Servicio para columnas internas/persistencia (no se muestra al cliente).
+  const servicioCotizado = envio.courier === 'DHL' ? 'DHL' : (envio.servicio_ups || null);
+
+  // Métricas internas (NO se muestran al cliente: ni en el preview ni en el Excel). Se siguen
+  // calculando y persistiendo para no romper el schema de liquidacion_items y para uso interno.
+  // costoBase = desglose al costo congelado en el alta; utilidad = lo cobrado − costo.
+  const costoBase = redondear2(
+    (envio.flete || 0) + (envio.fuel || 0) + (envio.seguro || 0) +
+    (envio.adicionales || 0) + (envio.derechos || 0) + (envio.otros || 0) -
+    (envio.descuento || 0)
+  );
+  const utilidadUsd = redondear2(totalCobrado - costoBase);
+  const profitPct = costoBase > 0 ? redondear2((utilidadUsd / costoBase) * 100) : null;
 
   return {
     envio_id: envio.id,
     flete,
     fuel,
     seguro,
-    adicional: adic,
+    adicional: adicionalItem,
     total_usd: totalUsd,
     fuel_pct_usado: fuelPct,
-    precio_cotizado: precioCotizado,
-    profit_pct: profitPctUsado,
-    utilidad_usd: utilidadUsd,
+    precio_cotizado: totalCobrado,
+    profit_pct: profitPct,     // interno: no se muestra al cliente
+    utilidad_usd: utilidadUsd, // interno: no se muestra al cliente
     servicio_cotizado: servicioCotizado,
     envio,
   };
@@ -167,14 +160,13 @@ async function preview({ cliente_id, envio_ids, cargos = [], cotizaciones = [] }
     cargoMap[c.envio_id] = (cargoMap[c.envio_id] || 0) + (Number(c.monto) || 0);
   }
 
-  // Mapa de cotizaciones por envio_id
-  const cotizacionMap = {};
-  for (const cot of cotizaciones) {
-    cotizacionMap[cot.envio_id] = cot;
-  }
+  // `cotizaciones` se sigue aceptando para no romper la API y el botón manual "Cotizar"
+  // por fila, pero la liquidación YA NO recotiza: el desglose se arma leyendo lo guardado
+  // en el envío (ver calcularItem). El flujo automático de preview no depende del cotizador.
+  void cotizaciones;
 
   const items = await Promise.all(
-    envios.map((e) => calcularItem(e, cargoMap[e.id] || 0, cotizacionMap[e.id] || null))
+    envios.map((e) => calcularItem(e, cargoMap[e.id] || 0))
   );
   const total = redondear2(items.reduce((s, i) => s + i.total_usd, 0));
   const utilidadTotal = redondear2(items.reduce((s, i) => s + (i.utilidad_usd || 0), 0));

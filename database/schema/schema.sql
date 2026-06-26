@@ -104,6 +104,7 @@ CREATE TABLE IF NOT EXISTS envios (
   descuento           REAL,
   seguro              REAL,
   fuel                REAL,
+  fuel_pct            REAL,
   derechos            REAL,
   adicionales         REAL,
   otros               REAL,
