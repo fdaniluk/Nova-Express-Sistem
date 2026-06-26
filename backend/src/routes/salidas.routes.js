@@ -17,6 +17,22 @@ function parseExtras(json) {
   }
 }
 
+// Estados válidos del semáforo de caja por bulto. NULL/'' limpia el estado (se
+// interpreta como rojo en la lectura). Normaliza un valor recibido por la API:
+//   - undefined  → { ok: true, value: undefined }  (el campo no vino; no tocar)
+//   - null / ''  → { ok: true, value: null }        (limpiar el estado)
+//   - rojo/amarillo/verde (case-insensitive, trim) → { ok: true, value }
+//   - cualquier otro → { ok: false }                (rechazar con 400)
+const ESTADOS_CAJA = ['rojo', 'amarillo', 'verde'];
+
+function normalizarEstadoCaja(raw) {
+  if (raw === undefined) return { ok: true, value: undefined };
+  if (raw === null || raw === '') return { ok: true, value: null };
+  const v = String(raw).trim().toLowerCase();
+  if (ESTADOS_CAJA.includes(v)) return { ok: true, value: v };
+  return { ok: false, value: undefined };
+}
+
 router.get('/', async (req, res, next) => {
   try {
     const db = getDb();
@@ -99,7 +115,7 @@ router.get('/', async (req, res, next) => {
       const placeholders = envioIds.map(() => '?').join(', ');
       const bultoRows = await db
         .prepare(`
-          SELECT id, envio_id, numero_bulto, peso_real, largo, ancho, alto, peso_volumetrico, numero_guia
+          SELECT id, envio_id, numero_bulto, peso_real, largo, ancho, alto, peso_volumetrico, numero_guia, estado_caja
           FROM envio_bultos
           WHERE envio_id IN (${placeholders})
           ORDER BY envio_id, numero_bulto`)
@@ -115,6 +131,7 @@ router.get('/', async (req, res, next) => {
           alto: b.alto,
           peso_volumetrico: b.peso_volumetrico,
           numero_guia: b.numero_guia,
+          estado_caja: b.estado_caja ?? null,
         });
       }
     }
@@ -134,6 +151,9 @@ router.get('/', async (req, res, next) => {
         alto: row.alto,
         peso_volumetrico: row.peso_volumetrico,
         numero_guia: null,
+        // Bulto único sin fila propia: nunca tiene estado materializado. NULL = rojo en
+        // la lectura. Para fijarle estado el front llama al endpoint que materializa la fila.
+        estado_caja: null,
       }];
     };
 
@@ -367,31 +387,122 @@ router.patch('/:id', async (req, res, next) => {
   }
 });
 
-// Edita el numero_guia de UN bulto individual (una fila de envio_bultos).
-// Las guías reasignadas (p. ej. UPS) las carga el usuario tal cual. No se valida
-// unicidad: el cruce de facturas todavía usa la guía del envío. Guía vacía → NULL,
-// para que el frontend vuelva a usar la guía del envío como fallback.
+// Edita un bulto REAL individual (una fila de envio_bultos). Update PARCIAL: actualiza
+// solo los campos que vienen en el body, sin pisar los demás.
+//   - numero_guia: guías reasignadas (p. ej. UPS) cargadas tal cual. No se valida
+//     unicidad: el cruce de facturas todavía usa la guía del envío. Vacío → NULL,
+//     para que el frontend vuelva a usar la guía del envío como fallback.
+//   - estado_caja: semáforo de caja ('rojo'|'amarillo'|'verde'|NULL para limpiar).
+// Para un envío de bulto único (sintético, sin fila) el front NO tiene id de bulto:
+// usa PATCH /salidas/envios/:envioId/estado-bulto-unico, que materializa la fila.
 router.patch('/bultos/:id', async (req, res, next) => {
   try {
     const db = getDb();
     const id = parseInt(req.params.id, 10);
     if (!Number.isFinite(id)) return res.status(400).json({ error: 'ID inválido' });
 
-    const numeroGuia = String(req.body.numero_guia ?? '').trim().toUpperCase() || null;
+    const tieneGuia = Object.prototype.hasOwnProperty.call(req.body, 'numero_guia');
+    const tieneEstado = Object.prototype.hasOwnProperty.call(req.body, 'estado_caja');
+    if (!tieneGuia && !tieneEstado) {
+      return res.status(400).json({ error: 'No hay campos para actualizar' });
+    }
 
+    const sets = [];
+    const values = [];
+
+    if (tieneGuia) {
+      const numeroGuia = String(req.body.numero_guia ?? '').trim().toUpperCase() || null;
+      sets.push('numero_guia = ?');
+      values.push(numeroGuia);
+    }
+
+    if (tieneEstado) {
+      const estado = normalizarEstadoCaja(req.body.estado_caja);
+      if (!estado.ok) {
+        return res.status(400).json({ error: "estado_caja inválido (use 'rojo', 'amarillo', 'verde' o vacío)" });
+      }
+      sets.push('estado_caja = ?');
+      values.push(estado.value);
+    }
+
+    values.push(id);
     const result = await db
-      .prepare('UPDATE envio_bultos SET numero_guia = ? WHERE id = ?')
-      .run(numeroGuia, id);
+      .prepare(`UPDATE envio_bultos SET ${sets.join(', ')} WHERE id = ?`)
+      .run(...values);
 
     if (result.changes === 0) {
       return res.status(404).json({ error: 'Bulto no encontrado' });
     }
 
     const bulto = await db
-      .prepare('SELECT id, envio_id, numero_bulto, numero_guia FROM envio_bultos WHERE id = ?')
+      .prepare('SELECT id, envio_id, numero_bulto, numero_guia, estado_caja FROM envio_bultos WHERE id = ?')
       .get(id);
 
     res.json(bulto);
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Fija el estado_caja de un envío de UN bulto que todavía NO tiene fila en envio_bultos
+// (bulto sintético: el GET lo arma al vuelo con id null, por eso el front no tiene id).
+// Materializa la fila del bulto 1 copiando peso/medidas/peso_volumetrico/numero_guia del
+// envío y le setea el estado. Tras esto el bulto pasa a ser real y futuras ediciones van
+// por PATCH /bultos/:id. Si el envío YA tiene bultos reales, 409: este endpoint es solo
+// para el caso de bulto único sintético.
+router.patch('/envios/:envioId/estado-bulto-unico', async (req, res, next) => {
+  try {
+    const db = getDb();
+    const envioId = parseInt(req.params.envioId, 10);
+    if (!Number.isFinite(envioId)) return res.status(400).json({ error: 'ID inválido' });
+
+    if (!Object.prototype.hasOwnProperty.call(req.body, 'estado_caja')) {
+      return res.status(400).json({ error: 'Falta estado_caja' });
+    }
+    const estado = normalizarEstadoCaja(req.body.estado_caja);
+    if (!estado.ok) {
+      return res.status(400).json({ error: "estado_caja inválido (use 'rojo', 'amarillo', 'verde' o vacío)" });
+    }
+
+    const envio = await db
+      .prepare('SELECT id, numero_guia, peso_real, largo, ancho, alto, peso_volumetrico FROM envios WHERE id = ?')
+      .get(envioId);
+    if (!envio) return res.status(404).json({ error: 'Envío no encontrado' });
+
+    const existentes = await db
+      .prepare('SELECT COUNT(*) AS n FROM envio_bultos WHERE envio_id = ?')
+      .get(envioId);
+    if (existentes.n > 0) {
+      return res.status(409).json({
+        error: 'El envío ya tiene bultos reales; use PATCH /salidas/bultos/:id con el id del bulto',
+      });
+    }
+
+    // Materializar el bulto 1 desde los campos del envío (espejo del bulto sintético del
+    // GET). largo/ancho/alto son NOT NULL en envio_bultos: si el envío no los tiene, se
+    // guardan como 0 (envío sin medidas; se pueden corregir editando el bulto).
+    const result = await db
+      .prepare(
+        `INSERT INTO envio_bultos
+           (envio_id, numero_bulto, peso_real, largo, ancho, alto, peso_volumetrico, numero_guia, estado_caja)
+         VALUES (?, 1, ?, ?, ?, ?, ?, ?, ?)`
+      )
+      .run(
+        envioId,
+        envio.peso_real ?? null,
+        envio.largo ?? 0,
+        envio.ancho ?? 0,
+        envio.alto ?? 0,
+        envio.peso_volumetrico ?? 0,
+        envio.numero_guia ?? null,
+        estado.value,
+      );
+
+    const bulto = await db
+      .prepare('SELECT id, envio_id, numero_bulto, numero_guia, estado_caja FROM envio_bultos WHERE id = ?')
+      .get(result.lastInsertRowid);
+
+    res.status(201).json(bulto);
   } catch (err) {
     next(err);
   }

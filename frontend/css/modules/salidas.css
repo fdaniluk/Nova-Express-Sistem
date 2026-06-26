@@ -397,6 +397,72 @@ th:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: '⇅'; }
 
 .track-btn:hover { opacity: 1; background: #fef3c7; }
 
+/* ── Semáforo de estado de caja por bulto ── */
+.bulto-estado-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.bulto-estado-dot.estado-rojo     { background: #E24B4A; }
+.bulto-estado-dot.estado-amarillo { background: #EF9F27; }
+.bulto-estado-dot.estado-verde    { background: #1D9E75; }
+
+/* Sección "Estado de la caja" del modal: una fila (1 bulto) o varias (multi-bulto). */
+.saled-estado-caja {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.saled-estado-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.saled-estado-label {
+  font-weight: 600;
+  font-size: 0.8rem;
+  min-width: 60px;
+}
+
+.saled-estado-btns {
+  display: flex;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.saled-estado-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  font-size: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  background: #fff;
+  cursor: pointer;
+  line-height: 1.3;
+}
+
+.saled-estado-btn:hover { background: #f1f5f9; }
+
+.saled-estado-btn.active {
+  border-color: var(--color-primary);
+  box-shadow: inset 0 0 0 1px var(--color-primary);
+  font-weight: 600;
+}
+
+.saled-estado-btn:disabled { opacity: 0.5; cursor: default; }
+
+/* El punto dentro del botón no necesita margen (el gap del flex ya separa). */
+.saled-estado-btn .bulto-estado-dot { margin-right: 0; }
+
 /* ── Edición inline de la guía por bulto ── */
 .bulto-guia-edit {
   background: none;

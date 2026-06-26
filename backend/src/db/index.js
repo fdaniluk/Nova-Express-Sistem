@@ -201,6 +201,9 @@ async function migrateEnvioBultos() {
   const cols = (await dbApi.prepare('PRAGMA table_info(envio_bultos)').all()).map((c) => c.name);
   const toAdd = [
     ['numero_guia', 'TEXT'],
+    // Semáforo de estado de caja por bulto: 'rojo' | 'amarillo' | 'verde' | NULL.
+    // NULL se interpreta como rojo (nunca escaneada) en la lectura; sin DEFAULT.
+    ['estado_caja', 'TEXT'],
   ];
   for (const [col, def] of toAdd) {
     if (!cols.includes(col)) {

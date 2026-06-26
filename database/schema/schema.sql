@@ -134,6 +134,7 @@ CREATE TABLE IF NOT EXISTS envio_bultos (
   ancho            REAL NOT NULL,
   alto             REAL NOT NULL,
   peso_volumetrico REAL NOT NULL DEFAULT 0,
+  estado_caja      TEXT,
   FOREIGN KEY (envio_id) REFERENCES envios(id) ON DELETE CASCADE,
   UNIQUE (envio_id, numero_bulto)
 );
