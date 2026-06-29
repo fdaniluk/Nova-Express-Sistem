@@ -44,7 +44,7 @@ router.get('/', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const db = getDb();
-    const { cliente_id, direccion, fecha, hora_inicio, hora_fin, notas, courier, recolector, tiene_cobro, tipo_recoleccion } = req.body;
+    const { cliente_id, direccion, fecha, hora_inicio, hora_fin, notas, courier, recolector, tiene_cobro, tipo_recoleccion, llevar_plata, mostrar_en_operaciones } = req.body;
     console.log('[POST /pickups] body:', JSON.stringify(req.body));
 
     if (!cliente_id || !direccion || !fecha || !hora_inicio || !hora_fin) {
@@ -74,8 +74,8 @@ router.post('/', async (req, res, next) => {
     const result = await db
       .prepare(
         `INSERT INTO pickups
-           (cliente_id, cliente_nombre, direccion, fecha, hora_inicio, hora_fin, notas, courier, recolector, tiene_cobro, tipo_recoleccion, estado)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           (cliente_id, cliente_nombre, direccion, fecha, hora_inicio, hora_fin, notas, courier, recolector, tiene_cobro, tipo_recoleccion, estado, llevar_plata, mostrar_en_operaciones)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         cliente_id,
@@ -89,7 +89,9 @@ router.post('/', async (req, res, next) => {
         recolector || null,
         tiene_cobro ? 1 : 0,
         tipo,
-        estadoInicial
+        estadoInicial,
+        llevar_plata ? 1 : 0,
+        mostrar_en_operaciones ? 1 : 0
       );
 
     const created = await db.prepare('SELECT * FROM pickups WHERE id = ?').get(result.lastInsertRowid);
@@ -108,7 +110,7 @@ router.put('/:id', async (req, res, next) => {
     if (!existing) return res.status(404).json({ error: 'Pickup no encontrado' });
 
     // `estado` no se acepta como campo libre: se deriva de los timestamps actuales
-    const { cliente_id, direccion, fecha, hora_inicio, hora_fin, notas, courier, recolector, tiene_cobro, tipo_recoleccion } = req.body;
+    const { cliente_id, direccion, fecha, hora_inicio, hora_fin, notas, courier, recolector, tiene_cobro, tipo_recoleccion, llevar_plata, mostrar_en_operaciones } = req.body;
 
     if (recolector != null && !RECOLECTORES.includes(recolector)) {
       return res.status(400).json({ error: `Recolector inválido. Valores permitidos: ${RECOLECTORES.join(', ')}` });
@@ -138,7 +140,8 @@ router.put('/:id', async (req, res, next) => {
       .prepare(
         `UPDATE pickups
          SET cliente_id=?, cliente_nombre=?, direccion=?, fecha=?, hora_inicio=?, hora_fin=?,
-             notas=?, estado=?, courier=?, recolector=?, tiene_cobro=?, tipo_recoleccion=?
+             notas=?, estado=?, courier=?, recolector=?, tiene_cobro=?, tipo_recoleccion=?,
+             llevar_plata=?, mostrar_en_operaciones=?
          WHERE id=?`
       )
       .run(
@@ -154,6 +157,8 @@ router.put('/:id', async (req, res, next) => {
         recolector    !== undefined ? recolector    : existing.recolector,
         tiene_cobro   !== undefined ? (tiene_cobro ? 1 : 0) : existing.tiene_cobro,
         newTipo,
+        llevar_plata           !== undefined ? (llevar_plata ? 1 : 0)           : existing.llevar_plata,
+        mostrar_en_operaciones !== undefined ? (mostrar_en_operaciones ? 1 : 0) : existing.mostrar_en_operaciones,
         id
       );
 

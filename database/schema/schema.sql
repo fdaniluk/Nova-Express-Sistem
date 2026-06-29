@@ -210,7 +210,9 @@ CREATE TABLE IF NOT EXISTS pickups (
   visto_juanqui_at    TEXT,
   tiene_cobro         INTEGER DEFAULT 0,
   tipo_recoleccion    TEXT DEFAULT 'normal',
-  titulo              TEXT
+  titulo              TEXT,
+  llevar_plata             INTEGER DEFAULT 0,
+  mostrar_en_operaciones   INTEGER DEFAULT 1
 );
 
 -- Cuadrantes: "envíos manuales" que operaciones crea copiando el cliente de un

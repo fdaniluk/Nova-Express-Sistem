@@ -15,9 +15,10 @@ router.get('/', async (req, res, next) => {
       .prepare(
         `SELECT id, cliente_id, cliente_nombre, direccion, fecha, hora_inicio, hora_fin, estado, tipo_recoleccion, titulo,
                 check_datos, check_guia, check_proforma, check_despachado,
-                confirmado_ricardo, visto_juanqui_at, confirmado_juanqui, en_deposito_at, recolector
+                confirmado_ricardo, visto_juanqui_at, confirmado_juanqui, en_deposito_at, recolector, mostrar_en_operaciones
          FROM pickups
          WHERE fecha = ?
+           AND (mostrar_en_operaciones = 1 OR mostrar_en_operaciones IS NULL)
          ORDER BY hora_inicio ASC`
       )
       .all(fecha);
@@ -30,10 +31,11 @@ router.get('/', async (req, res, next) => {
       .prepare(
         `SELECT id, cliente_id, cliente_nombre, direccion, fecha, hora_inicio, hora_fin, estado, tipo_recoleccion, titulo,
                 check_datos, check_guia, check_proforma, check_despachado,
-                confirmado_ricardo, visto_juanqui_at, confirmado_juanqui, en_deposito_at, recolector
+                confirmado_ricardo, visto_juanqui_at, confirmado_juanqui, en_deposito_at, recolector, mostrar_en_operaciones
          FROM pickups
          WHERE (check_despachado = 0 OR check_despachado IS NULL)
            AND fecha < ?
+           AND (mostrar_en_operaciones = 1 OR mostrar_en_operaciones IS NULL)
          ORDER BY fecha ASC, hora_inicio ASC`
       )
       .all(fecha);

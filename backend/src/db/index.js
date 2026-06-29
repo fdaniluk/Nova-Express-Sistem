@@ -138,6 +138,8 @@ async function migratePickups() {
     ['tiene_cobro',        'INTEGER DEFAULT 0'],
     ['tipo_recoleccion',   "TEXT DEFAULT 'normal'"],
     ['titulo',             'TEXT'],
+    ['llevar_plata',          'INTEGER DEFAULT 0'],
+    ['mostrar_en_operaciones','INTEGER DEFAULT 1'],
   ];
   for (const [col, def] of toAdd) {
     if (!cols.includes(col)) {
