@@ -315,6 +315,7 @@
     }
 
     const cobroBadgeHtml = p.tiene_cobro ? '<span class="cobro-badge">$ Cobro</span>' : '';
+    const llevarPlataBadgeHtml = p.llevar_plata ? '<span class="cobro-badge">Llevar plata</span>' : '';
 
     return `<div class="pickup-card-v2${cardExtra}" id="pickup-card-${p.id}">
       <div class="pickup-rec-stripe ${stripeClass}"${stripeAttrs}>${escHtml(stripeLabel)}</div>
@@ -327,6 +328,7 @@
               ${courierBadgeHtml(p.courier)}
               <span class="pickup-badge ${sc}">${badgeText}</span>
               ${cobroBadgeHtml}
+              ${llevarPlataBadgeHtml}
             </div>
           </div>
           <div class="pickup-client-name">${escHtml(p.cliente_nombre)}</div>
@@ -575,6 +577,8 @@
     document.getElementById('m-courier').value = '';
     document.getElementById('m-tipo-recoleccion').value = 'normal';
     document.getElementById('m-tiene-cobro').checked = false;
+    document.getElementById('m-llevar-plata').checked = false;
+    document.getElementById('m-mostrar-operaciones').checked = true;
     document.getElementById('m-notas').value = '';
     const primerCliente = clientes[0];
     if (primerCliente) cargarDirecciones(primerCliente.id);
@@ -596,6 +600,8 @@
     document.getElementById('m-courier').value = p.courier || '';
     document.getElementById('m-tipo-recoleccion').value = p.tipo_recoleccion || 'normal';
     document.getElementById('m-tiene-cobro').checked = !!p.tiene_cobro;
+    document.getElementById('m-llevar-plata').checked = !!p.llevar_plata;
+    document.getElementById('m-mostrar-operaciones').checked = !!p.mostrar_en_operaciones;
     document.getElementById('m-notas').value = p.notas || '';
     await cargarDirecciones(p.cliente_id);
     setDireccionEnModal(p.direccion);
@@ -616,6 +622,8 @@
     const courierEl = document.getElementById('m-courier');
     const courier = courierEl ? (courierEl.value || null) : null;
     const tiene_cobro = document.getElementById('m-tiene-cobro').checked ? 1 : 0;
+    const llevar_plata = document.getElementById('m-llevar-plata').checked ? 1 : 0;
+    const mostrar_en_operaciones = document.getElementById('m-mostrar-operaciones').checked ? 1 : 0;
     const tipo_recoleccion = document.getElementById('m-tipo-recoleccion').value || 'normal';
     const notas = document.getElementById('m-notas').value.trim() || null;
     if (!cliente_id || !direccion || !fecha || !hora_inicio || !hora_fin) {
@@ -624,9 +632,9 @@
     }
     try {
       if (pickupEditandoId) {
-        await NovaAPI.pickups.editar(pickupEditandoId, { cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, tiene_cobro, tipo_recoleccion, notas });
+        await NovaAPI.pickups.editar(pickupEditandoId, { cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, tiene_cobro, llevar_plata, mostrar_en_operaciones, tipo_recoleccion, notas });
       } else {
-        await NovaAPI.pickups.crear({ cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, tiene_cobro, tipo_recoleccion, notas });
+        await NovaAPI.pickups.crear({ cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, tiene_cobro, llevar_plata, mostrar_en_operaciones, tipo_recoleccion, notas });
       }
       cerrarModal();
       await cargarPickups();
