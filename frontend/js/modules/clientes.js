@@ -27,7 +27,7 @@
 
   function renderTabla() {
     if (!clientes.length) {
-      tabla.innerHTML = '<tr><td colspan="8" class="empty">No hay clientes registrados.</td></tr>';
+      tabla.innerHTML = '<tr><td colspan="9" class="empty">No hay clientes registrados.</td></tr>';
       return;
     }
     tabla.innerHTML = clientes
@@ -39,6 +39,7 @@
             ${c.nombre}
           </a>
         </td>
+        <td>${c.nombre_nova || '—'}</td>
         <td>${c.cuit || '—'}</td>
         <td>${c.contacto || '—'}</td>
         <td>${c.email || '—'}</td>
@@ -110,6 +111,7 @@
     formTitle.textContent = 'Editar cliente';
     clienteIdInput.value = c.id;
     setField('f-razon_social', c.nombre);
+    setField('f-nombre_nova', c.nombre_nova || '');
     setField('f-cuit', c.cuit || '');
     setField('f-tipo_cobro', c.tipo_cobro || 'CC');
     setField('f-tarifa_pct', c.tarifa_pct != null ? c.tarifa_pct : 0);
@@ -140,6 +142,7 @@
   function getFormData() {
     return {
       razon_social: document.getElementById('f-razon_social').value.trim(),
+      nombre_nova: document.getElementById('f-nombre_nova').value.trim() || null,
       cuit: document.getElementById('f-cuit').value.trim() || null,
       tipo_cobro: document.getElementById('f-tipo_cobro').value,
       tarifa_pct: parseFloat(document.getElementById('f-tarifa_pct').value) || 0,

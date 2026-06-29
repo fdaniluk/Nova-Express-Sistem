@@ -50,7 +50,7 @@ function buildPesos(data) {
 async function buscarPorId(id) {
   const row = await getDb()
     .prepare(
-      `SELECT e.*, c.nombre AS cliente_nombre, c.tipo_cobro
+      `SELECT e.*, COALESCE(NULLIF(c.nombre_nova,''), c.nombre) AS cliente_nombre, c.tipo_cobro
        FROM envios e
        JOIN clientes c ON c.id = e.cliente_id
        WHERE e.id = ?`
@@ -65,7 +65,7 @@ async function buscarPorId(id) {
 async function listar(filtros = {}) {
   const db = getDb();
   let sql = `
-    SELECT e.*, c.nombre AS cliente_nombre, c.tipo_cobro
+    SELECT e.*, COALESCE(NULLIF(c.nombre_nova,''), c.nombre) AS cliente_nombre, c.tipo_cobro
     FROM envios e
     JOIN clientes c ON c.id = e.cliente_id
     WHERE 1=1`;
@@ -96,9 +96,9 @@ async function listar(filtros = {}) {
     params.push(filtros.liquidado === 'true' || filtros.liquidado === '1' ? 1 : 0);
   }
   if (filtros.q) {
-    sql += ' AND (e.numero_guia LIKE ? OR c.nombre LIKE ?)';
+    sql += ' AND (e.numero_guia LIKE ? OR c.nombre LIKE ? OR c.nombre_nova LIKE ?)';
     const term = `%${filtros.q}%`;
-    params.push(term, term);
+    params.push(term, term, term);
   }
 
   sql += ' ORDER BY e.fecha DESC, e.id DESC';
@@ -281,7 +281,7 @@ async function actualizar(id, data) {
 async function listarPendientesPorCliente(filtros = {}) {
   const db = getDb();
   let sql = `
-    SELECT e.*, c.nombre AS cliente_nombre, c.tipo_cobro, c.id AS cliente_id
+    SELECT e.*, COALESCE(NULLIF(c.nombre_nova,''), c.nombre) AS cliente_nombre, c.tipo_cobro, c.id AS cliente_id
     FROM envios e
     JOIN clientes c ON c.id = e.cliente_id
     WHERE e.liquidado = 0`;

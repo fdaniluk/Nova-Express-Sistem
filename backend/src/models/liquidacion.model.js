@@ -272,7 +272,7 @@ async function buscarPorId(id) {
   const db = getDb();
   const liq = await db
     .prepare(
-      `SELECT l.*, c.nombre AS cliente_nombre, c.tipo_cobro
+      `SELECT l.*, COALESCE(NULLIF(c.nombre_nova,''), c.nombre) AS cliente_nombre, c.tipo_cobro
        FROM liquidaciones l
        JOIN clientes c ON c.id = l.cliente_id
        WHERE l.id = ?`
@@ -301,7 +301,7 @@ async function buscarPorId(id) {
 async function listar(filtros = {}) {
   const db = getDb();
   let sql = `
-    SELECT l.*, c.nombre AS cliente_nombre, c.tipo_cobro,
+    SELECT l.*, COALESCE(NULLIF(c.nombre_nova,''), c.nombre) AS cliente_nombre, c.tipo_cobro,
            (SELECT COUNT(*) FROM liquidacion_items WHERE liquidacion_id = l.id) AS cantidad_envios
     FROM liquidaciones l
     JOIN clientes c ON c.id = l.cliente_id

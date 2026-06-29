@@ -103,6 +103,7 @@ function getDb() {
 async function migrateClientes() {
   const existingCols = (await dbApi.prepare('PRAGMA table_info(clientes)').all()).map((c) => c.name);
   const toAdd = [
+    ['nombre_nova',           'TEXT'],
     ['cuit',                  'TEXT'],
     ['direccion_recoleccion', 'TEXT'],
     ['contacto',              'TEXT'],

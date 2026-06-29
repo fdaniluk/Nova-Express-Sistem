@@ -43,7 +43,7 @@
       for (const c of clientes) {
         const opt = document.createElement('option');
         opt.value = c.id;
-        opt.textContent = `${c.nombre} (${NovaUtils.tipoCobroLabel(c.tipo_cobro)})`;
+        opt.textContent = `${c.nombre_nova || c.nombre} (${NovaUtils.tipoCobroLabel(c.tipo_cobro)})`;
         sel.appendChild(opt);
       }
     }

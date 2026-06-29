@@ -62,9 +62,10 @@ router.post('/', async (req, res, next) => {
     }
 
     const cliente = await db
-      .prepare('SELECT nombre FROM clientes WHERE id = ?')
+      .prepare('SELECT nombre, nombre_nova FROM clientes WHERE id = ?')
       .get(cliente_id);
     if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
+    const clienteNombreMostrar = (cliente.nombre_nova && cliente.nombre_nova.trim()) || cliente.nombre;
 
     const tipo = tipo_recoleccion || 'normal';
     // Estado inicial: 'courier' nace terminal; los demás nacen 'pendiente'.
@@ -78,7 +79,7 @@ router.post('/', async (req, res, next) => {
       )
       .run(
         cliente_id,
-        cliente.nombre,
+        clienteNombreMostrar,
         direccion,
         fecha,
         hora_inicio,

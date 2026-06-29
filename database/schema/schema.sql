@@ -8,6 +8,7 @@ PRAGMA foreign_keys = ON;
 CREATE TABLE IF NOT EXISTS clientes (
   id                   INTEGER PRIMARY KEY AUTOINCREMENT,
   nombre               TEXT NOT NULL UNIQUE,
+  nombre_nova          TEXT,
   tipo_cobro           TEXT NOT NULL CHECK (tipo_cobro IN ('D', 'S', 'Q', 'CC')),
   tarifa_especial      TEXT,
   activo               INTEGER NOT NULL DEFAULT 1,

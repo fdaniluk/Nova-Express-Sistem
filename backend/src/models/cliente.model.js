@@ -31,12 +31,13 @@ async function crear(data) {
   const result = await db
     .prepare(
       `INSERT INTO clientes
-        (nombre, tipo_cobro, tarifa_especial, cuit, direccion_recoleccion, contacto,
+        (nombre, nombre_nova, tipo_cobro, tarifa_especial, cuit, direccion_recoleccion, contacto,
          email, whatsapp, codigo_postal, localidad, tipo_facturacion, tarifa_pct)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       nombre,
+      data.nombre_nova ?? null,
       tipoCobro,
       tarifa,
       data.cuit ?? null,
@@ -61,10 +62,19 @@ async function actualizar(id, data) {
       ? data.tarifa_especial ? JSON.stringify(data.tarifa_especial) : null
       : actual.tarifa_especial;
   const nombreNuevo = data.razon_social !== undefined ? data.razon_social : data.nombre;
+  // nombre_nova lo controla totalmente el usuario: si la propiedad VIENE en el body
+  // (aunque sea vacía) se asigna directo y puede borrarse; si NO viene, se mantiene
+  // con COALESCE para no pisar el valor desde llamadores que no lo envían.
+  const novaProvisto = Object.prototype.hasOwnProperty.call(data, 'nombre_nova');
+  const novaClausula = novaProvisto ? 'nombre_nova = ?' : 'nombre_nova = COALESCE(?, nombre_nova)';
+  const novaValor = novaProvisto
+    ? ((data.nombre_nova && String(data.nombre_nova).trim()) || null)
+    : null;
   await db
     .prepare(
       `UPDATE clientes SET
         nombre              = COALESCE(?, nombre),
+        ${novaClausula},
         tipo_cobro          = COALESCE(?, tipo_cobro),
         tarifa_especial     = ?,
         activo              = COALESCE(?, activo),
@@ -82,6 +92,7 @@ async function actualizar(id, data) {
     )
     .run(
       nombreNuevo ?? null,
+      novaValor,
       data.tipo_cobro ?? null,
       tarifa,
       data.activo !== undefined ? (data.activo ? 1 : 0) : null,

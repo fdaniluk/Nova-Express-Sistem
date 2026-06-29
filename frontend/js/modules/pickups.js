@@ -485,7 +485,7 @@
   function poblarSelectClientes() {
     const sel = document.getElementById('m-cliente');
     sel.innerHTML = clientes
-      .map(c => `<option value="${c.id}">${escHtml(c.nombre)}</option>`)
+      .map(c => `<option value="${c.id}">${escHtml(c.nombre_nova || c.nombre)}</option>`)
       .join('');
   }
 

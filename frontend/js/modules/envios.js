@@ -81,7 +81,7 @@
       for (const c of clientes) {
         const opt = document.createElement('option');
         opt.value = c.id;
-        opt.textContent = c.nombre;
+        opt.textContent = c.nombre_nova || c.nombre;
         sel.appendChild(opt);
       }
     }

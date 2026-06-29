@@ -42,7 +42,7 @@ router.get('/', async (req, res, next) => {
     const cuadrantes = await db
       .prepare(
         `SELECT q.id, q.cliente_id, q.envio_origen_id, q.pickup_id, q.titulo, q.fecha,
-                c.nombre AS cliente_nombre, q.estado_operativo,
+                COALESCE(NULLIF(c.nombre_nova,''), c.nombre) AS cliente_nombre, q.estado_operativo,
                 q.check_datos, q.check_guia, q.check_proforma, q.check_despachado
          FROM cuadrantes q
          JOIN clientes c ON q.cliente_id = c.id
@@ -55,7 +55,7 @@ router.get('/', async (req, res, next) => {
     const cuadrantesRezagados = await db
       .prepare(
         `SELECT q.id, q.cliente_id, q.envio_origen_id, q.pickup_id, q.titulo, q.fecha,
-                c.nombre AS cliente_nombre, q.estado_operativo,
+                COALESCE(NULLIF(c.nombre_nova,''), c.nombre) AS cliente_nombre, q.estado_operativo,
                 q.check_datos, q.check_guia, q.check_proforma, q.check_despachado
          FROM cuadrantes q
          JOIN clientes c ON q.cliente_id = c.id
@@ -207,7 +207,7 @@ router.post('/cuadrantes', async (req, res, next) => {
     const creado = await db
       .prepare(
         `SELECT q.id, q.cliente_id, q.envio_origen_id, q.pickup_id, q.titulo, q.fecha,
-                c.nombre AS cliente_nombre, q.estado_operativo,
+                COALESCE(NULLIF(c.nombre_nova,''), c.nombre) AS cliente_nombre, q.estado_operativo,
                 q.check_datos, q.check_guia, q.check_proforma, q.check_despachado
          FROM cuadrantes q
          JOIN clientes c ON q.cliente_id = c.id
@@ -256,7 +256,7 @@ router.patch('/cuadrantes/:id', async (req, res, next) => {
     const updated = await db
       .prepare(
         `SELECT q.id, q.cliente_id, q.envio_origen_id, q.pickup_id, q.titulo, q.fecha,
-                c.nombre AS cliente_nombre, q.estado_operativo,
+                COALESCE(NULLIF(c.nombre_nova,''), c.nombre) AS cliente_nombre, q.estado_operativo,
                 q.check_datos, q.check_guia, q.check_proforma, q.check_despachado
          FROM cuadrantes q
          JOIN clientes c ON q.cliente_id = c.id

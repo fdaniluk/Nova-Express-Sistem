@@ -78,7 +78,7 @@ router.get('/', async (req, res, next) => {
         e.liquidacion_id,
         e.created_at,
         c.id                  AS cliente_id,
-        c.nombre              AS cliente_nombre,
+        COALESCE(NULLIF(c.nombre_nova,''), c.nombre) AS cliente_nombre,
         c.tipo_cobro
       FROM envios e
       JOIN clientes c ON c.id = e.cliente_id
