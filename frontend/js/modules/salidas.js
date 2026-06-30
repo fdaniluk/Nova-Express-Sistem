@@ -31,7 +31,9 @@
   // ── Navegación por celdas (estilo Excel) ────────────────────────────────────
   // activeCell es una COORDENADA LÓGICA, no un nodo: { rowIndex, colIndex } | null.
   // El re-render destruye los td, por eso se guardan índices y se vuelve a resolver el td.
-  const GRID_MAX_COL = 30;   // 31 columnas fijas → índices 0..30
+  // La columna 0 es el checkbox de selección: NO se navega con flechas (índices 1..31).
+  const GRID_MIN_COL = 1;    // columna 0 = checkbox "copiar guías", no navegable
+  const GRID_MAX_COL = 31;   // 32 columnas fijas → índices 0..31; navegables 1..31
   let activeCell = null;
 
   const alertBox = document.getElementById('alert-box');
@@ -50,6 +52,8 @@
     bindRowEdit();
     bindBultoGuiaEdit();
     bindGridNav();
+    bindCopiarGuias();
+    bindSelectAllGuias();
     await loadData();
   }
 
@@ -63,7 +67,7 @@
     } catch (err) {
       NovaUtils.showAlert(alertBox, 'Error al cargar salidas: ' + err.message, 'error');
       document.getElementById('salidas-body').innerHTML =
-        '<tr><td colspan="31" class="salidas-empty">Error al cargar datos</td></tr>';
+        '<tr><td colspan="32" class="salidas-empty">Error al cargar datos</td></tr>';
     }
   }
 
@@ -144,6 +148,10 @@
   function applyAll() {
     filtered();
     visibleCount = 0;
+    // El tbody se reconstruye (los .chk-guia desaparecen): solo resetear el "seleccionar
+    // todo" del header para que no quede marcado al cambiar de mes/filtro/búsqueda.
+    const chkAll = document.getElementById('chk-all-guias');
+    if (chkAll) chkAll.checked = false;
     renderPage();
     updateCounter();
     renderChips();
@@ -211,7 +219,7 @@
 
     if (visibleCount === 0 && nextBatch.length === 0) {
       const tr = document.createElement('tr');
-      tr.innerHTML = '<td colspan="31" class="salidas-empty">No hay envíos que coincidan con los filtros</td>';
+      tr.innerHTML = '<td colspan="32" class="salidas-empty">No hay envíos que coincidan con los filtros</td>';
       tbody.appendChild(tr);
     } else {
       tbody.appendChild(fragment);
@@ -224,6 +232,21 @@
     // El tbody se reconstruyó: re-resolver la celda activa por coordenadas y reaplicar
     // el resaltado (o limpiarlo si la coordenada ya no existe).
     reconcileActiveCell();
+  }
+
+  // Guía que usa el checkbox de "Copiar guías" para ESTE renglón. En el primer
+  // renglón del envío cae al fallback de la guía del envío; en las sub-filas usa
+  // solo la guía del bulto. (Misma lógica que tenía inline buildRow.)
+  function computeRowGuia(e, b, isFirst) {
+    return isFirst
+      ? (b.numero_guia || e.numero_guia || '').trim()
+      : (b.numero_guia || '').trim();
+  }
+  // HTML de la celda del checkbox de selección: input si hay guía, vacío si no.
+  function chkCellHtml(rowGuia) {
+    return rowGuia
+      ? `<input type="checkbox" class="chk-guia" value="${escAttr(rowGuia)}">`
+      : '';
   }
 
   // Arma un renglón. `bulto` son los datos de ESTE bulto; `isFirst` es el primer
@@ -261,7 +284,14 @@
     // env(html): celda solo en el primer renglón; en los siguientes va en blanco.
     const env = (html) => (isFirst ? html : '');
 
+    // Checkbox de selección para "Copiar guías": solo en el primer renglón del envío y
+    // solo si tiene guía. El value es la guía del ENVÍO (e.numero_guia), nunca la del bulto,
+    // para no duplicar guías en envíos multi-bulto. Sub-filas y envíos sin guía: celda vacía.
+    const rowGuia = computeRowGuia(e, b, isFirst);
+    const chkCell = chkCellHtml(rowGuia);
+
     tr.innerHTML = `
+      <td class="chk-cell">${chkCell}</td>
       <td>${fmtNum(e.num_sal_mes)}</td>
       <td>${env(courierBadge(e.courier))}</td>
       <td>${env(NovaUtils.formatDate(e.fecha))}</td>
@@ -622,6 +652,76 @@
     XLSX.utils.book_append_sheet(wb, ws, 'Salidas');
     const filename = `historial-envios-${today}.xlsx`;
     XLSX.writeFile(wb, filename);
+  }
+
+  // ── Copiar guías seleccionadas ───────────────────────────────────────────────
+  // Recolecta las guías de las filas tildadas y las copia al portapapeles separadas por
+  // ESPACIO, listas para pegar en el buscador de tracking de UPS. Sin filtrar por courier:
+  // copia todo lo seleccionado. Una guía por envío (el value del checkbox es e.numero_guia).
+  function bindCopiarGuias() {
+    const btn = document.getElementById('btn-copiar-guias');
+    if (!btn) return;
+    btn.addEventListener('click', copiarGuias);
+  }
+
+  async function copiarGuias() {
+    const guias = [...new Set(
+      [...document.querySelectorAll('.chk-guia:checked')]
+        .map((c) => c.value)
+        .filter((v) => v && v.trim())
+        .map((v) => v.trim())
+    )];
+
+    if (!guias.length) {
+      NovaUtils.showAlert(alertBox, 'No hay guias seleccionadas', 'error');
+      return;
+    }
+
+    const texto = guias.join(' ');
+    const n = guias.length;
+
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(texto);
+      } else {
+        copiarFallback(texto);
+      }
+      NovaUtils.showAlert(alertBox, n + ' guias copiadas', 'success');
+    } catch (err) {
+      // navigator.clipboard puede fallar (permisos, contexto no seguro): reintentar con el
+      // método viejo de textarea + execCommand antes de darse por vencido.
+      try {
+        copiarFallback(texto);
+        NovaUtils.showAlert(alertBox, n + ' guias copiadas', 'success');
+      } catch (err2) {
+        NovaUtils.showAlert(alertBox, 'No se pudo copiar al portapapeles', 'error');
+      }
+    }
+  }
+
+  // Fallback de copia: textarea temporal fuera de pantalla + document.execCommand('copy').
+  function copiarFallback(texto) {
+    const ta = document.createElement('textarea');
+    ta.value = texto;
+    ta.style.position = 'fixed';
+    ta.style.left = '-9999px';
+    ta.style.opacity = '0';
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    const ok = document.execCommand('copy');
+    document.body.removeChild(ta);
+    if (!ok) throw new Error('execCommand copy devolvió false');
+  }
+
+  // "Seleccionar todo" del header: marca/desmarca todos los .chk-guia visibles del tbody.
+  function bindSelectAllGuias() {
+    const chkAll = document.getElementById('chk-all-guias');
+    if (!chkAll) return;
+    chkAll.addEventListener('change', () => {
+      const checked = chkAll.checked;
+      document.querySelectorAll('#salidas-body .chk-guia').forEach((c) => { c.checked = checked; });
+    });
   }
 
   // ── UPS Tracking ────────────────────────────────────────────────────────────
@@ -1408,7 +1508,9 @@
   function bindRowEdit() {
     document.getElementById('salidas-body').addEventListener('click', (e) => {
       // No abrir modal si el click fue en un botón o link interactivo de la fila,
-      // ni si fue en el lápiz / editor inline de la guía del bulto.
+      // ni si fue en el lápiz / editor inline de la guía del bulto, ni en el checkbox
+      // de selección de guías (igual que ya se ignora .track-btn).
+      if (e.target.closest('.chk-guia')) return;
       if (e.target.closest('.track-btn') || e.target.closest('a')) return;
       if (e.target.closest('.bulto-guia-edit') || e.target.closest('.bulto-guia-edit-box')) return;
       const tr = e.target.closest('tr[data-envio-id]');
@@ -1474,6 +1576,18 @@
         // vacío en el bulto → fallback a la guía del envío (igual que en el render).
         cell.innerHTML = original;
         cell.querySelector('.bulto-guia-text').textContent = bulto.numero_guia || envio.numero_guia || '';
+        // Regenerar el checkbox de "Copiar guías" de esta fila: su value depende
+        // de la guía recién editada. Preservar el estado marcado si lo estaba.
+        const isFirst = !tr.classList.contains('bulto-detail-row');
+        const chkTd = tr.querySelector('td.chk-cell');
+        if (chkTd) {
+          const wasChecked = !!chkTd.querySelector('.chk-guia')?.checked;
+          chkTd.innerHTML = chkCellHtml(computeRowGuia(envio, bulto, isFirst));
+          if (wasChecked) {
+            const cb = chkTd.querySelector('.chk-guia');
+            if (cb) cb.checked = true;
+          }
+        }
       } catch (err) {
         saveBtn.disabled = false;
         NovaUtils.showAlert(alertBox, 'No se pudo guardar la guía del bulto: ' + err.message, 'error');
@@ -1519,7 +1633,7 @@
   }
 
   // Filas de datos = las que tienen data-envio-id. Excluye automáticamente las filas
-  // "Cargando…" / "No hay envíos" (td colspan 31 sin data-envio-id).
+  // "Cargando…" / "No hay envíos" (td colspan 32 sin data-envio-id).
   function getDataRows() {
     const tbody = document.getElementById('salidas-body');
     if (!tbody) return [];
@@ -1550,7 +1664,8 @@
   }
 
   function setActiveCell(rowIndex, colIndex, scroll) {
-    if (rowIndex < 0 || colIndex < 0) return;
+    // colIndex < GRID_MIN_COL incluye la columna 0 (checkbox): un click ahí NO activa celda.
+    if (rowIndex < 0 || colIndex < GRID_MIN_COL) return;
     activeCell = { rowIndex, colIndex };
     applyActiveCellHighlight();
     if (scroll) scrollActiveCellIntoView();
@@ -1563,7 +1678,7 @@
     const rows = getDataRows();
     if (!rows.length) { activeCell = null; clearActiveCellHighlight(); return; }
     const rowIndex = Math.min(Math.max(activeCell.rowIndex, 0), rows.length - 1);
-    const colIndex = Math.min(Math.max(activeCell.colIndex, 0), GRID_MAX_COL);
+    const colIndex = Math.min(Math.max(activeCell.colIndex, GRID_MIN_COL), GRID_MAX_COL);
     activeCell = { rowIndex, colIndex };
     applyActiveCellHighlight();
   }
@@ -1586,9 +1701,10 @@
     const rows = getDataRows();
     if (!rows.length) return;
 
-    // Sin celda activa: la primera flecha activa la primera celda de datos.
+    // Sin celda activa: la primera flecha activa la primera celda de datos navegable
+    // (col GRID_MIN_COL, saltando el checkbox de la columna 0).
     if (!activeCell) {
-      setActiveCell(0, 0, true);
+      setActiveCell(0, GRID_MIN_COL, true);
       e.preventDefault();
       return;
     }
@@ -1596,7 +1712,7 @@
     let { rowIndex, colIndex } = activeCell;
     if (e.key === 'ArrowUp') rowIndex = Math.max(0, rowIndex - 1);
     else if (e.key === 'ArrowDown') rowIndex = Math.min(rows.length - 1, rowIndex + 1);
-    else if (e.key === 'ArrowLeft') colIndex = Math.max(0, colIndex - 1);
+    else if (e.key === 'ArrowLeft') colIndex = Math.max(GRID_MIN_COL, colIndex - 1);
     else if (e.key === 'ArrowRight') colIndex = Math.min(GRID_MAX_COL, colIndex + 1);
 
     // En el borde no hay movimiento: NO bloquear el scroll normal de la página.

@@ -182,6 +182,12 @@
 .salidas-table tr:last-child td { border-bottom: none; }
 .salidas-table tbody tr:hover { background: #f8fafc; }
 
+/* Columna de selección para "Copiar guías" */
+.salidas-table .chk-cell { text-align: center; padding-left: 6px; padding-right: 6px; }
+.salidas-table th.chk-cell { cursor: default; }
+.salidas-table th.chk-cell:hover { background: #f1f5f9; }
+.salidas-table .chk-cell input[type="checkbox"] { cursor: pointer; margin: 0; vertical-align: middle; }
+
 /* Numeric columns right-aligned */
 .salidas-table .num { text-align: right; font-variant-numeric: tabular-nums; }
 .salidas-table .mono { font-family: 'Courier New', monospace; font-size: 11.5px; }

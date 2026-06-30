@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Salidas – Nova Express</title>
   <link rel="stylesheet" href="../css/main.css">
-  <link rel="stylesheet" href="../css/modules/salidas.css?v=4">
+  <link rel="stylesheet" href="../css/modules/salidas.css?v=5">
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
@@ -76,6 +76,7 @@
         <button class="btn btn-sm btn-secondary btn-toggle-alertas" id="btn-solo-alertas" title="Ver solo filas con alertas">
           ⚠ Solo alertas
         </button>
+        <button id="btn-copiar-guias" class="btn btn-sm btn-secondary">Copiar guias</button>
         <button class="btn btn-sm btn-primary" id="btn-exportar-excel">
           ↓ Exportar Excel
         </button>
@@ -106,6 +107,7 @@
           <table class="salidas-table" id="salidas-table">
             <thead>
               <tr>
+                <th class="chk-cell" style="width:32px"><input type="checkbox" id="chk-all-guias" title="Seleccionar todo"></th>
                 <th data-col="numero_salida" style="width:52px"><div class="th-inner">#Sal<span class="sort-icon"></span></div></th>
                 <th data-col="courier" style="width:70px"><div class="th-inner">Courier<button class="filter-btn" data-filter="courier" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
                 <th data-col="fecha" style="width:80px"><div class="th-inner">Fecha<span class="sort-icon"></span></div></th>
@@ -140,7 +142,7 @@
               </tr>
             </thead>
             <tbody id="salidas-body">
-              <tr><td colspan="31" class="salidas-empty">Cargando…</td></tr>
+              <tr><td colspan="32" class="salidas-empty">Cargando…</td></tr>
             </tbody>
           </table>
         </div>
@@ -166,6 +168,6 @@
 <script src="/js/auth-guard.js"></script>
 <script src="../js/api.js"></script>
 <script src="../js/main.js"></script>
-<script src="../js/modules/salidas.js?v=8"></script>
+<script src="../js/modules/salidas.js?v=12"></script>
 </body>
 </html>
