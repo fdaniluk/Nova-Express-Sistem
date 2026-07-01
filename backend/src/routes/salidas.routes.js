@@ -301,7 +301,7 @@ const SALIDAS_EDITABLE = [
   'numero_guia', 'numero_salida', 'bulto', 'tipo_paquete', 'asegurado', 'direccion',
   'peso_real', 'largo', 'ancho', 'alto', 'peso_facturable', 'peso_volumetrico',
   'flete', 'descuento', 'seguro', 'fuel', 'fuel_pct', 'derechos', 'adicionales', 'otros',
-  'profit', 'porcentaje', 'observaciones', 'extras_json',
+  'total_cobrado', 'profit', 'porcentaje', 'observaciones', 'extras_json',
 ];
 
 router.patch('/:id', async (req, res, next) => {

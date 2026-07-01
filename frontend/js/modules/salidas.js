@@ -996,6 +996,7 @@
               <div class="form-group"><label>Derechos</label><input type="number" id="saled-derechos" step="0.01"></div>
               <div class="form-group"><label>Adicionales</label><input type="number" id="saled-adicionales" step="0.01"></div>
               <div class="form-group"><label>Otros</label><input type="number" id="saled-otros" step="0.01"></div>
+              <div class="form-group"><label>Total cobrado</label><input type="number" id="saled-total" step="0.01"></div>
               <div class="form-group"><label>Profit</label><input type="number" id="saled-profit" step="0.01"></div>
               <div class="form-group"><label>% Profit</label><input type="number" id="saled-porcentaje" step="0.1"></div>
             </div>
@@ -1024,7 +1025,7 @@
 
     // Profit/% se re-derivan en vivo: total cobrado fijo − suma de costos. Aplica tanto
     // al editar un costo a mano como tras Recalcular (que también repuebla estos campos).
-    for (const f of ['flete', 'descuento', 'seguro', 'fuel', 'derechos', 'adicionales', 'otros']) {
+    for (const f of ['flete', 'descuento', 'seguro', 'fuel', 'derechos', 'adicionales', 'otros', 'total']) {
       document.getElementById(`saled-${f}`).addEventListener('input', recalcProfit);
     }
 
@@ -1054,6 +1055,7 @@
     for (const f of ['flete', 'descuento', 'seguro', 'fuel', 'derechos', 'adicionales', 'otros', 'profit', 'porcentaje']) {
       document.getElementById(`saled-${f}`).value = envio[f] ?? '';
     }
+    document.getElementById('saled-total').value = envio.total ?? '';
     document.getElementById('saled-observaciones').value = envio.observaciones ?? '';
 
     // Desglose de adicionales: precargar desde el envío. Al abrir no está "dirty" (solo
@@ -1222,13 +1224,14 @@
     if (updated.numero_bulto != null) editEnvio.bultos[i].numero_bulto = updated.numero_bulto;
   }
 
-  // Re-deriva profit y % en vivo. El total cobrado al cliente NO cambia (editEnvio.total);
-  // lo que cambia es el costo (suma del desglose). profit = cobrado − costo;
+  // Re-deriva profit y % en vivo. Lee el total cobrado editable (saled-total) y el costo
+  // (suma del desglose). profit = cobrado − costo;
   // porcentaje = profit / costo × 100 (margen sobre el costo, igual que el backend).
-  // Si no hay total cobrado, no toca los campos.
+  // Si no hay total cobrado (null o 0), no toca los campos (misma guarda que el backend).
   function recalcProfit() {
     const num = (id) => parseNum(document.getElementById(id).value);
-    const total = editEnvio && editEnvio.total != null ? Number(editEnvio.total) : null;
+    const totalRaw = document.getElementById('saled-total').value;
+    const total = totalRaw === '' ? null : Number(totalRaw);
     if (total == null || total === 0) return;
 
     const costo = num('saled-flete') - num('saled-descuento') + num('saled-seguro')
@@ -1398,6 +1401,10 @@
       const v = document.getElementById(`saled-${f}`).value;
       payload[f] = v !== '' ? Number(v) : null;
     }
+    // Total cobrado editable: se persiste en la columna total_cobrado (el GET lo expone
+    // como `total`). Permite cargar una guía en 0 y completar el cobro después.
+    const totalCobrado = document.getElementById('saled-total').value;
+    payload.total_cobrado = totalCobrado !== '' ? Number(totalCobrado) : null;
 
     // Peso y medidas (nombres de columna del backend). En multi-bulto las medidas viajan en
     // el array de bultos; el peso balanza de arriba es la suma. peso_facturable/volumétrico
@@ -1440,8 +1447,10 @@
         // Reflejar el desglose persistido en memoria para que al reabrir se vea igual (el GET
         // lo expone como `extras`, distinto del `extras_json` que viaja en el PATCH).
         if (editExtrasDirty) d.extras = editExtras.map((x) => ({ ...x }));
-        // Alias que usa la tabla (el GET expone peso_real como `peso`) y refresco de bultos.
+        // Alias que usa la tabla (el GET expone peso_real como `peso` y total_cobrado como
+        // `total`) y refresco de bultos.
         d.peso = payload.peso_real;
+        d.total = payload.total_cobrado;
         d.asegurado = Boolean(payload.asegurado);
         d.compra_total = (payload.flete || 0) - (payload.descuento || 0) + (payload.seguro || 0)
           + (payload.fuel || 0) + (payload.derechos || 0) + (payload.adicionales || 0) + (payload.otros || 0);
