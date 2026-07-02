@@ -108,6 +108,20 @@ api.clientes.direcciones = {
     api.delete(`/clientes/${clienteId}/direcciones/${dirId}`),
 };
 
+api.clientes.profit = {
+  matriz: (id, servicio, tipo) => {
+    const q = new URLSearchParams({ servicio, tipo }).toString();
+    return api.get(`/clientes/${id}/profit-matrix?${q}`);
+  },
+  guardar: (id, body) => api.put(`/clientes/${id}/profit-matrix`, body),
+  // api.delete no acepta body; se usa request() directo para enviar las coordenadas.
+  borrar: (id, body) => request(`/clientes/${id}/profit-matrix`, { method: 'DELETE', body }),
+  resolver: (id, params) => {
+    const q = new URLSearchParams(params).toString();
+    return api.get(`/clientes/${id}/profit-resolve?${q}`);
+  },
+};
+
 api.dashboard = {
   metricas: (periodo) => api.get(`/dashboard/metricas?periodo=${periodo}`),
 };
