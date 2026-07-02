@@ -10,6 +10,7 @@
   async function init() {
     document.getElementById('fecha').value = new Date().toISOString().slice(0, 10);
     rellenarSelectPaises();
+    updatePaisLabel();
     await loadClientes();
     await loadFuelConfig();
     bindTabs();
@@ -38,6 +39,13 @@
       opt.textContent = p;
       sel.appendChild(opt);
     }
+  }
+
+  // Los envíos siempre salen de o llegan a Argentina: en importación el país
+  // seleccionado es el de origen; en exportación, el de destino. Solo cambia el label.
+  function updatePaisLabel() {
+    const impo = document.getElementById('tipo_envio').value === 'importacion';
+    document.getElementById('lbl_pais_destino').textContent = impo ? 'País origen *' : 'País destino *';
   }
 
   function autocompletarZona() {
@@ -230,6 +238,9 @@
     ['pais_destino', 'courier', 'tipo_envio'].forEach((id) => {
       document.getElementById(id).addEventListener('change', autocompletarZona);
     });
+
+    // El label del país (destino/origen) sigue al tipo de envío.
+    document.getElementById('tipo_envio').addEventListener('change', updatePaisLabel);
 
     // Cambiar país, courier o tipo cambia el contexto de la matriz: reset + re-precarga.
     const resetRecotizar = debounce(() => { profitTocado = false; precargarYCotizar(); }, 400);
@@ -457,6 +468,7 @@
 
   function resetForm() {
     document.getElementById('form-envio').reset();
+    updatePaisLabel();
     profitTocado = false;
     setProfitOrigen('');
     document.getElementById('envio-id').value = '';
@@ -489,6 +501,7 @@
       document.getElementById('cot-ups-variante').value = envio.servicio_ups;
     }
     document.getElementById('tipo_envio').value = envio.tipo_envio;
+    updatePaisLabel();
     document.getElementById('tipo_paquete').value = envio.tipo_paquete || 'm';
     document.getElementById('numero_guia').value = envio.numero_guia;
     document.getElementById('pais_destino').value = envio.pais_destino;
