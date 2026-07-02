@@ -237,6 +237,30 @@ async function migrateConfiguracion() {
   }
 }
 
+// Matriz de profit por cliente. Cada fila es un override sobre el escalar
+// clientes.tarifa_pct, resuelto por precedencia celda > banda > zona > tabla > cliente
+// (ver services/profit.service.js). La banda se guarda como par numérico peso_min/peso_max
+// (ej 5 y 10; la banda 50+ es peso_min 50, peso_max NULL). zona/peso_min NULL modelan
+// los niveles menos específicos. UNIQUE por las coordenadas para poder upsertear.
+async function migrateProfitOverrides() {
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS profit_overrides (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      cliente_id INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+      servicio   TEXT NOT NULL CHECK (servicio IN ('DHL', 'UPS_EXP', 'UPS_SAVER')),
+      tipo       TEXT NOT NULL CHECK (tipo IN ('export', 'import')),
+      zona       INTEGER CHECK (zona IS NULL OR (zona BETWEEN 1 AND 6)),
+      peso_min   REAL,
+      peso_max   REAL,
+      profit_pct REAL NOT NULL,
+      UNIQUE (cliente_id, servicio, tipo, zona, peso_min)
+    )
+  `);
+  await dbApi.exec(
+    'CREATE INDEX IF NOT EXISTS idx_profit_overrides_cliente ON profit_overrides(cliente_id)'
+  );
+}
+
 async function initSchema() {
   const schema = fs.readFileSync(config.schemaPath, 'utf8');
   await dbApi.exec(schema);
@@ -246,6 +270,7 @@ async function initSchema() {
   await migrateEnvioBultos();
   await migrateCuadrantes();
   await migrateConfiguracion();
+  await migrateProfitOverrides();
   await seedIfEmpty();
 }
 
