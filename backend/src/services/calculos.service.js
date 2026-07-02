@@ -253,4 +253,5 @@ module.exports = {
   buscarZona,
   ZONAS_DHL,
   ZONAS_UPS,
+  ZONAS_UPS_I,
 };
