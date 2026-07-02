@@ -2,6 +2,10 @@
   const alertBox = document.getElementById('alert-box');
   let clientes = [];
   let fuelPctActual = { DHL: 39, UPS: 39 };
+  // true cuando el usuario pisó a mano el % profit: en ese caso su valor GANA sobre la
+  // matriz y no se re-precarga. Se resetea al cambiar cliente / courier / servicio /
+  // tipo / país, porque ahí corresponde volver a resolver el profit desde la matriz.
+  let profitTocado = false;
 
   async function init() {
     document.getElementById('fecha').value = new Date().toISOString().slice(0, 10);
@@ -222,16 +226,21 @@
 
   // ── Cotizador integrado ──────────────────────────────────────────
   function bindCotizador() {
-    // Autocompletar zona al cambiar país, courier o tipo
+    // Autocompletar zona al cambiar país, courier o tipo (síncrono, antes de re-precargar)
     ['pais_destino', 'courier', 'tipo_envio'].forEach((id) => {
       document.getElementById(id).addEventListener('change', autocompletarZona);
     });
 
-    // Recalcular cuando cambian campos clave
-    ['pais_destino', 'courier', 'tipo_envio', 'fob'].forEach((id) => {
-      document.getElementById(id).addEventListener('change', debounce(updateCotizacion, 400));
-      document.getElementById(id).addEventListener('input', debounce(updateCotizacion, 400));
+    // Cambiar país, courier o tipo cambia el contexto de la matriz: reset + re-precarga.
+    const resetRecotizar = debounce(() => { profitTocado = false; precargarYCotizar(); }, 400);
+    ['pais_destino', 'courier', 'tipo_envio'].forEach((id) => {
+      document.getElementById(id).addEventListener('change', resetRecotizar);
+      document.getElementById(id).addEventListener('input', resetRecotizar);
     });
+
+    // El FOB no afecta el profit de la matriz: solo recotiza.
+    document.getElementById('fob').addEventListener('change', debounce(updateCotizacion, 400));
+    document.getElementById('fob').addEventListener('input', debounce(updateCotizacion, 400));
 
     // Mostrar selector de variante UPS solo cuando courier = UPS y precargar el fuel del courier
     document.getElementById('courier').addEventListener('change', function () {
@@ -239,8 +248,14 @@
       setFuelPctDefault();
     });
 
-    // Recalcular al cambiar variante UPS, % profit o Fuel %
-    document.getElementById('cot-ups-variante').addEventListener('change', debounce(updateCotizacion, 400));
+    // La variante UPS es el servicio: reset + re-precarga.
+    document.getElementById('cot-ups-variante').addEventListener('change', resetRecotizar);
+
+    // Edición manual del % profit: gana sobre la matriz y borra la etiqueta de origen.
+    document.getElementById('cot-profit').addEventListener('input', () => {
+      profitTocado = true;
+      setProfitOrigen('');
+    });
     document.getElementById('cot-profit').addEventListener('input', debounce(updateCotizacion, 400));
     document.getElementById('fuel_pct').addEventListener('input', debounce(updateCotizacion, 400));
 
@@ -250,6 +265,9 @@
 
   async function updatePesosYCotizacion() {
     await updatePesos();
+    // Con el peso facturable ya recalculado, re-precargamos el profit desde la matriz
+    // (respeta profitTocado) antes de cotizar.
+    await precargarProfit();
     await updateCotizacion();
   }
 
@@ -298,6 +316,7 @@
     const fuelPct = getFuelPctForm();
 
     try {
+      const clienteId = parseInt(document.getElementById('cliente_id').value, 10) || undefined;
       const bultosParaCotizar = getBultosParaCalculo();
       const res = await NovaAPI.liquidaciones.cotizar({
         pais,
@@ -310,7 +329,19 @@
         zona,
         bultos: bultosParaCotizar,
         ddp: document.getElementById('ddp').checked,
+        cliente_id: clienteId,
+        // Si el usuario pisó el profit a mano, el backend usa profitPct; si no, lo resuelve
+        // por la matriz del cliente e ignora el número (retrocompatible en ambos sentidos).
+        profitManual: profitTocado,
       });
+
+      // El backend puede haber resuelto el profit por matriz: sincronizamos el input
+      // (sin marcar profitTocado) y la etiqueta de origen con lo efectivamente aplicado.
+      const profitMostrar = res.profit_aplicado != null ? res.profit_aplicado : profitPct;
+      if (res.profit_aplicado != null && !profitTocado) {
+        document.getElementById('cot-profit').value = res.profit_aplicado;
+        setProfitOrigen(origenLabel(res.profit_origen));
+      }
 
       panel.classList.remove('hidden');
       panel.classList.remove('cot-aplicado');
@@ -326,7 +357,7 @@
             <span>${fmt(res.precioBase)}</span>
           </div>
           <div class="cot-fila cot-profit-row">
-            <span>Profit ${profitPct}%</span>
+            <span>Profit ${profitMostrar}%</span>
             <span>+ ${fmt(res.profitMonto)}</span>
           </div>
           <div class="cot-fila cot-total-row">
@@ -426,6 +457,8 @@
 
   function resetForm() {
     document.getElementById('form-envio').reset();
+    profitTocado = false;
+    setProfitOrigen('');
     document.getElementById('envio-id').value = '';
     document.getElementById('form-title').textContent = 'Cargar envío';
     document.getElementById('fecha').value = new Date().toISOString().slice(0, 10);
@@ -442,6 +475,8 @@
 
   async function editarEnvio(id) {
     const envio = await NovaAPI.envios.obtener(id);
+    // Al abrir un envío para editar re-precargamos el profit desde la matriz.
+    profitTocado = false;
     document.querySelector('.tab[data-tab="nuevo"]').click();
     document.getElementById('envio-id').value = envio.id;
     document.getElementById('form-title').textContent = 'Editar envío';
@@ -561,13 +596,86 @@
   }
 
   function bindClienteProfit() {
-    document.getElementById('cliente_id').addEventListener('change', function () {
-      const id = parseInt(this.value, 10);
-      const cliente = clientes.find((c) => c.id === id);
+    // Cambiar de cliente re-precarga el profit desde la matriz del nuevo cliente.
+    document.getElementById('cliente_id').addEventListener('change', () => {
+      profitTocado = false;
+      precargarYCotizar();
+    });
+  }
+
+  // ── Precarga de % profit desde la matriz ─────────────────────────
+  // Etiqueta discreta de dónde salió el valor precargado.
+  function origenLabel(origen) {
+    switch (origen) {
+      case 'celda': return 'matriz: celda';
+      case 'banda': return 'matriz: banda';
+      case 'zona': return 'matriz: zona';
+      case 'tabla': return 'matriz: tabla';
+      case 'cliente': return 'general cliente';
+      default: return ''; // manual / body: es el número tipeado, no se rotula
+    }
+  }
+
+  // Muestra (o limpia) el origen del profit junto al input, creando el <small> una vez.
+  function setProfitOrigen(texto) {
+    let el = document.getElementById('cot-profit-origen');
+    if (!el) {
+      el = document.createElement('small');
+      el.id = 'cot-profit-origen';
+      el.style.cssText = 'color:#2563eb;font-size:11px;margin-left:6px;';
+      document.getElementById('cot-profit').insertAdjacentElement('afterend', el);
+    }
+    el.textContent = texto || '';
+  }
+
+  // Precarga cot-profit desde la matriz del cliente cuando hay contexto suficiente
+  // (cliente + servicio + tipo + país + peso facturable). Si falta algo, cae a la
+  // precarga simple con tarifa_pct del cliente. No pisa lo tipeado a mano.
+  async function precargarProfit() {
+    if (profitTocado) return;
+    const id = parseInt(document.getElementById('cliente_id').value, 10);
+    if (!id) return;
+    const cliente = clientes.find((c) => c.id === id);
+
+    const precargaSimple = () => {
       if (cliente && cliente.tarifa_pct != null && cliente.tarifa_pct > 0) {
         document.getElementById('cot-profit').value = cliente.tarifa_pct;
       }
-    });
+      setProfitOrigen('');
+    };
+
+    const pais = document.getElementById('pais_destino').value.trim();
+    const pf = parseFloat(document.getElementById('peso-preview').dataset.facturable) || 0;
+    if (!pais || pf <= 0) { precargaSimple(); return; }
+
+    const courier = document.getElementById('courier').value;
+    const servicioUPS = document.getElementById('cot-ups-variante')?.value || 'UPS_EXP';
+    const servicio = courier === 'DHL' ? 'DHL' : servicioUPS;
+    // El resolver valida contra el enum de la matriz: UPS_SAV -> UPS_SAVER solo acá.
+    const servicioResolve = servicio === 'UPS_SAV' ? 'UPS_SAVER' : servicio;
+    const tipo = document.getElementById('tipo_envio').value === 'exportacion' ? 'export' : 'import';
+    const zona = parseInt(document.getElementById('zona')?.value, 10);
+
+    const params = { servicio: servicioResolve, tipo, pf };
+    if (!isNaN(zona)) params.zona = zona;
+
+    try {
+      const r = await NovaAPI.clientes.profit.resolver(id, params);
+      if (r && r.profitPct != null) {
+        document.getElementById('cot-profit').value = r.profitPct;
+        setProfitOrigen(origenLabel(r.origen));
+      } else {
+        precargaSimple();
+      }
+    } catch (err) {
+      console.warn('[envios] profit-resolve falló, uso precarga simple:', err.message);
+      precargaSimple();
+    }
+  }
+
+  async function precargarYCotizar() {
+    await precargarProfit();
+    await updateCotizacion();
   }
 
   function bindNuevoCliente() {

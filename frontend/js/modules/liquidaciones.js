@@ -203,7 +203,7 @@
                 </div>
                 <div class="form-group">
                   <label>% Profit cliente</label>
-                  <input type="number" class="cot-profit" step="0.1" min="0" value="20">
+                  <input type="number" class="cot-profit" step="0.1" min="0" value="">
                 </div>
                 <div class="form-group">
                   <label>% Fuel</label>
@@ -240,8 +240,102 @@
         btn.addEventListener('click', () => calcularCotizacion(btn));
       });
 
+      // Precarga del % profit desde la matriz por fila + marca de edición manual.
+      tbody.querySelectorAll('.cot-panel').forEach((row) => {
+        const profitInput = row.querySelector('.cot-profit');
+        if (profitInput) {
+          // Lo tipeado a mano gana sobre la matriz y borra la etiqueta de origen.
+          profitInput.addEventListener('input', () => {
+            profitInput.dataset.tocado = '1';
+            setProfitOrigenFila(row, '');
+          });
+        }
+        // Cambiar servicio o tipo cambia el contexto de la matriz: reset + re-precarga.
+        row.querySelectorAll('.cot-servicio, .cot-tipo').forEach((el) => {
+          el.addEventListener('change', () => {
+            if (profitInput) delete profitInput.dataset.tocado;
+            precargarProfitFila(row);
+          });
+        });
+        // El peso también entra en la resolución; re-precarga (respeta lo tipeado a mano).
+        row.querySelector('.cot-peso')?.addEventListener('change', () => precargarProfitFila(row));
+        precargarProfitFila(row);
+      });
+
     } catch (err) {
       NovaUtils.showAlert(alertBox, err.message, 'error');
+    }
+  }
+
+  // ── Precarga de % profit desde la matriz ─────────────────────────
+  function origenLabel(origen) {
+    switch (origen) {
+      case 'celda': return 'matriz: celda';
+      case 'banda': return 'matriz: banda';
+      case 'zona': return 'matriz: zona';
+      case 'tabla': return 'matriz: tabla';
+      case 'cliente': return 'general cliente';
+      default: return ''; // manual / body: es el número tipeado, no se rotula
+    }
+  }
+
+  // Muestra (o limpia) el origen del profit dentro del form-group del input, una sola vez.
+  function setProfitOrigenFila(row, texto) {
+    const grp = row.querySelector('.cot-profit')?.closest('.form-group');
+    if (!grp) return;
+    let el = grp.querySelector('.cot-profit-origen');
+    if (!el) {
+      el = document.createElement('small');
+      el.className = 'cot-profit-origen';
+      el.style.cssText = 'color:#2563eb;font-size:11px;';
+      grp.appendChild(el);
+    }
+    el.textContent = texto || '';
+  }
+
+  // Precarga .cot-profit de una fila desde la matriz del cliente seleccionado. Si falta
+  // contexto cae a tarifa_pct del cliente; si no hay cliente deja el input vacío. No pisa
+  // lo tipeado a mano (dataset.tocado).
+  async function precargarProfitFila(row) {
+    const profitInput = row.querySelector('.cot-profit');
+    if (!profitInput || profitInput.dataset.tocado === '1') return;
+
+    const clienteId = parseInt(document.getElementById('liq-cliente').value, 10);
+    if (!clienteId) { profitInput.value = ''; setProfitOrigenFila(row, ''); return; }
+    const cliente = clientes.find((c) => c.id === clienteId);
+
+    const precargaSimple = () => {
+      profitInput.value = (cliente && cliente.tarifa_pct != null && cliente.tarifa_pct > 0)
+        ? cliente.tarifa_pct
+        : '';
+      setProfitOrigenFila(row, '');
+    };
+
+    const btn = row.querySelector('.btn-calc-cot');
+    const pais = btn?.dataset.pais || '';
+    const zona = parseInt(btn?.dataset.zona, 10);
+    const pf = parseFloat(row.querySelector('.cot-peso').value) || 0;
+    if (((!pais || pais === '—') && isNaN(zona)) || pf <= 0) { precargaSimple(); return; }
+
+    const servicio = row.querySelector('.cot-servicio').value;
+    // El resolver valida contra el enum de la matriz: UPS_SAV -> UPS_SAVER solo acá.
+    const servicioResolve = servicio === 'UPS_SAV' ? 'UPS_SAVER' : servicio;
+    const tipo = row.querySelector('.cot-tipo').value;
+
+    const params = { servicio: servicioResolve, tipo, pf };
+    if (!isNaN(zona)) params.zona = zona;
+
+    try {
+      const r = await NovaAPI.clientes.profit.resolver(clienteId, params);
+      if (r && r.profitPct != null) {
+        profitInput.value = r.profitPct;
+        setProfitOrigenFila(row, origenLabel(r.origen));
+      } else {
+        precargaSimple();
+      }
+    } catch (err) {
+      console.warn('[liquidaciones] profit-resolve falló, uso precarga simple:', err.message);
+      precargaSimple();
     }
   }
 
@@ -254,8 +348,11 @@
     const servicio = panel.querySelector('.cot-servicio').value;
     const pesoFacturable = parseFloat(panel.querySelector('.cot-peso').value) || 0;
     const tipo = panel.querySelector('.cot-tipo').value;
-    const profitPct = parseFloat(panel.querySelector('.cot-profit').value) || 0;
+    const profitInput = panel.querySelector('.cot-profit');
+    const profitPct = parseFloat(profitInput.value) || 0;
+    const profitManual = profitInput.dataset.tocado === '1';
     const fuelPct = parseFloat(panel.querySelector('.cot-fuel').value) || 0;
+    const clienteId = parseInt(document.getElementById('liq-cliente').value, 10) || undefined;
 
     if ((!pais || pais === '—') && !zona) {
       NovaUtils.showAlert(alertBox, 'El envío no tiene país ni zona asignados', 'error');
@@ -266,12 +363,26 @@
       btn.textContent = '...';
       btn.disabled = true;
 
-      const res = await NovaAPI.liquidaciones.cotizar({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zona });
+      const res = await NovaAPI.liquidaciones.cotizar({
+        pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zona,
+        cliente_id: clienteId,
+        // profitManual true => backend usa profitPct; false => resuelve por matriz.
+        profitManual,
+      });
+
+      // El backend puede haber resuelto el profit por matriz: usamos lo efectivamente
+      // aplicado para mostrar y guardar (y sincronizamos el input si no fue manual).
+      const profitAplicado = res.profit_aplicado != null ? res.profit_aplicado : profitPct;
+      if (res.profit_aplicado != null && !profitManual) {
+        profitInput.value = res.profit_aplicado;
+        const row = btn.closest('.cot-panel');
+        if (row) setProfitOrigenFila(row, origenLabel(res.profit_origen));
+      }
 
       // Guardar resultado en el mapa
       cotizacionesMap[envioId] = {
         envio_id: envioId,
-        profitPct,
+        profitPct: profitAplicado,
         servicio: res.servicio,
         precioFinal: res.precioFinal,
         utilidad: res.utilidad,
@@ -282,7 +393,7 @@
       det.innerHTML = `
         <div class="cot-desglose">
           <div class="cot-fila"><span>Precio base (con fuel)</span><span>${NovaUtils.formatMoney(res.precioBase)}</span></div>
-          <div class="cot-fila cot-profit-row"><span>Profit ${profitPct}%</span><span>+ ${NovaUtils.formatMoney(res.profitMonto)}</span></div>
+          <div class="cot-fila cot-profit-row"><span>Profit ${profitAplicado}%</span><span>+ ${NovaUtils.formatMoney(res.profitMonto)}</span></div>
           <div class="cot-fila cot-total-row"><span>Precio final sugerido</span><span>${NovaUtils.formatMoney(res.precioFinal)}</span></div>
           <div class="cot-fila cot-utilidad-row"><span>💰 Utilidad empresa</span><span>${NovaUtils.formatMoney(res.utilidad)}</span></div>
         </div>
