@@ -50,6 +50,12 @@ async function getTracking(numeroGuia) {
 
   if (!res.ok) {
     const text = await res.text().catch(() => '');
+    const codigos = parseUpsErrores(text);
+    if (codigos) {
+      console.warn(`[ups.tracking] guia ${numeroGuia} rechazada por UPS: ${codigos}`);
+    } else {
+      console.warn(`[ups.tracking] guia ${numeroGuia} falló (${res.status}): ${text}`);
+    }
     throw new Error(`UPS tracking falló (${res.status}): ${text}`);
   }
 
@@ -104,6 +110,22 @@ async function getTracking(numeroGuia) {
     detalleEntrega,
     movimientos,
   };
+}
+
+// Body de error UPS -> "TV1002 Invalid inquiry number, TV0021 ..." (null si no parsea).
+function parseUpsErrores(text) {
+  if (!text) return null;
+  try {
+    const body = JSON.parse(text);
+    const errores = body?.response?.errors;
+    if (!Array.isArray(errores) || errores.length === 0) return null;
+    return errores
+      .map((e) => [e?.code, e?.message].filter(Boolean).join(' '))
+      .filter(Boolean)
+      .join(', ') || null;
+  } catch {
+    return null;
+  }
 }
 
 // "YYYYMMDD" -> "YYYY-MM-DD" (null si falta o no tiene el largo esperado).
