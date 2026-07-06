@@ -33,7 +33,9 @@ router.get('/metricas', async (req, res, next) => {
              COUNT(e.id) AS envios
            FROM envios e
            JOIN clientes c ON c.id = e.cliente_id
-           LEFT JOIN liquidacion_items li ON li.envio_id = e.id
+           LEFT JOIN liquidacion_items li
+                  ON li.envio_id = e.id
+                 AND li.liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
            WHERE e.fecha >= ?
            GROUP BY label ORDER BY label`
         : `SELECT strftime('%d/%m', e.fecha) AS label,
@@ -41,7 +43,9 @@ router.get('/metricas', async (req, res, next) => {
              COUNT(e.id) AS envios
            FROM envios e
            JOIN clientes c ON c.id = e.cliente_id
-           LEFT JOIN liquidacion_items li ON li.envio_id = e.id
+           LEFT JOIN liquidacion_items li
+                  ON li.envio_id = e.id
+                 AND li.liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
            WHERE e.fecha >= ?
            GROUP BY e.fecha ORDER BY e.fecha`;
 
@@ -61,7 +65,9 @@ router.get('/metricas', async (req, res, next) => {
           `SELECT ${baseUtilidad} AS utilidad_neta_usd
            FROM envios e
            JOIN clientes c ON c.id = e.cliente_id
-           LEFT JOIN liquidacion_items li ON li.envio_id = e.id
+           LEFT JOIN liquidacion_items li
+                  ON li.envio_id = e.id
+                 AND li.liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
            WHERE e.fecha >= ?`
         )
         .get(fechaDesde),
@@ -111,7 +117,9 @@ router.get('/metricas', async (req, res, next) => {
              ${baseUtilidad} AS utilidad_usd
            FROM envios e
            JOIN clientes c ON c.id = e.cliente_id
-           LEFT JOIN liquidacion_items li ON li.envio_id = e.id
+           LEFT JOIN liquidacion_items li
+                  ON li.envio_id = e.id
+                 AND li.liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
            WHERE e.fecha >= ?
            GROUP BY c.id ORDER BY utilidad_usd DESC LIMIT 5`
         )

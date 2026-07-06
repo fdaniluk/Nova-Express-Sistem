@@ -73,7 +73,9 @@ async function perfil(req, res, next) {
              MAX(CASE WHEN e.liquidado = 1 THEN strftime('%Y-%m', e.fecha) ELSE NULL END) AS ultima_liquidacion
            FROM envios e
            JOIN clientes c ON c.id = e.cliente_id
-           LEFT JOIN liquidacion_items li ON li.envio_id = e.id
+           LEFT JOIN liquidacion_items li
+                  ON li.envio_id = e.id
+                 AND li.liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
            WHERE e.cliente_id = ?`
         )
         .get(id),
@@ -92,7 +94,9 @@ async function perfil(req, res, next) {
              CASE WHEN e.liquidado = 1 THEN 'liquidado' ELSE 'pendiente' END AS estado
            FROM envios e
            JOIN clientes c ON c.id = e.cliente_id
-           LEFT JOIN liquidacion_items li ON li.envio_id = e.id
+           LEFT JOIN liquidacion_items li
+                  ON li.envio_id = e.id
+                 AND li.liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
            WHERE e.cliente_id = ?
            ORDER BY e.fecha DESC, e.id DESC`
         )
@@ -106,7 +110,9 @@ async function perfil(req, res, next) {
              COUNT(e.id) AS cantidad_envios
            FROM envios e
            JOIN clientes c ON c.id = e.cliente_id
-           LEFT JOIN liquidacion_items li ON li.envio_id = e.id
+           LEFT JOIN liquidacion_items li
+                  ON li.envio_id = e.id
+                 AND li.liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
            WHERE e.cliente_id = ?
            GROUP BY mes
            ORDER BY mes DESC
