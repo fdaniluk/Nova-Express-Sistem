@@ -2,6 +2,7 @@ const { Router } = require('express');
 const { getDb } = require('../db');
 const { buildPesos, calcularDesgloseAlCosto } = require('../models/envio.model');
 const { pesoVolumetricoBulto } = require('../services/calculos.service');
+const { deriveProfit } = require('../utils/profit');
 
 const router = Router();
 
@@ -157,24 +158,8 @@ router.get('/', async (req, res, next) => {
       }];
     };
 
-    // Profit y porcentaje derivados AL VUELO desde el desglose congelado (Parte A)
-    // y total_cobrado, para que nunca queden desfasados si se edita el precio.
-    //   costo      = flete - descuento + seguro + fuel + derechos + adicionales + otros
-    //   profit     = total_cobrado - costo
-    //   porcentaje = profit / costo * 100   (margen sobre el costo)
-    // Si el costo es 0 o no hay total_cobrado, no se calcula: se devuelve lo que
-    // tenga la columna en la DB (envíos viejos importados) o vacío.
-    const deriveProfit = (row) => {
-      const costo = (row.flete || 0) - (row.descuento || 0) + (row.seguro || 0)
-        + (row.fuel || 0) + (row.derechos || 0) + (row.adicionales || 0) + (row.otros || 0);
-      if (costo === 0 || row.total == null || row.total === 0) {
-        return { compra_total: costo, profit: row.profit ?? null, porcentaje: row.porcentaje ?? null };
-      }
-      const profit = Math.round((row.total - costo) * 100) / 100;
-      const porcentaje = Math.round((profit / costo) * 10000) / 100;
-      return { compra_total: costo, profit, porcentaje };
-    };
-
+    // Profit/porcentaje/compra_total derivados AL VUELO por deriveProfit (utils/profit.js),
+    // la MISMA función que agrega el Dashboard, para que coincidan al centavo.
     const result = rows.map((row) => ({
       id: row.id,
       num_sal: numSalPorEnvio.get(row.id),

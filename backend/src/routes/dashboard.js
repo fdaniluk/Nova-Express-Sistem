@@ -1,5 +1,6 @@
 const { Router } = require('express');
 const { getDb } = require('../db');
+const { deriveProfit } = require('../utils/profit');
 
 const router = Router();
 
@@ -19,121 +20,172 @@ function getFechaDesde(periodo) {
 
 router.get('/metricas', async (req, res, next) => {
   try {
+    const mesParam = req.query.mes;
+    let desde;
+    let hasta;
+    let modoMes = false;
+
+    if (mesParam !== undefined) {
+      if (!/^\d{4}-\d{2}$/.test(mesParam)) {
+        return res.status(400).json({ error: 'Formato de mes inválido, se espera YYYY-MM' });
+      }
+      const [anio, mes] = mesParam.split('-').map(Number);
+      if (mes < 1 || mes > 12) {
+        return res.status(400).json({ error: 'Mes fuera de rango (01-12)' });
+      }
+      modoMes = true;
+      desde = `${mesParam}-01`;
+      // Cota superior EXCLUSIVA: primer día del mes siguiente (diciembre -> enero del año siguiente)
+      const anioHasta = mes === 12 ? anio + 1 : anio;
+      const mesHasta = mes === 12 ? 1 : mes + 1;
+      hasta = `${anioHasta}-${String(mesHasta).padStart(2, '0')}-01`;
+    } else {
+      const periodo = req.query.periodo || 'mes';
+      desde = getFechaDesde(periodo);
+      hasta = '9999-12-31';
+    }
+
     const periodo = req.query.periodo || 'mes';
-    const fechaDesde = getFechaDesde(periodo);
     const db = getDb();
 
-    const baseUtilidad = `
-      SUM(COALESCE(li.utilidad_usd, e.total_cobrado * c.tarifa_pct / 100.0))`;
-
-    const chartSql =
-      periodo === 'hoy'
-        ? `SELECT strftime('%H:00', e.created_at) AS label,
-             ${baseUtilidad} AS utilidad_usd,
-             COUNT(e.id) AS envios
-           FROM envios e
-           JOIN clientes c ON c.id = e.cliente_id
-           LEFT JOIN liquidacion_items li
-                  ON li.envio_id = e.id
-                 AND li.liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
-           WHERE e.fecha >= ?
-           GROUP BY label ORDER BY label`
-        : `SELECT strftime('%d/%m', e.fecha) AS label,
-             ${baseUtilidad} AS utilidad_usd,
-             COUNT(e.id) AS envios
-           FROM envios e
-           JOIN clientes c ON c.id = e.cliente_id
-           LEFT JOIN liquidacion_items li
-                  ON li.envio_id = e.id
-                 AND li.liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
-           WHERE e.fecha >= ?
-           GROUP BY e.fecha ORDER BY e.fecha`;
-
+    // La utilidad ya NO se resuelve en SQL: el profit por envío se deriva en JS con
+    // deriveProfit (la MISMA función que Salidas), así que traemos los envíos del período
+    // con sus columnas de costo + total_cobrado y la utilidad de la liquidación confirmada,
+    // y agregamos utilidad_neta / top_clientes / chart_data en memoria.
+    // El LEFT JOIN a liquidacion_items se pre-agrega por envío (subquery GROUP BY envio_id)
+    // para garantizar UNA fila por envío: sin eso, un envío con varios items confirmados se
+    // duplicaría e inflaría counts y sumas.
     const [
-      utilRow,
+      enviosPeriodo,
       kilosRow,
       enviosRow,
       pendientesRow,
       clientesNuevosRow,
       paisRow,
       couriersRows,
-      topClientesRows,
-      chartRows,
     ] = await Promise.all([
       db
         .prepare(
-          `SELECT ${baseUtilidad} AS utilidad_neta_usd
+          `SELECT
+             e.id,
+             e.created_at,
+             e.fecha,
+             e.peso_facturable,
+             e.total_cobrado AS total,
+             e.flete, e.descuento, e.seguro, e.fuel, e.derechos, e.adicionales, e.otros,
+             e.profit, e.porcentaje,
+             c.id     AS cliente_id,
+             c.nombre AS cliente_nombre,
+             li.utilidad_usd AS utilidad_liq
            FROM envios e
            JOIN clientes c ON c.id = e.cliente_id
-           LEFT JOIN liquidacion_items li
-                  ON li.envio_id = e.id
-                 AND li.liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
-           WHERE e.fecha >= ?`
+           LEFT JOIN (
+             SELECT envio_id, SUM(utilidad_usd) AS utilidad_usd
+             FROM liquidacion_items
+             WHERE liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
+             GROUP BY envio_id
+           ) li ON li.envio_id = e.id
+           WHERE e.fecha >= ? AND e.fecha < ?`
         )
-        .get(fechaDesde),
+        .all(desde, hasta),
 
       db
         .prepare(
           `SELECT SUM(peso_facturable) AS kilos_facturados,
                   SUM(cantidad_bultos) AS bultos_despachados
-           FROM envios WHERE fecha >= ?`
+           FROM envios WHERE fecha >= ? AND fecha < ?`
         )
-        .get(fechaDesde),
+        .get(desde, hasta),
 
       db
         .prepare(
           `SELECT COUNT(*) AS total, AVG(total_cobrado) AS ticket_promedio
-           FROM envios WHERE fecha >= ?`
+           FROM envios WHERE fecha >= ? AND fecha < ?`
         )
-        .get(fechaDesde),
+        .get(desde, hasta),
 
       db.prepare(`SELECT COUNT(*) AS n FROM envios WHERE liquidado = 0`).get(),
 
       db
-        .prepare(`SELECT COUNT(*) AS n FROM clientes WHERE date(created_at) >= ?`)
-        .get(fechaDesde),
+        .prepare(
+          `SELECT COUNT(*) AS n FROM clientes WHERE date(created_at) >= ? AND date(created_at) < ?`
+        )
+        .get(desde, hasta),
 
       db
         .prepare(
           `SELECT pais_destino, COUNT(*) AS n
-           FROM envios WHERE fecha >= ?
+           FROM envios WHERE fecha >= ? AND fecha < ?
            GROUP BY pais_destino ORDER BY n DESC LIMIT 1`
         )
-        .get(fechaDesde),
+        .get(desde, hasta),
 
       db
         .prepare(
           `SELECT courier, COUNT(*) AS cantidad
-           FROM envios WHERE fecha >= ?
+           FROM envios WHERE fecha >= ? AND fecha < ?
            GROUP BY courier ORDER BY cantidad DESC`
         )
-        .all(fechaDesde),
-
-      db
-        .prepare(
-          `SELECT c.id, c.nombre,
-             COUNT(e.id) AS envios,
-             SUM(e.peso_facturable) AS kilos,
-             ${baseUtilidad} AS utilidad_usd
-           FROM envios e
-           JOIN clientes c ON c.id = e.cliente_id
-           LEFT JOIN liquidacion_items li
-                  ON li.envio_id = e.id
-                 AND li.liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
-           WHERE e.fecha >= ?
-           GROUP BY c.id ORDER BY utilidad_usd DESC LIMIT 5`
-        )
-        .all(fechaDesde),
-
-      db.prepare(chartSql).all(fechaDesde),
+        .all(desde, hasta),
     ]);
 
     const totalEnvios = enviosRow.total || 0;
     const round2 = (n) => Math.round((n || 0) * 100) / 100;
     const round1 = (n) => Math.round((n || 0) * 10) / 10;
 
+    // Utilidad de UN envío, con la misma regla que la vista Salidas:
+    //   - liquidación confirmada  → li.utilidad_usd (snapshot congelado de la liquidación)
+    //   - si no                   → profit real venta − compra vía deriveProfit
+    // Si deriveProfit no puede calcular (costo 0 y sin liquidación) devuelve profit null:
+    // ese envío cuenta 0 (no null), para no romper la suma.
+    const utilidadEnvio = (row) => {
+      if (row.utilidad_liq != null) return row.utilidad_liq;
+      const { profit } = deriveProfit(row);
+      return profit == null ? 0 : profit;
+    };
+
+    // Agregación en una sola pasada: total del período, acumulado por cliente y por
+    // bucket del gráfico. El gráfico agrupa por hora (created_at) en 'hoy', si no por fecha.
+    const chartHoy = !modoMes && periodo === 'hoy';
+    let utilidadNeta = 0;
+    const porCliente = new Map();
+    const porChart = new Map();
+
+    for (const row of enviosPeriodo) {
+      const u = utilidadEnvio(row);
+      utilidadNeta += u;
+
+      let cl = porCliente.get(row.cliente_id);
+      if (!cl) {
+        cl = { id: row.cliente_id, nombre: row.cliente_nombre, envios: 0, kilos: 0, utilidad_usd: 0 };
+        porCliente.set(row.cliente_id, cl);
+      }
+      cl.envios += 1;
+      cl.kilos += row.peso_facturable || 0;
+      cl.utilidad_usd += u;
+
+      // Clave de bucket ordenable (HH o YYYY-MM-DD); label es lo que ve el usuario.
+      const key = chartHoy ? `${String(row.created_at || '').slice(11, 13)}:00` : row.fecha;
+      let ch = porChart.get(key);
+      if (!ch) {
+        const label = chartHoy ? key : `${row.fecha.slice(8, 10)}/${row.fecha.slice(5, 7)}`;
+        ch = { key, label, utilidad_usd: 0, envios: 0 };
+        porChart.set(key, ch);
+      }
+      ch.utilidad_usd += u;
+      ch.envios += 1;
+    }
+
+    const topClientesRows = [...porCliente.values()]
+      .sort((a, b) => b.utilidad_usd - a.utilidad_usd)
+      .slice(0, 5);
+
+    const chartRows = [...porChart.values()].sort((a, b) =>
+      a.key < b.key ? -1 : a.key > b.key ? 1 : 0
+    );
+
     res.json({
-      utilidad_neta_usd: round2(utilRow.utilidad_neta_usd),
+      utilidad_neta_usd: round2(utilidadNeta),
       kilos_facturados: round1(kilosRow.kilos_facturados),
       bultos_despachados: kilosRow.bultos_despachados || 0,
       envios_totales: totalEnvios,
@@ -159,6 +211,21 @@ router.get('/metricas', async (req, res, next) => {
         envios: r.envios,
       })),
     });
+  } catch (e) {
+    next(e);
+  }
+});
+
+router.get('/meses', async (req, res, next) => {
+  try {
+    const db = getDb();
+    const rows = await db
+      .prepare(
+        `SELECT strftime('%Y-%m', fecha) AS mes, COUNT(*) AS n
+         FROM envios GROUP BY mes ORDER BY mes DESC`
+      )
+      .all();
+    res.json(rows);
   } catch (e) {
     next(e);
   }

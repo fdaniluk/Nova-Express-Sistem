@@ -1,9 +1,37 @@
 (function () {
   const alertBox = document.getElementById('alert-box');
+  const mesSelector = document.getElementById('mes-selector');
+  const periodoLabel = document.getElementById('periodo-label');
+
+  const MESES_ES = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre',
+  ];
+  const LABELS_PERIODO = {
+    hoy: 'Hoy',
+    semana: 'Últimos 7 días',
+    mes: 'Este mes',
+  };
+
+  // 'YYYY-MM' -> 'Julio 2026'
+  function nombreMes(mes) {
+    const [anio, m] = mes.split('-').map(Number);
+    return `${MESES_ES[m - 1]} ${anio}`;
+  }
+
+  function mesActual() {
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  let modo = 'periodo'; // 'periodo' | 'mes'
   let periodoActual = 'hoy';
+  let mesActualSel = mesActual();
 
   async function init() {
     bindPeriodo();
+    bindMesSelector();
+    await cargarMeses();
     await cargarMetricas();
   }
 
@@ -13,14 +41,59 @@
         document.querySelectorAll('.period-btn').forEach((b) => b.classList.remove('active'));
         btn.classList.add('active');
         periodoActual = btn.dataset.periodo;
+        modo = 'periodo';
+        // Volver al mes actual en el select (sin cambiar de modo)
+        mesActualSel = mesActual();
+        if (mesSelector && [...mesSelector.options].some((o) => o.value === mesActualSel)) {
+          mesSelector.value = mesActualSel;
+        }
         await cargarMetricas();
       });
     });
   }
 
+  function bindMesSelector() {
+    if (!mesSelector) return;
+    mesSelector.addEventListener('change', async () => {
+      modo = 'mes';
+      mesActualSel = mesSelector.value;
+      document.querySelectorAll('.period-btn').forEach((b) => b.classList.remove('active'));
+      await cargarMetricas();
+    });
+  }
+
+  async function cargarMeses() {
+    if (!mesSelector) return;
+    try {
+      const meses = await NovaAPI.dashboard.meses();
+      mesSelector.innerHTML = meses
+        .map((r) => `<option value="${r.mes}">${nombreMes(r.mes)}</option>`)
+        .join('');
+      // Default: mes actual si está en la lista; si no, el más reciente.
+      const actual = mesActual();
+      if (meses.some((r) => r.mes === actual)) {
+        mesSelector.value = actual;
+        mesActualSel = actual;
+      } else if (meses.length) {
+        mesActualSel = meses[0].mes;
+        mesSelector.value = mesActualSel;
+      }
+    } catch (err) {
+      NovaUtils.showAlert(alertBox, 'Error al cargar meses: ' + err.message);
+    }
+  }
+
+  function actualizarLabelPeriodo() {
+    if (!periodoLabel) return;
+    periodoLabel.textContent =
+      modo === 'mes' ? nombreMes(mesActualSel) : LABELS_PERIODO[periodoActual] || '';
+  }
+
   async function cargarMetricas() {
     try {
-      const data = await NovaAPI.dashboard.metricas(periodoActual);
+      const params = modo === 'mes' ? { mes: mesActualSel } : { periodo: periodoActual };
+      const data = await NovaAPI.dashboard.metricas(params);
+      actualizarLabelPeriodo();
       renderMetrics(data);
       renderTopClientes(data.top_clientes);
       renderCourierMix(data.mix_couriers);

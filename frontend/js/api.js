@@ -123,7 +123,12 @@ api.clientes.profit = {
 };
 
 api.dashboard = {
-  metricas: (periodo) => api.get(`/dashboard/metricas?periodo=${periodo}`),
+  metricas: (params) => {
+    const p = typeof params === 'string' ? { periodo: params } : params || {};
+    const q = new URLSearchParams(p).toString();
+    return api.get(`/dashboard/metricas${q ? `?${q}` : ''}`);
+  },
+  meses: () => api.get('/dashboard/meses'),
 };
 
 api.pickups = {

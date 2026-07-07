@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard — Nova Express</title>
-  <link rel="stylesheet" href="css/main.css?v=4">
+  <link rel="stylesheet" href="css/main.css?v=5">
 </head>
 <body>
 <div class="app-layout">
@@ -74,6 +74,7 @@
         <button class="period-btn active" data-periodo="hoy">Hoy</button>
         <button class="period-btn" data-periodo="semana">7 días</button>
         <button class="period-btn" data-periodo="mes">Este mes</button>
+        <select id="mes-selector" class="period-select"></select>
       </div>
     </div>
 
@@ -88,7 +89,7 @@
       <!-- Chart + Top clientes -->
       <div class="dashboard-cols">
         <div class="card">
-          <h2>Utilidad por período</h2>
+          <h2>Utilidad por período <span id="periodo-label" class="periodo-label"></span></h2>
           <canvas id="chart-utilidad" width="500" height="220"></canvas>
         </div>
         <div class="card">
@@ -124,8 +125,8 @@
 </div>
 
 <script src="/js/auth-guard.js"></script>
-<script src="js/api.js?v=4"></script>
+<script src="js/api.js?v=5"></script>
 <script src="js/main.js?v=4"></script>
-<script src="js/modules/dashboard.js"></script>
+<script src="js/modules/dashboard.js?v=5"></script>
 </body>
 </html>
