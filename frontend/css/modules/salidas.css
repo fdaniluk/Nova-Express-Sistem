@@ -870,3 +870,39 @@ th:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: '⇅'; }
   justify-content: flex-end;
   gap: 0.75rem;
 }
+
+/* ── Barra de scroll horizontal flotante ── */
+/* Vive en el body (position:fixed) anclada al fondo del viewport; refleja y controla el
+   scroll horizontal de #table-wrap. z-index por encima de la tabla (thead/sticky ≤ 3) pero
+   por debajo del dropdown de filtros (60), el popup de tracking (100) y el modal (100),
+   para no taparlos. La posición y el ancho reales los setea salidas.js. */
+.floating-hscroll {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  height: 15px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  z-index: 40;
+  display: none;
+  background: rgba(248, 250, 252, 0.94);
+  border-top: 1px solid var(--color-border);
+  box-shadow: 0 -2px 6px rgba(0, 0, 0, 0.06);
+}
+.floating-hscroll.visible { display: block; }
+.floating-hscroll-ghost { height: 1px; }
+
+/* Scrollbar discreta y coherente con el resto (thin en Firefox, estilizada en WebKit). */
+.floating-hscroll { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
+.floating-hscroll::-webkit-scrollbar { height: 11px; }
+.floating-hscroll::-webkit-scrollbar-track { background: transparent; }
+.floating-hscroll::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 6px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+.floating-hscroll::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+  background-clip: content-box;
+}

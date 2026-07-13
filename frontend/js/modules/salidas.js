@@ -70,6 +70,7 @@
     bindSelectAllGuias();
     loadStickyPins();
     bindStickyCols();
+    bindFloatingScrollbar();
     await loadData();
   }
 
@@ -253,6 +254,9 @@
     // contenido, que cambia al paginar / filtrar / cambiar de mes. NO toca ningún <td>,
     // solo reescribe el <style id="sticky-cols-style">.
     applyStickyCols();
+
+    // El scrollWidth de la tabla cambió: recalcular el fantasma de la barra flotante.
+    refreshFloatingScrollbar();
   }
 
   // Guía que usa el checkbox de "Copiar guías" para ESTE renglón. En el primer
@@ -833,6 +837,8 @@
         else stickyPins.delete(cb.value);
         saveStickyPins();
         applyStickyCols();
+        // Fijar/soltar columnas altera anchos → recalcular la barra flotante.
+        refreshFloatingScrollbar();
       });
     });
 
@@ -853,6 +859,101 @@
 
     // Los anchos de columna cambian al redimensionar (table-layout auto + width:100%).
     window.addEventListener('resize', applyStickyCols);
+  }
+
+  // ── Barra de scroll horizontal flotante ──────────────────────────────────────
+  // Una scrollbar horizontal fija al fondo del viewport que refleja y controla el scroll
+  // de #table-wrap, para poder desplazarse horizontal desde cualquier fila sin bajar a
+  // buscar la barra nativa. Vive en el body (fuera de la tabla). Un div "fantasma" adentro
+  // con width = wrap.scrollWidth le da a su scrollbar exactamente el mismo recorrido.
+  //
+  // Sincronización por COMPARACIÓN de valores (sin flag): cada lado solo escribe en el otro
+  // si difieren. Así los cambios programáticos de scrollActiveCellIntoView (que setea
+  // wrap.scrollLeft) se reflejan en la barra sin re-disparar un loop, porque tras el primer
+  // seteo ambos scrollLeft ya coinciden y el segundo handler es no-op.
+  let floatBar = null;
+  let floatGhost = null;
+  let floatRaf = 0;
+
+  function bindFloatingScrollbar() {
+    const wrap = document.getElementById('table-wrap');
+    if (!wrap) return;
+
+    floatBar = document.createElement('div');
+    floatBar.className = 'floating-hscroll';
+    floatGhost = document.createElement('div');
+    floatGhost.className = 'floating-hscroll-ghost';
+    floatBar.appendChild(floatGhost);
+    document.body.appendChild(floatBar);
+
+    // Sync bidireccional. Redondeo para tolerar diferencias sub-píxel que rebotarían.
+    floatBar.addEventListener('scroll', () => {
+      if (Math.round(wrap.scrollLeft) !== Math.round(floatBar.scrollLeft)) {
+        wrap.scrollLeft = floatBar.scrollLeft;
+      }
+    }, { passive: true });
+
+    wrap.addEventListener('scroll', () => {
+      if (!floatBar) return;
+      if (Math.round(floatBar.scrollLeft) !== Math.round(wrap.scrollLeft)) {
+        floatBar.scrollLeft = wrap.scrollLeft;
+      }
+    }, { passive: true });
+
+    // Visibilidad: IntersectionObserver para el gate grueso (wrap dentro/fuera del viewport)
+    // + un scroll listener rAF-throttled solo para el ajuste fino (ocultar cuando la barra
+    // nativa del wrap ya asoma al fondo del viewport).
+    if ('IntersectionObserver' in window) {
+      const io = new IntersectionObserver(() => updateFloatingVisibility());
+      io.observe(wrap);
+    }
+    window.addEventListener('scroll', onFloatingScroll, { passive: true });
+    window.addEventListener('resize', refreshFloatingScrollbar);
+
+    refreshFloatingScrollbar();
+  }
+
+  function onFloatingScroll() {
+    if (floatRaf) return;
+    floatRaf = requestAnimationFrame(() => {
+      floatRaf = 0;
+      updateFloatingVisibility();
+    });
+  }
+
+  // Recalcula la geometría: ancho del fantasma = recorrido real del wrap; posición y ancho
+  // de la barra = área visible del wrap. Llamar cuando cambie scrollWidth de la tabla
+  // (renderPage, cambio de columnas sticky, resize de ventana).
+  function refreshFloatingScrollbar() {
+    if (!floatBar) return;
+    const wrap = document.getElementById('table-wrap');
+    if (!wrap) return;
+    const rect = wrap.getBoundingClientRect();
+    floatBar.style.left = `${Math.max(0, rect.left)}px`;
+    floatBar.style.width = `${wrap.clientWidth}px`;
+    floatGhost.style.width = `${wrap.scrollWidth}px`;
+    updateFloatingVisibility();
+  }
+
+  // Muestra la barra SOLO si (a) la tabla desborda horizontal, (b) el wrap está en el
+  // viewport y (c) su barra nativa aún no asoma (el fondo del wrap queda por debajo del
+  // viewport) — así no se duplica ni tapa contenido de más abajo.
+  function updateFloatingVisibility() {
+    if (!floatBar) return;
+    const wrap = document.getElementById('table-wrap');
+    if (!wrap) return;
+    const overflow = wrap.scrollWidth - wrap.clientWidth > 1;
+    const rect = wrap.getBoundingClientRect();
+    const viewH = window.innerHeight || document.documentElement.clientHeight;
+    const inView = rect.top < viewH && rect.bottom > 0;
+    const nativeBarHidden = rect.bottom > viewH;
+    const show = overflow && inView && nativeBarHidden;
+    floatBar.classList.toggle('visible', show);
+    // Al hacerse visible, alinear el thumb con el scroll actual del wrap: mientras estuvo
+    // en display:none pudo no haber registrado los cambios de scrollLeft.
+    if (show && Math.round(floatBar.scrollLeft) !== Math.round(wrap.scrollLeft)) {
+      floatBar.scrollLeft = wrap.scrollLeft;
+    }
   }
 
   // ── UPS Tracking ────────────────────────────────────────────────────────────
