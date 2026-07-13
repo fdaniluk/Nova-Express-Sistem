@@ -146,6 +146,58 @@
   border: 1px solid var(--color-border);
 }
 
+/* ── Columnas fijas (sticky a la izquierda) ── */
+/* La columna 0 (checkbox) queda SIEMPRE congelada. Las 7 columnas anclables reciben su
+   sticky/left/z-index desde el <style id="sticky-cols-style"> generado por salidas.js.
+   Los th ya son opacos por CSS base (#f1f5f9), así que acá solo el cuerpo necesita fondo. */
+.salidas-table th.chk-cell,
+.salidas-table td.chk-cell {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+}
+.salidas-table thead th.chk-cell { z-index: 3; }   /* esquina: por encima del thead sticky */
+.salidas-table td.chk-cell { background: #fff; }
+.salidas-table tr.bulto-detail-row td.chk-cell { background: #f8fafc; }
+.salidas-table tbody tr[data-envio-id]:hover td.chk-cell { background: #eef2ff; }
+
+/* Panelito flotante "Columnas fijas" (vive en el body, fuera de la tabla). */
+.sticky-cols-panel {
+  position: absolute;
+  z-index: 50;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+  min-width: 170px;
+  padding: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sticky-cols-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-muted);
+  padding: 2px 2px 6px;
+}
+
+.sticky-cols-panel label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 4px 3px;
+  font-size: 12.5px;
+  cursor: pointer;
+  border-radius: 3px;
+}
+
+.sticky-cols-panel label:hover { background: #f1f5f9; }
+.sticky-cols-panel input[type="checkbox"] { cursor: pointer; margin: 0; }
+
 .salidas-table {
   width: 100%;
   border-collapse: collapse;

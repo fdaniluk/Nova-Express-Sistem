@@ -36,6 +36,20 @@
   const GRID_MAX_COL = 31;   // 32 columnas fijas → índices 0..31; navegables 1..31
   let activeCell = null;
 
+  // ── Columnas fijas (sticky a la izquierda) ──────────────────────────────────
+  // Bloque de identificación anclable, en orden visual de izquierda a derecha. La
+  // columna 0 (checkbox) queda SIEMPRE fija por CSS estático; estas 7 son opcionales.
+  // El sticky se emite como CSS por [data-col] en un <style>, así sobrevive al
+  // re-render destructivo del tbody sin volver a tocar ningún <td>.
+  const STICKY_ANCHOR_COLS = ['numero_salida', 'courier', 'fecha', 'numero_guia', 'tipo_cobro', 'cliente_nombre', 'destino'];
+  const STICKY_LABELS = {
+    numero_salida: '#Sal', courier: 'Courier', fecha: 'Fecha', numero_guia: 'Guía',
+    tipo_cobro: 'Cobro', cliente_nombre: 'Cliente', destino: 'Destino',
+  };
+  const STICKY_LS_KEY = 'nova.salidas.stickyCols';
+  const STICKY_DEFAULT = ['numero_salida', 'cliente_nombre'];
+  let stickyPins = new Set();   // data-col actualmente fijados
+
   const alertBox = document.getElementById('alert-box');
 
   // ── Init ────────────────────────────────────────────────────────────────────
@@ -54,6 +68,8 @@
     bindGridNav();
     bindCopiarGuias();
     bindSelectAllGuias();
+    loadStickyPins();
+    bindStickyCols();
     await loadData();
   }
 
@@ -232,6 +248,11 @@
     // El tbody se reconstruyó: re-resolver la celda activa por coordenadas y reaplicar
     // el resaltado (o limpiarlo si la coordenada ya no existe).
     reconcileActiveCell();
+
+    // Re-medir offsets sticky: con table-layout auto los anchos de columna dependen del
+    // contenido, que cambia al paginar / filtrar / cambiar de mes. NO toca ningún <td>,
+    // solo reescribe el <style id="sticky-cols-style">.
+    applyStickyCols();
   }
 
   // Guía que usa el checkbox de "Copiar guías" para ESTE renglón. En el primer
@@ -292,13 +313,13 @@
 
     tr.innerHTML = `
       <td class="chk-cell">${chkCell}</td>
-      <td>${fmtNum(e.num_sal_mes)}</td>
-      <td>${env(courierBadge(e.courier))}</td>
-      <td>${env(NovaUtils.formatDate(e.fecha))}</td>
-      <td class="mono"><span class="bulto-guia-text">${esc(bultoGuia)}</span>${bultoGuiaEdit}${guiaIcons}</td>
-      <td>${env(cobroBadge(e.tipo_cobro))}</td>
-      <td>${env(`<a href="clientes-perfil.html?id=${e.cliente_id}">${esc(e.cliente_nombre)}</a>`)}</td>
-      <td>${env(esc(e.destino))}</td>
+      <td data-col="numero_salida">${fmtNum(e.num_sal_mes)}</td>
+      <td data-col="courier">${env(courierBadge(e.courier))}</td>
+      <td data-col="fecha">${env(NovaUtils.formatDate(e.fecha))}</td>
+      <td class="mono" data-col="numero_guia"><span class="bulto-guia-text">${esc(bultoGuia)}</span>${bultoGuiaEdit}${guiaIcons}</td>
+      <td data-col="tipo_cobro">${env(cobroBadge(e.tipo_cobro))}</td>
+      <td data-col="cliente_nombre">${env(`<a href="clientes-perfil.html?id=${e.cliente_id}">${esc(e.cliente_nombre)}</a>`)}</td>
+      <td data-col="destino">${env(esc(e.destino))}</td>
       <td>${estadoCajaDotHtml(b.estado_caja)}${numBulto}/${totalBultos}</td>
       <td>${env(tipoBadge(e.tipo_paquete))}</td>
       <td>${env(dirBadge(e.direccion))}</td>
@@ -722,6 +743,116 @@
       const checked = chkAll.checked;
       document.querySelectorAll('#salidas-body .chk-guia').forEach((c) => { c.checked = checked; });
     });
+  }
+
+  // ── Columnas fijas (sticky) ──────────────────────────────────────────────────
+  // Persistencia en localStorage: array de data-col fijados, en orden canónico. Primera
+  // vez sin nada guardado → STICKY_DEFAULT. Se ignoran valores que no sean anclables.
+  function loadStickyPins() {
+    let arr = null;
+    try {
+      const raw = localStorage.getItem(STICKY_LS_KEY);
+      if (raw) arr = JSON.parse(raw);
+    } catch (_) { arr = null; }
+    if (!Array.isArray(arr)) arr = STICKY_DEFAULT.slice();
+    stickyPins = new Set(arr.filter((c) => STICKY_ANCHOR_COLS.includes(c)));
+  }
+
+  function saveStickyPins() {
+    const arr = STICKY_ANCHOR_COLS.filter((c) => stickyPins.has(c));   // orden izquierda→derecha
+    try { localStorage.setItem(STICKY_LS_KEY, JSON.stringify(arr)); } catch (_) {}
+  }
+
+  // Ancho REAL renderizado de una columna (border-box). Con table-layout auto el width
+  // inline del th es solo una preferencia; medir el th da el offset exacto para apilar.
+  function stickyColWidth(sel) {
+    const el = document.querySelector(sel);
+    return el ? el.getBoundingClientRect().width : 0;
+  }
+
+  // Reescribe el <style id="sticky-cols-style"> con las reglas de las columnas fijadas.
+  // El offset de cada columna = ancho del checkbox + suma de anchos de las columnas
+  // fijadas a su izquierda (solo las fijadas: las del medio no fijadas pasan por debajo).
+  // Targetea th[data-col]/td[data-col], así que sobrevive al re-render del tbody.
+  function applyStickyCols() {
+    let styleEl = document.getElementById('sticky-cols-style');
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = 'sticky-cols-style';
+      document.head.appendChild(styleEl);
+    }
+
+    const pinned = STICKY_ANCHOR_COLS.filter((c) => stickyPins.has(c));
+    let css = '';
+    let offset = stickyColWidth('.salidas-table th.chk-cell');   // el bloque arranca tras el checkbox
+
+    for (const col of pinned) {
+      const sel = `[data-col="${col}"]`;
+      // th + td se congelan a la izquierda. z-index:1 por encima de las celdas normales.
+      css += `.salidas-table th${sel},.salidas-table td${sel}{position:sticky;left:${offset}px;z-index:1;}\n`;
+      // Esquina (th fijado + thead sticky top, z-index:2): tiene que ir por encima del thead.
+      css += `.salidas-table thead th${sel}{z-index:3;}\n`;
+      offset += stickyColWidth(`.salidas-table th${sel}`);
+    }
+
+    if (pinned.length) {
+      // Fondo OPACO que matchea la fila en cada estado (los th ya son opacos por CSS base):
+      // normal → #fff, sub-fila de bulto → #f8fafc, hover → #eef2ff. La celda activa gana
+      // por su propia regla !important (#e0e7ff), así que no se toca acá.
+      const base = pinned.map((c) => `.salidas-table td[data-col="${c}"]`).join(',');
+      const detail = pinned.map((c) => `.salidas-table tr.bulto-detail-row td[data-col="${c}"]`).join(',');
+      const hover = pinned.map((c) => `.salidas-table tbody tr[data-envio-id]:hover td[data-col="${c}"]`).join(',');
+      css += `${base}{background:#fff;}\n`;
+      css += `${detail}{background:#f8fafc;}\n`;
+      css += `${hover}{background:#eef2ff;}\n`;
+    }
+
+    styleEl.textContent = css;
+  }
+
+  // Botón "Columnas fijas" + panelito flotante con los 7 checkboxes. Al tildar/destildar
+  // recalcula el sticky y persiste. El panel vive FUERA de la tabla (en el body).
+  function bindStickyCols() {
+    const btn = document.getElementById('btn-sticky-cols');
+    if (!btn) return;
+
+    const panel = document.createElement('div');
+    panel.id = 'sticky-cols-panel';
+    panel.className = 'sticky-cols-panel';
+    panel.style.display = 'none';
+    panel.innerHTML = `
+      <div class="sticky-cols-title">Fijar columnas</div>
+      ${STICKY_ANCHOR_COLS.map((c) => `
+        <label><input type="checkbox" value="${c}" ${stickyPins.has(c) ? 'checked' : ''}> ${esc(STICKY_LABELS[c])}</label>
+      `).join('')}`;
+    document.body.appendChild(panel);
+
+    panel.querySelectorAll('input[type=checkbox]').forEach((cb) => {
+      cb.addEventListener('change', () => {
+        if (cb.checked) stickyPins.add(cb.value);
+        else stickyPins.delete(cb.value);
+        saveStickyPins();
+        applyStickyCols();
+      });
+    });
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+      const rect = btn.getBoundingClientRect();
+      panel.style.top = `${rect.bottom + window.scrollY + 4}px`;
+      panel.style.left = `${rect.left + window.scrollX}px`;
+      panel.style.display = 'block';
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!panel.contains(e.target) && e.target.id !== 'btn-sticky-cols') {
+        panel.style.display = 'none';
+      }
+    });
+
+    // Los anchos de columna cambian al redimensionar (table-layout auto + width:100%).
+    window.addEventListener('resize', applyStickyCols);
   }
 
   // ── UPS Tracking ────────────────────────────────────────────────────────────
