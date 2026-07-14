@@ -2,6 +2,7 @@ const { getDb } = require('../db');
 const configuracionModel = require('./configuracion.model');
 const envioModel = require('./envio.model');
 const { calcularFleteFuel, redondear2, cotizarEnvio, calcularSeguro, calcSeguroDHL } = require('../services/calculos.service');
+const { descomponerVenta } = require('../utils/desgloseVenta');
 
 // Migración automática: agrega columnas nuevas si no existen
 async function migrarColumnas() {
@@ -81,27 +82,29 @@ async function calcularItem(envio, adicional = 0) {
     const fuelCfg = await configuracionModel.obtenerFuel(envio.courier);
     fuelPct = fuelCfg?.fuel_pct ?? 0;
   }
-  const fuelDecimal = fuelPct / 100;
 
   // Adicional manual de la fila (input ADICIONAL USD): EXTRA que el dueño agrega a mano en
   // esta liquidación, encima de lo cobrado. No está incluido en total_cobrado → se suma.
   const adicManual = redondear2(adicional);
 
-  // Valores guardados que se muestran tal cual (forman parte de total_cobrado):
-  const totalCobrado = redondear2(envio.total_cobrado || 0);
-  const seguro = redondear2(envio.seguro || 0);
-  // Adicionales itemizados guardados (surge en extras_json, derechos, otros). desglosarCosto
-  // deja derechos/otros en 0; se suman por robustez ante datos viejos. NO se duplican con el
-  // adicional manual: ese es un cargo aparte que se agrega aparte.
-  const adicGuardado = redondear2(
-    (envio.adicionales || 0) + (envio.derechos || 0) + (envio.otros || 0)
-  );
-
-  // flete+fuel balancean el resto del total cobrado, respetando la proporción de fuel.
-  // No se recotiza ni se aplica profit: el profit ya está dentro de total_cobrado.
-  const base = redondear2(totalCobrado - seguro - adicGuardado);
-  const flete = redondear2(base / (1 + fuelDecimal));
-  const fuel = redondear2(base - flete);
+  // Descomposición canónica de la venta (helper read-only compartido con Salidas). Parte
+  // total_cobrado en flete/fuel/seguro/adicional con el fuel_pct ya resuelto arriba. NO
+  // recotiza ni aplica profit: el profit ya está dentro de total_cobrado.
+  const venta = descomponerVenta({
+    total_cobrado: envio.total_cobrado,
+    seguro: envio.seguro,
+    adicionales: envio.adicionales,
+    derechos: envio.derechos,
+    otros: envio.otros,
+    fuel_pct: fuelPct,
+  });
+  const totalCobrado = venta.total;   // = redondear2(envio.total_cobrado || 0)
+  const seguro = venta.seguro;
+  const flete = venta.flete;
+  const fuel = venta.fuel;
+  // Adicionales itemizados guardados (surge en extras_json, derechos, otros). NO se duplican
+  // con el adicional manual: ese es un cargo aparte que se agrega aparte.
+  const adicGuardado = venta.adicional;
 
   // Columna Adicional de cara al cliente: cargos guardados + extra manual de la fila.
   const adicionalItem = redondear2(adicGuardado + adicManual);

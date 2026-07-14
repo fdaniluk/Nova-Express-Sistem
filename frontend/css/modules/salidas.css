@@ -404,6 +404,117 @@ th:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: '⇅'; }
   color: var(--color-muted);
 }
 
+/* ── Sub-fila de detalle (Venta + Extracargos compra) ── */
+/* Toda la celda expandible (Venta Total o Adic) es clickeable (togglea la sub-fila), no
+   solo el ▸. Cursor pointer únicamente cuando es expandible, para que se note que se toca. */
+.adic-cell.adic-expandable,
+td.detail-expandable { cursor: pointer; }
+
+/* ▸ como señal visual de que la celda es expandible (rota a ▾ vía .open). */
+.extras-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-primary-light);
+  font-size: 10px;
+  line-height: 1;
+  padding: 0 3px;
+  margin-left: 4px;
+  vertical-align: middle;
+  display: inline-block;
+  transition: transform 0.12s ease;
+}
+.extras-toggle:hover { color: var(--color-primary); }
+.extras-toggle.open { transform: rotate(90deg); }
+
+/* Sub-fila colspan="32" (sin data-envio-id): fuera de la grilla, estilo detalle como
+   .bulto-detail-row. Al ser colspan no participa de las columnas sticky. */
+.extras-detail-row td {
+  background: #f8fafc;
+  padding: 6px 12px 6px 28px;
+  border-top: none;
+}
+.extras-breakdown {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+}
+.extras-breakdown-label {
+  color: var(--color-muted);
+  font-weight: 600;
+  margin-right: 2px;
+}
+.extra-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #eef2ff;
+  color: #3730a3;
+  border-radius: 10px;
+  padding: 2px 9px;
+  white-space: nowrap;
+}
+.extra-chip b { font-weight: 700; }
+.extra-chip-total {
+  background: #e0e7ff;
+  color: #1e3a8a;
+}
+
+/* Dos bloques en la misma sub-fila: "Venta" (lo que cobrás) y "Extracargos compra" (lo que
+   pagás), separados por una línea para que se lean como cosas distintas. */
+.detail-row-inner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 8px 22px;
+}
+.detail-block {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+/* Separador vertical entre el bloque de venta y el de extracargos. */
+.detail-block + .detail-block {
+  padding-left: 22px;
+  border-left: 1px solid #dbe2f0;
+}
+.detail-block-title {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--color-muted);
+}
+
+/* Bloque Venta: mini-liquidación (label + monto), verde suave = lo que se cobra. */
+.venta-desglose {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 6px;
+  font-size: 11.5px;
+}
+.venta-item {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  background: #ecfdf5;
+  color: #065f46;
+  border-radius: 10px;
+  padding: 2px 9px;
+  white-space: nowrap;
+}
+.venta-item .venta-label { color: #059669; font-weight: 600; }
+.venta-item b { font-weight: 700; }
+/* Total de la venta destacado. */
+.venta-item-total {
+  background: #d1fae5;
+  color: #064e3b;
+}
+.venta-item-total b { font-weight: 800; }
+
 /* ── Dash for empty values ── */
 .em { color: #cbd5e1; }
 

@@ -3,6 +3,8 @@ const { getDb } = require('../db');
 const { buildPesos, calcularDesgloseAlCosto } = require('../models/envio.model');
 const { pesoVolumetricoBulto } = require('../services/calculos.service');
 const { deriveProfit } = require('../utils/profit');
+const { descomponerVenta } = require('../utils/desgloseVenta');
+const configuracionModel = require('../models/configuracion.model');
 
 const router = Router();
 
@@ -65,6 +67,7 @@ router.get('/', async (req, res, next) => {
         e.descuento,
         e.seguro,
         e.fuel,
+        e.fuel_pct,
         e.derechos,
         e.adicionales,
         e.otros,
@@ -158,6 +161,32 @@ router.get('/', async (req, res, next) => {
       }];
     };
 
+    // Fuel% para el desglose de venta: mismo criterio que liquidacion.model → calcularItem.
+    // Si el envío tiene fuel_pct propio (congelado) se usa ESE; si es NULL se cae a la config
+    // vigente del courier (fuelCfg?.fuel_pct ?? 0). Se lee la config UNA vez (sin N+1) y se
+    // indexa por courier; la lectura por courier equivale a obtenerFuel(courier).
+    const fuelCfgRows = await configuracionModel.listarFuel();
+    const fuelCfgPorCourier = new Map(fuelCfgRows.map((r) => [r.courier, r.fuel_pct]));
+    const resolverFuelPct = (row) => {
+      if (row.fuel_pct !== null && row.fuel_pct !== undefined) return row.fuel_pct;
+      return fuelCfgPorCourier.has(row.courier) ? (fuelCfgPorCourier.get(row.courier) ?? 0) : 0;
+    };
+
+    // Desglose de venta (SOLO lectura): descompone total_cobrado en flete/fuel/seguro/adicional
+    // con el helper compartido de la Etapa 1, usando el fuel_pct resuelto arriba. Va a nivel
+    // envío (no por bulto). total_cobrado falsy (0/null) → sin venta cargada → null.
+    const ventaDesgloseDe = (row) => {
+      if (!row.total) return null;
+      return descomponerVenta({
+        total_cobrado: row.total,
+        seguro: row.seguro,
+        adicionales: row.adicionales,
+        derechos: row.derechos,
+        otros: row.otros,
+        fuel_pct: resolverFuelPct(row),
+      });
+    };
+
     // Profit/porcentaje/compra_total derivados AL VUELO por deriveProfit (utils/profit.js),
     // la MISMA función que agrega el Dashboard, para que coincidan al centavo.
     const result = rows.map((row) => ({
@@ -195,6 +224,7 @@ router.get('/', async (req, res, next) => {
       otros: row.otros,
       extras: parseExtras(row.extras_json),
       total: row.total,
+      venta_desglose: ventaDesgloseDe(row),
       ...deriveProfit(row),
       observaciones: row.observaciones,
       estado_revision: row.estado_revision ?? null,

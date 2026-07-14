@@ -14,6 +14,11 @@
   let selectedMonth = null;  // mes activo de las solapas ("YYYY-MM"); null = sin datos
   const colFilters = {};     // { courier: Set(['UPS','DHL']), ... }
 
+  // Envíos con el desglose de adicionales desplegado (sub-fila de extras). Se consulta
+  // en render para re-expandir tras el rebuild destructivo del tbody (filtro/mes/sort),
+  // así el estado sobrevive dentro de la sesión sin persistir en localStorage.
+  const expandedExtras = new Set();
+
   // dropdown flotante
   let ddColumn = null;
   let ddTempSelected = new Set();
@@ -65,6 +70,7 @@
     bindTracking();
     bindRowEdit();
     bindBultoGuiaEdit();
+    bindDetailToggle();
     bindGridNav();
     bindCopiarGuias();
     bindSelectAllGuias();
@@ -232,6 +238,11 @@
       bultos.forEach((bulto, idx) => {
         fragment.appendChild(buildRow(e, bulto, idx, bultos.length, today, idx === 0));
       });
+      // Re-expandir el detalle si estaba abierto: cuelga del envío completo, DESPUÉS de
+      // todos sus renglones de bulto.
+      if (expandedExtras.has(e.id) && detailHasContent(e)) {
+        fragment.appendChild(buildDetailRow(e));
+      }
     }
 
     if (visibleCount === 0 && nextBatch.length === 0) {
@@ -309,6 +320,14 @@
     // env(html): celda solo en el primer renglón; en los siguientes va en blanco.
     const env = (html) => (isFirst ? html : '');
 
+    // Celda Adic expandible: fila principal con desglose. Toda la celda es clickeable para
+    // togglear el desglose (no solo el ▸). Bultos y envíos sin extras quedan como hoy.
+    const adicExp = !!(isFirst && e.extras && e.extras.length);
+    // Celda Venta Total expandible: abre la MISMA sub-fila de detalle (bloque Venta). Solo en
+    // la fila principal (isFirst) y solo si hay venta cargada (venta_desglose != null, i.e.
+    // total_cobrado > 0). Envío sin venta → celda no clickeable, sin ▸ (como una celda normal).
+    const ventaExp = !!(isFirst && e.venta_desglose);
+
     // Checkbox de selección para "Copiar guías": solo en el primer renglón del envío y
     // solo si tiene guía. El value es la guía del ENVÍO (e.numero_guia), nunca la del bulto,
     // para no duplicar guías en envíos multi-bulto. Sub-filas y envíos sin guía: celda vacía.
@@ -335,13 +354,13 @@
       <td class="num">${env(fmtKg(e.peso_facturable))}</td>
       <td class="num">${env(fmtUSD(e.valor_declarado))}</td>
       <td>${env(e.asegurado ? 'Sí' : 'No')}</td>
-      <td class="num">${env(fmtUSD(e.total))}</td>
+      <td class="num venta-total-cell${ventaExp ? ' detail-expandable' : ''}"${ventaExp ? ` data-detail-envio="${e.id}"` : ''} data-col="total">${ventaTotalCellHtml(e, isFirst)}</td>
       <td class="num">${env(fmtUSD(e.flete))}</td>
       <td class="num">${env(fmtUSD(e.descuento))}</td>
       <td class="num">${env(fmtUSD(e.seguro))}</td>
       <td class="num">${env(fmtUSD(e.fuel))}</td>
       <td class="num">${env(fmtUSD(e.derechos))}</td>
-      <td class="num">${env(fmtUSD(e.adicionales))}</td>
+      <td class="num adic-cell${adicExp ? ' adic-expandable detail-expandable' : ''}"${adicExp ? ` data-detail-envio="${e.id}"` : ''}>${adicCellHtml(e, isFirst)}</td>
       <td class="num">${env(fmtUSD(e.otros))}</td>
       <td class="num">${env(fmtUSD(e.compra_total))}</td>
       <td class="num">${env(profitCell(e))}</td>
@@ -350,6 +369,74 @@
       <td class="obs-cell" title="${isFirst ? escAttr(e.observaciones) : ''}">${obsCell(e.observaciones, isFirst)}</td>
     `;
 
+    return tr;
+  }
+
+  // Celda "Adic": monto + un ▸ clickeable SOLO en la fila principal (isFirst) y solo si
+  // el envío tiene desglose (e.extras). En las filas de bulto o sin extras queda como hoy.
+  // El ▸ es un <button> propio (no un input) para no disparar shouldYieldGridNav.
+  function adicCellHtml(e, isFirst) {
+    if (!(isFirst && e.extras && e.extras.length)) return isFirst ? fmtUSD(e.adicionales) : '';
+    const open = expandedExtras.has(e.id) ? ' open' : '';
+    return `${fmtUSD(e.adicionales)}<button class="extras-toggle${open}" data-envio-id="${e.id}" `
+      + `title="Ver desglose de adicionales" aria-label="Ver desglose de adicionales">▸</button>`;
+  }
+
+  // Celda "Venta Total": monto + un ▸ clickeable SOLO en la fila principal (isFirst) y solo
+  // si el envío tiene venta cargada (venta_desglose != null). Abre la MISMA sub-fila de
+  // detalle que Adic. Sin venta → solo el monto (como una celda normal, sin ▸).
+  function ventaTotalCellHtml(e, isFirst) {
+    if (!isFirst) return '';
+    if (!e.venta_desglose) return fmtUSD(e.total);
+    const open = expandedExtras.has(e.id) ? ' open' : '';
+    return `${fmtUSD(e.total)}<button class="extras-toggle${open}" data-envio-id="${e.id}" `
+      + `title="Ver desglose de venta" aria-label="Ver desglose de venta">▸</button>`;
+  }
+
+  // ¿Hay algo para mostrar en la sub-fila de detalle? Venta (venta_desglose) y/o los
+  // extracargos de compra (extras). Si no hay ninguno, la fila no es expandible.
+  function detailHasContent(e) {
+    return !!(e.venta_desglose || (e.extras && e.extras.length));
+  }
+
+  // Sub-fila de detalle: un único <td colspan="32"> SIN data-envio-id (queda fuera de
+  // getDataRows() → no corre índices ni participa de la navegación por celdas). Muestra dos
+  // bloques bien diferenciados: "Venta" (mini-liquidación: flete/fuel/seguro/adic/total, lo
+  // que cobrás) y "Extracargos compra" (chips por tipo, lo que pagás). Cada bloque aparece
+  // solo si tiene datos. El Σ de extras usa e.adicionales (no la suma cruda) para cuadrar
+  // exacto con la columna aun cuando el redondeo desvíe la suma en ±0.01.
+  function buildDetailRow(e) {
+    const tr = document.createElement('tr');
+    tr.className = 'extras-detail-row';
+    tr.dataset.extrasFor = e.id;
+
+    const vd = e.venta_desglose;
+    const ventaBlock = vd ? `
+      <div class="detail-block detail-venta">
+        <span class="detail-block-title">Venta</span>
+        <div class="venta-desglose">
+          <span class="venta-item"><span class="venta-label">Flete</span> <b>${fmtUSD(vd.flete)}</b></span>
+          <span class="venta-item"><span class="venta-label">Fuel</span> <b>${fmtUSD(vd.fuel)}</b></span>
+          <span class="venta-item"><span class="venta-label">Seguro</span> <b>${fmtUSD(vd.seguro)}</b></span>
+          <span class="venta-item"><span class="venta-label">Adicionales</span> <b>${fmtUSD(vd.adicional)}</b></span>
+          <span class="venta-item venta-item-total"><span class="venta-label">Total</span> <b>${fmtUSD(vd.total)}</b></span>
+        </div>
+      </div>` : '';
+
+    const extras = e.extras || [];
+    const chips = extras
+      .map((x) => `<span class="extra-chip">${esc(x.label)} <b>${fmtUSD(x.monto)}</b></span>`)
+      .join('');
+    const extrasBlock = extras.length ? `
+      <div class="detail-block detail-extras">
+        <span class="detail-block-title">Extracargos compra</span>
+        <div class="extras-breakdown">
+          ${chips}
+          <span class="extra-chip extra-chip-total">Σ <b>${fmtUSD(e.adicionales)}</b></span>
+        </div>
+      </div>` : '';
+
+    tr.innerHTML = `<td colspan="32"><div class="detail-row-inner">${ventaBlock}${extrasBlock}</div></td>`;
     return tr;
   }
 
@@ -1754,11 +1841,57 @@
       if (e.target.closest('.chk-guia')) return;
       if (e.target.closest('.track-btn') || e.target.closest('a')) return;
       if (e.target.closest('.bulto-guia-edit') || e.target.closest('.bulto-guia-edit-box')) return;
+      if (e.target.closest('td.detail-expandable')) return;   // Venta Total / Adic togglean el detalle, no abren el modal
       const tr = e.target.closest('tr[data-envio-id]');
       if (!tr) return;
       const envio = allData.find((d) => d.id === Number(tr.dataset.envioId));
       if (envio) openEditModal(envio);
     });
+  }
+
+  // ── Sub-fila de detalle (expandible al tocar la celda Venta Total o Adic) ─────
+  // El área clickeable es TODA la celda expandible (Venta Total o Adic), no solo el ▸: los
+  // empleados no tienen que apuntar a la flechita. Ambas celdas togglean la MISMA sub-fila
+  // (mismo renglón, mismos bloques). El ▸ queda como señal visual (rota a ▾ vía .open) y se
+  // sincroniza en las dos celdas. stopPropagation NO frena los otros listeners de
+  // #salidas-body (misma capa: bindGridNav sigue seleccionando la celda; bindRowEdit ya
+  // descarta el modal por su guard), solo evita que burbujee a los cierres de dropdown.
+  function bindDetailToggle() {
+    document.getElementById('salidas-body').addEventListener('click', (e) => {
+      const cell = e.target.closest('td.detail-expandable');
+      if (!cell) return;
+      e.stopPropagation();   // que NO cierre dropdowns flotantes ni burbujee de más
+      toggleDetailRow(Number(cell.dataset.detailEnvio));
+    });
+  }
+
+  // Toggle en vivo: inserta/remueve la sub-fila directamente en el DOM (sin re-render de
+  // toda la tabla) y sincroniza el Set + el estado de AMBOS ▸ (Venta Total y Adic). Varios
+  // envíos pueden estar abiertos a la vez. La sub-fila se cuelga DESPUÉS del último renglón
+  // (bulto) del envío.
+  function toggleDetailRow(envioId) {
+    const envio = allData.find((d) => d.id === envioId);
+    if (!envio || !detailHasContent(envio)) return;
+    if (expandedExtras.has(envioId)) {
+      expandedExtras.delete(envioId);
+      const row = document.querySelector(`#salidas-body tr.extras-detail-row[data-extras-for="${envioId}"]`);
+      if (row) row.remove();
+    } else {
+      expandedExtras.add(envioId);
+      const rows = document.querySelectorAll(`#salidas-body tr[data-envio-id="${envioId}"]`);
+      const lastRow = rows[rows.length - 1];
+      if (lastRow) lastRow.after(buildDetailRow(envio));
+    }
+    syncDetailToggles(envioId);
+  }
+
+  // Refleja el estado abierto/cerrado en los ▸ de las dos celdas expandibles del envío
+  // (Venta Total y Adic): abrir desde una rota también el ▸ de la otra, porque es la misma fila.
+  function syncDetailToggles(envioId) {
+    const open = expandedExtras.has(envioId);
+    document
+      .querySelectorAll(`#salidas-body tr[data-envio-id="${envioId}"] .extras-toggle`)
+      .forEach((b) => b.classList.toggle('open', open));
   }
 
   // ── Edición inline de la guía por bulto ──────────────────────────────────────
