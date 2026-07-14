@@ -189,6 +189,7 @@ async function migrateEnvios() {
     ['direccion',        "TEXT DEFAULT 'expo'"],
     // Columnas módulo Control de Facturas
     ['costo_facturado',  'REAL'],
+    ['peso_facturado',   'REAL'],
     ['courier_facturado','TEXT'],
     ['fecha_facturado',  'TEXT'],
     ['estado_revision',  'TEXT'],
@@ -261,6 +262,31 @@ async function migrateProfitOverrides() {
   );
 }
 
+// Detalle por guía de cada factura UPS cargada (módulo Control de Facturas).
+// Idempotente para bases existentes en el VPS; ver schema.sql para la definición
+// canónica y la explicación de cada columna.
+async function migrateFacturaGuias() {
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS factura_guias (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      factura_id      INTEGER REFERENCES facturas_cargadas(id) ON DELETE CASCADE,
+      envio_id        INTEGER REFERENCES envios(id) ON DELETE SET NULL,
+      numero_guia     TEXT NOT NULL,
+      pais            TEXT,
+      peso_facturado  REAL,
+      neto            REAL,
+      total_recargos  REAL,
+      costo_total     REAL,
+      cargos_json     TEXT,
+      encontrada      INTEGER NOT NULL DEFAULT 0,
+      created_at      TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    )
+  `);
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_factura_guias_factura ON factura_guias(factura_id)');
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_factura_guias_envio   ON factura_guias(envio_id)');
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_factura_guias_guia    ON factura_guias(numero_guia)');
+}
+
 async function initSchema() {
   const schema = fs.readFileSync(config.schemaPath, 'utf8');
   await dbApi.exec(schema);
@@ -271,6 +297,7 @@ async function initSchema() {
   await migrateCuadrantes();
   await migrateConfiguracion();
   await migrateProfitOverrides();
+  await migrateFacturaGuias();
   await seedIfEmpty();
 }
 

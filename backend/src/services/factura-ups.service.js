@@ -106,6 +106,10 @@ async function extraerFacturaUPS(buffer) {
       neto: g.neto ?? 0,
       total_recargos,
       costo_total,
+      // Desglose de recargos por tipo (Additional Handling, Large Package, etc.).
+      // Se persiste en factura_guias.cargos_json para el cruce "recargos facturados
+      // vs cobrados". Cada item: { nombre, monto }.
+      cargos: g.cargos,
     };
   });
 

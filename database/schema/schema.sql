@@ -116,6 +116,7 @@ CREATE TABLE IF NOT EXISTS envios (
   direccion           TEXT DEFAULT 'expo',
   -- Control de Facturas
   costo_facturado     REAL,
+  peso_facturado      REAL,
   courier_facturado   TEXT,
   fecha_facturado     TEXT,
   estado_revision     TEXT,
@@ -247,6 +248,29 @@ CREATE TABLE IF NOT EXISTS facturas_cargadas (
   guias_no_encontradas  INTEGER NOT NULL DEFAULT 0,
   usuario               TEXT DEFAULT NULL
 );
+
+-- Detalle por guía de cada factura cargada (módulo Control de Facturas).
+-- Persiste lo que UPS facturó por guía: peso, neto, recargos desglosados y costo
+-- total. envio_id es NULL cuando la guía no matcheó ningún envío del sistema
+-- (guías "no encontradas"), que igual quedan registradas para revisión.
+CREATE TABLE IF NOT EXISTS factura_guias (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  factura_id      INTEGER REFERENCES facturas_cargadas(id) ON DELETE CASCADE,
+  envio_id        INTEGER REFERENCES envios(id) ON DELETE SET NULL,
+  numero_guia     TEXT NOT NULL,
+  pais            TEXT,
+  peso_facturado  REAL,
+  neto            REAL,
+  total_recargos  REAL,
+  costo_total     REAL,
+  cargos_json     TEXT,   -- [{ "nombre": ..., "monto": ... }, ...] desglose de recargos UPS
+  encontrada      INTEGER NOT NULL DEFAULT 0,
+  created_at      TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_factura_guias_factura ON factura_guias(factura_id);
+CREATE INDEX IF NOT EXISTS idx_factura_guias_envio   ON factura_guias(envio_id);
+CREATE INDEX IF NOT EXISTS idx_factura_guias_guia    ON factura_guias(numero_guia);
 
 -- Fuel inicial DHL y UPS al 39.5%
 INSERT OR IGNORE INTO configuracion (courier, fuel_pct) VALUES ('DHL', 39.5);

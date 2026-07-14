@@ -80,6 +80,11 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
       no_encontradas_lista: [],
     };
 
+    // Detalle por guía a persistir en factura_guias (encabezado primero para el id).
+    // Se registra TODA guía de la factura, matchee o no un envío, para tener el
+    // ledger completo de lo que UPS facturó.
+    const detalle = [];
+
     await db.transaction(async () => {
       for (const guia of guias) {
         await db.exec('SAVEPOINT factura_row');
@@ -87,6 +92,8 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
           const envio = await db
             .prepare('SELECT id, total_cobrado, costo_facturado FROM envios WHERE UPPER(numero_guia) = UPPER(?)')
             .get(guia.numero_guia);
+
+          detalle.push({ guia, envio_id: envio ? envio.id : null, encontrada: envio ? 1 : 0 });
 
           if (!envio) {
             resumen.no_encontradas++;
@@ -117,12 +124,13 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
           await db.prepare(`
             UPDATE envios
             SET costo_facturado   = ?,
+                peso_facturado    = ?,
                 courier_facturado = 'UPS',
                 fecha_facturado   = ?,
                 estado_revision   = ?,
                 updated_at        = datetime('now', 'localtime')
             WHERE id = ?
-          `).run(costo_facturado, hoy, estado_revision, envio.id);
+          `).run(costo_facturado, guia.peso ?? null, hoy, estado_revision, envio.id);
 
           resumen.guardadas++;
           if (estado_revision === 'a_revisar') resumen.a_revisar++;
@@ -135,11 +143,35 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
         }
       }
 
-      await db.prepare(`
+      const header = await db.prepare(`
         INSERT INTO facturas_cargadas
           (courier, numero_factura, fecha_factura, cantidad_guias, guias_cruzadas, guias_no_encontradas, usuario)
         VALUES ('UPS', ?, ?, ?, ?, ?, NULL)
       `).run(numero_factura, fecha_factura, guias.length, resumen.guardadas, resumen.no_encontradas);
+
+      const facturaId = header.lastInsertRowid;
+
+      // Detalle por guía (peso, neto, recargos desglosados y costo) para los cruces
+      // de peso y de recargos facturados vs cobrados.
+      for (const d of detalle) {
+        const g = d.guia;
+        await db.prepare(`
+          INSERT INTO factura_guias
+            (factura_id, envio_id, numero_guia, pais, peso_facturado, neto, total_recargos, costo_total, cargos_json, encontrada)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(
+          facturaId,
+          d.envio_id,
+          g.numero_guia,
+          g.pais ?? null,
+          g.peso ?? null,
+          g.neto ?? null,
+          g.total_recargos ?? null,
+          g.costo_total ?? null,
+          JSON.stringify(g.cargos ?? []),
+          d.encontrada
+        );
+      }
     });
 
     res.json(resumen);
