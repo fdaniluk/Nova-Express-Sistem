@@ -376,6 +376,15 @@ th:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: '⇅'; }
 .row-alert-rojo td:first-child { border-left: 3px solid #dc2626; }
 .row-alert-ambar td:first-child { border-left: 3px solid #d97706; }
 
+/* ── Semáforo de desvío contra la factura del courier (columnas UPS) ── */
+/* Solo rojo, y solo cuando el courier facturó de más superando la tolerancia. Lo que está
+   bien no se pinta: el ojo va directo al problema. Fondo + texto oscuro para que se lea. */
+.salidas-table td.cell-desvio-rojo {
+  background: #fee2e2;
+  color: #991b1b;
+  font-weight: 700;
+}
+
 .alert-icon {
   cursor: help;
   display: inline-block;
@@ -428,7 +437,7 @@ td.detail-expandable { cursor: pointer; }
 .extras-toggle.open { transform: rotate(90deg); }
 
 /* Sub-fila (sin data-envio-id): fuera de la grilla, estilo detalle como .bulto-detail-row.
-   Dos celdas colspan (19 espaciador + 13 contenido = 32): el desglose arranca debajo de
+   Dos celdas colspan (19 espaciador + 17 contenido = 36): el desglose arranca debajo de
    "Venta Total". Ambas comparten fondo y sin border-top. La alineación la da el espaciador,
    por eso el padding-left de la celda de contenido es mínimo. */
 .extras-detail-row td {

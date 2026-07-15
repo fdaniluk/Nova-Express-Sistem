@@ -97,6 +97,7 @@ const api = {
       const q = courier ? `?courier=${courier}` : '';
       return api.get(`/configuracion/umbral/historial${q}`);
     },
+    tolerancias: () => api.get('/configuracion/tolerancias'),
   },
 };
 

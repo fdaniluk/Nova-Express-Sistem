@@ -239,6 +239,16 @@ async function migrateConfiguracion() {
   if (!cols.includes('ganancia_minima_pct')) {
     await dbApi.exec('ALTER TABLE configuracion ADD COLUMN ganancia_minima_pct REAL DEFAULT 20');
   }
+  // Tolerancias de comparación con la factura del courier (módulo Control de Facturas /
+  // Salidas). Desvío máximo aceptable en %: si el courier facturó MÁS peso/costo que lo
+  // nuestro y el desvío supera la tolerancia, la celda se pinta en rojo. Solo alertamos
+  // cuando el desvío va en contra nuestra (facturó de más).
+  if (!cols.includes('tolerancia_peso_pct')) {
+    await dbApi.exec('ALTER TABLE configuracion ADD COLUMN tolerancia_peso_pct REAL DEFAULT 10');
+  }
+  if (!cols.includes('tolerancia_costo_pct')) {
+    await dbApi.exec('ALTER TABLE configuracion ADD COLUMN tolerancia_costo_pct REAL DEFAULT 10');
+  }
 }
 
 // Matriz de profit por cliente. Cada fila es un override sobre el escalar

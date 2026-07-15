@@ -35,6 +35,11 @@
   // reusan cada vez que se abre el modal (para poder preseleccionar el del envío).
   let clientes = [];
 
+  // Tolerancias de comparación contra la factura del courier, por courier:
+  // { UPS: { peso, costo }, DHL: { peso, costo } }. Se cargan una vez en init y las usan
+  // las columnas UPS para decidir el semáforo rojo del desvío. Vacío = sin semáforo.
+  let tolerancias = {};
+
   // estado del modal de edición
   let editEnvio = null;
   let editBultos = [];      // bultos del envío en edición (multi-bulto)
@@ -45,9 +50,9 @@
   // ── Navegación por celdas (estilo Excel) ────────────────────────────────────
   // activeCell es una COORDENADA LÓGICA, no un nodo: { rowIndex, colIndex } | null.
   // El re-render destruye los td, por eso se guardan índices y se vuelve a resolver el td.
-  // La columna 0 es el checkbox de selección: NO se navega con flechas (índices 1..31).
+  // La columna 0 es el checkbox de selección: NO se navega con flechas (índices 1..35).
   const GRID_MIN_COL = 1;    // columna 0 = checkbox "copiar guías", no navegable
-  const GRID_MAX_COL = 31;   // 32 columnas fijas → índices 0..31; navegables 1..31
+  const GRID_MAX_COL = 35;   // 36 columnas fijas → índices 0..35; navegables 1..35
   let activeCell = null;
 
   // ── Columnas fijas (sticky a la izquierda) ──────────────────────────────────
@@ -88,6 +93,7 @@
     bindStickyCols();
     bindFloatingScrollbar();
     await loadClientes();
+    await loadTolerancias();
     await loadData();
   }
 
@@ -102,6 +108,22 @@
     }
   }
 
+  // Carga las tolerancias por courier (GET /configuracion/tolerancias → array de filas
+  // { courier, tolerancia_peso_pct, tolerancia_costo_pct }) y las indexa por courier. Si
+  // falla no rompe la pantalla: sin tolerancias no se pinta ningún semáforo (queda neutro).
+  async function loadTolerancias() {
+    try {
+      const rows = await NovaAPI.configuracion.tolerancias();
+      tolerancias = {};
+      for (const r of (rows || [])) {
+        tolerancias[r.courier] = { peso: r.tolerancia_peso_pct, costo: r.tolerancia_costo_pct };
+      }
+    } catch (err) {
+      console.warn('[salidas] No se pudieron cargar tolerancias:', err.message);
+      tolerancias = {};
+    }
+  }
+
   // ── Carga de datos ──────────────────────────────────────────────────────────
   async function loadData() {
     try {
@@ -112,7 +134,7 @@
     } catch (err) {
       NovaUtils.showAlert(alertBox, 'Error al cargar salidas: ' + err.message, 'error');
       document.getElementById('salidas-body').innerHTML =
-        '<tr><td colspan="32" class="salidas-empty">Error al cargar datos</td></tr>';
+        '<tr><td colspan="36" class="salidas-empty">Error al cargar datos</td></tr>';
     }
   }
 
@@ -275,7 +297,7 @@
 
     if (visibleCount === 0 && nextBatch.length === 0) {
       const tr = document.createElement('tr');
-      tr.innerHTML = '<td colspan="32" class="salidas-empty">No hay envíos que coincidan con los filtros</td>';
+      tr.innerHTML = '<td colspan="36" class="salidas-empty">No hay envíos que coincidan con los filtros</td>';
       tbody.appendChild(tr);
     } else {
       tbody.appendChild(fragment);
@@ -365,6 +387,12 @@
     const rowGuia = computeRowGuia(e, b, isFirst);
     const chkCell = chkCellHtml(rowGuia);
 
+    // Columnas de comparación contra la factura del courier (Costo/Peso UPS + sus desvíos).
+    // Solo datos de UPS: no repiten venta/peso nuestros, que ya están en la fila. El desvío
+    // se pinta rojo solo si va en contra nuestra (positivo) y supera la tolerancia del courier.
+    const difCosto = difEval(e, isFirst, e.costo_facturado, e.compra_total, 'costo');
+    const difPeso = difEval(e, isFirst, e.peso_facturado, e.peso_facturable, 'peso');
+
     tr.innerHTML = `
       <td class="chk-cell">${chkCell}</td>
       <td data-col="numero_salida" class="numsal-cell" title="Marcar fila">${fmtNum(e.num_sal_mes)}</td>
@@ -396,6 +424,10 @@
       <td class="num">${env(fmtUSD(e.compra_total))}</td>
       <td class="num">${env(profitCell(e))}</td>
       <td class="num">${env(pctCell(e))}</td>
+      <td class="num">${costoUpsCellHtml(e, isFirst)}</td>
+      <td class="num${difCosto.rojo ? ' cell-desvio-rojo' : ''}">${difCosto.html}</td>
+      <td class="num">${pesoUpsCellHtml(e, isFirst)}</td>
+      <td class="num${difPeso.rojo ? ' cell-desvio-rojo' : ''}">${difPeso.html}</td>
       <td>${env(estadoBadge(e, today))}</td>
       <td class="obs-cell" title="${isFirst ? escAttr(e.observaciones) : ''}">${obsCell(e.observaciones, isFirst)}</td>
     `;
@@ -424,13 +456,51 @@
       + `title="Ver desglose de venta" aria-label="Ver desglose de venta">▸</button>`;
   }
 
+  // ── Columnas de comparación contra la factura del courier (UPS) ──────────────
+  // Muestran SOLO lo que facturó el courier y los desvíos contra lo nuestro; no repiten
+  // venta ni peso propios (ya están en la fila). "Sin factura" = costo_facturado null → las
+  // cuatro celdas van con un guión, sin semáforo ni cuentas. En sub-filas de bulto van en
+  // blanco (dato de envío, no de bulto), igual que el resto de columnas del envío.
+
+  // Celda "Costo UPS": lo que facturó el courier (e.costo_facturado).
+  function costoUpsCellHtml(e, isFirst) {
+    if (!isFirst) return '';
+    if (e.costo_facturado == null) return '<span class="em">—</span>';
+    return fmtUSD(e.costo_facturado);
+  }
+
+  // Celda "Peso UPS": el peso que facturó el courier (e.peso_facturado).
+  function pesoUpsCellHtml(e, isFirst) {
+    if (!isFirst) return '';
+    if (e.costo_facturado == null) return '<span class="em">—</span>';
+    return fmtKg(e.peso_facturado);
+  }
+
+  // Evalúa el desvío % de una métrica facturada por el courier vs. la nuestra:
+  //   pct = (facturado − base) / base × 100
+  // Devuelve { html, rojo }. Semáforo ROJO solo si se cumplen LAS DOS cosas: el desvío es
+  // POSITIVO (el courier facturó de MÁS, va en contra nuestra) Y supera la tolerancia de esa
+  // métrica para el courier del envío. Desvío negativo (a favor nuestro) o dentro de la
+  // tolerancia → neutro, no se pinta. Nunca verde. Sin factura o base inválida → guión neutro.
+  function difEval(e, isFirst, facturado, base, tipo) {
+    if (!isFirst) return { html: '', rojo: false };
+    if (e.costo_facturado == null || facturado == null || base == null || base === 0) {
+      return { html: '<span class="em">—</span>', rojo: false };
+    }
+    const pct = (facturado - base) / base * 100;
+    const tol = (tolerancias[e.courier] || {})[tipo];
+    const rojo = pct > 0 && tol != null && pct > tol;
+    const sign = pct > 0 ? '+' : '';
+    return { html: `${sign}${pct.toFixed(1)}%`, rojo };
+  }
+
   // ¿Hay algo para mostrar en la sub-fila de detalle? Venta (venta_desglose) y/o los
   // extracargos de compra (extras). Si no hay ninguno, la fila no es expandible.
   function detailHasContent(e) {
     return !!(e.venta_desglose || (e.extras && e.extras.length));
   }
 
-  // Sub-fila de detalle: un único <td colspan="32"> SIN data-envio-id (queda fuera de
+  // Sub-fila de detalle: dos <td> (espaciador + contenido) SIN data-envio-id (queda fuera de
   // getDataRows() → no corre índices ni participa de la navegación por celdas). Muestra dos
   // bloques bien diferenciados: "Venta" (mini-liquidación: flete/fuel/seguro/adic/total, lo
   // que cobrás) y "Extracargos compra" (chips por tipo, lo que pagás). Cada bloque aparece
@@ -469,10 +539,10 @@
       </div>` : '';
 
     // Espaciador de 19 columnas (checkbox … las 19 previas a "Venta Total") + celda de
-    // contenido de 13 columnas: el desglose arranca justo debajo de "Venta Total" y se
+    // contenido de 17 columnas: el desglose arranca justo debajo de "Venta Total" y se
     // extiende a la derecha para comparar de un vistazo contra las columnas de plata.
-    // 19 + 13 = 32 → sigue cuadrando el colspan total.
-    tr.innerHTML = `<td colspan="19" class="detail-spacer"></td><td colspan="13"><div class="detail-row-inner">${ventaBlock}${extrasBlock}</div></td>`;
+    // 19 + 17 = 36 → sigue cuadrando el colspan total.
+    tr.innerHTML = `<td colspan="19" class="detail-spacer"></td><td colspan="17"><div class="detail-row-inner">${ventaBlock}${extrasBlock}</div></td>`;
     return tr;
   }
 
@@ -754,6 +824,13 @@
     document.getElementById('btn-exportar-excel').addEventListener('click', exportarExcel);
   }
 
+  // Desvío % para el Excel: número redondeado (facturado − base)/base×100, o '' si la base
+  // es inválida. Sin semáforo en la planilla, solo el valor crudo para poder filtrar/ordenar.
+  function difPctExcel(facturado, base) {
+    if (facturado == null || base == null || base === 0) return '';
+    return Math.round((facturado - base) / base * 10000) / 100;
+  }
+
   function exportarExcel() {
     // Una fila por ENVÍO, sobre la lista filtrada (mismas columnas/formato de siempre).
     const rows = filteredData;
@@ -791,6 +868,10 @@
       'Total (USD)':  e.total ?? '',
       'Profit (USD)': e.profit ?? '',
       '% Profit':     e.porcentaje ?? '',
+      'Costo UPS (USD)': e.costo_facturado ?? '',
+      'Dif Costo %':  e.costo_facturado != null ? difPctExcel(e.costo_facturado, e.compra_total) : '',
+      'Peso UPS (kg)': e.costo_facturado != null ? (e.peso_facturado ?? '') : '',
+      'Dif Peso %':   e.costo_facturado != null ? difPctExcel(e.peso_facturado, e.peso_facturable) : '',
       Estado:         estadoLabel(e, today),
       Observaciones:  e.observaciones ?? '',
     }));
@@ -2240,7 +2321,7 @@
   }
 
   // Filas de datos = las que tienen data-envio-id. Excluye automáticamente las filas
-  // "Cargando…" / "No hay envíos" (td colspan 32 sin data-envio-id).
+  // "Cargando…" / "No hay envíos" (td colspan 36 sin data-envio-id).
   function getDataRows() {
     const tbody = document.getElementById('salidas-body');
     if (!tbody) return [];

@@ -77,6 +77,10 @@ router.get('/', async (req, res, next) => {
         e.porcentaje,
         e.observaciones,
         e.estado_revision,
+        e.costo_facturado,
+        e.peso_facturado,
+        e.courier_facturado,
+        e.fecha_facturado,
         e.num_sal_cero,
         e.liquidado,
         e.fecha_liquidacion,
@@ -138,6 +142,26 @@ router.get('/', async (req, res, next) => {
           numero_guia: b.numero_guia,
           estado_caja: b.estado_caja ?? null,
         });
+      }
+    }
+
+    // Recargos facturados por envío: el desglose (cargos_json) de lo que el courier facturó
+    // por esa guía. Puede haber VARIAS filas por envío si la factura se recargó; nos quedamos
+    // con la MÁS RECIENTE (mayor id). Una sola query (sin N+1), indexada por envio_id igual
+    // que bultosPorEnvio. Sin factura cargada → el envío no está en el mapa → array vacío.
+    const recargosPorEnvio = new Map();
+    if (envioIds.length > 0) {
+      const placeholders = envioIds.map(() => '?').join(', ');
+      // ORDER BY id ASC: al iterar, la fila de mayor id (más reciente) sobrescribe y gana.
+      const guiaRows = await db
+        .prepare(`
+          SELECT envio_id, cargos_json
+          FROM factura_guias
+          WHERE envio_id IN (${placeholders})
+          ORDER BY id ASC`)
+        .all(...envioIds);
+      for (const g of guiaRows) {
+        recargosPorEnvio.set(g.envio_id, parseExtras(g.cargos_json));
       }
     }
 
@@ -229,6 +253,14 @@ router.get('/', async (req, res, next) => {
       ...deriveProfit(row),
       observaciones: row.observaciones,
       estado_revision: row.estado_revision ?? null,
+      // Datos de lo que el courier facturó por este envío (módulo Control de Facturas).
+      // Los escalares viven en la propia fila de envios; recargos_facturados es el desglose
+      // de la factura MÁS RECIENTE cruzada a este envío (array vacío si no hay factura).
+      costo_facturado: row.costo_facturado ?? null,
+      peso_facturado: row.peso_facturado ?? null,
+      courier_facturado: row.courier_facturado ?? null,
+      fecha_facturado: row.fecha_facturado ?? null,
+      recargos_facturados: recargosPorEnvio.get(row.id) ?? [],
       num_sal_cero: Boolean(row.num_sal_cero),
       liquidado: Boolean(row.liquidado),
       fecha_liquidacion: row.fecha_liquidacion,

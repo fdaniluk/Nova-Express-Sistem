@@ -11,4 +11,7 @@ router.get('/umbral', ctrl.listarUmbrales);
 router.get('/umbral/historial', ctrl.historialUmbral);
 router.put('/umbral/:courier', ctrl.actualizarUmbral);
 
+router.get('/tolerancias', ctrl.listarTolerancias);
+router.put('/tolerancias/:courier', ctrl.actualizarTolerancias);
+
 module.exports = router;

@@ -89,4 +89,36 @@ async function historialUmbral(courier) {
     .all();
 }
 
-module.exports = { obtenerFuel, listarFuel, actualizarFuel, historialFuel, obtenerUmbral, listarUmbrales, actualizarUmbral, historialUmbral };
+// Tolerancias de comparación contra la factura del courier (módulo Control de Facturas /
+// Salidas). tolerancia_peso_pct y tolerancia_costo_pct son el desvío máximo aceptable en %.
+// Sin historial: son parámetros de configuración simples (a diferencia de fuel/umbral).
+
+async function obtenerTolerancias(courier) {
+  return getDb()
+    .prepare('SELECT courier, tolerancia_peso_pct, tolerancia_costo_pct FROM configuracion WHERE courier = ?')
+    .get(courier);
+}
+
+async function listarTolerancias() {
+  return getDb()
+    .prepare('SELECT courier, tolerancia_peso_pct, tolerancia_costo_pct FROM configuracion ORDER BY courier')
+    .all();
+}
+
+async function actualizarTolerancias(courier, pesoPct, costoPct) {
+  const db = getDb();
+  const actual = await obtenerTolerancias(courier);
+  if (!actual) {
+    throw new Error(`Courier no configurado: ${courier}`);
+  }
+  await db.prepare(
+    `UPDATE configuracion SET tolerancia_peso_pct = ?, tolerancia_costo_pct = ? WHERE courier = ?`
+  ).run(pesoPct, costoPct, courier);
+  return obtenerTolerancias(courier);
+}
+
+module.exports = {
+  obtenerFuel, listarFuel, actualizarFuel, historialFuel,
+  obtenerUmbral, listarUmbrales, actualizarUmbral, historialUmbral,
+  obtenerTolerancias, listarTolerancias, actualizarTolerancias,
+};

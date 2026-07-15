@@ -30,7 +30,11 @@ CREATE TABLE IF NOT EXISTS configuracion (
   courier              TEXT PRIMARY KEY CHECK (courier IN ('DHL', 'UPS')),
   fuel_pct             REAL NOT NULL,
   fecha_actualizacion  TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
-  ganancia_minima_pct  REAL DEFAULT 20
+  ganancia_minima_pct  REAL DEFAULT 20,
+  -- Desvío máximo aceptable (%) al comparar contra la factura del courier: si facturó
+  -- MÁS peso/costo que lo nuestro y el desvío supera la tolerancia, se pinta en rojo.
+  tolerancia_peso_pct  REAL DEFAULT 10,
+  tolerancia_costo_pct REAL DEFAULT 10
 );
 
 CREATE TABLE IF NOT EXISTS configuracion_historial (
