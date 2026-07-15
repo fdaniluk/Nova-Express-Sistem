@@ -31,6 +31,10 @@
   // caché de resultados de tracking (por sesión)
   const trackingCache = {};
 
+  // Clientes para el select del modal de edición. Se cargan una vez en init y se
+  // reusan cada vez que se abre el modal (para poder preseleccionar el del envío).
+  let clientes = [];
+
   // estado del modal de edición
   let editEnvio = null;
   let editBultos = [];      // bultos del envío en edición (multi-bulto)
@@ -83,7 +87,19 @@
     loadStickyPins();
     bindStickyCols();
     bindFloatingScrollbar();
+    await loadClientes();
     await loadData();
+  }
+
+  // Carga la lista de clientes (para el select de cliente del modal de edición). Si
+  // falla no rompe la pantalla: el select simplemente quedará vacío hasta reintentar.
+  async function loadClientes() {
+    try {
+      clientes = await NovaAPI.clientes.listar();
+    } catch (err) {
+      console.warn('[salidas] No se pudieron cargar clientes:', err.message);
+      clientes = [];
+    }
   }
 
   // ── Carga de datos ──────────────────────────────────────────────────────────
@@ -111,13 +127,19 @@
       (byMonth[mes] || (byMonth[mes] = [])).push(e);
     }
     for (const mes of Object.keys(byMonth)) {
+      let n = 0;   // correlativo corrido del mes; los "sin numerar" NO lo consumen
       byMonth[mes]
         .sort((a, b) => {
           if (a.fecha < b.fecha) return -1;
           if (a.fecha > b.fecha) return 1;
           return (a.id || 0) - (b.id || 0);
         })
-        .forEach((e, i) => { e.num_sal_mes = i + 1; });
+        .forEach((e) => {
+          // Envío "sin numerar" (num_sal_cero): recibe 0 y no gasta número; el resto del
+          // mes se sigue numerando 1..N corrido, como si los cero no existieran. Como la
+          // columna #Sal ordena por num_sal_mes, los 0 quedan arriba de todos.
+          e.num_sal_mes = e.num_sal_cero ? 0 : ++n;
+        });
     }
   }
 
@@ -1269,6 +1291,32 @@
                 <input type="number" id="saled-numero-salida" step="1" min="0">
               </div>
               <div class="form-group">
+                <label>Fecha *</label>
+                <input type="date" id="saled-fecha">
+              </div>
+              <div class="form-group" style="grid-column:span 2">
+                <label>Cliente *</label>
+                <select id="saled-cliente"></select>
+              </div>
+              <div class="form-group">
+                <label>Courier *</label>
+                <select id="saled-courier">
+                  <option value="DHL">DHL</option>
+                  <option value="UPS">UPS</option>
+                </select>
+              </div>
+              <div class="form-group" style="grid-column:span 2">
+                <label>País destino *</label>
+                <select id="saled-pais-destino"></select>
+              </div>
+              <div class="form-group" style="justify-content:flex-end;padding-bottom:2px">
+                <label>&nbsp;</label>
+                <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px">
+                  <input type="checkbox" id="saled-sin-numerar" style="width:auto;margin:0">
+                  Envío sin numerar
+                </label>
+              </div>
+              <div class="form-group">
                 <label>Bulto</label>
                 <input type="text" id="saled-bulto">
               </div>
@@ -1294,6 +1342,9 @@
                   Asegurado
                 </label>
               </div>
+            </div>
+            <div id="saled-lock-note" class="alert alert-info hidden" style="margin-top:8px">
+              Este envío está liquidado: no se puede cambiar la fecha ni el cliente (afectaría una liquidación confirmada). El resto de los campos sí se pueden editar.
             </div>
           </div>
           <div>
@@ -1372,6 +1423,54 @@
     });
   }
 
+  // Llena el select de clientes del modal y preselecciona el del envío. El nombre visible
+  // sigue el mismo criterio que la tabla: nombre_nova si existe, si no el nombre común.
+  function fillClienteSelect(selectedId) {
+    const sel = document.getElementById('saled-cliente');
+    if (!sel) return;
+    sel.innerHTML = '';
+    for (const c of clientes) {
+      const opt = document.createElement('option');
+      opt.value = c.id;
+      opt.textContent = c.nombre_nova || c.nombre;
+      sel.appendChild(opt);
+    }
+    if (selectedId != null) sel.value = String(selectedId);
+  }
+
+  // Llena el select de países con la lista canónica: unión de las claves de las 3 tablas
+  // de zonas del cotizador (DHL, UPS export, UPS import), ordenada alfabéticamente. Es un
+  // SELECT y no texto libre a propósito: escribir un país que no matchea las tablas deja
+  // el envío con una zona equivocada en silencio (nos pasó con "Gran Bretaña" vs "Reino
+  // Unido"). Si el país actual del envío NO está en la lista (envío viejo mal cargado),
+  // lo agregamos marcado como "no reconocido" para que el usuario lo vea y lo corrija, en
+  // vez de que el select lo reemplace por otro sin avisar.
+  function fillPaisSelect(selectedPais) {
+    const sel = document.getElementById('saled-pais-destino');
+    if (!sel) return;
+    const paises = (typeof ZONAS_DHL !== 'undefined')
+      ? [...new Set([
+          ...Object.keys(ZONAS_DHL),
+          ...Object.keys(ZONAS_UPS),
+          ...Object.keys(ZONAS_UPS_I),
+        ])].sort()
+      : [];
+    sel.innerHTML = '';
+    if (selectedPais && !paises.includes(selectedPais)) {
+      const opt = document.createElement('option');
+      opt.value = selectedPais;
+      opt.textContent = `${selectedPais} (no reconocido)`;
+      sel.appendChild(opt);
+    }
+    for (const p of paises) {
+      const opt = document.createElement('option');
+      opt.value = p;
+      opt.textContent = p;
+      sel.appendChild(opt);
+    }
+    if (selectedPais) sel.value = selectedPais;
+  }
+
   function openEditModal(envio) {
     editEnvio = envio;
     document.getElementById('sal-modal-title').textContent = `Editar — ${envio.numero_guia}`;
@@ -1384,6 +1483,21 @@
     document.getElementById('saled-tipo-paquete').value = envio.tipo_paquete ?? '';
     document.getElementById('saled-direccion').value = envio.direccion || 'expo';
     document.getElementById('saled-asegurado').checked = Boolean(envio.asegurado);
+
+    // Identidad editable: fecha, cliente, courier, país destino y "sin numerar".
+    document.getElementById('saled-fecha').value = envio.fecha || '';
+    fillClienteSelect(envio.cliente_id);
+    document.getElementById('saled-courier').value = envio.courier || 'DHL';
+    fillPaisSelect(envio.destino);
+    document.getElementById('saled-sin-numerar').checked = Boolean(envio.num_sal_cero);
+
+    // Envío liquidado: el backend congela fecha y cliente (responde 409 si cambian).
+    // Deshabilitamos ambos campos y explicamos por qué, en vez de dejar que el usuario
+    // los toque y choque contra el error. El resto de los campos sigue editable.
+    const liquidado = Boolean(envio.liquidado);
+    document.getElementById('saled-fecha').disabled = liquidado;
+    document.getElementById('saled-cliente').disabled = liquidado;
+    document.getElementById('saled-lock-note').classList.toggle('hidden', !liquidado);
 
     for (const f of ['flete', 'descuento', 'seguro', 'fuel', 'derechos', 'adicionales', 'otros', 'profit', 'porcentaje']) {
       document.getElementById(`saled-${f}`).value = envio[f] ?? '';
@@ -1586,7 +1700,6 @@
   // el cartelito de desfase.
   function renderExtrasBlock() {
     const block = document.getElementById('saled-extras-block');
-    console.log('[renderExtras] block:', block, 'editExtras:', JSON.parse(JSON.stringify(editExtras)), 'dirty:', editExtrasDirty);
     if (!block) return;
 
     if (!editExtras.length) {
@@ -1620,7 +1733,6 @@
   // suma del desglose. Sin desglose → nunca (no hay con qué comparar).
   function updateExtrasWarn() {
     const warn = document.getElementById('saled-extras-warn');
-    console.log('[extrasWarn] warn elem:', warn, 'editExtras.length:', editExtras.length);
     if (!warn) return;
     if (!editExtras.length) {
       warn.classList.add('hidden');
@@ -1630,7 +1742,6 @@
     const adic = parseNum(rawAdic);
     const sum = extrasSum();
     const mismatch = Math.abs(adic - sum) > 0.01;
-    console.log('[extrasWarn] rawAdic:', JSON.stringify(rawAdic), 'adic:', adic, 'extrasSum:', sum, 'mismatch:', mismatch);
     warn.classList.toggle('hidden', !mismatch);
   }
 
@@ -1642,8 +1753,13 @@
     const btn = document.getElementById('saled-recalcular');
     const status = document.getElementById('saled-recalc-status');
 
+    // País y courier tal como el usuario los ve en el modal AHORA (aún sin guardar): el
+    // backend recalcula con estos, no con los del envío original. Así Recalcular refleja el
+    // cambio de país/courier antes del PATCH.
     const body = {
       asegurado: document.getElementById('saled-asegurado').checked ? 1 : 0,
+      pais_destino: document.getElementById('saled-pais-destino').value || null,
+      courier: document.getElementById('saled-courier').value,
     };
     if (editMulti) {
       recalcEditPesoBalanza();
@@ -1739,6 +1855,16 @@
     const totalCobrado = document.getElementById('saled-total').value;
     payload.total_cobrado = totalCobrado !== '' ? Number(totalCobrado) : null;
 
+    // Identidad: fecha, cliente, courier, país destino y "sin numerar". El backend valida
+    // todo y re-resuelve la zona solo cuando cambia el país. En envíos liquidados fecha y
+    // cliente están deshabilitados en el modal, así que su .value sigue siendo el original
+    // (mismo valor → el backend no lo rechaza). El país viaja como pais_destino.
+    payload.fecha        = document.getElementById('saled-fecha').value || null;
+    payload.cliente_id   = Number(document.getElementById('saled-cliente').value) || null;
+    payload.courier      = document.getElementById('saled-courier').value;
+    payload.pais_destino = document.getElementById('saled-pais-destino').value || null;
+    payload.num_sal_cero = document.getElementById('saled-sin-numerar').checked ? 1 : 0;
+
     // Peso y medidas (nombres de columna del backend). En multi-bulto las medidas viajan en
     // el array de bultos; el peso balanza de arriba es la suma. peso_facturable/volumétrico
     // son los que dejó el último Recalcular (solo lectura).
@@ -1765,8 +1891,14 @@
     // solo editó el total a mano, no se manda y el backend no pisa la columna (UX acordada).
     if (editExtrasDirty) payload.extras_json = editExtras;
 
+    // Valores previos para detectar qué cambió: la tarifa (país/courier) queda
+    // desactualizada y hay que avisar; la fecha puede mover el envío a otro mes/solapa.
+    const prevCourier = editEnvio.courier;
+    const prevPais    = editEnvio.destino;
+    const prevMes     = (editEnvio.fecha || '').slice(0, 7);
+
     try {
-      await NovaAPI.salidas.actualizar(editEnvio.id, payload);
+      const resp = await NovaAPI.salidas.actualizar(editEnvio.id, payload);
       const idx = allData.findIndex((d) => d.id === editEnvio.id);
       if (idx !== -1) {
         const d = allData[idx];
@@ -1785,6 +1917,13 @@
         d.peso = payload.peso_real;
         d.total = payload.total_cobrado;
         d.asegurado = Boolean(payload.asegurado);
+        // Alias de identidad que usa la tabla: el país se muestra como `destino`,
+        // num_sal_cero se consume como booleano, y el nombre del cliente se refresca desde
+        // la lista cargada (mismo criterio que el GET: nombre_nova con fallback a nombre).
+        d.destino = payload.pais_destino;
+        d.num_sal_cero = Boolean(payload.num_sal_cero);
+        const cliSel = clientes.find((c) => c.id === payload.cliente_id);
+        if (cliSel) d.cliente_nombre = cliSel.nombre_nova || cliSel.nombre;
         d.compra_total = (payload.flete || 0) - (payload.descuento || 0) + (payload.seguro || 0)
           + (payload.fuel || 0) + (payload.derechos || 0) + (payload.adicionales || 0) + (payload.otros || 0);
         if (editMulti && Array.isArray(d.bultos)) {
@@ -1799,10 +1938,35 @@
           });
         }
       }
-      closeEditModal();
+      // Renumerar y reordenar con los datos nuevos. Si la fecha movió el envío a otro mes,
+      // saltar la solapa activa a ese mes para que el usuario vea dónde quedó en vez de que
+      // le "desaparezca" de pantalla.
+      recomputeNumSalMes();
+      const mesNuevo = (payload.fecha || '').slice(0, 7);
+      if (mesNuevo && mesNuevo !== prevMes) selectedMonth = mesNuevo;
+
+      // Avisos que mantienen el modal ABIERTO: la decisión de recalcular es del usuario.
+      //  - aviso_zona: el backend no pudo resolver una zona para el país nuevo.
+      //  - tarifa: cambió país o courier → el costo guardado quedó desactualizado.
+      const cambioPais    = (payload.pais_destino ?? '') !== (prevPais ?? '');
+      const cambioCourier = payload.courier !== prevCourier;
+      const avisoZona     = resp && resp.aviso_zona ? resp.aviso_zona : null;
+      const avisoTarifa   = cambioPais || cambioCourier;
+
       applyAll();
-      NovaUtils.showAlert(alertBox, 'Cambios guardados correctamente', 'success');
+
+      if (avisoZona || avisoTarifa) {
+        // Persistido OK, pero dejamos el modal abierto con el aviso y el CTA de Recalcular
+        // (que reusa el botón/flujo existente) para que el usuario decida.
+        renderPostSaveAvisos(avisoZona, avisoTarifa);
+        NovaUtils.showAlert(alertBox, 'Cambios guardados. Revisá el aviso.', 'success');
+      } else {
+        closeEditModal();
+        NovaUtils.showAlert(alertBox, 'Cambios guardados correctamente', 'success');
+      }
     } catch (err) {
+      // Incluye el 409 de envío liquidado (cambio de cliente/fecha): mostramos el mensaje
+      // que manda el backend, no un error genérico.
       const modalAlert = document.getElementById('sal-modal-alert');
       NovaUtils.showAlert(modalAlert, err.message, 'error');
       document.querySelector('.sal-modal-body').scrollTop = 0;
@@ -1810,6 +1974,33 @@
       saveBtn.disabled = false;
       saveBtn.textContent = 'Guardar cambios';
     }
+  }
+
+  // Aviso post-guardado dentro del modal (persistente, no se auto-cierra). Muestra el
+  // aviso de zona del backend y/o el de tarifa desactualizada por cambio de país/courier.
+  // El botón "Recalcular ahora" reusa recalcularDesglose (el mismo flujo del botón del
+  // modal): recalcula el desglose contra el motor y deja al usuario revisar y volver a
+  // guardar. NO recalculamos solos para no pisar valores ajustados a mano.
+  function renderPostSaveAvisos(avisoZona, avisoTarifa) {
+    const box = document.getElementById('sal-modal-alert');
+    if (!box) return;
+    const parts = [];
+    if (avisoZona) {
+      parts.push(`<div class="alert alert-info">${esc(avisoZona)}</div>`);
+    }
+    if (avisoTarifa) {
+      parts.push(`<div class="alert alert-info">`
+        + `Cambiaste el país o el courier: la tarifa es distinta, así que el costo guardado `
+        + `quedó desactualizado. No lo recalculamos solos para no pisar valores ajustados a `
+        + `mano. Si querés actualizarlo, tocá `
+        + `<button type="button" class="btn btn-sm btn-secondary" id="saled-recalc-cta">Recalcular</button>`
+        + ` y volvé a Guardar.`
+        + `</div>`);
+    }
+    box.innerHTML = parts.join('');
+    const cta = document.getElementById('saled-recalc-cta');
+    if (cta) cta.addEventListener('click', recalcularDesglose);
+    document.querySelector('.sal-modal-body').scrollTop = 0;
   }
 
   async function deleteEditModal() {

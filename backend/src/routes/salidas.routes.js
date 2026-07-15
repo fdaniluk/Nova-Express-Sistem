@@ -77,6 +77,7 @@ router.get('/', async (req, res, next) => {
         e.porcentaje,
         e.observaciones,
         e.estado_revision,
+        e.num_sal_cero,
         e.liquidado,
         e.fecha_liquidacion,
         e.liquidacion_id,
@@ -228,6 +229,7 @@ router.get('/', async (req, res, next) => {
       ...deriveProfit(row),
       observaciones: row.observaciones,
       estado_revision: row.estado_revision ?? null,
+      num_sal_cero: Boolean(row.num_sal_cero),
       liquidado: Boolean(row.liquidado),
       fecha_liquidacion: row.fecha_liquidacion,
       bultos: bultosDe(row),
@@ -239,13 +241,16 @@ router.get('/', async (req, res, next) => {
   }
 });
 
-// Recálculo SOLO-CÁLCULO del desglose al editar peso/medidas desde el modal de Salidas.
-// NO persiste nada: el frontend muestra el resultado y, si el usuario guarda, lo manda
-// al PATCH (que persiste lo recibido, ver más abajo). Reusa el MISMO motor y armado de
-// inputs que el alta (buildPesos + calcularDesgloseAlCosto de envio.model.js): los campos
-// que NO se editan en el modal (pais, tipo, courier, servicio_ups, fob, zona) se toman del
-// envío guardado; el fuel% lo resuelve calcularDesgloseAlCosto del backend (no del cliente).
-// Body: { peso_real, largo, ancho, alto, bultos?: [{ peso_real, largo, ancho, alto }] }
+// Recálculo SOLO-CÁLCULO del desglose al editar desde el modal de Salidas. NO persiste
+// nada: el frontend muestra el resultado y, si el usuario guarda, lo manda al PATCH (que
+// persiste lo recibido, ver más abajo). Reusa el MISMO motor y armado de inputs que el alta
+// (buildPesos + calcularDesgloseAlCosto de envio.model.js).
+// El modal edita peso/medidas, país y courier: esos tres viajan en el body y GANAN sobre lo
+// guardado (país y courier son opcionales por compatibilidad; si no vienen, se usa el del
+// envío). Si el país efectivo cambió respecto al guardado se ignora la zona guardada (era un
+// override del país viejo) y se re-resuelve desde el país nuevo. El resto (tipo, servicio_ups,
+// fob) sale del envío; el fuel% queda congelado del envío (no del config actual).
+// Body: { peso_real, largo, alto, ancho, bultos?: [...], pais_destino?, courier? }
 //   - bulto único: campos sueltos (peso_real/largo/ancho/alto), sin array bultos.
 //   - multi-bulto: array bultos; el peso facturable sale de los bultos.
 // Responde: { flete, seguro, fuel, adicionales, total, peso_facturable, peso_volumetrico, zona }
@@ -259,6 +264,31 @@ router.post('/:id/recalcular', async (req, res, next) => {
     if (!envio) return res.status(404).json({ error: 'Envío no encontrado' });
 
     const body = req.body || {};
+
+    // pais_destino y courier ahora son editables en el modal, así que el recálculo debe
+    // usar lo que el usuario tiene en pantalla (body), no lo guardado. Ambos son OPCIONALES:
+    // si no vienen, se cae al valor del envío (compatibilidad con quien hoy no los manda).
+    const courierEfectivo = body.courier ?? envio.courier;
+    const paisEfectivo = body.pais_destino ?? envio.pais_destino;
+
+    // Validación espejo del PATCH: valores inválidos revientan feo en el motor.
+    if (body.courier != null && body.courier !== 'DHL' && body.courier !== 'UPS') {
+      return res.status(400).json({ error: "El courier debe ser exactamente 'DHL' o 'UPS'." });
+    }
+    if (body.pais_destino != null && String(body.pais_destino).trim() === '') {
+      return res.status(400).json({ error: 'El país de destino no puede estar vacío.' });
+    }
+
+    // servicio_ups NO se edita en el modal: si el courier efectivo es UPS hace falta el
+    // guardado para resolver tarifa. Sin él, cortamos con un mensaje claro en castellano en
+    // vez de dejar que el motor explote con un error críptico.
+    if (courierEfectivo === 'UPS' && !envio.servicio_ups) {
+      return res.status(400).json({
+        error: 'El envío no tiene servicio UPS guardado: no se puede recalcular con courier UPS. '
+          + 'Cargá el servicio UPS desde el alta/edición y volvé a intentar.',
+      });
+    }
+
     const bultos = (Array.isArray(body.bultos) && body.bultos.length > 0)
       ? body.bultos.map((b) => ({
           peso_real: b.peso_real,
@@ -268,14 +298,20 @@ router.post('/:id/recalcular', async (req, res, next) => {
         }))
       : [];
 
-    // Inputs editados (peso/medidas/bultos) + inputs no editables tomados del envío guardado.
+    // ZONA: la zona guardada es un override atado al país viejo. Si el país efectivo cambió
+    // respecto al guardado, usarla daría una tarifa equivocada: pasamos null para que el
+    // motor la resuelva desde el país nuevo (si no resuelve, cae al 422 de abajo). Si el
+    // país no cambió, se respeta la zona guardada (pudo ser un override manual válido).
+    const paisCambio = String(paisEfectivo ?? '').trim() !== String(envio.pais_destino ?? '').trim();
+
+    // Inputs editados (peso/medidas/bultos, país, courier) + inputs no editables del envío.
     const data = {
-      courier: envio.courier,
+      courier: courierEfectivo,
       servicio_ups: envio.servicio_ups,
       tipo_envio: envio.tipo_envio,
-      pais_destino: envio.pais_destino,
+      pais_destino: paisEfectivo,
       fob: envio.fob,
-      zona: envio.zona,
+      zona: paisCambio ? null : envio.zona,
       // Fuel% congelado del envío: el recálculo respeta el guardado (no el de config actual).
       fuel_pct: envio.fuel_pct,
       peso_real: body.peso_real,
@@ -289,7 +325,8 @@ router.post('/:id/recalcular', async (req, res, next) => {
     const desglose = await calcularDesgloseAlCosto(data, pesoFacturable);
     if (!desglose) {
       return res.status(422).json({
-        error: 'No se pudo calcular el desglose: país/zona desconocidos para este envío',
+        error: `No se pudo calcular el desglose: el país "${String(paisEfectivo ?? '').trim()}" `
+          + 'no resuelve una zona reconocida por el motor.',
       });
     }
 
@@ -311,13 +348,25 @@ router.post('/:id/recalcular', async (req, res, next) => {
 });
 
 // Campos editables desde la vista Salidas.
-// Bloqueados: cliente_id, courier, fecha, pais_destino, liquidado, liquidacion_id.
+// Bloqueados (solo): liquidado, liquidacion_id.
+// fecha/cliente_id/courier/pais_destino/num_sal_cero se validan más abajo antes de
+// persistir; además, en envíos liquidados fecha y cliente_id quedan congelados (409).
 const SALIDAS_EDITABLE = [
+  'fecha', 'cliente_id', 'courier', 'pais_destino', 'num_sal_cero',
   'numero_guia', 'numero_salida', 'bulto', 'tipo_paquete', 'asegurado', 'direccion',
   'peso_real', 'largo', 'ancho', 'alto', 'peso_facturable', 'peso_volumetrico',
   'flete', 'descuento', 'seguro', 'fuel', 'fuel_pct', 'derechos', 'adicionales', 'otros',
   'total_cobrado', 'profit', 'porcentaje', 'observaciones', 'extras_json',
 ];
+
+// Fecha en formato ISO estricto YYYY-MM-DD y que sea un día de calendario real.
+function esFechaValida(v) {
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const [y, m, d] = v.split('-').map(Number);
+  if (m < 1 || m > 12 || d < 1 || d > 31) return false;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
 
 router.patch('/:id', async (req, res, next) => {
   try {
@@ -325,7 +374,7 @@ router.patch('/:id', async (req, res, next) => {
     const id = parseInt(req.params.id, 10);
     if (!Number.isFinite(id)) return res.status(400).json({ error: 'ID inválido' });
 
-    const existing = await db.prepare('SELECT id, numero_guia FROM envios WHERE id = ?').get(id);
+    const existing = await db.prepare('SELECT * FROM envios WHERE id = ?').get(id);
     if (!existing) return res.status(404).json({ error: 'Envío no encontrado' });
 
     const picked = {};
@@ -375,6 +424,81 @@ router.patch('/:id', async (req, res, next) => {
       }
     }
 
+    // FRENO DE SEGURIDAD para envíos ya liquidados: cambiar el cliente descuadra una
+    // liquidación confirmada y cambiar la fecha puede sacar el envío del período
+    // liquidado. Ambos quedan congelados (409); el resto de los campos sí se pueden
+    // editar aunque el envío esté liquidado. Solo se rechaza si el valor CAMBIA.
+    if (existing.liquidado) {
+      const cambiaCliente = Object.prototype.hasOwnProperty.call(picked, 'cliente_id')
+        && Number(picked.cliente_id) !== Number(existing.cliente_id);
+      const cambiaFecha = Object.prototype.hasOwnProperty.call(picked, 'fecha')
+        && picked.fecha !== existing.fecha;
+      if (cambiaCliente) {
+        return res.status(409).json({
+          error: 'El envío está liquidado: no se puede cambiar el cliente (descuadraría una liquidación confirmada).',
+        });
+      }
+      if (cambiaFecha) {
+        return res.status(409).json({
+          error: 'El envío está liquidado: no se puede cambiar la fecha (podría sacarlo del período liquidado).',
+        });
+      }
+    }
+
+    // Validación de los campos recién destrabados. Sin esto, un valor inválido rompe
+    // con un error crudo de SQLite (CHECK de courier, FK de cliente_id) o corrompe la fila.
+    if (Object.prototype.hasOwnProperty.call(picked, 'fecha') && !esFechaValida(picked.fecha)) {
+      return res.status(400).json({ error: 'La fecha debe tener formato YYYY-MM-DD válido.' });
+    }
+    if (Object.prototype.hasOwnProperty.call(picked, 'courier')
+        && picked.courier !== 'DHL' && picked.courier !== 'UPS') {
+      return res.status(400).json({ error: "El courier debe ser exactamente 'DHL' o 'UPS'." });
+    }
+    if (Object.prototype.hasOwnProperty.call(picked, 'cliente_id')) {
+      const cli = await db.prepare('SELECT id FROM clientes WHERE id = ?').get(picked.cliente_id);
+      if (!cli) {
+        return res.status(400).json({ error: `No existe un cliente con id ${picked.cliente_id}.` });
+      }
+    }
+    if (Object.prototype.hasOwnProperty.call(picked, 'pais_destino')
+        && String(picked.pais_destino ?? '').trim() === '') {
+      return res.status(400).json({ error: 'El país de destino no puede estar vacío.' });
+    }
+    if (Object.prototype.hasOwnProperty.call(picked, 'num_sal_cero')
+        && picked.num_sal_cero !== 0 && picked.num_sal_cero !== 1) {
+      return res.status(400).json({ error: 'num_sal_cero debe ser 0 o 1.' });
+    }
+
+    // ZONA: si cambia el país, re-resolver la zona con la MISMA lógica del alta
+    // (calcularDesgloseAlCosto → motor). La zona la resuelve el motor desde el país; el
+    // POST /:id/recalcular posterior toma pais/zona ya guardados, así que dejarla al día
+    // acá basta. Se pasa SIN zona override para que el resultado refleje solo lo que
+    // resuelve el país nuevo: si no resuelve (país desconocido y sin zona manual),
+    // calcularDesgloseAlCosto devuelve null → NO se pisa la zona vieja y se avisa al front.
+    let avisoZona;
+    if (Object.prototype.hasOwnProperty.call(picked, 'pais_destino')
+        && String(picked.pais_destino).trim() !== String(existing.pais_destino ?? '').trim()) {
+      const desgloseZona = await calcularDesgloseAlCosto({
+        courier: picked.courier ?? existing.courier,
+        servicio_ups: existing.servicio_ups,
+        tipo_envio: existing.tipo_envio,
+        pais_destino: picked.pais_destino,
+        fob: existing.fob,
+        fuel_pct: existing.fuel_pct,
+        zona: undefined,
+        peso_real: existing.peso_real,
+        largo: existing.largo,
+        ancho: existing.ancho,
+        alto: existing.alto,
+      }, existing.peso_facturable);
+      if (desgloseZona) {
+        picked.zona = desgloseZona.zona;
+      } else {
+        avisoZona = `El país "${String(picked.pais_destino).trim()}" no resuelve una zona automática; `
+          + 'se conservó la zona anterior. Verificá la zona manualmente.';
+      }
+    }
+
     // El save persiste lo recibido: NO recalcula el motor ni pisa los costos del payload
     // (el usuario pudo ajustarlos a mano tras Recalcular). El único derivado es el
     // peso_volumetrico por bulto, geometría pura (mismo cálculo que saveBultos del alta).
@@ -399,7 +523,9 @@ router.patch('/:id', async (req, res, next) => {
       }
     });
 
-    res.json({ ok: true });
+    const respuesta = { ok: true };
+    if (avisoZona) respuesta.aviso_zona = avisoZona;
+    res.json(respuesta);
   } catch (err) {
     next(err);
   }

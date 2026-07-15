@@ -187,6 +187,9 @@ async function migrateEnvios() {
     ['extras_json',      'TEXT'],
     ['destino_raw',      'TEXT'],
     ['direccion',        "TEXT DEFAULT 'expo'"],
+    // Flag "envío número 0": 1 = envío raro que se muestra con #Sal 0, va arriba de
+    // todos y no consume número correlativo. El renumerado es del frontend.
+    ['num_sal_cero',     'INTEGER DEFAULT 0'],
     // Columnas módulo Control de Facturas
     ['costo_facturado',  'REAL'],
     ['peso_facturado',   'REAL'],
