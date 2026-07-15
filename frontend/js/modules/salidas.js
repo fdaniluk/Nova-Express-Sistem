@@ -436,7 +436,11 @@
         </div>
       </div>` : '';
 
-    tr.innerHTML = `<td colspan="32"><div class="detail-row-inner">${ventaBlock}${extrasBlock}</div></td>`;
+    // Espaciador de 19 columnas (checkbox … las 19 previas a "Venta Total") + celda de
+    // contenido de 13 columnas: el desglose arranca justo debajo de "Venta Total" y se
+    // extiende a la derecha para comparar de un vistazo contra las columnas de plata.
+    // 19 + 13 = 32 → sigue cuadrando el colspan total.
+    tr.innerHTML = `<td colspan="19" class="detail-spacer"></td><td colspan="13"><div class="detail-row-inner">${ventaBlock}${extrasBlock}</div></td>`;
     return tr;
   }
 

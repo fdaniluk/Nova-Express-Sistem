@@ -427,11 +427,13 @@ td.detail-expandable { cursor: pointer; }
 .extras-toggle:hover { color: var(--color-primary); }
 .extras-toggle.open { transform: rotate(90deg); }
 
-/* Sub-fila colspan="32" (sin data-envio-id): fuera de la grilla, estilo detalle como
-   .bulto-detail-row. Al ser colspan no participa de las columnas sticky. */
+/* Sub-fila (sin data-envio-id): fuera de la grilla, estilo detalle como .bulto-detail-row.
+   Dos celdas colspan (19 espaciador + 13 contenido = 32): el desglose arranca debajo de
+   "Venta Total". Ambas comparten fondo y sin border-top. La alineación la da el espaciador,
+   por eso el padding-left de la celda de contenido es mínimo. */
 .extras-detail-row td {
   background: #f8fafc;
-  padding: 6px 12px 6px 28px;
+  padding: 6px 12px 6px 4px;
   border-top: none;
 }
 .extras-breakdown {
