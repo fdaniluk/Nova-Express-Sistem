@@ -78,6 +78,10 @@
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg></span>
         <span>Usuarios</span>
       </a>
+      <a href="configuracion.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+        <span>Configuración</span>
+      </a>
     </nav>
     <div class="sidebar-footer">
       <button class="nav-item nav-logout" id="btn-logout">
@@ -99,7 +103,6 @@
         <button class="tab active" data-tab="pendientes">Pendientes</button>
         <button class="tab" data-tab="crear">Crear liquidación</button>
         <button class="tab" data-tab="historial">Historial</button>
-        <button class="tab" data-tab="config">Configuración</button>
       </div>
 
       <section id="panel-pendientes" class="card">
@@ -224,44 +227,13 @@
           </table>
         </div>
       </section>
-
-      <section id="panel-config" class="card hidden">
-        <h2>Fuel surcharge por courier</h2>
-        <div class="fuel-cards" id="fuel-cards"></div>
-        <h3>Historial de cambios (fuel)</h3>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr><th>Fecha</th><th>Courier</th><th>Anterior</th><th>Nuevo</th></tr>
-            </thead>
-            <tbody id="fuel-hist-body"></tbody>
-          </table>
-        </div>
-
-        <hr style="margin:1.5rem 0">
-
-        <h2>Ganancia mínima antes de alertar (%)</h2>
-        <p style="color:var(--text-secondary);font-size:0.85rem;margin-bottom:1rem">
-          Cuando se cargue la factura del courier, se marcará la guía como "a revisar" si la ganancia real es menor a este umbral.
-        </p>
-        <div class="fuel-cards" id="umbral-cards"></div>
-        <h3>Historial de cambios (umbral ganancia)</h3>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr><th>Fecha</th><th>Courier</th><th>Anterior</th><th>Nuevo</th></tr>
-            </thead>
-            <tbody id="umbral-hist-body"></tbody>
-          </table>
-        </div>
-      </section>
     </div>
   </div>
 </div>
 
 <script src="/js/auth-guard.js"></script>
-<script src="../js/api.js?v=5"></script>
+<script src="../js/api.js?v=6"></script>
 <script src="../js/main.js?v=4"></script>
-<script src="../js/modules/liquidaciones.js?v=1"></script>
+<script src="../js/modules/liquidaciones.js?v=2"></script>
 </body>
 </html>

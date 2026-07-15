@@ -3,9 +3,43 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Control de Facturas – Nova Express</title>
+  <title>Configuración – Nova Express</title>
   <link rel="stylesheet" href="../css/main.css?v=4">
-  <link rel="stylesheet" href="../css/modules/facturas.css">
+  <style>
+    /* Cards de configuración (mudadas desde liquidaciones.css) */
+    .fuel-cards {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 1rem;
+      margin-bottom: 1.5rem;
+    }
+    .fuel-card {
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius);
+      padding: 1rem;
+    }
+    .fuel-card h4 { margin: 0 0 0.75rem; }
+    .fuel-card .current {
+      font-size: 1.5rem;
+      font-weight: 700;
+      color: var(--color-primary);
+    }
+    .fuel-card--warn { border-color: #f59e0b; background: #fffbeb; }
+    .fuel-card--warn .fuel-age { color: #b45309; font-weight: 600; }
+    .fuel-card--danger { border-color: #ef4444; background: #fef2f2; }
+    .fuel-card--danger .fuel-age { color: #b91c1c; font-weight: 600; }
+    .fuel-age {
+      font-size: 0.8rem;
+      color: var(--color-muted);
+      margin-bottom: 0.25rem;
+    }
+    .config-hint {
+      color: var(--color-muted);
+      font-size: 0.85rem;
+      margin-bottom: 1rem;
+    }
+    .tol-inputs { display: grid; gap: 0.5rem; margin-top: 0.75rem; }
+  </style>
 </head>
 <body>
 <div class="app-layout">
@@ -51,7 +85,7 @@
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1" ry="1"/><path d="m9 12 2 2 4-4"/></svg></span>
         <span>Operaciones</span>
       </a>
-      <a href="facturas.html" class="nav-item active">
+      <a href="facturas.html" class="nav-item">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></span>
         <span>Facturas</span>
       </a>
@@ -59,7 +93,7 @@
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg></span>
         <span>Usuarios</span>
       </a>
-      <a href="configuracion.html" class="nav-item">
+      <a href="configuracion.html" class="nav-item active">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
         <span>Configuración</span>
       </a>
@@ -74,93 +108,50 @@
 
   <div class="page-content">
     <div class="page-header">
-      <h1>Control de Facturas</h1>
-      <span style="font-size:0.8rem;color:var(--color-muted)">UPS</span>
+      <h1>Configuración</h1>
     </div>
 
     <div class="page-body">
       <div id="alert-box"></div>
 
-      <div class="tabs">
-        <button class="tab active" data-tab="cargar">Cargar factura</button>
-        <button class="tab" data-tab="revisar">Revisar guías</button>
-      </div>
-
-      <!-- ── PESTAÑA: CARGAR ─────────────────────────────── -->
-      <div id="tab-cargar">
-        <div class="card">
-          <h2>Cargar PDF de factura UPS</h2>
-
-          <div class="fac-upload-zone">
-            <label class="fac-file-label" id="fac-file-label" for="fac-file-input">
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              Elegir PDF
-            </label>
-            <input type="file" id="fac-file-input" accept="application/pdf,.pdf">
-            <span class="fac-filename" id="fac-filename">Ningún archivo seleccionado</span>
-            <button class="btn btn-primary" id="btn-cargar" disabled>Cargar factura</button>
-          </div>
-
-          <!-- Confirmación de duplicados (oculto inicialmente) -->
-          <div class="fac-confirm hidden" id="fac-confirm">
-            <div class="fac-confirm-msg" id="fac-confirm-msg"></div>
-            <div class="fac-confirm-actions">
-              <button class="btn btn-primary" id="btn-sobreescribir">Sí, sobreescribir</button>
-              <button class="btn btn-secondary" id="btn-omitir">No, omitir las repetidas</button>
-            </div>
-          </div>
-
-          <!-- Resumen post-carga (oculto inicialmente) -->
-          <div class="fac-resumen hidden" id="fac-resumen">
-            <div class="fac-resumen-nums" id="fac-resumen-nums"></div>
-          </div>
-
-          <!-- Lista de no encontradas (oculto inicialmente) -->
-          <div class="fac-no-enc hidden" id="fac-no-enc">
-            <div class="fac-no-enc-title">Estas guías de la factura no están en el sistema — revisar</div>
-            <table class="fac-no-enc-table">
-              <thead><tr><th>Guía</th><th>País</th><th>Costo</th></tr></thead>
-              <tbody id="fac-no-enc-body"></tbody>
-            </table>
-          </div>
+      <section class="card">
+        <h2>Fuel surcharge por courier</h2>
+        <div class="fuel-cards" id="fuel-cards"></div>
+        <h3>Historial de cambios (fuel)</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Fecha</th><th>Courier</th><th>Anterior</th><th>Nuevo</th></tr>
+            </thead>
+            <tbody id="fuel-hist-body"></tbody>
+          </table>
         </div>
-      </div>
+      </section>
 
-      <!-- ── PESTAÑA: REVISAR ────────────────────────────── -->
-      <div id="tab-revisar" class="hidden">
-        <div class="card">
-          <div class="fac-revisar-header">
-            <h2 style="margin:0">Guías con costo facturado</h2>
-            <div style="display:flex;gap:0.5rem;align-items:center">
-              <span class="fac-revisar-counter" id="fac-revisar-counter"></span>
-              <button class="btn btn-sm btn-secondary" id="btn-revisar-reload">↺ Actualizar</button>
-            </div>
-          </div>
-
-          <div class="fac-table-wrap">
-            <table class="fac-table" id="fac-table">
-              <thead>
-                <tr>
-                  <th>Guía</th>
-                  <th>Cliente</th>
-                  <th>País</th>
-                  <th>Servicio</th>
-                  <th>F. Factura</th>
-                  <th class="num">Venta</th>
-                  <th class="num">Costo</th>
-                  <th class="num">Ganancia</th>
-                  <th class="num">%</th>
-                  <th>Estado</th>
-                  <th>Acciones</th>
-                </tr>
-              </thead>
-              <tbody id="fac-table-body">
-                <tr><td colspan="11" class="empty">Cargando…</td></tr>
-              </tbody>
-            </table>
-          </div>
+      <section class="card">
+        <h2>Ganancia mínima antes de alertar (%)</h2>
+        <p class="config-hint">
+          Cuando se cargue la factura del courier, se marcará la guía como "a revisar" si la ganancia real es menor a este umbral.
+        </p>
+        <div class="fuel-cards" id="umbral-cards"></div>
+        <h3>Historial de cambios (umbral ganancia)</h3>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Fecha</th><th>Courier</th><th>Anterior</th><th>Nuevo</th></tr>
+            </thead>
+            <tbody id="umbral-hist-body"></tbody>
+          </table>
         </div>
-      </div>
+      </section>
+
+      <section class="card">
+        <h2>Tolerancias del semáforo por courier</h2>
+        <p class="config-hint">
+          Es el desvío máximo aceptable en % entre lo que facturó UPS y lo nuestro; si se supera, en Salidas la celda se pinta roja. Solo alerta cuando UPS facturó de más.
+        </p>
+        <div class="fuel-cards" id="tolerancia-cards"></div>
+      </section>
     </div>
   </div>
 </div>
@@ -168,6 +159,6 @@
 <script src="/js/auth-guard.js"></script>
 <script src="../js/api.js?v=6"></script>
 <script src="../js/main.js?v=4"></script>
-<script src="../js/modules/facturas.js"></script>
+<script src="../js/modules/configuracion.js?v=1"></script>
 </body>
 </html>

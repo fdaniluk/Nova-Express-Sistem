@@ -98,6 +98,11 @@ const api = {
       return api.get(`/configuracion/umbral/historial${q}`);
     },
     tolerancias: () => api.get('/configuracion/tolerancias'),
+    actualizarTolerancias: (courier, tolerancia_peso_pct, tolerancia_costo_pct) =>
+      api.put(`/configuracion/tolerancias/${courier}`, {
+        tolerancia_peso_pct,
+        tolerancia_costo_pct,
+      }),
   },
 };
 
