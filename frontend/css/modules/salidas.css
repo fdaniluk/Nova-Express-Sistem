@@ -776,6 +776,17 @@ td.detail-expandable { cursor: pointer; }
 .salidas-table tbody tr[data-envio-id] { cursor: pointer; }
 .salidas-table tbody tr[data-envio-id]:hover { background: #eef2ff; }
 
+/* ── Marca de lectura manual (click en la celda #Sal) ── */
+/* Resaltar la fila como al seleccionar el número de fila en Excel, para no perder el
+   renglón en una tabla ancha. La celda #Sal es el disparador. */
+.salidas-table td.numsal-cell { cursor: pointer; }
+/* Amarillo resaltador suave. !important a propósito: tiene que ganarle al background
+   opaco de la celda del checkbox (td.chk-cell) y al de las columnas fijas, que #sticky-
+   cols-style inyecta inline SIN !important, y también al hover azulado. Así la fila
+   queda pintada de punta a punta, incluidas las sticky, al scrollear en horizontal.
+   Cubre las tr de bulto y la sub-fila de detalle (todas llevan .row-marked). */
+.salidas-table tbody tr.row-marked td { background: #fdf1a8 !important; }
+
 /* ── Navegación por celdas tipo Excel ── */
 /* El wrapper recibe foco para capturar las flechas; sin anillo nativo. */
 #table-wrap:focus { outline: none; }

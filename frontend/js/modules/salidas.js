@@ -19,6 +19,11 @@
   // así el estado sobrevive dentro de la sesión sin persistir en localStorage.
   const expandedExtras = new Set();
 
+  // Envíos "marcados" a mano (click en la celda #Sal) como ayuda de lectura en una tabla
+  // ancha, tipo seleccionar la fila en Excel. Solo en memoria: se limpia al recargar, no
+  // persiste en localStorage. Como expandedExtras, se re-aplica tras el rebuild del tbody.
+  const markedEnvios = new Set();
+
   // dropdown flotante
   let ddColumn = null;
   let ddTempSelected = new Set();
@@ -69,6 +74,7 @@
     bindLoadMore();
     bindTracking();
     bindRowEdit();
+    bindRowMark();
     bindBultoGuiaEdit();
     bindDetailToggle();
     bindGridNav();
@@ -298,6 +304,9 @@
     if (alert === 'rojo') tr.classList.add('row-alert-rojo');
     else if (alert === 'ambar') tr.classList.add('row-alert-ambar');
 
+    // Marca de lectura manual: sobrevive al rebuild del tbody vía markedEnvios.
+    if (markedEnvios.has(e.id)) tr.classList.add('row-marked');
+
     // Datos del bulto de este renglón (fallback a campos del envío para el bulto sintético).
     const b = bulto || {};
     const bultoGuia = b.numero_guia || e.numero_guia;
@@ -336,7 +345,7 @@
 
     tr.innerHTML = `
       <td class="chk-cell">${chkCell}</td>
-      <td data-col="numero_salida">${fmtNum(e.num_sal_mes)}</td>
+      <td data-col="numero_salida" class="numsal-cell" title="Marcar fila">${fmtNum(e.num_sal_mes)}</td>
       <td data-col="courier">${env(courierBadge(e.courier))}</td>
       <td data-col="fecha">${env(NovaUtils.formatDate(e.fecha))}</td>
       <td class="mono" data-col="numero_guia"><span class="bulto-guia-text">${esc(bultoGuia)}</span>${bultoGuiaEdit}${guiaIcons}</td>
@@ -409,6 +418,7 @@
     const tr = document.createElement('tr');
     tr.className = 'extras-detail-row';
     tr.dataset.extrasFor = e.id;
+    if (markedEnvios.has(e.id)) tr.classList.add('row-marked');
 
     const vd = e.venta_desglose;
     const ventaBlock = vd ? `
@@ -1846,11 +1856,39 @@
       if (e.target.closest('.track-btn') || e.target.closest('a')) return;
       if (e.target.closest('.bulto-guia-edit') || e.target.closest('.bulto-guia-edit-box')) return;
       if (e.target.closest('td.detail-expandable')) return;   // Venta Total / Adic togglean el detalle, no abren el modal
+      if (e.target.closest('td[data-col="numero_salida"]')) return;   // #Sal marca la fila, no abre el modal
       const tr = e.target.closest('tr[data-envio-id]');
       if (!tr) return;
       const envio = allData.find((d) => d.id === Number(tr.dataset.envioId));
       if (envio) openEditModal(envio);
     });
+  }
+
+  // ── Marca de lectura (click en #Sal) ─────────────────────────────────────────
+  // Click en la celda del correlativo (#Sal) togglea el resaltado de TODO el envío,
+  // como seleccionar el número de fila en Excel. Listener delegado propio (misma capa
+  // que bindRowEdit, que ya ignora esta celda por su guard). No abre el modal.
+  function bindRowMark() {
+    document.getElementById('salidas-body').addEventListener('click', (e) => {
+      const cell = e.target.closest('td[data-col="numero_salida"]');
+      if (!cell) return;
+      const tr = cell.closest('tr[data-envio-id]');
+      if (!tr) return;
+      toggleMark(Number(tr.dataset.envioId));
+    });
+  }
+
+  // Toggle en vivo del resaltado: pinta/despinta TODAS las tr del envío (incluidas las
+  // sub-filas de bulto y la sub-fila de detalle con data-extras-for), sin re-render.
+  function toggleMark(envioId) {
+    const on = !markedEnvios.has(envioId);
+    if (on) markedEnvios.add(envioId);
+    else markedEnvios.delete(envioId);
+    document
+      .querySelectorAll(
+        `#salidas-body tr[data-envio-id="${envioId}"], `
+        + `#salidas-body tr.extras-detail-row[data-extras-for="${envioId}"]`)
+      .forEach((row) => row.classList.toggle('row-marked', on));
   }
 
   // ── Sub-fila de detalle (expandible al tocar la celda Venta Total o Adic) ─────
