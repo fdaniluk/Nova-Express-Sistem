@@ -65,7 +65,7 @@
           .join('');
         inputEl = `<select id="pf-${campo.key}">${opts}</select>`;
       } else {
-        inputEl = `<input type="${campo.type}" id="pf-${campo.key}" value="${raw != null ? raw : ''}" ${campo.key === 'tarifa_pct' ? 'min="0" max="100" step="0.5"' : ''}>`;
+        inputEl = `<input type="${campo.type}" id="pf-${campo.key}" value="${raw != null ? raw : ''}" ${campo.key === 'tarifa_pct' ? 'min="0" max="500" step="0.5"' : ''}>`;
       }
 
       return `<div class="info-field${campo.full ? ' full' : ''}" id="field-${campo.key}">
