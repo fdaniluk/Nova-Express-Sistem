@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Salidas – Nova Express</title>
   <link rel="stylesheet" href="../css/main.css?v=4">
-  <link rel="stylesheet" href="../css/modules/salidas.css?v=13">
+  <link rel="stylesheet" href="../css/modules/salidas.css?v=16">
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
@@ -146,12 +146,13 @@
                 <th class="num" style="width:62px"><div class="th-inner">Dif Costo</div></th>
                 <th data-col="peso_facturado" class="num" style="width:70px"><div class="th-inner">Peso UPS<span class="sort-icon"></span></div></th>
                 <th class="num" style="width:62px"><div class="th-inner">Dif Peso</div></th>
+                <th style="width:70px"><div class="th-inner">Revisión</div></th>
                 <th data-col="estado" style="width:100px"><div class="th-inner">Estado<button class="filter-btn" data-filter="estado" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
                 <th style="width:140px">Observaciones</th>
               </tr>
             </thead>
             <tbody id="salidas-body">
-              <tr><td colspan="36" class="salidas-empty">Cargando…</td></tr>
+              <tr><td colspan="37" class="salidas-empty">Cargando…</td></tr>
             </tbody>
           </table>
         </div>
@@ -178,6 +179,6 @@
 <script src="../js/api.js?v=6"></script>
 <script src="../js/main.js?v=4"></script>
 <script src="/shared/cotizador/cotizador-core.js?v=4"></script>
-<script src="../js/modules/salidas.js?v=24"></script>
+<script src="../js/modules/salidas.js?v=28"></script>
 </body>
 </html>

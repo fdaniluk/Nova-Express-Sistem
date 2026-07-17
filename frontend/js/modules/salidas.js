@@ -50,9 +50,9 @@
   // ── Navegación por celdas (estilo Excel) ────────────────────────────────────
   // activeCell es una COORDENADA LÓGICA, no un nodo: { rowIndex, colIndex } | null.
   // El re-render destruye los td, por eso se guardan índices y se vuelve a resolver el td.
-  // La columna 0 es el checkbox de selección: NO se navega con flechas (índices 1..35).
+  // La columna 0 es el checkbox de selección: NO se navega con flechas (índices 1..36).
   const GRID_MIN_COL = 1;    // columna 0 = checkbox "copiar guías", no navegable
-  const GRID_MAX_COL = 35;   // 36 columnas fijas → índices 0..35; navegables 1..35
+  const GRID_MAX_COL = 36;   // 37 columnas fijas → índices 0..36; navegables 1..36
   let activeCell = null;
 
   // ── Columnas fijas (sticky a la izquierda) ──────────────────────────────────
@@ -84,6 +84,7 @@
     bindTracking();
     bindRowEdit();
     bindRowMark();
+    bindRevisionButtons();
     bindBultoGuiaEdit();
     bindDetailToggle();
     bindGridNav();
@@ -134,7 +135,7 @@
     } catch (err) {
       NovaUtils.showAlert(alertBox, 'Error al cargar salidas: ' + err.message, 'error');
       document.getElementById('salidas-body').innerHTML =
-        '<tr><td colspan="36" class="salidas-empty">Error al cargar datos</td></tr>';
+        '<tr><td colspan="37" class="salidas-empty">Error al cargar datos</td></tr>';
     }
   }
 
@@ -297,7 +298,7 @@
 
     if (visibleCount === 0 && nextBatch.length === 0) {
       const tr = document.createElement('tr');
-      tr.innerHTML = '<td colspan="36" class="salidas-empty">No hay envíos que coincidan con los filtros</td>';
+      tr.innerHTML = '<td colspan="37" class="salidas-empty">No hay envíos que coincidan con los filtros</td>';
       tbody.appendChild(tr);
     } else {
       tbody.appendChild(fragment);
@@ -410,24 +411,25 @@
       <td class="num">${fmtDim(alto)}</td>
       <td class="num">${fmtKg(pesoReal)}</td>
       <td class="num">${fmtKg(pesoVol)}</td>
-      <td class="num">${env(fmtKg(e.peso_facturable))}</td>
+      <td class="num" data-col="peso_facturable">${env(fmtKg(e.peso_facturable))}</td>
       <td class="num">${env(fmtUSD(e.valor_declarado))}</td>
       <td>${env(e.asegurado ? 'Sí' : 'No')}</td>
       <td class="num venta-total-cell${ventaExp ? ' detail-expandable' : ''}"${ventaExp ? ` data-detail-envio="${e.id}"` : ''} data-col="total">${ventaTotalCellHtml(e, isFirst)}</td>
-      <td class="num">${env(fmtUSD(e.flete))}</td>
-      <td class="num">${env(fmtUSD(e.descuento))}</td>
-      <td class="num">${env(fmtUSD(e.seguro))}</td>
-      <td class="num">${env(fmtUSD(e.fuel))}</td>
-      <td class="num">${env(fmtUSD(e.derechos))}</td>
+      <td class="num" data-col="flete">${env(fmtUSD(e.flete))}</td>
+      <td class="num" data-col="descuento">${env(fmtUSD(e.descuento))}</td>
+      <td class="num" data-col="seguro">${env(fmtUSD(e.seguro))}</td>
+      <td class="num" data-col="fuel">${env(fmtUSD(e.fuel))}</td>
+      <td class="num" data-col="derechos">${env(fmtUSD(e.derechos))}</td>
       <td class="num adic-cell${adicExp ? ' adic-expandable detail-expandable' : ''}"${adicExp ? ` data-detail-envio="${e.id}"` : ''}>${adicCellHtml(e, isFirst)}</td>
-      <td class="num">${env(fmtUSD(e.otros))}</td>
-      <td class="num">${env(fmtUSD(e.compra_total))}</td>
-      <td class="num">${env(profitCell(e))}</td>
-      <td class="num">${env(pctCell(e))}</td>
-      <td class="num">${costoUpsCellHtml(e, isFirst)}</td>
-      <td class="num${difCosto.rojo ? ' cell-desvio-rojo' : ''}">${difCosto.html}</td>
-      <td class="num">${pesoUpsCellHtml(e, isFirst)}</td>
-      <td class="num${difPeso.rojo ? ' cell-desvio-rojo' : ''}">${difPeso.html}</td>
+      <td class="num" data-col="otros">${env(fmtUSD(e.otros))}</td>
+      <td class="num${isRevisionPendiente(e, isFirst) ? ' cell-compra-pendiente' : ''}" data-col="compra_total">${env(fmtUSD(e.compra_total))}</td>
+      <td class="num" data-col="profit">${env(profitCell(e))}</td>
+      <td class="num" data-col="porcentaje">${env(pctCell(e))}</td>
+      <td class="num" data-col="costo_ups">${costoUpsCellHtml(e, isFirst)}</td>
+      <td class="num${difCosto.rojo ? ' cell-desvio-rojo' : ''}" data-col="dif_costo">${difCosto.html}</td>
+      <td class="num" data-col="peso_ups">${pesoUpsCellHtml(e, isFirst)}</td>
+      <td class="num${difPeso.rojo ? ' cell-desvio-rojo' : ''}" data-col="dif_peso">${difPeso.html}</td>
+      <td class="revision-cell">${revisionCellHtml(e, isFirst)}</td>
       <td>${env(estadoBadge(e, today))}</td>
       <td class="obs-cell" title="${isFirst ? escAttr(e.observaciones) : ''}">${obsCell(e.observaciones, isFirst)}</td>
     `;
@@ -539,10 +541,10 @@
       </div>` : '';
 
     // Espaciador de 19 columnas (checkbox … las 19 previas a "Venta Total") + celda de
-    // contenido de 17 columnas: el desglose arranca justo debajo de "Venta Total" y se
+    // contenido de 18 columnas: el desglose arranca justo debajo de "Venta Total" y se
     // extiende a la derecha para comparar de un vistazo contra las columnas de plata.
-    // 19 + 17 = 36 → sigue cuadrando el colspan total.
-    tr.innerHTML = `<td colspan="19" class="detail-spacer"></td><td colspan="17"><div class="detail-row-inner">${ventaBlock}${extrasBlock}</div></td>`;
+    // 19 + 18 = 37 → sigue cuadrando el colspan total.
+    tr.innerHTML = `<td colspan="19" class="detail-spacer"></td><td colspan="18"><div class="detail-row-inner">${ventaBlock}${extrasBlock}</div></td>`;
     return tr;
   }
 
@@ -569,12 +571,67 @@
 
   function revisionIconHtml(e) {
     if (e.estado_revision === 'a_revisar') {
-      return `<span class="alert-icon" title="A revisar" style="color:#d97706">⚑</span>`;
+      return `<span class="alert-icon revision-flag" title="A revisar" style="color:#d97706">⚑</span>`;
     }
     if (e.estado_revision === 'reclamar') {
-      return `<span class="alert-icon" title="Reclamar" style="color:#dc2626">⚑</span>`;
+      return `<span class="alert-icon revision-flag" title="Reclamar" style="color:#dc2626">⚑</span>`;
     }
     return '';
+  }
+
+  // ── Columna "Revisión" (aprobar / mandar a revisar desde Salidas) ─────────────
+  // Solo en la fila principal del envío (isFirst) y solo si ya hay factura cargada
+  // (costo_facturado != null): sin factura → celda vacía, no hay nada que revisar.
+  // La celda muestra UNA de dos cosas según el estado, para que cuando entren las
+  // facturas de fin de mes se vea de un golpe qué guías faltan mirar (las únicas con
+  // botonera) y lo ya decidido no compita por la atención:
+  //   • 'pendiente' / null (con factura) → BOTONERA: ✓ verde + ✕ roja, ambas clickeables.
+  //     Único caso que pide una decisión → el más visible.
+  //   • 'revisado_ok' → ✓ verde chico estático (aprobado).
+  //   • 'a_revisar'   → ✕ ámbar chico estático (mandado a revisar).
+  //   • 'reclamar'    → ⚑ rojo chico estático (en reclamo; distinto de 'a_revisar').
+  // Los tres marcadores estáticos son clickeables: devuelven a 'pendiente' (data-estado)
+  // y vuelve a aparecer la botonera, para no encerrar al usuario si se equivocó. Comparten
+  // la clase .btn-revision, así los guards de bindRowEdit / bindRevisionButtons los cubren.
+  // ¿La guía está pendiente de revisión, i.e. la celda Revisión muestra la botonera ✓/✕?
+  // ES LA MISMA condición que hace visible la botonera en revisionCellHtml (ver abajo: los
+  // tres estados decididos salen por sus if; el único caso que llega a la botonera es este).
+  // Fuente única para: mostrar botonera Y pintar de azul la Compra Total (mejora de foco).
+  function isRevisionPendiente(e, isFirst) {
+    if (!isFirst || e.costo_facturado == null) return false;
+    const est = e.estado_revision;
+    return est == null || est === 'pendiente';
+  }
+
+  function revisionCellHtml(e, isFirst) {
+    if (!isFirst || e.costo_facturado == null) return '';
+    const est = e.estado_revision;
+
+    // Estados ya decididos → marcador estático chico, click vuelve a 'pendiente'.
+    if (est === 'revisado_ok') {
+      return staticRevisionHtml('revision-static-ok', '✓', 'Aprobado — click para volver a pendiente');
+    }
+    if (est === 'a_revisar') {
+      return staticRevisionHtml('revision-static-rev', '✕', 'A revisar — click para volver a pendiente');
+    }
+    if (est === 'reclamar') {
+      return staticRevisionHtml('revision-static-reclamar', '⚑', 'En reclamo — click para volver a pendiente');
+    }
+
+    // 'pendiente' / null → botonera completa: es la que pide la decisión (isRevisionPendiente).
+    return `<div class="revision-btns">`
+      + `<button class="btn-revision btn-revision-ok" data-estado="revisado_ok" `
+      + `title="Aprobado — lo miré, está bien">✓</button>`
+      + `<button class="btn-revision btn-revision-rev" data-estado="a_revisar" `
+      + `title="A revisar — algo está mal">✕</button>`
+      + `</div>`;
+  }
+
+  function staticRevisionHtml(cls, glyph, title) {
+    return `<div class="revision-btns">`
+      + `<button class="btn-revision revision-static ${cls}" data-estado="pendiente" `
+      + `title="${title}">${glyph}</button>`
+      + `</div>`;
   }
 
   // ── Auto 5: semáforo de antigüedad ──────────────────────────────────────────
@@ -1451,7 +1508,7 @@
               <span id="saled-recalc-status" class="saled-recalc-status"></span>
             </div>
           </div>
-          <div>
+          <div id="saled-costos-block">
             <div class="sal-section-title">Costos (USD)</div>
             <div class="sal-form-grid sal-form-grid--nums">
               <div class="form-group"><label>Flete</label><input type="number" id="saled-flete" step="0.01"></div>
@@ -1552,7 +1609,7 @@
     if (selectedPais) sel.value = selectedPais;
   }
 
-  function openEditModal(envio) {
+  function openEditModal(envio, focusCol) {
     editEnvio = envio;
     document.getElementById('sal-modal-title').textContent = `Editar — ${envio.numero_guia}`;
     document.getElementById('sal-modal-meta').innerHTML =
@@ -1610,8 +1667,59 @@
 
     document.getElementById('sal-modal-alert').innerHTML = '';
     document.getElementById('sal-edit-overlay').classList.remove('hidden');
-    document.getElementById('saled-guia').focus();
-    document.getElementById('saled-guia').select();
+
+    // Si el modal se abrió por click en una celda con campo asociado (mejora de foco),
+    // llevar el ojo ahí: scroll dentro del modal + destello ámbar que se apaga solo a los 2s.
+    // Sin campo asociado → abre normal, con el foco/selección en la guía como siempre.
+    const focusEl = focusCol ? resolveModalFocusTarget(focusCol) : null;
+    if (focusEl) {
+      flashModalField(focusEl);
+    } else {
+      document.getElementById('saled-guia').focus();
+      document.getElementById('saled-guia').select();
+    }
+  }
+
+  // Mapa celda → campo del modal para la mejora de foco. Cada data-col de la fila apunta al
+  // input (o bloque) que edita ese dato. Las columnas de comparación con UPS apuntan a NUESTRO
+  // dato equivalente (contra el que se compara): Peso UPS / Dif Peso → peso facturable; Costo
+  // UPS / Dif Costo → el bloque de Costos entero (la compra total es la suma de esos campos, no
+  // un input único). Celdas que no figuran acá (total, cliente, compra_total, adic…) abren el
+  // modal sin destello.
+  const MODAL_FIELD_BY_COL = {
+    peso_facturable: 'saled-peso-facturable',
+    peso_ups:        'saled-peso-facturable',
+    dif_peso:        'saled-peso-facturable',
+    flete:      'saled-flete',
+    descuento:  'saled-descuento',
+    seguro:     'saled-seguro',
+    fuel:       'saled-fuel',
+    derechos:   'saled-derechos',
+    otros:      'saled-otros',
+    profit:     'saled-profit',
+    porcentaje: 'saled-porcentaje',
+    numero_guia: 'saled-guia',
+    fecha:       'saled-fecha',
+    destino:     'saled-pais-destino',
+    courier:     'saled-courier',
+    costo_ups: 'saled-costos-block',   // el bloque entero de Costos, no un input único
+    dif_costo: 'saled-costos-block',
+  };
+
+  function resolveModalFocusTarget(col) {
+    const id = MODAL_FIELD_BY_COL[col];
+    return id ? document.getElementById(id) : null;
+  }
+
+  // Lleva el campo a la vista DENTRO del modal (sal-modal-body es el contenedor scrolleable) y
+  // lo marca con un destello ámbar de 2s. Ámbar (no rojo): el campo no está mal, lo que está
+  // mal es la diferencia. Reinicia la animación si ya estaba destellando (reflow forzado).
+  function flashModalField(el) {
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    el.classList.remove('field-flash');
+    void el.offsetWidth;                 // fuerza reflow → reinicia la animación desde cero
+    el.classList.add('field-flash');
+    setTimeout(() => el.classList.remove('field-flash'), 2000);
   }
 
   // Atenúa/libera un campo del modal (readonly + estilo gris). Mismo criterio que
@@ -2127,12 +2235,15 @@
       if (e.target.closest('.chk-guia')) return;
       if (e.target.closest('.track-btn') || e.target.closest('a')) return;
       if (e.target.closest('.bulto-guia-edit') || e.target.closest('.bulto-guia-edit-box')) return;
+      if (e.target.closest('.btn-revision')) return;   // ✓/✕ de Revisión aprueban/rechazan, no abren el modal
       if (e.target.closest('td.detail-expandable')) return;   // Venta Total / Adic togglean el detalle, no abren el modal
       if (e.target.closest('td[data-col="numero_salida"]')) return;   // #Sal marca la fila, no abre el modal
       const tr = e.target.closest('tr[data-envio-id]');
       if (!tr) return;
       const envio = allData.find((d) => d.id === Number(tr.dataset.envioId));
-      if (envio) openEditModal(envio);
+      // De qué columna vino el click: si tiene campo asociado, el modal lleva el ojo ahí.
+      const cell = e.target.closest('td[data-col]');
+      if (envio) openEditModal(envio, cell ? cell.dataset.col : null);
     });
   }
 
@@ -2161,6 +2272,77 @@
         `#salidas-body tr[data-envio-id="${envioId}"], `
         + `#salidas-body tr.extras-detail-row[data-extras-for="${envioId}"]`)
       .forEach((row) => row.classList.toggle('row-marked', on));
+  }
+
+  // ── Revisión desde Salidas (aprobar / mandar a revisar) ──────────────────────
+  // Listener delegado propio (misma capa que bindRowEdit, que ya ignora .btn-revision por
+  // su guard). Al clickear ✓/✕: PATCH del estado, y si sale bien se actualiza el envío en
+  // memoria y se repinta SOLO la celda de Revisión (más el ⚑ de la columna Guía, que depende
+  // del mismo estado). Si el PATCH falla, se reabilitan los botones y la UI queda como estaba:
+  // no se toca el estado en memoria, así no miente con algo que no se guardó.
+  function bindRevisionButtons() {
+    document.getElementById('salidas-body').addEventListener('click', (e) => {
+      const btn = e.target.closest('.btn-revision');
+      if (!btn) return;
+      e.stopPropagation();
+      onRevisionClick(btn);
+    });
+  }
+
+  async function onRevisionClick(btn) {
+    const tr = btn.closest('tr[data-envio-id]');
+    if (!tr) return;
+    const envio = allData.find((d) => d.id === Number(tr.dataset.envioId));
+    if (!envio) return;
+
+    const nuevo = btn.dataset.estado;              // 'revisado_ok' | 'a_revisar' (botonera) | 'pendiente' (deshacer)
+    if (nuevo === envio.estado_revision) return;   // ya está en ese estado: no re-pegar
+
+    const wrap = btn.closest('.revision-btns');
+    if (wrap) wrap.querySelectorAll('.btn-revision').forEach((b) => (b.disabled = true));
+
+    try {
+      await NovaAPI.facturas.actualizarEstado(envio.id, nuevo);
+      envio.estado_revision = nuevo;               // estado en memoria
+      repaintRevisionCell(envio);                  // repinta solo la celda (+ el ⚑ de Guía)
+    } catch (err) {
+      if (wrap) wrap.querySelectorAll('.btn-revision').forEach((b) => (b.disabled = false));
+      NovaUtils.showAlert(alertBox, 'No se pudo actualizar la revisión: ' + err.message, 'error');
+    }
+  }
+
+  // Repinta la celda de Revisión del envío (vive solo en la fila principal) desde el estado
+  // en memoria, y mantiene honesto el ⚑ de la columna Guía (mismo estado_revision) sin
+  // reconstruir toda la celda de la guía (preserva texto, lápiz y demás iconos).
+  function repaintRevisionCell(envio) {
+    const firstRow = document.querySelector(`#salidas-body tr[data-envio-id="${envio.id}"]`);
+    if (!firstRow) return;
+
+    const cell = firstRow.querySelector('td.revision-cell');
+    if (cell) cell.innerHTML = revisionCellHtml(envio, true);
+
+    // El azul de "Compra Total" vive exactamente mientras la guía está pendiente (botonera
+    // visible). Al decidir ✓/✕ el estado deja de ser pendiente → se apaga en el acto, junto
+    // con la celda de Revisión, sin recargar. Misma condición vía isRevisionPendiente.
+    const compraCell = firstRow.querySelector('td[data-col="compra_total"]');
+    if (compraCell) {
+      compraCell.classList.toggle('cell-compra-pendiente', isRevisionPendiente(envio, true));
+    }
+
+    const guiaCell = firstRow.querySelector('td[data-col="numero_guia"]');
+    if (guiaCell) {
+      const old = guiaCell.querySelector('.revision-flag');
+      if (old) old.remove();
+      const html = revisionIconHtml(envio);
+      if (html) {
+        const tmpl = document.createElement('template');
+        tmpl.innerHTML = html;
+        // El ⚑ va antes del ⚠ de alerta / del botón de tracking; si no hay, al final.
+        const anchor = guiaCell.querySelector('.alert-icon:not(.revision-flag), .track-btn');
+        if (anchor) guiaCell.insertBefore(tmpl.content.firstChild, anchor);
+        else guiaCell.appendChild(tmpl.content.firstChild);
+      }
+    }
   }
 
   // ── Sub-fila de detalle (expandible al tocar la celda Venta Total o Adic) ─────
@@ -2321,7 +2503,7 @@
   }
 
   // Filas de datos = las que tienen data-envio-id. Excluye automáticamente las filas
-  // "Cargando…" / "No hay envíos" (td colspan 36 sin data-envio-id).
+  // "Cargando…" / "No hay envíos" (td colspan 37 sin data-envio-id).
   function getDataRows() {
     const tbody = document.getElementById('salidas-body');
     if (!tbody) return [];

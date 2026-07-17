@@ -9,7 +9,10 @@ const upload = multer({
   limits: { fileSize: 20 * 1024 * 1024 },
 });
 
-const ESTADOS_VALIDOS = ['a_revisar', 'revisado_ok', 'reclamar'];
+// 'pendiente' = neutro: la factura entró pero nadie la miró. Es el estado inicial al
+// cargar. No aparece en la bandeja de Facturas ni resaltado en Salidas. El tilde verde
+// ('revisado_ok') lo pone SOLO un humano; nunca el auto-marcado.
+const ESTADOS_VALIDOS = ['pendiente', 'a_revisar', 'revisado_ok', 'reclamar'];
 
 // POST /api/facturas/chequear
 // Solo lectura: extrae el PDF y devuelve qué guías ya tienen costo cargado en la BD.
@@ -114,7 +117,10 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
 
           const total_cobrado = envio.total_cobrado ?? 0;
           const costo_facturado = guia.costo_total;
-          let estado_revision = 'revisado_ok';
+          // Default neutro: la guía entra 'pendiente' hasta que un humano la apruebe.
+          // El auto-marcado a 'a_revisar' se mantiene: pre-filtra los de margen bajo y
+          // los manda solos a la bandeja de problemas. Lo que NO hacemos es aprobar solos.
+          let estado_revision = 'pendiente';
 
           if (costo_facturado > 0) {
             const ganancia_pct = (total_cobrado - costo_facturado) / costo_facturado * 100;
@@ -181,7 +187,8 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
 });
 
 // GET /api/facturas/guias
-// Devuelve todos los envíos que tienen costo facturado, con ganancia calculada.
+// Bandeja de problemas: SOLO los envíos facturados marcados como problema
+// (a_revisar o reclamar). Los revisado_ok ya están aprobados y NO aparecen acá.
 // Los a_revisar van primero.
 router.get('/guias', async (req, res, next) => {
   try {
@@ -195,6 +202,7 @@ router.get('/guias', async (req, res, next) => {
       FROM envios e
       JOIN clientes c ON c.id = e.cliente_id
       WHERE e.costo_facturado IS NOT NULL
+        AND e.estado_revision IN ('a_revisar', 'reclamar')
       ORDER BY
         CASE e.estado_revision
           WHEN 'a_revisar'   THEN 0

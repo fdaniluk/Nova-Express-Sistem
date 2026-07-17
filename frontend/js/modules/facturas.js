@@ -260,6 +260,9 @@
 
   function estadoBadge(estado) {
     const map = {
+      // 'pendiente' no debería llegar acá (la bandeja filtra a_revisar/reclamar), pero lo
+      // mapeamos para no romper el render si alguna vez aparece.
+      'pendiente':   ['badge-pendiente',    '• Pendiente'],
       'a_revisar':   ['badge-a-revisar',   '⚠ A revisar'],
       'revisado_ok': ['badge-revisado-ok',  '✓ Revisado OK'],
       'reclamar':    ['badge-reclamar',     '⚑ Reclamar'],

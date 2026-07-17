@@ -385,6 +385,18 @@ th:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: '⇅'; }
   font-weight: 700;
 }
 
+/* ── Foco de comparación: "Compra Total" azul mientras la guía está pendiente ── */
+/* Existe SOLO mientras hay trabajo pendiente: la celda que muestra la botonera ✓/✕ en
+   Revisión (isRevisionPendiente) pinta su Compra Total de azul suave = "este es el número
+   contra el que estás comparando ahora". Se apaga al decidir ✓/✕ (repaintRevisionCell).
+   Azul (no rojo, ya usado por el semáforo; no amarillo, ya usado por .row-marked). Suave y
+   con texto oscuro para que se lea y no le robe protagonismo al rojo. Sin !important → si el
+   usuario marca la fila, el amarillo de .row-marked (que sí lo lleva) le gana. */
+.salidas-table td.cell-compra-pendiente {
+  background: #dbeafe;
+  color: #1e3a5f;
+}
+
 .alert-icon {
   cursor: help;
   display: inline-block;
@@ -392,6 +404,59 @@ th:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: '⇅'; }
   font-size: 12px;
   vertical-align: middle;
 }
+
+/* ── Columna "Revisión" (aprobar ✓ / mandar a revisar ✕ desde Salidas) ── */
+.salidas-table td.revision-cell { text-align: center; }
+
+.revision-btns {
+  display: inline-flex;
+  gap: 4px;
+  align-items: center;
+  justify-content: center;
+}
+
+.btn-revision {
+  border: 1px solid #d1d5db;
+  background: #fff;
+  color: #9ca3af;
+  cursor: pointer;
+  width: 22px;
+  height: 22px;
+  line-height: 1;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 700;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: background .1s, color .1s, border-color .1s;
+}
+
+.btn-revision:hover { border-color: #9ca3af; }
+.btn-revision:disabled { opacity: .5; cursor: default; }
+
+.btn-revision-ok:hover { color: #16a34a; border-color: #16a34a; }
+.btn-revision-rev:hover { color: #dc2626; border-color: #dc2626; }
+
+/* Estados ya decididos: marcador estático chico, sin caja de botón, para que no compita
+   con la botonera (el único caso que pide decisión). Sigue siendo clickeable → 'pendiente'. */
+.btn-revision.revision-static {
+  border-color: transparent;
+  background: none;
+  width: 20px;
+  height: 20px;
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.btn-revision.revision-static:hover {
+  border-color: #d1d5db;
+  background: #f9fafb;
+}
+.revision-static-ok { color: #16a34a; }        /* aprobado  → ✓ verde  */
+.revision-static-rev { color: #d97706; }        /* a revisar → ✕ ámbar  */
+.revision-static-reclamar { color: #dc2626; }   /* reclamar  → ⚑ rojo   */
 
 /* ── Expand / collapse (multi-bulto) ── */
 .expand-btn {
@@ -906,6 +971,20 @@ td.detail-expandable { cursor: pointer; }
   background: #f1f5f9;
   color: #94a3b8;
   cursor: not-allowed;
+}
+
+/* ── Destello de foco al abrir el modal desde una celda (mejora de foco) ── */
+/* Cuando el modal se abre por click en una celda con campo asociado, ese campo (o el bloque
+   de Costos) destella en ámbar y se apaga solo a los 2s. Ámbar, no rojo: el campo no está mal,
+   lo que está mal es la diferencia. Funciona igual sobre un <input> que sobre un <div> bloque:
+   anillo (box-shadow) + tinte suave que se desvanecen. El JS quita la clase a los 2s. */
+@keyframes saled-field-flash {
+  0%   { box-shadow: 0 0 0 3px rgba(245, 158, 11, 0.55); background-color: rgba(245, 158, 11, 0.18); }
+  100% { box-shadow: 0 0 0 3px rgba(245, 158, 11, 0);    background-color: rgba(245, 158, 11, 0); }
+}
+.field-flash {
+  animation: saled-field-flash 2s ease-out forwards;
+  border-radius: 6px;
 }
 
 /* Dimensiones por bulto dentro del modal de edición (multi-bulto). */
