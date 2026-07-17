@@ -55,6 +55,20 @@
   const GRID_MAX_COL = 36;   // 37 columnas fijas → índices 0..36; navegables 1..36
   let activeCell = null;
 
+  // ── Bloque desplegable de columnas UPS (Costo UPS, Dif Costo, Peso UPS, Dif Peso, Revisión)
+  // Cinco columnas contiguas (índices 30..34) que solo importan al cruzar facturas. Se ocultan
+  // con la clase .ups-collapsed en la tabla (CSS: .ups-col{display:none}). Frontend puro: la
+  // exportación a Excel las incluye SIEMPRE, este el bloque plegado o no.
+  const UPS_COL_START = 30;  // Costo UPS
+  const UPS_COL_END = 34;    // Revisión
+  const UPS_BLOCK_COLS = UPS_COL_END - UPS_COL_START + 1;   // 5 columnas ocultables
+
+  // Override manual del bloque, guardado en sessionStorage (dura la sesión y después vuelve al
+  // comportamiento automático). null = auto (según haya pendientes); true/false = forzado.
+  const UPS_OVERRIDE_KEY = 'nova.salidas.upsColsOverride';
+  let upsOverride = null;    // null | true (forzar mostrar) | false (forzar ocultar)
+  let upsVisible = true;     // estado efectivo actual del bloque (se recalcula en cada render)
+
   // ── Columnas fijas (sticky a la izquierda) ──────────────────────────────────
   // Bloque de identificación anclable, en orden visual de izquierda a derecha. La
   // columna 0 (checkbox) queda SIEMPRE fija por CSS estático; estas 7 son opcionales.
@@ -92,6 +106,8 @@
     bindSelectAllGuias();
     loadStickyPins();
     bindStickyCols();
+    loadUpsOverride();
+    bindUpsToggle();
     bindFloatingScrollbar();
     await loadClientes();
     await loadTolerancias();
@@ -139,7 +155,7 @@
     } catch (err) {
       NovaUtils.showAlert(alertBox, 'Error al cargar salidas: ' + err.message, 'error');
       document.getElementById('salidas-body').innerHTML =
-        '<tr><td colspan="37" class="salidas-empty">Error al cargar datos</td></tr>';
+        `<tr><td colspan="${emptyColspan()}" class="salidas-empty">Error al cargar datos</td></tr>`;
     }
   }
 
@@ -286,6 +302,10 @@
     const fragment = document.createDocumentFragment();
     const nextBatch = filteredData.slice(visibleCount, visibleCount + PAGE_SIZE);
 
+    // Recalcular la visibilidad efectiva del bloque UPS ANTES de construir filas: las sub-filas
+    // de detalle y los estados vacíos leen upsVisible para elegir su colspan.
+    upsVisible = computeUpsVisible();
+
     if (visibleCount === 0) tbody.innerHTML = '';
 
     for (const e of nextBatch) {
@@ -302,7 +322,7 @@
 
     if (visibleCount === 0 && nextBatch.length === 0) {
       const tr = document.createElement('tr');
-      tr.innerHTML = '<td colspan="37" class="salidas-empty">No hay envíos que coincidan con los filtros</td>';
+      tr.innerHTML = `<td colspan="${emptyColspan()}" class="salidas-empty">No hay envíos que coincidan con los filtros</td>`;
       tbody.appendChild(tr);
     } else {
       tbody.appendChild(fragment);
@@ -316,6 +336,10 @@
     // el resaltado (o limpiarlo si la coordenada ya no existe).
     reconcileActiveCell();
 
+    // Plegar/desplegar el bloque UPS (clase de la tabla + botón) ANTES de medir sticky: con
+    // table-layout auto, ocultar columnas redistribuye anchos y mueve los offsets sticky.
+    syncUpsChrome();
+
     // Re-medir offsets sticky: con table-layout auto los anchos de columna dependen del
     // contenido, que cambia al paginar / filtrar / cambiar de mes. NO toca ningún <td>,
     // solo reescribe el <style id="sticky-cols-style">.
@@ -323,6 +347,81 @@
 
     // El scrollWidth de la tabla cambió: recalcular el fantasma de la barra flotante.
     refreshFloatingScrollbar();
+  }
+
+  // ── Bloque desplegable de columnas UPS ───────────────────────────────────────
+  // Carga el override manual desde sessionStorage. Ausente o inválido → auto (null).
+  function loadUpsOverride() {
+    let raw = null;
+    try { raw = sessionStorage.getItem(UPS_OVERRIDE_KEY); } catch (_) { raw = null; }
+    upsOverride = raw === 'show' ? true : raw === 'hide' ? false : null;
+  }
+
+  // Visibilidad efectiva del bloque. Override manual (dura la sesión) tiene prioridad; si no
+  // hay override, AUTO: se muestra si en la vista actual (filteredData) hay AL MENOS UN envío
+  // pendiente de revisión (misma condición que la botonera ✓/✕: isRevisionPendiente).
+  function computeUpsVisible() {
+    if (upsOverride !== null) return upsOverride;
+    return filteredData.some((e) => isRevisionPendiente(e, true));
+  }
+
+  // Colspan de la celda de CONTENIDO de la sub-fila de detalle (arranca en Venta Total, col 19,
+  // y llega hasta Observaciones, col 36). Plegado → restar las 5 columnas del bloque.
+  function detailContentColspan() {
+    return upsVisible ? 18 : 18 - UPS_BLOCK_COLS;
+  }
+
+  // Colspan de las filas de estado vacío / cargando / error (abarcan toda la tabla).
+  function emptyColspan() {
+    return upsVisible ? 37 : 37 - UPS_BLOCK_COLS;
+  }
+
+  // Aplica la visibilidad efectiva al "chrome": clase de la tabla (CSS oculta .ups-col) y
+  // estado del botón. No toca colspans ni mide anchos (eso lo hace applyUpsCols / renderPage).
+  function syncUpsChrome() {
+    const table = document.getElementById('salidas-table');
+    if (table) table.classList.toggle('ups-collapsed', !upsVisible);
+    updateUpsToggleBtn();
+  }
+
+  // El botón muestra el estado actual: distinto abierto (activo, ▾) que cerrado (▸).
+  function updateUpsToggleBtn() {
+    const btn = document.getElementById('btn-toggle-ups');
+    if (!btn) return;
+    btn.classList.toggle('active', upsVisible);
+    btn.setAttribute('aria-pressed', upsVisible ? 'true' : 'false');
+    btn.title = upsVisible
+      ? 'Ocultar las columnas de comparación con UPS'
+      : 'Mostrar las columnas de comparación con UPS';
+    btn.innerHTML = `🧾 Columnas UPS <span class="ups-toggle-caret">${upsVisible ? '▾' : '▸'}</span>`;
+  }
+
+  // Recalcula y aplica la visibilidad del bloque SOBRE el DOM ya renderizado, sin re-paginar:
+  // recomputa upsVisible, sincroniza clase/botón, corrige los colspans de las sub-filas de
+  // detalle y de los estados vacíos ya presentes, y re-mide sticky + barra flotante (cambió el
+  // ancho). Se usa en el toggle manual y al cambiar un estado de revisión (auto).
+  function applyUpsCols() {
+    upsVisible = computeUpsVisible();
+    syncUpsChrome();
+    document.querySelectorAll('#salidas-body tr.extras-detail-row > td:last-child')
+      .forEach((td) => { td.colSpan = detailContentColspan(); });
+    document.querySelectorAll('#salidas-body td.salidas-empty')
+      .forEach((td) => { td.colSpan = emptyColspan(); });
+    applyStickyCols();
+    refreshFloatingScrollbar();
+  }
+
+  // Botón manual: fuerza lo CONTRARIO a lo que se ve ahora y lo persiste para la sesión.
+  function bindUpsToggle() {
+    const btn = document.getElementById('btn-toggle-ups');
+    if (!btn) return;
+    updateUpsToggleBtn();
+    btn.addEventListener('click', () => {
+      const forceVisible = !upsVisible;
+      upsOverride = forceVisible;
+      try { sessionStorage.setItem(UPS_OVERRIDE_KEY, forceVisible ? 'show' : 'hide'); } catch (_) {}
+      applyUpsCols();
+    });
   }
 
   // Guía que usa el checkbox de "Copiar guías" para ESTE renglón. En el primer
@@ -429,11 +528,11 @@
       <td class="num${isRevisionPendiente(e, isFirst) ? ' cell-compra-pendiente' : ''}" data-col="compra_total">${env(fmtUSD(e.compra_total))}</td>
       <td class="num" data-col="profit">${env(profitCell(e))}</td>
       <td class="num" data-col="porcentaje">${env(pctCell(e))}</td>
-      <td class="num" data-col="costo_ups">${costoUpsCellHtml(e, isFirst)}</td>
-      <td class="num${difCosto.rojo ? ' cell-desvio-rojo' : ''}" data-col="dif_costo">${difCosto.html}</td>
-      <td class="num" data-col="peso_ups">${pesoUpsCellHtml(e, isFirst)}</td>
-      <td class="num${difPeso.rojo ? ' cell-desvio-rojo' : ''}" data-col="dif_peso">${difPeso.html}</td>
-      <td class="revision-cell">${revisionCellHtml(e, isFirst)}</td>
+      <td class="num ups-col" data-col="costo_ups">${costoUpsCellHtml(e, isFirst)}</td>
+      <td class="num ups-col${difCosto.rojo ? ' cell-desvio-rojo' : ''}" data-col="dif_costo">${difCosto.html}</td>
+      <td class="num ups-col" data-col="peso_ups">${pesoUpsCellHtml(e, isFirst)}</td>
+      <td class="num ups-col${difPeso.rojo ? ' cell-desvio-rojo' : ''}" data-col="dif_peso">${difPeso.html}</td>
+      <td class="revision-cell ups-col">${revisionCellHtml(e, isFirst)}</td>
       <td>${env(estadoBadge(e, today))}</td>
       <td class="obs-cell" title="${isFirst ? escAttr(e.observaciones) : ''}">${obsCell(e.observaciones, isFirst)}</td>
     `;
@@ -552,10 +651,12 @@
       </div>` : '';
 
     // Espaciador de 19 columnas (checkbox … las 19 previas a "Venta Total") + celda de
-    // contenido de 18 columnas: el desglose arranca justo debajo de "Venta Total" y se
-    // extiende a la derecha para comparar de un vistazo contra las columnas de plata.
-    // 19 + 18 = 37 → sigue cuadrando el colspan total.
-    tr.innerHTML = `<td colspan="19" class="detail-spacer"></td><td colspan="18"><div class="detail-row-inner">${ventaBlock}${extrasBlock}</div></td>`;
+    // contenido: el desglose arranca justo debajo de "Venta Total" y se extiende a la derecha
+    // para comparar de un vistazo contra las columnas de plata. El espaciador (cols 0..18) NO
+    // toca el bloque UPS (cols 30..34), así que sigue en 19 en ambos estados; la celda de
+    // contenido cae de 18 a 13 cuando el bloque está plegado (detailContentColspan), para que
+    // el colspan total cuadre con las columnas realmente visibles.
+    tr.innerHTML = `<td colspan="19" class="detail-spacer"></td><td colspan="${detailContentColspan()}"><div class="detail-row-inner">${ventaBlock}${extrasBlock}</div></td>`;
     return tr;
   }
 
@@ -1193,10 +1294,26 @@
     });
   }
 
+  // Fija el max-height del wrapper para que scrollee ÉL (y el thead quede sticky arriba) en
+  // vez de la página. Mide el tope real del wrapper en el viewport y descuenta, así el fondo
+  // de la tabla llega justo al borde inferior sin dejar hueco ni cortarse, aunque cambien las
+  // solapas de meses o aparezcan chips de filtro. Deja un colchón abajo para la barra flotante
+  // / el borde. El CSS trae un calc de respaldo para el primer pintado antes de correr esto.
+  function refreshTableHeight() {
+    const wrap = document.getElementById('table-wrap');
+    if (!wrap) return;
+    const top = wrap.getBoundingClientRect().top;
+    const viewH = window.innerHeight || document.documentElement.clientHeight;
+    const h = viewH - top - 16;                 // 16px de aire inferior
+    wrap.style.maxHeight = `${Math.max(200, h)}px`;   // piso para viewports muy bajos
+  }
+
   // Recalcula la geometría: ancho del fantasma = recorrido real del wrap; posición y ancho
   // de la barra = área visible del wrap. Llamar cuando cambie scrollWidth de la tabla
-  // (renderPage, cambio de columnas sticky, resize de ventana).
+  // (renderPage, cambio de columnas sticky, resize de ventana). Ajusta primero la altura del
+  // wrapper: al aparecer/desaparecer su scroll vertical cambia el clientWidth que se mide acá.
   function refreshFloatingScrollbar() {
+    refreshTableHeight();
     if (!floatBar) return;
     const wrap = document.getElementById('table-wrap');
     if (!wrap) return;
@@ -2316,6 +2433,9 @@
       await NovaAPI.facturas.actualizarEstado(envio.id, nuevo);
       envio.estado_revision = nuevo;               // estado en memoria
       repaintRevisionCell(envio);                  // repinta solo la celda (+ el ⚑ de Guía)
+      // En modo automático, aprobar el último pendiente pliega el bloque solo (o des-aprobar
+      // vuelve a mostrarlo). Con override manual, applyUpsCols respeta lo forzado.
+      applyUpsCols();
     } catch (err) {
       if (wrap) wrap.querySelectorAll('.btn-revision').forEach((b) => (b.disabled = false));
       NovaUtils.showAlert(alertBox, 'No se pudo actualizar la revisión: ' + err.message, 'error');
@@ -2559,7 +2679,12 @@
     const rows = getDataRows();
     if (!rows.length) { activeCell = null; clearActiveCellHighlight(); return; }
     const rowIndex = Math.min(Math.max(activeCell.rowIndex, 0), rows.length - 1);
-    const colIndex = Math.min(Math.max(activeCell.colIndex, GRID_MIN_COL), GRID_MAX_COL);
+    let colIndex = Math.min(Math.max(activeCell.colIndex, GRID_MIN_COL), GRID_MAX_COL);
+    // Con el bloque UPS plegado, no dejar la celda activa sobre una columna oculta: correrla
+    // a la última visible antes del bloque (%, col 29).
+    if (!upsVisible && colIndex >= UPS_COL_START && colIndex <= UPS_COL_END) {
+      colIndex = UPS_COL_START - 1;
+    }
     activeCell = { rowIndex, colIndex };
     applyActiveCellHighlight();
   }
@@ -2593,14 +2718,33 @@
     let { rowIndex, colIndex } = activeCell;
     if (e.key === 'ArrowUp') rowIndex = Math.max(0, rowIndex - 1);
     else if (e.key === 'ArrowDown') rowIndex = Math.min(rows.length - 1, rowIndex + 1);
-    else if (e.key === 'ArrowLeft') colIndex = Math.max(GRID_MIN_COL, colIndex - 1);
-    else if (e.key === 'ArrowRight') colIndex = Math.min(GRID_MAX_COL, colIndex + 1);
+    else if (e.key === 'ArrowLeft') colIndex = prevVisibleCol(colIndex);
+    else if (e.key === 'ArrowRight') colIndex = nextVisibleCol(colIndex);
 
     // En el borde no hay movimiento: NO bloquear el scroll normal de la página.
     if (rowIndex === activeCell.rowIndex && colIndex === activeCell.colIndex) return;
 
     setActiveCell(rowIndex, colIndex, true);
     e.preventDefault();
+  }
+
+  // Vecino navegable a la derecha, saltando el bloque UPS cuando está plegado (columnas
+  // ocultas: las flechas no deben entrar ahí). El bloque [30..34] es contiguo → un solo salto.
+  function nextVisibleCol(c) {
+    let n = Math.min(GRID_MAX_COL, c + 1);
+    if (!upsVisible && n >= UPS_COL_START && n <= UPS_COL_END) {
+      n = Math.min(GRID_MAX_COL, UPS_COL_END + 1);
+    }
+    return n;
+  }
+
+  // Vecino navegable a la izquierda, con el mismo salto sobre el bloque UPS plegado.
+  function prevVisibleCol(c) {
+    let p = Math.max(GRID_MIN_COL, c - 1);
+    if (!upsVisible && p >= UPS_COL_START && p <= UPS_COL_END) {
+      p = Math.max(GRID_MIN_COL, UPS_COL_START - 1);
+    }
+    return p;
   }
 
   // Scroll automático a la celda activa, dos ejes.
@@ -2620,15 +2764,19 @@
       }
     }
 
-    // Vertical: scroll de la ventana, corrigiendo el thead sticky para que no tape la celda.
-    const thead = document.querySelector('.salidas-table thead');
-    const headH = thead ? thead.getBoundingClientRect().height : 0;
-    const rect = td.getBoundingClientRect();
-    const viewH = window.innerHeight || document.documentElement.clientHeight;
-    if (rect.top < headH + 4) {
-      window.scrollBy(0, rect.top - headH - 8);
-    } else if (rect.bottom > viewH) {
-      window.scrollBy(0, rect.bottom - viewH + 8);
+    // Vertical: el scroll real ahora también es del wrapper (overflow-y auto). El thead sticky
+    // (alto headH) tapa la franja superior del wrapper, así que la zona útil arranca en
+    // scrollTop + headH. offsetTop de la celda es relativo a la tabla = origen del wrapper.
+    if (wrap) {
+      const thead = document.querySelector('.salidas-table thead');
+      const headH = thead ? thead.offsetHeight : 0;
+      const cellTop = td.offsetTop;
+      const cellBottom = cellTop + td.offsetHeight;
+      if (cellTop < wrap.scrollTop + headH) {
+        wrap.scrollTop = cellTop - headH - 8;
+      } else if (cellBottom > wrap.scrollTop + wrap.clientHeight) {
+        wrap.scrollTop = cellBottom - wrap.clientHeight + 8;
+      }
     }
   }
 

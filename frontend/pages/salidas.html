@@ -5,10 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Salidas – Nova Express</title>
   <link rel="stylesheet" href="../css/main.css?v=4">
-  <link rel="stylesheet" href="../css/modules/salidas.css?v=16">
+  <link rel="stylesheet" href="../css/modules/salidas.css?v=19">
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
-<body>
+<body class="salidas-page">
 <div class="app-layout">
 
   <aside class="sidebar">
@@ -99,6 +99,7 @@
           </div>
           <span class="salidas-counter" id="contador">Cargando…</span>
           <button class="btn btn-sm btn-secondary" id="btn-sticky-cols" title="Fijar columnas a la izquierda">📌 Columnas fijas</button>
+          <button class="btn btn-sm btn-secondary" id="btn-toggle-ups" aria-pressed="false" title="Mostrar u ocultar las columnas de comparación con UPS">🧾 Columnas UPS</button>
         </div>
 
         <!-- Filter chips activos -->
@@ -142,11 +143,11 @@
                 <th data-col="compra_total" class="num" style="width:80px"><div class="th-inner">Compra Total<span class="sort-icon"></span></div></th>
                 <th data-col="profit" class="num" style="width:70px"><div class="th-inner">Profit<span class="sort-icon"></span></div></th>
                 <th data-col="porcentaje" class="num" style="width:52px"><div class="th-inner">%<span class="sort-icon"></span></div></th>
-                <th data-col="costo_facturado" class="num" style="width:78px"><div class="th-inner">Costo UPS<span class="sort-icon"></span></div></th>
-                <th class="num" style="width:62px"><div class="th-inner">Dif Costo</div></th>
-                <th data-col="peso_facturado" class="num" style="width:70px"><div class="th-inner">Peso UPS<span class="sort-icon"></span></div></th>
-                <th class="num" style="width:62px"><div class="th-inner">Dif Peso</div></th>
-                <th style="width:70px"><div class="th-inner">Revisión</div></th>
+                <th data-col="costo_facturado" class="num ups-col" style="width:78px"><div class="th-inner">Costo UPS<span class="sort-icon"></span></div></th>
+                <th class="num ups-col" style="width:62px"><div class="th-inner">Dif Costo</div></th>
+                <th data-col="peso_facturado" class="num ups-col" style="width:70px"><div class="th-inner">Peso UPS<span class="sort-icon"></span></div></th>
+                <th class="num ups-col" style="width:62px"><div class="th-inner">Dif Peso</div></th>
+                <th class="ups-col" style="width:70px"><div class="th-inner">Revisión</div></th>
                 <th data-col="estado" style="width:100px"><div class="th-inner">Estado<button class="filter-btn" data-filter="estado" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
                 <th style="width:140px">Observaciones</th>
               </tr>
@@ -179,6 +180,6 @@
 <script src="../js/api.js?v=7"></script>
 <script src="../js/main.js?v=4"></script>
 <script src="/shared/cotizador/cotizador-core.js?v=4"></script>
-<script src="../js/modules/salidas.js?v=29"></script>
+<script src="../js/modules/salidas.js?v=31"></script>
 </body>
 </html>

@@ -1,3 +1,18 @@
+/* ── Pantalla de alto completo (SOLO Salidas) ── */
+/* La planilla ocupa exactamente el viewport y NO deja scrollear la página: el único scroll
+   vertical es el interno de la tabla (#table-wrap), con lo que desaparece la barra vertical
+   del navegador en esta pantalla. Todo va scopeado a body.salidas-page para no tocar las
+   otras 10 páginas —.app-layout, .page-content, .page-body y .card son clases compartidas—.
+   Se apaga el min-height:100vh del layout base, se clava la app a la altura del viewport con
+   overflow oculto, y se achican fuerte los paddings (apenas un respiro, no cero) sacándole el
+   margin-bottom al card. Con la página quieta, refreshTableHeight (salidas.js) mide el tope
+   real del wrap y le da el alto exacto que queda libre hasta el borde inferior. */
+body.salidas-page { overflow: hidden; }
+body.salidas-page .app-layout { min-height: 0; height: 100vh; overflow: hidden; }
+body.salidas-page .page-content { min-height: 0; height: 100vh; overflow: hidden; }
+body.salidas-page .page-body { padding: 10px 14px; overflow: hidden; }
+body.salidas-page .page-body > .card { padding: 10px 12px; margin-bottom: 0; }
+
 /* ── Toolbar ── */
 .salidas-toolbar {
   display: flex;
@@ -140,8 +155,15 @@
 .month-tab.active .month-tab-count { color: var(--color-primary-light); }
 
 /* ── Table wrapper ── */
+/* Contenedor de scroll en AMBOS ejes: overflow-x mantiene las columnas fijas laterales
+   (position:sticky left) y overflow-y hace que scrollee ESTE div —no la página—, con lo
+   que el thead (position:sticky top:0) se clava arriba estilo Excel. La max-height es un
+   respaldo con calc de viewport; salidas.js la ajusta al alto real disponible en pantalla
+   (refreshTableHeight), para que la tabla llegue justo al fondo sin hueco ni corte. */
 .salidas-table-wrap {
   overflow-x: auto;
+  overflow-y: auto;
+  max-height: calc(100vh - 220px);
   border-radius: var(--radius);
   border: 1px solid var(--color-border);
 }
@@ -239,6 +261,14 @@
 .salidas-table th.chk-cell { cursor: default; }
 .salidas-table th.chk-cell:hover { background: #f1f5f9; }
 .salidas-table .chk-cell input[type="checkbox"] { cursor: pointer; margin: 0; vertical-align: middle; }
+
+/* ── Bloque desplegable de columnas UPS ── */
+/* Costo UPS, Dif Costo, Peso UPS, Dif Peso y Revisión (marcadas .ups-col en th y td). Solo
+   importan al cruzar facturas; el resto del mes se pliegan para no ensanchar la tabla. Al
+   plegar (.ups-collapsed en la tabla) se ocultan con display:none, así el navegador deja de
+   contarlas como columnas y los colspan de las sub-filas/estados vacíos (ajustados en JS)
+   cuadran. La exportación a Excel las incluye siempre: es un registro, no una vista. */
+.salidas-table.ups-collapsed .ups-col { display: none; }
 
 /* Numeric columns right-aligned */
 .salidas-table .num { text-align: right; font-variant-numeric: tabular-nums; }
@@ -502,9 +532,10 @@ td.detail-expandable { cursor: pointer; }
 .extras-toggle.open { transform: rotate(90deg); }
 
 /* Sub-fila (sin data-envio-id): fuera de la grilla, estilo detalle como .bulto-detail-row.
-   Dos celdas colspan (19 espaciador + 17 contenido = 36): el desglose arranca debajo de
-   "Venta Total". Ambas comparten fondo y sin border-top. La alineación la da el espaciador,
-   por eso el padding-left de la celda de contenido es mínimo. */
+   Dos celdas colspan (19 espaciador + contenido): el desglose arranca debajo de "Venta Total".
+   El colspan del contenido lo pone salidas.js (18 con el bloque UPS abierto, 13 plegado).
+   Ambas comparten fondo y sin border-top. La alineación la da el espaciador, por eso el
+   padding-left de la celda de contenido es mínimo. */
 .extras-detail-row td {
   background: #f8fafc;
   padding: 6px 12px 6px 4px;
@@ -618,6 +649,20 @@ td.detail-expandable { cursor: pointer; }
   background: #fee2e2;
   color: #991b1b;
   border-color: #fca5a5;
+}
+
+/* ── Toggle del bloque de columnas UPS ── */
+/* El botón muestra el estado actual: resaltado cuando el bloque está abierto (.active) y
+   neutro cuando está plegado. El caret acompaña (▾ abierto / ▸ cerrado). */
+#btn-toggle-ups.active {
+  background: #e0e7ff;
+  color: #3730a3;
+  border-color: #c7d2fe;
+}
+
+.ups-toggle-caret {
+  font-size: 9px;
+  vertical-align: middle;
 }
 
 /* ── Load more ── */
@@ -1092,7 +1137,7 @@ td.detail-expandable { cursor: pointer; }
   position: fixed;
   bottom: 0;
   left: 0;
-  height: 15px;
+  height: 22px;
   overflow-x: auto;
   overflow-y: hidden;
   z-index: 40;
@@ -1106,7 +1151,7 @@ td.detail-expandable { cursor: pointer; }
 
 /* Scrollbar discreta y coherente con el resto (thin en Firefox, estilizada en WebKit). */
 .floating-hscroll { scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; }
-.floating-hscroll::-webkit-scrollbar { height: 11px; }
+.floating-hscroll::-webkit-scrollbar { height: 18px; }
 .floating-hscroll::-webkit-scrollbar-track { background: transparent; }
 .floating-hscroll::-webkit-scrollbar-thumb {
   background: #cbd5e1;
