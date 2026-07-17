@@ -34,7 +34,11 @@ CREATE TABLE IF NOT EXISTS configuracion (
   -- Desvío máximo aceptable (%) al comparar contra la factura del courier: si facturó
   -- MÁS peso/costo que lo nuestro y el desvío supera la tolerancia, se pinta en rojo.
   tolerancia_peso_pct  REAL DEFAULT 10,
-  tolerancia_costo_pct REAL DEFAULT 10
+  tolerancia_costo_pct REAL DEFAULT 10,
+  -- Segundo disparador del semáforo por MONTO ABSOLUTO (USD/kg), independiente del %.
+  -- Alcanza con superar UNO de los dos umbrales (% o absoluto) para pintar rojo.
+  tolerancia_costo_usd REAL DEFAULT 50,
+  tolerancia_peso_kg   REAL DEFAULT 5
 );
 
 CREATE TABLE IF NOT EXISTS configuracion_historial (

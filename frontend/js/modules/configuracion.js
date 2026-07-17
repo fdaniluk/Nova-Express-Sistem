@@ -108,12 +108,20 @@
         <h4>${c.courier}</h4>
         <div class="tol-inputs">
           <div class="form-group">
+            <label>Tolerancia costo (%)</label>
+            <input type="number" class="tol-costo" step="0.1" min="0" max="100" value="${c.tolerancia_costo_pct}">
+          </div>
+          <div class="form-group">
+            <label>Tolerancia costo (USD)</label>
+            <input type="number" class="tol-costo-usd" step="1" min="0" value="${c.tolerancia_costo_usd}">
+          </div>
+          <div class="form-group">
             <label>Tolerancia peso (%)</label>
             <input type="number" class="tol-peso" step="0.1" min="0" max="100" value="${c.tolerancia_peso_pct}">
           </div>
           <div class="form-group">
-            <label>Tolerancia costo (%)</label>
-            <input type="number" class="tol-costo" step="0.1" min="0" max="100" value="${c.tolerancia_costo_pct}">
+            <label>Tolerancia peso (kg)</label>
+            <input type="number" class="tol-peso-kg" step="0.1" min="0" value="${c.tolerancia_peso_kg}">
           </div>
         </div>
         <button type="button" class="btn btn-primary btn-sm btn-save-tol" style="margin-top:0.5rem">Guardar</button>
@@ -125,9 +133,11 @@
         const courier = card.dataset.courier;
         const peso = parseFloat(card.querySelector('.tol-peso').value);
         const costo = parseFloat(card.querySelector('.tol-costo').value);
+        const costoUsd = parseFloat(card.querySelector('.tol-costo-usd').value);
+        const pesoKg = parseFloat(card.querySelector('.tol-peso-kg').value);
         try {
-          await NovaAPI.configuracion.actualizarTolerancias(courier, peso, costo);
-          NovaUtils.showAlert(alertBox, `Tolerancias ${courier} actualizadas (peso ${peso}% · costo ${costo}%)`, 'success');
+          await NovaAPI.configuracion.actualizarTolerancias(courier, peso, costo, costoUsd, pesoKg);
+          NovaUtils.showAlert(alertBox, `Tolerancias ${courier} actualizadas (costo ${costo}% o ${costoUsd} USD · peso ${peso}% o ${pesoKg} kg)`, 'success');
           loadTolerancias();
         } catch (err) {
           NovaUtils.showAlert(alertBox, err.message, 'error');

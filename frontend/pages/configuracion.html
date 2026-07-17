@@ -38,7 +38,7 @@
       font-size: 0.85rem;
       margin-bottom: 1rem;
     }
-    .tol-inputs { display: grid; gap: 0.5rem; margin-top: 0.75rem; }
+    .tol-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.75rem; }
   </style>
 </head>
 <body>
@@ -148,7 +148,11 @@
       <section class="card">
         <h2>Tolerancias del semáforo por courier</h2>
         <p class="config-hint">
-          Es el desvío máximo aceptable en % entre lo que facturó UPS y lo nuestro; si se supera, en Salidas la celda se pinta roja. Solo alerta cuando UPS facturó de más.
+          Desvío máximo aceptable entre lo que facturó UPS y lo nuestro; si se supera, en Salidas la celda se pinta roja. Solo alerta cuando UPS facturó de más.
+        </p>
+        <p class="config-hint">
+          <strong>Los dos umbrales (% y monto) son independientes: alcanza con superar UNO de los dos para pintar rojo (es un O, no un Y).</strong>
+          Ej: un envío de 1000 USD con 6% de desvío son 60 USD; el 6% no llega al 20%, pero 60 USD sí superan los 50 USD → rojo.
         </p>
         <div class="fuel-cards" id="tolerancia-cards"></div>
       </section>
@@ -157,8 +161,8 @@
 </div>
 
 <script src="/js/auth-guard.js"></script>
-<script src="../js/api.js?v=6"></script>
+<script src="../js/api.js?v=7"></script>
 <script src="../js/main.js?v=4"></script>
-<script src="../js/modules/configuracion.js?v=1"></script>
+<script src="../js/modules/configuracion.js?v=2"></script>
 </body>
 </html>

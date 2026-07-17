@@ -88,19 +88,41 @@ function validarTolerancia(valor, nombre) {
   return null;
 }
 
+// Valida un umbral por monto absoluto (USD o kg): numérico y no negativo. Sin tope de 100,
+// a diferencia de los porcentajes: un desvío en USD/kg puede ser cualquier valor positivo.
+function validarMonto(valor, nombre) {
+  const n = Number(valor);
+  if (valor === undefined || valor === null || valor === '' || Number.isNaN(n)) {
+    return `${nombre} es obligatorio y numérico`;
+  }
+  if (n < 0) {
+    return `${nombre} no puede ser negativo`;
+  }
+  return null;
+}
+
 async function actualizarTolerancias(req, res, next) {
   try {
     const courier = req.params.courier?.toUpperCase();
     if (!['DHL', 'UPS'].includes(courier)) {
       return res.status(400).json({ error: 'Courier debe ser DHL o UPS' });
     }
-    const { tolerancia_peso_pct, tolerancia_costo_pct } = req.body;
+    const {
+      tolerancia_peso_pct, tolerancia_costo_pct,
+      tolerancia_costo_usd, tolerancia_peso_kg,
+    } = req.body;
     const errPeso = validarTolerancia(tolerancia_peso_pct, 'tolerancia_peso_pct');
     if (errPeso) return res.status(400).json({ error: errPeso });
     const errCosto = validarTolerancia(tolerancia_costo_pct, 'tolerancia_costo_pct');
     if (errCosto) return res.status(400).json({ error: errCosto });
+    const errCostoUsd = validarMonto(tolerancia_costo_usd, 'tolerancia_costo_usd');
+    if (errCostoUsd) return res.status(400).json({ error: errCostoUsd });
+    const errPesoKg = validarMonto(tolerancia_peso_kg, 'tolerancia_peso_kg');
+    if (errPesoKg) return res.status(400).json({ error: errPesoKg });
     const cfg = await configuracionModel.actualizarTolerancias(
-      courier, Number(tolerancia_peso_pct), Number(tolerancia_costo_pct)
+      courier,
+      Number(tolerancia_peso_pct), Number(tolerancia_costo_pct),
+      Number(tolerancia_costo_usd), Number(tolerancia_peso_kg)
     );
     res.json(cfg);
   } catch (e) {

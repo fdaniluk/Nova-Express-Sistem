@@ -110,14 +110,18 @@
   }
 
   // Carga las tolerancias por courier (GET /configuracion/tolerancias → array de filas
-  // { courier, tolerancia_peso_pct, tolerancia_costo_pct }) y las indexa por courier. Si
-  // falla no rompe la pantalla: sin tolerancias no se pinta ningún semáforo (queda neutro).
+  // con umbral % y umbral absoluto por métrica) y las indexa por courier. Cada métrica
+  // guarda { pct, abs }: el semáforo pinta rojo si el desvío en contra nuestra supera UNO
+  // de los dos (ver difEval). Si falla no rompe la pantalla: sin tolerancias no se pinta.
   async function loadTolerancias() {
     try {
       const rows = await NovaAPI.configuracion.tolerancias();
       tolerancias = {};
       for (const r of (rows || [])) {
-        tolerancias[r.courier] = { peso: r.tolerancia_peso_pct, costo: r.tolerancia_costo_pct };
+        tolerancias[r.courier] = {
+          peso:  { pct: r.tolerancia_peso_pct,  abs: r.tolerancia_peso_kg },
+          costo: { pct: r.tolerancia_costo_pct, abs: r.tolerancia_costo_usd },
+        };
       }
     } catch (err) {
       console.warn('[salidas] No se pudieron cargar tolerancias:', err.message);
@@ -478,20 +482,27 @@
     return fmtKg(e.peso_facturado);
   }
 
-  // Evalúa el desvío % de una métrica facturada por el courier vs. la nuestra:
-  //   pct = (facturado − base) / base × 100
-  // Devuelve { html, rojo }. Semáforo ROJO solo si se cumplen LAS DOS cosas: el desvío es
-  // POSITIVO (el courier facturó de MÁS, va en contra nuestra) Y supera la tolerancia de esa
-  // métrica para el courier del envío. Desvío negativo (a favor nuestro) o dentro de la
-  // tolerancia → neutro, no se pinta. Nunca verde. Sin factura o base inválida → guión neutro.
+  // Evalúa el desvío de una métrica facturada por el courier vs. la nuestra. Dos medidas:
+  //   pct = (facturado − base) / base × 100      abs = facturado − base
+  // Devuelve { html, rojo }. Semáforo ROJO solo si se cumplen LAS DOS condiciones:
+  //   1. abs POSITIVO (el courier facturó de MÁS, va en contra nuestra). Si facturó de menos
+  //      es a favor nuestro y no se pinta nunca, sin importar cuánto sea.
+  //   2. Y además se supera AL MENOS UNO de los dos umbrales del courier: pct > tol.pct
+  //      O abs > tol.abs (independientes: alcanza con uno). Atrapa el envío grande donde un
+  //      desvío chico en % es mucha plata.
+  // Dentro de tolerancia o desvío a favor → neutro. Nunca verde. Sin factura o base inválida
+  // → guión neutro. La celda muestra siempre el %; el disparo absoluto solo cambia el color.
   function difEval(e, isFirst, facturado, base, tipo) {
     if (!isFirst) return { html: '', rojo: false };
     if (e.costo_facturado == null || facturado == null || base == null || base === 0) {
       return { html: '<span class="em">—</span>', rojo: false };
     }
     const pct = (facturado - base) / base * 100;
-    const tol = (tolerancias[e.courier] || {})[tipo];
-    const rojo = pct > 0 && tol != null && pct > tol;
+    const abs = facturado - base;
+    const tol = (tolerancias[e.courier] || {})[tipo] || {};
+    const superaPct = tol.pct != null && pct > tol.pct;
+    const superaAbs = tol.abs != null && abs > tol.abs;
+    const rojo = abs > 0 && (superaPct || superaAbs);
     const sign = pct > 0 ? '+' : '';
     return { html: `${sign}${pct.toFixed(1)}%`, rojo };
   }

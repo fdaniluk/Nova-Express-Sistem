@@ -93,27 +93,33 @@ async function historialUmbral(courier) {
 // Salidas). tolerancia_peso_pct y tolerancia_costo_pct son el desvío máximo aceptable en %.
 // Sin historial: son parámetros de configuración simples (a diferencia de fuel/umbral).
 
+const TOLERANCIA_COLS =
+  'courier, tolerancia_peso_pct, tolerancia_costo_pct, tolerancia_costo_usd, tolerancia_peso_kg';
+
 async function obtenerTolerancias(courier) {
   return getDb()
-    .prepare('SELECT courier, tolerancia_peso_pct, tolerancia_costo_pct FROM configuracion WHERE courier = ?')
+    .prepare(`SELECT ${TOLERANCIA_COLS} FROM configuracion WHERE courier = ?`)
     .get(courier);
 }
 
 async function listarTolerancias() {
   return getDb()
-    .prepare('SELECT courier, tolerancia_peso_pct, tolerancia_costo_pct FROM configuracion ORDER BY courier')
+    .prepare(`SELECT ${TOLERANCIA_COLS} FROM configuracion ORDER BY courier`)
     .all();
 }
 
-async function actualizarTolerancias(courier, pesoPct, costoPct) {
+async function actualizarTolerancias(courier, pesoPct, costoPct, costoUsd, pesoKg) {
   const db = getDb();
   const actual = await obtenerTolerancias(courier);
   if (!actual) {
     throw new Error(`Courier no configurado: ${courier}`);
   }
   await db.prepare(
-    `UPDATE configuracion SET tolerancia_peso_pct = ?, tolerancia_costo_pct = ? WHERE courier = ?`
-  ).run(pesoPct, costoPct, courier);
+    `UPDATE configuracion
+        SET tolerancia_peso_pct = ?, tolerancia_costo_pct = ?,
+            tolerancia_costo_usd = ?, tolerancia_peso_kg = ?
+      WHERE courier = ?`
+  ).run(pesoPct, costoPct, costoUsd, pesoKg, courier);
   return obtenerTolerancias(courier);
 }
 

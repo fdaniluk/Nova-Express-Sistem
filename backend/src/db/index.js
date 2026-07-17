@@ -249,6 +249,16 @@ async function migrateConfiguracion() {
   if (!cols.includes('tolerancia_costo_pct')) {
     await dbApi.exec('ALTER TABLE configuracion ADD COLUMN tolerancia_costo_pct REAL DEFAULT 10');
   }
+  // Segundo disparador del semáforo por MONTO ABSOLUTO (independiente del %): si el desvío
+  // en contra nuestra supera estos umbrales en USD/kg, se pinta rojo aunque el % no llegue.
+  // Alcanza con superar UNO de los dos (% o absoluto) para pintar. Atrapa el envío grande
+  // donde un desvío chico en % es mucha plata.
+  if (!cols.includes('tolerancia_costo_usd')) {
+    await dbApi.exec('ALTER TABLE configuracion ADD COLUMN tolerancia_costo_usd REAL DEFAULT 50');
+  }
+  if (!cols.includes('tolerancia_peso_kg')) {
+    await dbApi.exec('ALTER TABLE configuracion ADD COLUMN tolerancia_peso_kg REAL DEFAULT 5');
+  }
 }
 
 // Matriz de profit por cliente. Cada fila es un override sobre el escalar
