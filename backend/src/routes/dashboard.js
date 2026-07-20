@@ -1,6 +1,6 @@
 const { Router } = require('express');
 const { getDb } = require('../db');
-const { deriveProfit } = require('../utils/profit');
+const { deriveProfit, costoEstimado } = require('../utils/profit');
 
 const router = Router();
 
@@ -161,9 +161,34 @@ router.get('/metricas', async (req, res, next) => {
     const porCliente = new Map();
     const porChart = new Map();
 
+    // DESVÍO DE COTIZACIÓN (solo envíos con factura ya aprobada, únicos comparables contra
+    // la verdad): cuánto nos desviamos al estimar. desvio_envio = costo real − costo estimado.
+    // Positivo = UPS cobró MÁS que lo estimado → cotizamos corto y perdemos margen.
+    let desvioTotal = 0;    // Σ (costo_facturado − costo_estimado) de los 'revisado_ok'
+    let desvioBase = 0;     // Σ costo_estimado de esos mismos, denominador del %
+    let cantidadComparados = 0;
+    // PLATA EN DISPUTA (envíos en reclamo con factura cargada): utilidad optimista que
+    // todavía se está peleando con UPS y podría evaporarse si UPS gana el reclamo.
+    let disputaTotal = 0;   // Σ (costo_facturado − costo_estimado) de los 'reclamar'
+    let disputaCantidad = 0;
+
     for (const row of enviosPeriodo) {
       const u = utilidadEnvio(row);
       utilidadNeta += u;
+
+      // Métricas de comparación estimación vs. real. El costo estimado SALE de la misma
+      // fuente que deriveProfit (costoEstimado), así son consistentes con la utilidad.
+      if (row.costo_facturado != null) {
+        if (row.estado_revision === 'revisado_ok') {
+          const est = costoEstimado(row);
+          desvioTotal += row.costo_facturado - est;
+          desvioBase += est;
+          cantidadComparados += 1;
+        } else if (row.estado_revision === 'reclamar') {
+          disputaTotal += row.costo_facturado - costoEstimado(row);
+          disputaCantidad += 1;
+        }
+      }
 
       let cl = porCliente.get(row.cliente_id);
       if (!cl) {
@@ -196,6 +221,11 @@ router.get('/metricas', async (req, res, next) => {
 
     res.json({
       utilidad_neta_usd: round2(utilidadNeta),
+      desvio_cotizacion_usd: round2(desvioTotal),
+      desvio_cotizacion_pct: desvioBase !== 0 ? round2((desvioTotal / desvioBase) * 100) : 0,
+      cantidad_envios_comparados: cantidadComparados,
+      disputa_usd: round2(disputaTotal),
+      disputa_cantidad: disputaCantidad,
       kilos_facturados: round1(kilosRow.kilos_facturados),
       bultos_despachados: kilosRow.bultos_despachados || 0,
       envios_totales: totalEnvios,

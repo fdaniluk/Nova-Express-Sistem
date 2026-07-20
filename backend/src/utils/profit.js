@@ -23,6 +23,16 @@
 // Espera row.total = total_cobrado (alias del SELECT) y las columnas de costo planas.
 // Opcionales para la rama nueva: row.estado_revision, row.costo_facturado y
 // row.venta_liq (SUM de liquidacion_items.total_usd de la liquidación confirmada).
+// Costo ESTIMADO por nosotros a partir del desglose congelado. Es la fórmula que
+// usa la rama estimada de deriveProfit; se expone aparte para que el Dashboard pueda
+// pedir el costo estimado de CUALQUIER envío (incluso uno 'revisado_ok', donde
+// deriveProfit devuelve el costo real y no el estimado) sin re-tipear la fórmula y
+// arriesgar que quede desalineada con la utilidad. Fuente única de la estimación.
+function costoEstimado(row) {
+  return (row.flete || 0) - (row.descuento || 0) + (row.seguro || 0)
+    + (row.fuel || 0) + (row.derechos || 0) + (row.adicionales || 0) + (row.otros || 0);
+}
+
 function deriveProfit(row) {
   // RAMA NUEVA (Etapa 3): costo real de la factura UPS ya aprobada. costo_facturado 0
   // es un valor válido (se pagó 0) → se habilita con != null, no con truthiness.
@@ -44,8 +54,7 @@ function deriveProfit(row) {
   }
 
   // RAMA ESTIMADA (histórica, sin cambios de número): costo derivado del desglose.
-  const costo = (row.flete || 0) - (row.descuento || 0) + (row.seguro || 0)
-    + (row.fuel || 0) + (row.derechos || 0) + (row.adicionales || 0) + (row.otros || 0);
+  const costo = costoEstimado(row);
   if (costo === 0 || row.total == null || row.total === 0) {
     return { compra_total: costo, profit: row.profit ?? null, porcentaje: row.porcentaje ?? null, profit_real: false };
   }
@@ -54,4 +63,4 @@ function deriveProfit(row) {
   return { compra_total: costo, profit, porcentaje, profit_real: false };
 }
 
-module.exports = { deriveProfit };
+module.exports = { deriveProfit, costoEstimado };
