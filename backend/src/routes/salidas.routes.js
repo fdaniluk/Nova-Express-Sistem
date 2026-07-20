@@ -88,9 +88,20 @@ router.get('/', async (req, res, next) => {
         e.created_at,
         c.id                  AS cliente_id,
         COALESCE(NULLIF(c.nombre_nova,''), c.nombre) AS cliente_nombre,
-        c.tipo_cobro
+        c.tipo_cobro,
+        li.venta_liq          AS venta_liq
       FROM envios e
       JOIN clientes c ON c.id = e.cliente_id
+      -- Venta congelada de la liquidación confirmada (total_usd = total_cobrado + adicional
+      -- manual). La consume deriveProfit para la rama de costo real: cuando el envío está
+      -- liquidado, el costo real se resta contra ESTA venta (la completa), no contra
+      -- total_cobrado. Pre-agregado por envío para no duplicar filas. SOLO lectura.
+      LEFT JOIN (
+        SELECT envio_id, SUM(total_usd) AS venta_liq
+        FROM liquidacion_items
+        WHERE liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
+        GROUP BY envio_id
+      ) li ON li.envio_id = e.id
       WHERE 1=1`;
 
     const params = [];

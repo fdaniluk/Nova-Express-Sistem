@@ -74,13 +74,17 @@ router.get('/metricas', async (req, res, next) => {
              e.total_cobrado AS total,
              e.flete, e.descuento, e.seguro, e.fuel, e.derechos, e.adicionales, e.otros,
              e.profit, e.porcentaje,
+             e.estado_revision, e.costo_facturado,
              c.id     AS cliente_id,
              c.nombre AS cliente_nombre,
-             li.utilidad_usd AS utilidad_liq
+             li.utilidad_usd AS utilidad_liq,
+             li.venta_liq    AS venta_liq
            FROM envios e
            JOIN clientes c ON c.id = e.cliente_id
            LEFT JOIN (
-             SELECT envio_id, SUM(utilidad_usd) AS utilidad_usd
+             SELECT envio_id,
+                    SUM(utilidad_usd) AS utilidad_usd,
+                    SUM(total_usd)    AS venta_liq
              FROM liquidacion_items
              WHERE liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
              GROUP BY envio_id
@@ -133,14 +137,20 @@ router.get('/metricas', async (req, res, next) => {
     const round2 = (n) => Math.round((n || 0) * 100) / 100;
     const round1 = (n) => Math.round((n || 0) * 10) / 10;
 
-    // Utilidad de UN envío, con la misma regla que la vista Salidas:
-    //   - liquidación confirmada  → li.utilidad_usd (snapshot congelado de la liquidación)
-    //   - si no                   → profit real venta − compra vía deriveProfit
+    // Utilidad de UN envío. Precedencia de arriba hacia abajo (la primera que aplica gana):
+    //   1. COSTO REAL (Etapa 3): factura UPS aprobada (estado_revision='revisado_ok' con
+    //      costo_facturado). deriveProfit devuelve profit_real=true → venta − costo real.
+    //      GANA sobre la foto de la liquidación: los envíos D/S/Q se liquidan ANTES de que
+    //      llegue la factura, así que la realidad recién conocida debe pisar la estimación
+    //      congelada. Es la MISMA función/valor que pinta cada fila en Salidas → coinciden.
+    //   2. LIQUIDACIÓN confirmada → li.utilidad_usd (snapshot congelado). IGUAL QUE ANTES.
+    //   3. ESTIMACIÓN → profit venta − costo estimado vía deriveProfit. IGUAL QUE ANTES.
     // Si deriveProfit no puede calcular (costo 0 y sin liquidación) devuelve profit null:
     // ese envío cuenta 0 (no null), para no romper la suma.
     const utilidadEnvio = (row) => {
+      const { profit, profit_real } = deriveProfit(row);
+      if (profit_real) return profit;
       if (row.utilidad_liq != null) return row.utilidad_liq;
-      const { profit } = deriveProfit(row);
       return profit == null ? 0 : profit;
     };
 
