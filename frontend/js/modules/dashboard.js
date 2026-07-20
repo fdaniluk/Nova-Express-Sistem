@@ -103,12 +103,44 @@
     }
   }
 
+  // formatMoney no antepone '+' en positivos; lo agregamos para leer el signo de un vistazo.
+  function signedMoney(n) {
+    const m = NovaUtils.formatMoney(n);
+    return n > 0 ? '+' + m : m;
+  }
+
   function renderMetrics(data) {
     const grid = document.getElementById('metrics-grid');
+
+    // Desvío de cotización: positivo = UPS cobró de más = cotizamos corto (rojo).
+    const desvioCant = data.cantidad_envios_comparados;
+    const desvioValue =
+      desvioCant > 0
+        ? `${signedMoney(data.desvio_cotizacion_usd)} (${data.desvio_cotizacion_pct}%)`
+        : '—';
+    const desvioClass = desvioCant === 0 ? '' : data.desvio_cotizacion_usd > 0 ? 'danger' : 'success';
+    const desvioSub =
+      desvioCant > 0 ? `sobre ${desvioCant} envíos facturados` : 'sin datos aún';
+
+    // Plata en disputa: si hay algo abierto es plata que puede evaporarse (rojo).
+    const disputaClass = data.disputa_usd > 0 ? 'danger' : '';
+    const disputaSub =
+      data.disputa_cantidad > 0 ? `${data.disputa_cantidad} guías en reclamo` : 'sin reclamos';
+
     grid.innerHTML = `
       <div class="metric-card success">
         <div class="metric-label">Utilidad neta</div>
         <div class="metric-value">${NovaUtils.formatMoney(data.utilidad_neta_usd)}</div>
+      </div>
+      <div class="metric-card ${desvioClass}">
+        <div class="metric-label">Desvío de cotización</div>
+        <div class="metric-value">${desvioValue}</div>
+        <div class="metric-sub">${desvioSub}</div>
+      </div>
+      <div class="metric-card ${disputaClass}">
+        <div class="metric-label">En disputa con UPS</div>
+        <div class="metric-value">${NovaUtils.formatMoney(data.disputa_usd)}</div>
+        <div class="metric-sub">${disputaSub}</div>
       </div>
       <div class="metric-card">
         <div class="metric-label">Envíos totales</div>
