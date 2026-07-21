@@ -27,6 +27,7 @@ async function requireAuth(req, res, next) {
       usuario: session.usuario,
       rol: session.rol,
       ver_dashboard: session.ver_dashboard,
+      editar_config: session.editar_config,
     };
     next();
   } catch (err) {
@@ -41,6 +42,14 @@ function requireDashboard(req, res, next) {
   next();
 }
 
+// El admin SIEMPRE puede, tenga o no el flag; los demás necesitan editar_config = 1.
+function requireConfig(req, res, next) {
+  if (!req.usuario || (req.usuario.rol !== 'admin' && req.usuario.editar_config !== 1)) {
+    return res.status(403).json({ error: 'Acceso denegado a la configuración' });
+  }
+  next();
+}
+
 function requireAdmin(req, res, next) {
   if (!req.usuario || req.usuario.rol !== 'admin') {
     return res.status(403).json({ error: 'Se requiere rol administrador' });
@@ -48,4 +57,4 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-module.exports = { requireAuth, requireDashboard, requireAdmin };
+module.exports = { requireAuth, requireDashboard, requireConfig, requireAdmin };

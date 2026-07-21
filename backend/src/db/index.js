@@ -310,6 +310,22 @@ async function migrateFacturaGuias() {
   await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_factura_guias_guia    ON factura_guias(numero_guia)');
 }
 
+// Permisos por usuario. editar_config habilita entrar y guardar en Configuración
+// sin ser admin (regla admin OR editar_config); ver middleware requireConfig.
+// Idempotente para bases existentes en el VPS; DEFAULT 0 deja a los empleados sin
+// acceso hasta que un admin se los otorgue.
+async function migrateUsuarios() {
+  const cols = (await dbApi.prepare('PRAGMA table_info(usuarios)').all()).map((c) => c.name);
+  const toAdd = [
+    ['editar_config', 'INTEGER NOT NULL DEFAULT 0'],
+  ];
+  for (const [col, def] of toAdd) {
+    if (!cols.includes(col)) {
+      await dbApi.exec(`ALTER TABLE usuarios ADD COLUMN ${col} ${def}`);
+    }
+  }
+}
+
 async function initSchema() {
   const schema = fs.readFileSync(config.schemaPath, 'utf8');
   await dbApi.exec(schema);
@@ -319,6 +335,7 @@ async function initSchema() {
   await migrateEnvioBultos();
   await migrateCuadrantes();
   await migrateConfiguracion();
+  await migrateUsuarios();
   await migrateProfitOverrides();
   await migrateFacturaGuias();
   await seedIfEmpty();

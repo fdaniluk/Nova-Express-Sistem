@@ -25,13 +25,26 @@
 
         if (user.rol !== 'admin') {
           document.querySelectorAll(
-            'a[href="usuarios.html"], a[href="pages/usuarios.html"], a[href="/pages/usuarios.html"], ' +
+            'a[href="usuarios.html"], a[href="pages/usuarios.html"], a[href="/pages/usuarios.html"]'
+          ).forEach(function (el) {
+            el.style.display = 'none';
+          });
+          const path = window.location.pathname;
+          if (path.endsWith('usuarios.html')) {
+            location.replace('/pages/envios.html');
+            return;
+          }
+        }
+
+        // Configuración: visible para admin O usuarios con editar_config = 1.
+        if (user.rol !== 'admin' && user.editar_config !== 1) {
+          document.querySelectorAll(
             'a[href="configuracion.html"], a[href="pages/configuracion.html"], a[href="/pages/configuracion.html"]'
           ).forEach(function (el) {
             el.style.display = 'none';
           });
           const path = window.location.pathname;
-          if (path.endsWith('usuarios.html') || path.endsWith('configuracion.html')) {
+          if (path.endsWith('configuracion.html')) {
             location.replace('/pages/envios.html');
             return;
           }

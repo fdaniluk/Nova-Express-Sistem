@@ -19,7 +19,7 @@
 
   function renderTabla(usuarios) {
     if (!usuarios.length) {
-      tabla.innerHTML = '<tr><td colspan="5" class="empty">No hay usuarios registrados.</td></tr>';
+      tabla.innerHTML = '<tr><td colspan="6" class="empty">No hay usuarios registrados.</td></tr>';
       return;
     }
 
@@ -35,6 +35,9 @@
           </td>
           <td style="text-align:center">
             <input type="checkbox" class="dashboard-check" data-id="${u.id}" ${u.ver_dashboard ? 'checked' : ''}>
+          </td>
+          <td style="text-align:center">
+            <input type="checkbox" class="config-check" data-id="${u.id}" ${u.editar_config ? 'checked' : ''}>
           </td>
           <td>
             <div class="estado-cell">
@@ -73,6 +76,19 @@
         var id = cb.dataset.id;
         try {
           await NovaAPI.patch('/usuarios/' + id, { ver_dashboard: cb.checked ? 1 : 0 });
+          await cargarUsuarios();
+        } catch (err) {
+          NovaUtils.showAlert(alertBox, err.message);
+          await cargarUsuarios();
+        }
+      });
+    });
+
+    tabla.querySelectorAll('input.config-check').forEach(function (cb) {
+      cb.addEventListener('change', async function () {
+        var id = cb.dataset.id;
+        try {
+          await NovaAPI.patch('/usuarios/' + id, { editar_config: cb.checked ? 1 : 0 });
           await cargarUsuarios();
         } catch (err) {
           NovaUtils.showAlert(alertBox, err.message);
@@ -123,6 +139,7 @@
         password: document.getElementById('u-password').value,
         rol: document.getElementById('u-rol').value,
         ver_dashboard: document.getElementById('u-ver-dashboard').checked ? 1 : 0,
+        editar_config: document.getElementById('u-editar-config').checked ? 1 : 0,
       };
       try {
         await NovaAPI.post('/usuarios', data);

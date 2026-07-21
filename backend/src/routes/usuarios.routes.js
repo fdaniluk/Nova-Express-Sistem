@@ -15,7 +15,7 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { usuario, password, rol, ver_dashboard } = req.body || {};
+    const { usuario, password, rol, ver_dashboard, editar_config } = req.body || {};
 
     if (!usuario || !String(usuario).trim())
       return res.status(400).json({ error: 'El nombre de usuario es requerido' });
@@ -25,6 +25,8 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ error: "El rol debe ser 'admin' o 'empleado'" });
     if (![0, 1].includes(Number(ver_dashboard)))
       return res.status(400).json({ error: 'ver_dashboard debe ser 0 o 1' });
+    if (![0, 1].includes(Number(editar_config)))
+      return res.status(400).json({ error: 'editar_config debe ser 0 o 1' });
 
     const existente = await model.buscarUsuarioPorNombre(String(usuario).trim());
     if (existente) return res.status(409).json({ error: 'Ya existe un usuario con ese nombre' });
@@ -35,6 +37,7 @@ router.post('/', async (req, res, next) => {
       password_hash,
       rol,
       ver_dashboard: Number(ver_dashboard),
+      editar_config: Number(editar_config),
     });
 
     const nuevo = await model.buscarUsuarioPorId(id);
@@ -47,7 +50,7 @@ router.post('/', async (req, res, next) => {
 router.patch('/:id', async (req, res, next) => {
   try {
     const id = Number(req.params.id);
-    const { rol, ver_dashboard, activo } = req.body || {};
+    const { rol, ver_dashboard, editar_config, activo } = req.body || {};
     const campos = {};
 
     if (rol !== undefined) {
@@ -59,6 +62,11 @@ router.patch('/:id', async (req, res, next) => {
       if (![0, 1].includes(Number(ver_dashboard)))
         return res.status(400).json({ error: 'ver_dashboard debe ser 0 o 1' });
       campos.ver_dashboard = Number(ver_dashboard);
+    }
+    if (editar_config !== undefined) {
+      if (![0, 1].includes(Number(editar_config)))
+        return res.status(400).json({ error: 'editar_config debe ser 0 o 1' });
+      campos.editar_config = Number(editar_config);
     }
     if (activo !== undefined) {
       if (![0, 1].includes(Number(activo)))

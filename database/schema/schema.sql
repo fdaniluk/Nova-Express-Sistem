@@ -295,6 +295,7 @@ CREATE TABLE IF NOT EXISTS usuarios (
   password_hash  TEXT NOT NULL,
   rol            TEXT NOT NULL DEFAULT 'empleado' CHECK(rol IN ('admin','empleado')),
   ver_dashboard  INTEGER NOT NULL DEFAULT 0,
+  editar_config  INTEGER NOT NULL DEFAULT 0,
   activo         INTEGER NOT NULL DEFAULT 1,
   creado_en      TEXT DEFAULT (datetime('now'))
 );

@@ -133,6 +133,10 @@
               <input type="checkbox" id="u-ver-dashboard">
               <label for="u-ver-dashboard">Puede ver el Dashboard</label>
             </div>
+            <div class="form-group checkbox-group">
+              <input type="checkbox" id="u-editar-config">
+              <label for="u-editar-config">Puede editar la configuración</label>
+            </div>
           </div>
           <div class="actions">
             <button type="submit" class="btn btn-primary">Crear usuario</button>
@@ -149,12 +153,13 @@
                 <th>Usuario</th>
                 <th>Rol</th>
                 <th style="text-align:center">Dashboard</th>
+                <th style="text-align:center">Config</th>
                 <th>Estado</th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody id="tabla-usuarios" class="tabla-usuarios">
-              <tr><td colspan="5" class="empty">Cargando...</td></tr>
+              <tr><td colspan="6" class="empty">Cargando...</td></tr>
             </tbody>
           </table>
         </div>
