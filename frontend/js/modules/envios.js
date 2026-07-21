@@ -272,6 +272,9 @@
 
     // Recalcular al tildar/destildar DDP (passthrough +24.05)
     document.getElementById('ddp').addEventListener('change', debounce(updateCotizacion, 400));
+
+    // Recalcular al tildar/destildar Área remota (recargo que resuelve el motor)
+    document.getElementById('remota').addEventListener('change', debounce(updateCotizacion, 400));
   }
 
   async function updatePesosYCotizacion() {
@@ -340,6 +343,7 @@
         zona,
         bultos: bultosParaCotizar,
         ddp: document.getElementById('ddp').checked,
+        remota: document.getElementById('remota').checked,
         cliente_id: clienteId,
         // Si el usuario pisó el profit a mano, el backend usa profitPct; si no, lo resuelve
         // por la matriz del cliente e ignora el número (retrocompatible en ambos sentidos).
@@ -444,6 +448,7 @@
         fuel_pct: getFuelPctForm(),
         asegurado: document.getElementById('asegurado').checked ? 1 : 0,
         ddp: document.getElementById('ddp').checked ? 1 : 0,
+        remota: document.getElementById('remota').checked ? 1 : 0,
         total_cobrado: parseFloat(document.getElementById('total_cobrado').value) || 0,
         observaciones: document.getElementById('observaciones').value.trim() || null,
         bultos: bultos.length ? bultos : undefined,
@@ -517,6 +522,7 @@
       envio.fuel_pct != null ? envio.fuel_pct : (fuelPctActual[envio.courier] ?? '');
     document.getElementById('asegurado').checked = Boolean(envio.asegurado);
     document.getElementById('ddp').checked = Boolean(envio.ddp);
+    document.getElementById('remota').checked = Boolean(envio.remota);
     document.getElementById('total_cobrado').value = envio.total_cobrado;
     document.getElementById('observaciones').value = envio.observaciones || '';
     renderBultos();

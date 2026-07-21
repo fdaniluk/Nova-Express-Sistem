@@ -119,7 +119,7 @@ async function exportar(req, res, next) {
 // Endpoint para cotizar un envío puntual sin guardarlo
 async function cotizar(req, res, next) {
   try {
-    const { pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zona, bultos, ddp, cliente_id, profitManual } = req.body;
+    const { pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zona, bultos, ddp, remota, cliente_id, profitManual } = req.body;
     if (!servicio || !pesoFacturable) {
       return res.status(400).json({ error: 'servicio y pesoFacturable son obligatorios' });
     }
@@ -159,7 +159,7 @@ async function cotizar(req, res, next) {
       }
     }
 
-    const resultado = cotizarEnvio({ pais, tipo: tipoEfectivo, servicio, pesoFacturable, fob: fob || 0, fuelPct: fuelPct || 0, profitPct: profitEfectivo, zonaOverride: zona, bultos: bultos || [], ddp: ddp || false });
+    const resultado = cotizarEnvio({ pais, tipo: tipoEfectivo, servicio, pesoFacturable, fob: fob || 0, fuelPct: fuelPct || 0, profitPct: profitEfectivo, zonaOverride: zona, bultos: bultos || [], remota: remota || false, ddp: ddp || false });
     if (!resultado) {
       const desc = pais ? `País "${pais}"` : `Zona ${zona}`;
       return res.status(404).json({ error: `${desc} no encontrado para ${servicio}` });

@@ -142,6 +142,7 @@ async function calcularDesgloseAlCosto(data, pesoFacturable) {
     fuelPct,
     zonaOverride: data.zona,
     bultos,
+    remota: data.remota ? true : false,
     ddp: data.ddp ? true : false,
   });
 }
@@ -161,10 +162,10 @@ async function crear(data) {
           cliente_id, fecha, courier, tipo_envio, numero_guia, pais_destino, destino_raw, direccion, zona,
           cantidad_bultos, peso_real, largo, ancho, alto,
           peso_volumetrico, peso_facturable, fob, total_cobrado, observaciones,
-          numero_salida, bulto, tipo_paquete, asegurado, ddp,
+          numero_salida, bulto, tipo_paquete, asegurado, ddp, remota,
           flete, descuento, seguro, fuel, fuel_pct, derechos, adicionales, otros, profit, porcentaje,
           extras_json, servicio_ups
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         data.cliente_id,
@@ -191,6 +192,7 @@ async function crear(data) {
         data.tipo_paquete ?? null,
         data.asegurado ?? 0,
         data.ddp ?? 0,
+        data.remota ?? 0,
         desglose ? desglose.flete : (data.flete ?? null),
         desglose ? desglose.descuento : (data.descuento ?? null),
         desglose ? desglose.seguro : (data.seguro ?? null),

@@ -173,6 +173,7 @@ async function migrateEnvios() {
     ['tipo_paquete',     'TEXT'],
     ['asegurado',        'INTEGER DEFAULT 0'],
     ['ddp',              'INTEGER DEFAULT 0'],
+    ['remota',           'INTEGER DEFAULT 0'],
     ['flete',            'REAL'],
     ['descuento',        'REAL'],
     ['seguro',           'REAL'],

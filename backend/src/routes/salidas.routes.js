@@ -60,6 +60,7 @@ router.get('/', async (req, res, next) => {
         e.peso_volumetrico,
         e.peso_facturable,
         e.asegurado,
+        e.remota,
         e.zona,
         e.servicio_ups,
         e.fob                 AS valor_declarado,
@@ -248,6 +249,7 @@ router.get('/', async (req, res, next) => {
       peso_volumetrico: row.peso_volumetrico,
       peso_facturable: row.peso_facturable,
       asegurado: Boolean(row.asegurado),
+      remota: Boolean(row.remota),
       zona: row.zona,
       servicio_ups: row.servicio_ups,
       valor_declarado: row.valor_declarado,
@@ -355,6 +357,10 @@ router.post('/:id/recalcular', async (req, res, next) => {
       pais_destino: paisEfectivo,
       fob: envio.fob,
       zona: paisCambio ? null : envio.zona,
+      // Área remota: recargo que ya vive en el desglose guardado. Si NO se re-aplica acá,
+      // el primer recálculo lo borra en silencio (mismo bug que país/courier). Viene del
+      // modal (body.remota); si no vino, se lee del envío para no perderlo nunca.
+      remota: body.remota != null ? body.remota : envio.remota,
       // Fuel% congelado del envío: el recálculo respeta el guardado (no el de config actual).
       fuel_pct: envio.fuel_pct,
       peso_real: body.peso_real,
@@ -396,7 +402,7 @@ router.post('/:id/recalcular', async (req, res, next) => {
 // persistir; además, en envíos liquidados fecha y cliente_id quedan congelados (409).
 const SALIDAS_EDITABLE = [
   'fecha', 'cliente_id', 'courier', 'pais_destino', 'num_sal_cero',
-  'numero_guia', 'numero_salida', 'bulto', 'tipo_paquete', 'asegurado', 'direccion',
+  'numero_guia', 'numero_salida', 'bulto', 'tipo_paquete', 'asegurado', 'remota', 'direccion',
   'peso_real', 'largo', 'ancho', 'alto', 'peso_facturable', 'peso_volumetrico',
   'flete', 'descuento', 'seguro', 'fuel', 'fuel_pct', 'derechos', 'adicionales', 'otros',
   'total_cobrado', 'profit', 'porcentaje', 'observaciones', 'extras_json',

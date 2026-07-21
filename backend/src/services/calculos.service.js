@@ -135,7 +135,7 @@ function mkBultosProc(bultos) {
   }));
 }
 
-function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zonaOverride, bultos = [], residencial = false, ddp = false }) {
+function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zonaOverride, bultos = [], residencial = false, remota = false, ddp = false }) {
   const pf     = Number(pesoFacturable) || 0;
   const fuel   = (Number(fuelPct)   || 0) / 100;
   const profit = (Number(profitPct) || 0) / 100;
@@ -153,6 +153,7 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
     profitPct: Number(profitPct) || 0,
     bultosProc: mkBultosProc(bultos),
     residencial,
+    remota,
     zonaOverride,
     ddp,
   });
@@ -201,7 +202,7 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
 // Por construcción flete+seguro+fuel+adicionales == total (costo a profit 0).
 // El fuelPct debe ser el autoritativo de config (lo resuelve el caller).
 // Devuelve null si el país no figura en las tablas y no hay zonaOverride.
-function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zonaOverride, bultos = [], residencial = false, ddp = false }) {
+function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zonaOverride, bultos = [], residencial = false, remota = false, ddp = false }) {
   const paisCanon = canonizarPais(pais) || pais || '';
   const r = cotizarServicioCore(servicio, {
     pais: paisCanon,
@@ -212,6 +213,7 @@ function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zo
     profitPct: 0,
     bultosProc: mkBultosProc(bultos),
     residencial,
+    remota,
     zonaOverride,
     ddp,
   });
