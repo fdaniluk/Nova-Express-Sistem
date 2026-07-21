@@ -285,6 +285,28 @@ CREATE INDEX IF NOT EXISTS idx_factura_guias_factura ON factura_guias(factura_id
 CREATE INDEX IF NOT EXISTS idx_factura_guias_envio   ON factura_guias(envio_id);
 CREATE INDEX IF NOT EXISTS idx_factura_guias_guia    ON factura_guias(numero_guia);
 
+-- Cobranzas: registro/log informativo de la plata que se levanta de los clientes.
+-- NO se vincula con liquidaciones, saldos ni cuenta corriente; es puro asiento para
+-- tener trazabilidad de lo cobrado. pickup_id es opcional (si la cobranza vino de un
+-- pickup) y queda en NULL si el pickup se borra. La moneda no se mezcla: ARS y USD se
+-- totalizan por separado a nivel de reporte.
+CREATE TABLE IF NOT EXISTS cobranzas (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  cliente_id  INTEGER NOT NULL REFERENCES clientes(id),
+  fecha       TEXT NOT NULL,
+  monto       REAL NOT NULL,
+  moneda      TEXT NOT NULL DEFAULT 'ARS' CHECK (moneda IN ('ARS','USD')),
+  forma_pago  TEXT NOT NULL CHECK (forma_pago IN ('efectivo','cheque','transferencia','otro')),
+  pickup_id   INTEGER REFERENCES pickups(id) ON DELETE SET NULL,
+  nota        TEXT,
+  usuario     TEXT,
+  created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_cobranzas_cliente ON cobranzas(cliente_id);
+CREATE INDEX IF NOT EXISTS idx_cobranzas_fecha   ON cobranzas(fecha);
+CREATE INDEX IF NOT EXISTS idx_cobranzas_pickup  ON cobranzas(pickup_id);
+
 -- Fuel inicial DHL y UPS al 39.5%
 INSERT OR IGNORE INTO configuracion (courier, fuel_pct) VALUES ('DHL', 39.5);
 INSERT OR IGNORE INTO configuracion (courier, fuel_pct) VALUES ('UPS', 39.5);

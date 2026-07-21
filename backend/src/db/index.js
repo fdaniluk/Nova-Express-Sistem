@@ -327,6 +327,29 @@ async function migrateUsuarios() {
   }
 }
 
+// Registro/log informativo de cobranzas a clientes (módulo Cobranzas). NO se vincula
+// con liquidaciones, saldos ni cuenta corriente; es puro asiento. Idempotente para
+// bases existentes en el VPS; ver schema.sql para la definición canónica.
+async function migrateCobranzas() {
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS cobranzas (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      cliente_id  INTEGER NOT NULL REFERENCES clientes(id),
+      fecha       TEXT NOT NULL,
+      monto       REAL NOT NULL,
+      moneda      TEXT NOT NULL DEFAULT 'ARS' CHECK (moneda IN ('ARS','USD')),
+      forma_pago  TEXT NOT NULL CHECK (forma_pago IN ('efectivo','cheque','transferencia','otro')),
+      pickup_id   INTEGER REFERENCES pickups(id) ON DELETE SET NULL,
+      nota        TEXT,
+      usuario     TEXT,
+      created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    )
+  `);
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cobranzas_cliente ON cobranzas(cliente_id)');
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cobranzas_fecha   ON cobranzas(fecha)');
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cobranzas_pickup  ON cobranzas(pickup_id)');
+}
+
 async function initSchema() {
   const schema = fs.readFileSync(config.schemaPath, 'utf8');
   await dbApi.exec(schema);
@@ -339,6 +362,7 @@ async function initSchema() {
   await migrateUsuarios();
   await migrateProfitOverrides();
   await migrateFacturaGuias();
+  await migrateCobranzas();
   await seedIfEmpty();
 }
 

@@ -10,6 +10,7 @@ const operacionesRoutes = require('./operaciones');
 const salidasRoutes = require('./salidas.routes');
 const trackingRoutes = require('./tracking.routes');
 const facturasRoutes = require('./facturas.routes');
+const cobranzasRoutes = require('./cobranzas.routes');
 const authRoutes = require('./auth.routes');
 const usuariosRoutes = require('./usuarios.routes');
 const { requireAuth, requireDashboard, requireAdmin } = require('../middleware/auth');
@@ -37,6 +38,7 @@ router.use('/pickups', pickupsRoutes);
 router.use('/operaciones', operacionesRoutes);
 router.use('/tracking', trackingRoutes);
 router.use('/facturas', facturasRoutes);
+router.use('/cobranzas', cobranzasRoutes);
 router.use('/usuarios', requireAdmin, usuariosRoutes);
 
 module.exports = router;
