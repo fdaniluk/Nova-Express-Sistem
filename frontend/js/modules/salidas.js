@@ -1,12 +1,10 @@
 (function () {
   // ── Constantes ──────────────────────────────────────────────────────────────
   const DIAS_ALERTA_ROJO = 15;    // umbral de días para semáforo rojo
-  const PAGE_SIZE = 100;          // filas por página
 
   // ── Estado ──────────────────────────────────────────────────────────────────
   let allData = [];          // todos los envíos cargados del servidor
   let filteredData = [];     // resultado de aplicar todos los filtros (lista de envíos)
-  let visibleCount = 0;      // cuántos ENVÍOS ya mostramos (la paginación cuenta envíos)
   let sortCol = 'fecha';
   let sortDir = 'desc';
   let searchTerm = '';
@@ -94,7 +92,6 @@
     bindDropdown();
     bindExport();
     bindAlertToggle();
-    bindLoadMore();
     bindTracking();
     bindRowEdit();
     bindRowMark();
@@ -231,7 +228,6 @@
       tab.addEventListener('click', () => {
         if (selectedMonth === mes) return;
         selectedMonth = mes;
-        visibleCount = 0;
         applyAll();
       });
       container.appendChild(tab);
@@ -241,7 +237,6 @@
   // ── Pipeline de filtrado / agrupado / render ─────────────────────────────────
   function applyAll() {
     filtered();
-    visibleCount = 0;
     // El tbody se reconstruye (los .chk-guia desaparecen): solo resetear el "seleccionar
     // todo" del header para que no quede marcado al cambiar de mes/filtro/búsqueda.
     const chkAll = document.getElementById('chk-all-guias');
@@ -295,20 +290,21 @@
   // ── Render: fila por bulto ───────────────────────────────────────────────────
   // El sort y el filtro operan sobre la lista de ENVÍOS (filteredData). La expansión
   // a N renglones por bulto es un paso puro de render: cada envío ya ordenado/filtrado
-  // se convierte en e.bultos.length renglones. La paginación cuenta ENVÍOS.
+  // se convierte en e.bultos.length renglones. Se renderizan TODAS las filas de una: el
+  // contenedor de alto fijo (#table-wrap) scrollea internamente hasta la última. El volumen
+  // es chico (decenas por mes, a lo sumo cientos sin filtrar), así que no hace falta paginar.
   function renderPage() {
     const today = todayStr();
     const tbody = document.getElementById('salidas-body');
     const fragment = document.createDocumentFragment();
-    const nextBatch = filteredData.slice(visibleCount, visibleCount + PAGE_SIZE);
 
     // Recalcular la visibilidad efectiva del bloque UPS ANTES de construir filas: las sub-filas
     // de detalle y los estados vacíos leen upsVisible para elegir su colspan.
     upsVisible = computeUpsVisible();
 
-    if (visibleCount === 0) tbody.innerHTML = '';
+    tbody.innerHTML = '';
 
-    for (const e of nextBatch) {
+    for (const e of filteredData) {
       const bultos = (e.bultos && e.bultos.length) ? e.bultos : [null];
       bultos.forEach((bulto, idx) => {
         fragment.appendChild(buildRow(e, bulto, idx, bultos.length, today, idx === 0));
@@ -320,17 +316,13 @@
       }
     }
 
-    if (visibleCount === 0 && nextBatch.length === 0) {
+    if (filteredData.length === 0) {
       const tr = document.createElement('tr');
       tr.innerHTML = `<td colspan="${emptyColspan()}" class="salidas-empty">No hay envíos que coincidan con los filtros</td>`;
       tbody.appendChild(tr);
     } else {
       tbody.appendChild(fragment);
     }
-
-    visibleCount += nextBatch.length;
-    const loadMoreWrap = document.getElementById('load-more-wrap');
-    loadMoreWrap.style.display = visibleCount < filteredData.length ? '' : 'none';
 
     // El tbody se reconstruyó: re-resolver la celda activa por coordenadas y reaplicar
     // el resaltado (o limpiarlo si la coordenada ya no existe).
@@ -341,7 +333,7 @@
     syncUpsChrome();
 
     // Re-medir offsets sticky: con table-layout auto los anchos de columna dependen del
-    // contenido, que cambia al paginar / filtrar / cambiar de mes. NO toca ningún <td>,
+    // contenido, que cambia al filtrar / cambiar de mes / ordenar. NO toca ningún <td>,
     // solo reescribe el <style id="sticky-cols-style">.
     applyStickyCols();
 
@@ -981,11 +973,6 @@
       btn.classList.toggle('active', soloAlertas);
       applyAll();
     });
-  }
-
-  // ── Paginación "Ver más" ─────────────────────────────────────────────────────
-  function bindLoadMore() {
-    document.getElementById('btn-load-more').addEventListener('click', renderPage);
   }
 
   // ── Auto 6: exportar a Excel ─────────────────────────────────────────────────

@@ -665,12 +665,6 @@ td.detail-expandable { cursor: pointer; }
   vertical-align: middle;
 }
 
-/* ── Load more ── */
-.load-more-wrap {
-  text-align: center;
-  padding: 12px;
-}
-
 /* ── UPS Tracking ── */
 .track-btn {
   background: none;
