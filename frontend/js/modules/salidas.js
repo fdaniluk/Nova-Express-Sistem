@@ -1247,6 +1247,8 @@
   let floatBar = null;
   let floatGhost = null;
   let floatRaf = 0;
+  let floatResizeObserver = null;
+  let floatRefreshQueued = false;
 
   function bindFloatingScrollbar() {
     const wrap = document.getElementById('table-wrap');
@@ -1282,8 +1284,30 @@
     }
     window.addEventListener('scroll', onFloatingScroll, { passive: true });
     window.addEventListener('resize', refreshFloatingScrollbar);
+    // Re-medir cuando el layout se asiente DESPUÉS del primer pintado: las fuentes cambian la
+    // altura de las filas y algo tardío ('load') puede correr la tabla. Sin esto, la única
+    // corrección era el resize manual de la ventana ("achicar y agrandar").
+    window.addEventListener('load', scheduleFloatingRefresh);
+    if (document.fonts && document.fonts.ready) {
+      document.fonts.ready.then(scheduleFloatingRefresh).catch(() => {});
+    }
 
-    refreshFloatingScrollbar();
+    // Si el layout de ARRIBA cambia luego (aparecen las solapas de meses o los chips de
+    // filtro), el tope del wrap se corre y la medición previa queda mal. Un ResizeObserver
+    // sobre el wrap y su .card rehace la medición solo, sin depender de que el usuario
+    // redimensione la ventana. El guard de idempotencia de refreshTableHeight corta el lazo
+    // de realimentación (fijar el max-height cambia el tamaño del wrap → dispararía el RO).
+    if ('ResizeObserver' in window) {
+      floatResizeObserver = new ResizeObserver(() => scheduleFloatingRefresh());
+      floatResizeObserver.observe(wrap);
+      const card = wrap.closest('.card');
+      if (card && card !== wrap) floatResizeObserver.observe(card);
+    }
+
+    // Primera medición: en rAF anidado, NO síncrona. Medir acá mismo (tabla vacía, solapas y
+    // chips aún sin pintar, fuentes sin cargar) daba un tope equivocado, y de ahí los dos
+    // bugs: la barra flotante no aparecía y las últimas filas quedaban inalcanzables.
+    scheduleFloatingRefresh();
   }
 
   function onFloatingScroll() {
@@ -1292,6 +1316,19 @@
       floatRaf = 0;
       updateFloatingVisibility();
     });
+  }
+
+  // Corre refreshFloatingScrollbar recién cuando el layout ya se pintó (rAF anidado): un solo
+  // rAF puede caer antes de que el navegador reflote tras un cambio de DOM; el segundo asegura
+  // medir sobre geometría real. Coalesce llamadas seguidas (RO/fonts/load pueden dispararse
+  // juntas) para no encadenar varias pasadas.
+  function scheduleFloatingRefresh() {
+    if (floatRefreshQueued) return;
+    floatRefreshQueued = true;
+    requestAnimationFrame(() => requestAnimationFrame(() => {
+      floatRefreshQueued = false;
+      refreshFloatingScrollbar();
+    }));
   }
 
   // Fija el max-height del wrapper para que scrollee ÉL (y el thead quede sticky arriba) en
@@ -1304,8 +1341,17 @@
     if (!wrap) return;
     const top = wrap.getBoundingClientRect().top;
     const viewH = window.innerHeight || document.documentElement.clientHeight;
-    const h = viewH - top - 16;                 // 16px de aire inferior
-    wrap.style.maxHeight = `${Math.max(200, h)}px`;   // piso para viewports muy bajos
+    // Colchón inferior: la barra flotante fija (position:fixed; ~22px) tapa el fondo del
+    // viewport. Reservamos ese alto + un aire para que la última fila NUNCA quede debajo de
+    // ella. Al fijar el alto en viewH - top - GAP, el borde inferior del wrap queda pinneado
+    // a GAP px del fondo del viewport: nunca desborda, así ninguna fila queda inalcanzable
+    // (la página no scrollea). El piso de 200px es para viewports muy bajos.
+    const BOTTOM_GAP = 28;
+    const h = Math.max(200, viewH - top - BOTTOM_GAP);
+    const next = `${h}px`;
+    // Solo escribir si cambió: fijar el max-height altera el tamaño del wrap y volvería a
+    // disparar el ResizeObserver; sin este guard el lazo no convergería.
+    if (wrap.style.maxHeight !== next) wrap.style.maxHeight = next;
   }
 
   // Recalcula la geometría: ancho del fantasma = recorrido real del wrap; posición y ancho
