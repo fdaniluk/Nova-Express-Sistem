@@ -173,6 +173,20 @@ api.tracking = {
   ups: (guia) => api.get(`/tracking/ups/${encodeURIComponent(guia)}`),
 };
 
+api.cobranzas = {
+  listar: (filtros = {}) => {
+    const params = {};
+    if (filtros.cliente_id) params.cliente_id = filtros.cliente_id;
+    if (filtros.desde) params.desde = filtros.desde;
+    if (filtros.hasta) params.hasta = filtros.hasta;
+    const q = new URLSearchParams(params).toString();
+    return api.get(`/cobranzas${q ? `?${q}` : ''}`);
+  },
+  crear: (data) => api.post('/cobranzas', data),
+  actualizar: (id, data) => api.patch(`/cobranzas/${id}`, data),
+  eliminar: (id) => api.delete(`/cobranzas/${id}`),
+};
+
 api.facturas = {
   chequear: (file) => {
     const fd = new FormData();
