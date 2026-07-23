@@ -830,10 +830,10 @@
 }
 .btn-cobranza.cargada:hover { background: var(--rec-badge-bg); }
 
-/* Estado pendiente: ROJO FIJO (mismo rojo del semáforo/alertas del sistema)
-   para llamar la atención: es plata pendiente que no se puede olvidar.
-   El rojo es estado base estático; la animación solo hace latir el glow,
-   así con prefers-reduced-motion queda ROJO fijo sin latir (no celeste). */
+/* Estado pendiente: ROJO que LATE en toda su superficie (mismo rojo del
+   semáforo/alertas del sistema) para llamar la atención: es plata pendiente
+   que no se puede olvidar. La animación late el fondo entero entre dos tonos
+   de rojo (nunca celeste ni transparente) + un glow que acompaña. */
 .btn-cobranza.titila {
   background: #FEE2E2;
   border-color: #dc2626;
@@ -843,15 +843,25 @@
 
 @keyframes cobranza-titila {
   0%, 100% {
+    background-color: #FEE2E2;
+    border-color: #dc2626;
     box-shadow: 0 0 0 0 rgba(220, 38, 38, 0);
   }
   50% {
+    background-color: #F87171;
+    border-color: #b91c1c;
     box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.35);
   }
 }
 
+/* Esta alerta de negocio no se puede pasar por alto: el latido es suave
+   (rojo a rojo, sin flash brusco), así que debe latir en TODOS los
+   dispositivos, incluso con movimiento reducido. Por eso NO anulamos la
+   animación bajo prefers-reduced-motion para este botón. */
 @media (prefers-reduced-motion: reduce) {
-  .btn-cobranza.titila { animation: none; }
+  .btn-cobranza.titila {
+    animation: cobranza-titila 1.5s ease-in-out infinite;
+  }
 }
 
 /* ── Modal cargar cobranza ───────────────────────────────── */
