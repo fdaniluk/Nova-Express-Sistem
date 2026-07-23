@@ -830,23 +830,22 @@
 }
 .btn-cobranza.cargada:hover { background: var(--rec-badge-bg); }
 
-/* Estado pendiente: titila en ROJO (mismo rojo del semáforo/alertas del
-   sistema) para llamar la atención: es plata pendiente que no se puede olvidar. */
+/* Estado pendiente: ROJO FIJO (mismo rojo del semáforo/alertas del sistema)
+   para llamar la atención: es plata pendiente que no se puede olvidar.
+   El rojo es estado base estático; la animación solo hace latir el glow,
+   así con prefers-reduced-motion queda ROJO fijo sin latir (no celeste). */
 .btn-cobranza.titila {
+  background: #FEE2E2;
+  border-color: #dc2626;
+  color: #991B1B;
   animation: cobranza-titila 1.5s ease-in-out infinite;
 }
 
 @keyframes cobranza-titila {
   0%, 100% {
-    background: #FEE2E2;
-    border-color: #dc2626;
-    color: #991B1B;
     box-shadow: 0 0 0 0 rgba(220, 38, 38, 0);
   }
   50% {
-    background: #dc2626;
-    border-color: #dc2626;
-    color: #FFFFFF;
     box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.35);
   }
 }
