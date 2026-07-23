@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pickups — Nova Express</title>
   <link rel="stylesheet" href="../css/main.css?v=4">
-  <link rel="stylesheet" href="../css/modules/pickups.css?v=9">
+  <link rel="stylesheet" href="../css/modules/pickups.css?v=11">
 </head>
 <body>
 <div class="app-layout">
@@ -171,6 +171,7 @@
           <option value="normal">Normal (lo levanta el chofer)</option>
           <option value="cliente">Lo trae el cliente</option>
           <option value="courier">Lo levanta UPS/DHL</option>
+          <option value="cobranza">Solo cobranza (ir a buscar plata)</option>
         </select>
       </div>
       <div class="form-group cobro-check-group">
@@ -178,7 +179,7 @@
           <input type="checkbox" id="m-tiene-cobro">
           Tiene cobranza
         </label>
-        <span class="cobro-hint">Detallá el cobro en Notas</span>
+        <span class="cobro-hint">La plata se carga después con el botón «Cargar cobranza» en la tarjeta.</span>
       </div>
       <div class="form-group cobro-check-group">
         <label class="cobro-check-label">
@@ -275,9 +276,43 @@
   </div>
 </div>
 
+<!-- Modal cargar cobranza (una o varias líneas) -->
+<div class="modal-overlay hidden" id="modal-cobranza-overlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h2 id="modal-cobranza-title">Cargar cobranza</h2>
+      <button class="modal-close" id="modal-cobranza-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="cobranza-meta">
+        <div class="cobranza-meta-cliente">
+          <span class="cobranza-meta-label">Cliente</span>
+          <span id="cobranza-cliente-nombre">—</span>
+        </div>
+        <div class="form-group cobranza-meta-fecha">
+          <label for="m-cobranza-fecha">Fecha del pago</label>
+          <input type="date" id="m-cobranza-fecha">
+        </div>
+      </div>
+
+      <div id="cobranza-existentes" class="cobranza-existentes hidden"></div>
+
+      <div class="cobranza-lineas-header">
+        <span>Cobros a registrar</span>
+        <button type="button" class="btn btn-sm btn-secondary" id="btn-cobranza-agregar">+ Agregar línea</button>
+      </div>
+      <div id="cobranza-lineas"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" id="btn-cobranza-cancelar">Cancelar</button>
+      <button class="btn btn-primary" id="btn-cobranza-guardar">Guardar cobranza</button>
+    </div>
+  </div>
+</div>
+
 <script src="/js/auth-guard.js"></script>
 <script src="../js/api.js?v=8"></script>
 <script src="../js/main.js?v=4"></script>
-<script src="../js/modules/pickups.js?v=9"></script>
+<script src="../js/modules/pickups.js?v=10"></script>
 </body>
 </html>

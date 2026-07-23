@@ -22,6 +22,14 @@
   const btnEliminar   = document.getElementById('btn-eliminar-pickup');
   const detalleOverlay = document.getElementById('detalle-overlay');
   const modalChoferOverlay = document.getElementById('modal-chofer-overlay');
+  const modalCobranzaOverlay = document.getElementById('modal-cobranza-overlay');
+
+  // Pickup para el que se está cargando la cobranza (modal abierto).
+  let cobranzaPickupId = null;
+
+  // ── Formato de moneda (para el botón "ya cargada") ─────────────────────
+  const fmtArs = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS', maximumFractionDigits: 0 });
+  const fmtUsd = new Intl.NumberFormat('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
 
   // ── Fecha helpers ──────────────────────────────────────────────────────
 
@@ -247,6 +255,9 @@
     list.querySelectorAll('[data-action="reasignar-rec"]').forEach(el => {
       el.addEventListener('click', () => abrirModalChofer(Number(el.dataset.id), 'reasignar'));
     });
+    list.querySelectorAll('[data-action="cargar-cobranza"]').forEach(btn => {
+      btn.addEventListener('click', () => abrirModalCobranza(Number(btn.dataset.id)));
+    });
   }
 
   function buildPickupCard(p) {
@@ -317,6 +328,18 @@
     const cobroBadgeHtml = p.tiene_cobro ? '<span class="cobro-badge">$ Cobro</span>' : '';
     const llevarPlataBadgeHtml = p.llevar_plata ? '<span class="cobro-badge">Llevar plata</span>' : '';
 
+    // Botón "Cargar cobranza": aparece sólo si el pickup tiene cobro. Titila mientras
+    // no se cargó plata (cobranzas_count=0); una vez cargado muestra el total en calma.
+    const tieneCobro = !!p.tiene_cobro || tipo === 'cobranza';
+    let cobranzaRowHtml = '';
+    if (tieneCobro) {
+      const count = Number(p.cobranzas_count) || 0;
+      const cobranzaBtn = count > 0
+        ? `<button class="btn-cobranza cargada" data-action="cargar-cobranza" data-id="${p.id}" title="Cobranza cargada — clic para ver o agregar más líneas">✓ ${escHtml(cobranzaResumenTexto(p))}</button>`
+        : `<button class="btn-cobranza titila" data-action="cargar-cobranza" data-id="${p.id}">$ Cargar cobranza</button>`;
+      cobranzaRowHtml = `<div class="pickup-actions-row">${cobranzaBtn}</div>`;
+    }
+
     return `<div class="pickup-card-v2${cardExtra}" id="pickup-card-${p.id}">
       <div class="pickup-rec-stripe ${stripeClass}"${stripeAttrs}>${escHtml(stripeLabel)}</div>
       <div class="pickup-card-v2-content">
@@ -336,6 +359,7 @@
         <div class="pickup-direccion">📍 ${escHtml(p.direccion)}</div>
         <div class="pickup-actions">
           ${actionsHtml}
+          ${cobranzaRowHtml}
         </div>
       </div>
     </div>`;
@@ -706,6 +730,159 @@
     }
   }
 
+  // ── Cobranza (cargar plata del pickup) ─────────────────────────────────
+
+  const FORMAS_PAGO = [
+    ['efectivo', 'Efectivo'],
+    ['cheque', 'Cheque'],
+    ['transferencia', 'Transferencia'],
+    ['otro', 'Otro'],
+  ];
+  const FORMAS_LABEL = Object.fromEntries(FORMAS_PAGO);
+
+  function formatMonto(monto, moneda) {
+    return moneda === 'USD' ? 'US$' + fmtUsd.format(monto || 0) : fmtArs.format(monto || 0);
+  }
+
+  // Texto del botón "ya cargada": total por moneda (sin mezclar ARS/USD).
+  function cobranzaResumenTexto(p) {
+    const partes = [];
+    const ars = Number(p.cobranzas_total_ars) || 0;
+    const usd = Number(p.cobranzas_total_usd) || 0;
+    if (ars > 0) partes.push(formatMonto(ars, 'ARS'));
+    if (usd > 0) partes.push(formatMonto(usd, 'USD'));
+    return partes.length ? partes.join(' + ') : 'Cobranza cargada';
+  }
+
+  function nuevaLineaCobranzaHtml() {
+    const opts = FORMAS_PAGO.map(([v, l]) => `<option value="${v}">${l}</option>`).join('');
+    return `<div class="cobranza-linea">
+      <div class="cobranza-linea-campos">
+        <input type="number" class="cl-monto" placeholder="Monto" min="0" step="0.01" inputmode="decimal">
+        <select class="cl-moneda">
+          <option value="ARS">ARS</option>
+          <option value="USD">USD</option>
+        </select>
+        <select class="cl-forma">${opts}</select>
+        <button type="button" class="cl-quitar" title="Quitar línea">✕</button>
+      </div>
+      <input type="text" class="cl-nota" placeholder="Nota (opcional)">
+    </div>`;
+  }
+
+  function agregarLineaCobranza() {
+    const cont = document.getElementById('cobranza-lineas');
+    cont.insertAdjacentHTML('beforeend', nuevaLineaCobranzaHtml());
+    const linea = cont.lastElementChild;
+    linea.querySelector('.cl-quitar').addEventListener('click', () => {
+      // Nunca dejar el form sin ninguna línea.
+      if (cont.querySelectorAll('.cobranza-linea').length > 1) linea.remove();
+      else linea.querySelectorAll('input').forEach(i => (i.value = ''));
+    });
+    return linea;
+  }
+
+  function renderCobranzasExistentes(lista) {
+    const wrap = document.getElementById('cobranza-existentes');
+    if (!lista || !lista.length) {
+      wrap.classList.add('hidden');
+      wrap.innerHTML = '';
+      return;
+    }
+    const filas = lista
+      .map(c => `<div class="cobranza-exist-row">
+        <span class="ce-monto">${escHtml(formatMonto(Number(c.monto), c.moneda))}</span>
+        <span class="ce-forma">${escHtml(FORMAS_LABEL[c.forma_pago] || c.forma_pago || '—')}</span>
+        <span class="ce-fecha">${escHtml(NovaUtils.formatDate(c.fecha))}</span>
+        ${c.nota ? `<span class="ce-nota">${escHtml(c.nota)}</span>` : ''}
+      </div>`)
+      .join('');
+    wrap.innerHTML = `<div class="cobranza-exist-title">Ya cargadas (${lista.length})</div>${filas}`;
+    wrap.classList.remove('hidden');
+  }
+
+  async function abrirModalCobranza(id) {
+    const p = pickups.find(x => x.id === id);
+    if (!p) return;
+    cobranzaPickupId = id;
+    document.getElementById('modal-cobranza-title').textContent =
+      (Number(p.cobranzas_count) || 0) > 0 ? 'Cobranza del pickup' : 'Cargar cobranza';
+    document.getElementById('cobranza-cliente-nombre').textContent = p.cliente_nombre;
+    document.getElementById('m-cobranza-fecha').value = p.fecha;
+    document.getElementById('cobranza-lineas').innerHTML = '';
+    agregarLineaCobranza();
+    renderCobranzasExistentes([]);
+    modalCobranzaOverlay.classList.remove('hidden');
+
+    // Traemos las cobranzas ya cargadas de este pickup (filtrando por pickup_id sobre
+    // las del cliente) para poder verlas y agregar más líneas.
+    try {
+      const res = await NovaAPI.cobranzas.listar({ cliente_id: p.cliente_id });
+      const existentes = (res.cobranzas || []).filter(c => Number(c.pickup_id) === Number(id));
+      if (cobranzaPickupId === id) renderCobranzasExistentes(existentes);
+    } catch (e) {
+      console.warn('[pickups] No se pudieron cargar cobranzas del pickup:', e.message);
+    }
+  }
+
+  function cerrarModalCobranza() {
+    modalCobranzaOverlay.classList.add('hidden');
+    cobranzaPickupId = null;
+  }
+
+  async function guardarCobranzas() {
+    const p = pickups.find(x => x.id === cobranzaPickupId);
+    if (!p) return;
+    const fecha = document.getElementById('m-cobranza-fecha').value;
+    if (!fecha) {
+      NovaUtils.showAlert(alertBox, 'Indicá la fecha del pago.');
+      return;
+    }
+
+    const lineas = [...document.querySelectorAll('#cobranza-lineas .cobranza-linea')];
+    const nuevas = [];
+    for (const linea of lineas) {
+      const montoRaw = linea.querySelector('.cl-monto').value.trim();
+      if (montoRaw === '') continue; // línea vacía: se ignora
+      const monto = parseFloat(montoRaw);
+      if (!(monto > 0)) {
+        NovaUtils.showAlert(alertBox, 'Cada línea debe tener un monto mayor a 0.');
+        return;
+      }
+      nuevas.push({
+        cliente_id: p.cliente_id,
+        fecha,
+        monto,
+        moneda: linea.querySelector('.cl-moneda').value,
+        forma_pago: linea.querySelector('.cl-forma').value,
+        pickup_id: p.id,
+        nota: linea.querySelector('.cl-nota').value.trim() || null,
+      });
+    }
+
+    if (!nuevas.length) {
+      NovaUtils.showAlert(alertBox, 'Agregá al menos una línea con monto.');
+      return;
+    }
+
+    const btn = document.getElementById('btn-cobranza-guardar');
+    btn.disabled = true;
+    try {
+      // Un POST por línea; se muestran los errores del backend tal cual.
+      for (const c of nuevas) {
+        await NovaAPI.cobranzas.crear(c);
+      }
+      cerrarModalCobranza();
+      await cargarPickups();
+      render();
+      NovaUtils.showAlert(alertBox, `Cobranza registrada (${nuevas.length} línea${nuevas.length !== 1 ? 's' : ''}).`, 'success');
+    } catch (e) {
+      NovaUtils.showAlert(alertBox, e.message);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   // ── HTML helpers ───────────────────────────────────────────────────────
 
   function getInitials(nombre) {
@@ -773,6 +950,12 @@
       document.getElementById('btn-chofer-confirmar').disabled = !e.target.value;
     });
     document.getElementById('btn-chofer-confirmar').addEventListener('click', confirmarModalChofer);
+
+    document.getElementById('modal-cobranza-close').addEventListener('click', cerrarModalCobranza);
+    document.getElementById('btn-cobranza-cancelar').addEventListener('click', cerrarModalCobranza);
+    modalCobranzaOverlay.addEventListener('click', e => { if (e.target === modalCobranzaOverlay) cerrarModalCobranza(); });
+    document.getElementById('btn-cobranza-agregar').addEventListener('click', () => agregarLineaCobranza());
+    document.getElementById('btn-cobranza-guardar').addEventListener('click', guardarCobranzas);
 
     document.getElementById('detalle-close').addEventListener('click', cerrarDetalle);
     document.getElementById('detalle-btn-cerrar').addEventListener('click', cerrarDetalle);

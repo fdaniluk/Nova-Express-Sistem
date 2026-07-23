@@ -14,27 +14,35 @@ router.get('/', async (req, res, next) => {
     const db = getDb();
     const { desde, hasta } = req.query;
 
-    let rows;
-    if (desde && hasta) {
-      rows = await db
-        .prepare(
-          'SELECT * FROM pickups WHERE fecha >= ? AND fecha <= ? ORDER BY fecha ASC, hora_inicio ASC'
-        )
-        .all(desde, hasta);
-    } else if (desde) {
-      rows = await db
-        .prepare('SELECT * FROM pickups WHERE fecha >= ? ORDER BY fecha ASC, hora_inicio ASC')
-        .all(desde);
-    } else if (hasta) {
-      rows = await db
-        .prepare('SELECT * FROM pickups WHERE fecha <= ? ORDER BY fecha ASC, hora_inicio ASC')
-        .all(hasta);
-    } else {
-      rows = await db
-        .prepare('SELECT * FROM pickups ORDER BY fecha ASC, hora_inicio ASC')
-        .all();
-    }
+    // Cada pickup viaja con el agregado de sus cobranzas ya cargadas (cobranzas_count
+    // + totales por moneda), resuelto con un LEFT JOIN a una subconsulta agrupada por
+    // pickup_id — una sola query, sin N+1. Con esto el frontend distingue:
+    //   tiene_cobro=1 y cobranzas_count=0  -> pendiente (botón titila)
+    //   cobranzas_count>0                  -> ya cargada.
+    const base = `
+      SELECT p.*,
+             COALESCE(co.cobranzas_count, 0)     AS cobranzas_count,
+             COALESCE(co.cobranzas_total_ars, 0) AS cobranzas_total_ars,
+             COALESCE(co.cobranzas_total_usd, 0) AS cobranzas_total_usd
+      FROM pickups p
+      LEFT JOIN (
+        SELECT pickup_id,
+               COUNT(*) AS cobranzas_count,
+               SUM(CASE WHEN moneda = 'ARS' THEN monto ELSE 0 END) AS cobranzas_total_ars,
+               SUM(CASE WHEN moneda = 'USD' THEN monto ELSE 0 END) AS cobranzas_total_usd
+        FROM cobranzas
+        WHERE pickup_id IS NOT NULL
+        GROUP BY pickup_id
+      ) co ON co.pickup_id = p.id`;
+    const orderBy = ' ORDER BY p.fecha ASC, p.hora_inicio ASC';
 
+    const conds = [];
+    const params = [];
+    if (desde) { conds.push('p.fecha >= ?'); params.push(desde); }
+    if (hasta) { conds.push('p.fecha <= ?'); params.push(hasta); }
+    const where = conds.length ? ` WHERE ${conds.join(' AND ')}` : '';
+
+    const rows = await db.prepare(base + where + orderBy).all(...params);
     res.json(rows);
   } catch (e) {
     next(e);

@@ -1,5 +1,8 @@
 const RECOLECTORES = ['Juanqui', 'Felipe', 'Ricardo', 'Marcelo'];
-const TIPOS_RECOLECCION = ['normal', 'cliente', 'courier'];
+// 'cobranza': el chofer va sólo a buscar plata. Comparte la cadena de chofer del
+// tipo 'normal' (derivarEstado no lo trata especial); su particularidad es que la
+// plata se carga aparte con el botón "Cargar cobranza" (módulo Cobranzas).
+const TIPOS_RECOLECCION = ['normal', 'cliente', 'courier', 'cobranza'];
 
 function derivarEstado(confirmado_juanqui, en_deposito_at, tipo_recoleccion = 'normal') {
   // 'courier': lo levanta UPS/DHL. Estado terminal, sin cadena ni confirmaciones.

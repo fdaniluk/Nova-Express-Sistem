@@ -799,6 +799,186 @@
   border: 1.5px solid #2DD4BF;
 }
 
+/* ── Botón "Cargar cobranza" en la tarjeta ───────────────── */
+.btn-cobranza {
+  flex: 1;
+  min-height: 44px;
+  padding: 0 1rem;
+  border-radius: 6px;
+  font: inherit;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  white-space: nowrap;
+  border: 1.5px solid #2DD4BF;
+  background: #CCFBF1;
+  color: #0F766E;
+  transition: background 0.12s, box-shadow 0.12s;
+}
+
+.btn-cobranza:active { opacity: 0.85; }
+
+/* Estado "ya cargada": tranquilo, en verde depósito. */
+.btn-cobranza.cargada {
+  background: var(--rec-bg);
+  border-color: var(--rec-border);
+  color: var(--rec-text);
+}
+.btn-cobranza.cargada:hover { background: var(--rec-badge-bg); }
+
+/* Estado pendiente: titila en ROJO (mismo rojo del semáforo/alertas del
+   sistema) para llamar la atención: es plata pendiente que no se puede olvidar. */
+.btn-cobranza.titila {
+  animation: cobranza-titila 1.5s ease-in-out infinite;
+}
+
+@keyframes cobranza-titila {
+  0%, 100% {
+    background: #FEE2E2;
+    border-color: #dc2626;
+    color: #991B1B;
+    box-shadow: 0 0 0 0 rgba(220, 38, 38, 0);
+  }
+  50% {
+    background: #dc2626;
+    border-color: #dc2626;
+    color: #FFFFFF;
+    box-shadow: 0 0 0 4px rgba(220, 38, 38, 0.35);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .btn-cobranza.titila { animation: none; }
+}
+
+/* ── Modal cargar cobranza ───────────────────────────────── */
+.cobranza-meta {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.cobranza-meta-cliente { display: flex; flex-direction: column; gap: 0.2rem; }
+
+.cobranza-meta-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cobranza-meta-cliente > span:last-child {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--color-text);
+}
+
+.cobranza-meta-fecha { margin-left: auto; margin-bottom: 0; }
+
+.cobranza-existentes {
+  background: var(--rec-bg);
+  border: 1px solid var(--rec-border);
+  border-radius: 8px;
+  padding: 0.6rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.cobranza-existentes.hidden { display: none; }
+
+.cobranza-exist-title {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--rec-text);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cobranza-exist-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.6rem;
+  font-size: 0.85rem;
+  color: var(--rec-text);
+}
+
+.cobranza-exist-row .ce-monto { font-weight: 700; }
+.cobranza-exist-row .ce-forma { font-weight: 600; }
+.cobranza-exist-row .ce-fecha,
+.cobranza-exist-row .ce-nota { color: var(--color-muted); font-size: 0.8rem; }
+.cobranza-exist-row .ce-nota { font-style: italic; }
+
+.cobranza-lineas-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--color-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.cobranza-linea {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.6rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #f8fafc;
+  margin-top: 0.5rem;
+}
+
+.cobranza-linea-campos {
+  display: grid;
+  grid-template-columns: 1fr 80px 1.2fr auto;
+  gap: 0.4rem;
+  align-items: center;
+}
+
+.cobranza-linea input,
+.cobranza-linea select {
+  width: 100%;
+  padding: 0.45rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.85rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+
+.cobranza-linea .cl-quitar {
+  border: 1px solid var(--pend-border);
+  background: #FFF5F5;
+  color: var(--pend-badge-text);
+  border-radius: 6px;
+  width: 32px;
+  height: 32px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.cobranza-linea .cl-quitar:hover { background: var(--pend-badge-bg); }
+
+@media (max-width: 480px) {
+  .cobranza-linea-campos {
+    grid-template-columns: 1fr 70px;
+  }
+  .cobranza-linea .cl-forma { grid-column: 1 / 2; }
+  .cobranza-linea .cl-quitar { grid-column: 2 / 3; justify-self: end; }
+}
+
 /* ── Checkbox cobranza en modal ──────────────────────────── */
 .cobro-check-group {
   gap: 0.3rem;
