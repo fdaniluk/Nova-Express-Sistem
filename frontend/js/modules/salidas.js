@@ -1328,12 +1328,14 @@
     if (!wrap) return;
     const top = wrap.getBoundingClientRect().top;
     const viewH = window.innerHeight || document.documentElement.clientHeight;
-    // Colchón inferior: la barra flotante fija (position:fixed; ~22px) tapa el fondo del
-    // viewport. Reservamos ese alto + un aire para que la última fila NUNCA quede debajo de
-    // ella. Al fijar el alto en viewH - top - GAP, el borde inferior del wrap queda pinneado
-    // a GAP px del fondo del viewport: nunca desborda, así ninguna fila queda inalcanzable
-    // (la página no scrollea). El piso de 200px es para viewports muy bajos.
-    const BOTTOM_GAP = 28;
+    // Colchón inferior: hay que cubrir el padding-bottom de .page-body (4px) + .card (4px) que
+    // viven debajo del wrap dentro de page-content (100vh, overflow:hidden); si el wrap + esos
+    // paddings pasan de 100vh se clipea el fondo del wrap y con él su barra de scroll horizontal.
+    // Al fijar el alto en viewH - top - GAP, el borde inferior del wrap queda pinneado a GAP px
+    // del fondo del viewport: nunca desborda, así ninguna fila queda inalcanzable (la página no
+    // scrollea) y la barra nativa del wrap no se corta. 8px de paddings + ~2px de aire = 10.
+    // El piso de 200px es para viewports muy bajos.
+    const BOTTOM_GAP = 10;
     const h = Math.max(200, viewH - top - BOTTOM_GAP);
     const next = `${h}px`;
     // Solo escribir si cambió: fijar el max-height altera el tamaño del wrap y volvería a

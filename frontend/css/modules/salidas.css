@@ -10,8 +10,8 @@
 body.salidas-page { overflow: hidden; }
 body.salidas-page .app-layout { min-height: 0; height: 100vh; overflow: hidden; }
 body.salidas-page .page-content { min-height: 0; height: 100vh; overflow: hidden; }
-body.salidas-page .page-body { padding: 10px 14px; overflow: hidden; }
-body.salidas-page .page-body > .card { padding: 10px 12px; margin-bottom: 0; }
+body.salidas-page .page-body { padding: 10px 14px 4px; overflow: hidden; }
+body.salidas-page .page-body > .card { padding: 10px 12px 4px; margin-bottom: 0; }
 
 /* ── Toolbar ── */
 .salidas-toolbar {
