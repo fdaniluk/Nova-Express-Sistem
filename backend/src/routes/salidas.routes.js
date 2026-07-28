@@ -365,6 +365,10 @@ router.post('/:id/recalcular', async (req, res, next) => {
       // línea `data.ddp` llega undefined -> false, y el primer "Recalcular" borra el cargo
       // DDP en silencio: la utilidad del envío queda inflada por ese monto.
       ddp: body.ddp != null ? body.ddp : envio.ddp,
+      // Mercadería o documento: en DHL selecciona la tabla de documento (hasta 2 kg). Se
+      // toma del modal si vino y si no del envío, igual que remota y ddp. Sin esto, un
+      // recálculo sobre un documento lo re-costeaba como mercadería.
+      tipo_paquete: body.tipo_paquete != null ? body.tipo_paquete : envio.tipo_paquete,
       // Fuel% congelado del envío: el recálculo respeta el guardado (no el de config actual).
       fuel_pct: envio.fuel_pct,
       peso_real: body.peso_real,
@@ -507,6 +511,21 @@ router.patch('/:id', async (req, res, next) => {
         && picked.courier !== 'DHL' && picked.courier !== 'UPS') {
       return res.status(400).json({ error: "El courier debe ser exactamente 'DHL' o 'UPS'." });
     }
+    // Regla de negocio: los documentos van unicamente por DHL. Se evalua el resultado
+    // final (lo que viene en el body + lo que ya estaba), porque la edicion es parcial.
+    {
+      const tipoFinal = Object.prototype.hasOwnProperty.call(picked, 'tipo_paquete')
+        ? picked.tipo_paquete : existing.tipo_paquete;
+      const courierFinal = Object.prototype.hasOwnProperty.call(picked, 'courier')
+        ? picked.courier : existing.courier;
+      const esDoc = String(tipoFinal ?? '').trim().toLowerCase() === 'd';
+      const cur = String(courierFinal ?? '').trim().toUpperCase();
+      if (esDoc && cur && cur !== 'DHL') {
+        return res.status(400).json({
+          error: `Los documentos se envian unicamente por DHL (se recibio ${cur}).`,
+        });
+      }
+    }
     if (Object.prototype.hasOwnProperty.call(picked, 'cliente_id')) {
       const cli = await db.prepare('SELECT id FROM clientes WHERE id = ?').get(picked.cliente_id);
       if (!cli) {
@@ -538,6 +557,7 @@ router.patch('/:id', async (req, res, next) => {
         pais_destino: picked.pais_destino,
         fob: existing.fob,
         fuel_pct: existing.fuel_pct,
+        tipo_paquete: existing.tipo_paquete,
         zona: undefined,
         peso_real: existing.peso_real,
         largo: existing.largo,

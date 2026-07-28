@@ -9,7 +9,10 @@
     "backup": "node src/scripts/backup-cli.js",
     "seed-admin": "node scripts/seed-admin.js",
     "check-schema": "node scripts/check-schema.js",
-    "test-parser": "node scripts/test-parser-factura.js"
+    "test-parser": "node scripts/test-parser-factura.js",
+    "test-cotizador": "node scripts/test-cotizador-documento.js",
+    "test-regla-doc": "node scripts/test-regla-documentos.js",
+    "test-api-doc": "node scripts/test-api-documentos-dhl.js"
   },
   "keywords": [
     "nova-express",

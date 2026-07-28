@@ -276,6 +276,50 @@
 
     // Recalcular al tildar/destildar Área remota (recargo que resuelve el motor)
     document.getElementById('remota').addEventListener('change', debounce(updateCotizacion, 400));
+
+    // Recalcular al cambiar mercadería/documento: en DHL cambia la tabla de tarifa
+    // (documento hasta 2 kg), así que el precio cambia. Sin este listener el operador
+    // tildaba documento y el número de arriba seguía siendo el de mercadería.
+    document.getElementById('tipo_paquete').addEventListener('change', () => {
+      aplicarReglaDocumentos();
+      updateCotizacion();
+    });
+    aplicarReglaDocumentos();
+  }
+
+  // ── Regla de negocio: los DOCUMENTOS solo se despachan por DHL ──────────────
+  // Definida por Felipe el 28/07/2026. Es una decisión operativa, no técnica: hasta
+  // nuevo aviso Nova solo manda documentos por DHL. Al elegir "Documento" se fuerza el
+  // courier a DHL y se bloquea UPS, para que nadie cargue un envío con el courier
+  // equivocado. Si la regla cambia, se cambia acá y en cotizador.html.
+  function aplicarReglaDocumentos() {
+    const tipoPaq = document.getElementById('tipo_paquete');
+    const courier = document.getElementById('courier');
+    if (!tipoPaq || !courier) return;
+
+    const esDoc = tipoPaq.value === 'd';
+    for (const opt of courier.options) {
+      if (opt.value !== 'DHL') opt.disabled = esDoc;
+    }
+
+    let aviso = document.getElementById('aviso-doc-dhl');
+    if (!aviso) {
+      aviso = document.createElement('div');
+      aviso.id = 'aviso-doc-dhl';
+      aviso.style.cssText = 'font-size:11px;color:var(--color-muted);margin-top:4px';
+      aviso.textContent = 'Los documentos se despachan solo por DHL.';
+      tipoPaq.parentNode.appendChild(aviso);
+    }
+    aviso.style.display = esDoc ? '' : 'none';
+
+    if (esDoc && courier.value !== 'DHL') {
+      courier.value = 'DHL';
+      // Cambiar el value por código NO dispara 'change'. En vez de duplicar acá lo que
+      // hacen los handlers del courier (ocultar la variante UPS, re-precargar el fuel,
+      // resolver la zona, resetear el profit y recotizar), se despacha el evento y los
+      // corre a todos. Menos código y no se desincroniza si mañana se agrega otro.
+      courier.dispatchEvent(new Event('change'));
+    }
   }
 
   async function updatePesosYCotizacion() {
@@ -345,6 +389,11 @@
         bultos: bultosParaCotizar,
         ddp: document.getElementById('ddp').checked,
         remota: document.getElementById('remota').checked,
+        // Tipo de paquete → tarifa de DOCUMENTO de DHL (hasta 2 kg). El formulario ya tenía
+        // el selector y lo guardaba en el envío, pero nunca se lo mandaba al cotizador: por
+        // eso esta pantalla y el cotizador manual daban números distintos para el mismo
+        // documento (hasta 60% en un DHL de 0,5 kg).
+        contenido: document.getElementById('tipo_paquete').value === 'd' ? 'documento' : 'paquete',
         cliente_id: clienteId,
         // Si el usuario pisó el profit a mano, el backend usa profitPct; si no, lo resuelve
         // por la matriz del cliente e ignora el número (retrocompatible en ambos sentidos).
@@ -485,6 +534,8 @@
     document.getElementById('bultos-extra').classList.add('hidden');
     document.getElementById('bultos-container').innerHTML = '';
     aplicarBloqueoMultibulto();
+    // form.reset() devuelve tipo_paquete a 'm': hay que re-habilitar UPS.
+    aplicarReglaDocumentos();
     document.getElementById('btn-cancelar-edit').classList.add('hidden');
     document.getElementById('cot-panel').classList.add('hidden');
     document.getElementById('cot-resultado').innerHTML = '';
@@ -509,6 +560,8 @@
     document.getElementById('tipo_envio').value = envio.tipo_envio;
     updatePaisLabel();
     document.getElementById('tipo_paquete').value = envio.tipo_paquete || 'm';
+    // Un envío guardado como documento tiene que abrir con UPS bloqueado.
+    aplicarReglaDocumentos();
     document.getElementById('numero_guia').value = envio.numero_guia;
     document.getElementById('pais_destino').value = envio.pais_destino;
     document.getElementById('zona').value = envio.zona || '';

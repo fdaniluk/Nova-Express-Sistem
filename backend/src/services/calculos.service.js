@@ -135,7 +135,20 @@ function mkBultosProc(bultos) {
   }));
 }
 
-function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zonaOverride, bultos = [], residencial = false, remota = false, ddp = false }) {
+// Traduce el `tipo_paquete` que guarda la tabla `envios` ('m' mercadería / 'd' documento)
+// al `contenido` que entiende el motor ('paquete' / 'documento').
+//
+// Por qué existe: DHL tiene tarifa propia de DOCUMENTO hasta 2 kg, bastante más barata que
+// la de paquete. El cotizador manual siempre mandó `contenido` y usaba la tabla correcta;
+// Cargar envío guardaba el tipo de paquete pero NUNCA se lo pasaba al motor, así que
+// cotizaba —y congelaba el costo— como si todo fuera mercadería. Para un documento DHL de
+// 0,5 kg las dos pantallas llegaban a diferir 60%.
+// (UPS no tiene tarifa de documento: ahí este valor no cambia nada.)
+function contenidoDe(tipoPaquete) {
+  return String(tipoPaquete ?? '').toLowerCase() === 'd' ? 'documento' : 'paquete';
+}
+
+function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zonaOverride, bultos = [], residencial = false, remota = false, ddp = false, contenido = 'paquete' }) {
   const pf     = Number(pesoFacturable) || 0;
   const fuel   = (Number(fuelPct)   || 0) / 100;
   const profit = (Number(profitPct) || 0) / 100;
@@ -156,6 +169,7 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
     remota,
     zonaOverride,
     ddp,
+    contenido,
   });
   if (!r) return null;
 
@@ -202,7 +216,7 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
 // Por construcción flete+seguro+fuel+adicionales == total (costo a profit 0).
 // El fuelPct debe ser el autoritativo de config (lo resuelve el caller).
 // Devuelve null si el país no figura en las tablas y no hay zonaOverride.
-function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zonaOverride, bultos = [], residencial = false, remota = false, ddp = false }) {
+function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zonaOverride, bultos = [], residencial = false, remota = false, ddp = false, contenido = 'paquete' }) {
   const paisCanon = canonizarPais(pais) || pais || '';
   const r = cotizarServicioCore(servicio, {
     pais: paisCanon,
@@ -216,6 +230,7 @@ function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zo
     remota,
     zonaOverride,
     ddp,
+    contenido,
   });
   if (!r) return null;
 
@@ -251,6 +266,7 @@ module.exports = {
   redondear2,
   cotizarEnvio,
   desglosarCosto,
+  contenidoDe,
   calcSeguroDHL,
   buscarZona,
   ZONAS_DHL,

@@ -1,5 +1,5 @@
 const { getDb } = require('../db');
-const { calcularPesos, pesoVolumetricoBulto, desglosarCosto } = require('../services/calculos.service');
+const { calcularPesos, pesoVolumetricoBulto, desglosarCosto, contenidoDe } = require('../services/calculos.service');
 const configuracionModel = require('./configuracion.model');
 
 function mapEnvio(row) {
@@ -144,6 +144,10 @@ async function calcularDesgloseAlCosto(data, pesoFacturable) {
     bultos,
     remota: data.remota ? true : false,
     ddp: data.ddp ? true : false,
+    // Tipo de paquete → tarifa de documento de DHL (hasta 2 kg). Sin esto el costo se
+    // congelaba siempre con la tabla de mercadería, aunque el envío estuviera marcado
+    // como documento, y la utilidad de esos envíos quedaba mal calculada.
+    contenido: contenidoDe(data.tipo_paquete),
   });
 }
 
