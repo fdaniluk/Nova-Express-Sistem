@@ -2,6 +2,7 @@ const { Router } = require('express');
 const multer = require('multer');
 const { getDb } = require('../db');
 const { extraerFacturaUPS } = require('../services/factura-ups.service');
+const { hoyLocal } = require('../utils/fecha');
 
 const router = Router();
 const upload = multer({
@@ -14,25 +15,48 @@ const upload = multer({
 // ('revisado_ok') lo pone SOLO un humano; nunca el auto-marcado.
 const ESTADOS_VALIDOS = ['pendiente', 'a_revisar', 'revisado_ok', 'reclamar'];
 
+// Las guías se persisten normalizadas a mayúsculas y sin espacios (envio.model.js,
+// salidas.routes.js). Normalizar acá con la MISMA regla permite buscar por igualdad
+// directa sobre la columna, que es lo que deja usar el índice único.
+function normalizarGuia(g) {
+  return String(g ?? '').trim().toUpperCase();
+}
+
 // POST /api/facturas/chequear
 // Solo lectura: extrae el PDF y devuelve qué guías ya tienen costo cargado en la BD.
 router.post('/chequear', upload.single('pdf'), async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Se requiere un archivo PDF' });
 
-    const { guias } = await extraerFacturaUPS(req.file.buffer);
+    const extraido = await extraerFacturaUPS(req.file.buffer);
+    const { guias, advertencias, total_declarado, suma_guias, diferencia, cuadra } = extraido;
+
+    // La reconciliación y las advertencias viajan SIEMPRE, también cuando no hay guías.
+    // El punto de /chequear es que el operador vea los problemas ANTES de cargar.
+    const reconciliacion = { total_declarado, suma_guias, diferencia, cuadra };
 
     if (guias.length === 0) {
-      return res.json({ guias_total: 0, guias_ya_cargadas: [], conteo_ya_cargadas: 0 });
+      return res.json({
+        guias_total: 0,
+        guias_ya_cargadas: [],
+        conteo_ya_cargadas: 0,
+        reconciliacion,
+        advertencias,
+      });
     }
 
     const db = getDb();
     const guias_ya_cargadas = [];
 
     for (const guia of guias) {
+      // UPPER(numero_guia) en el WHERE anulaba el índice único idx_envios_numero_guia:
+      // cada guía de la factura hacía un scan completo de `envios` (una factura de 200
+      // guías = 200 scans, con la única conexión bloqueada todo ese rato). Las guías se
+      // guardan siempre normalizadas a mayúsculas (envio.model.js), así que normalizamos
+      // del lado de JS y la columna queda "limpia" para que el índice se use.
       const envio = await db
-        .prepare('SELECT numero_guia, costo_facturado, fecha_facturado FROM envios WHERE UPPER(numero_guia) = UPPER(?)')
-        .get(guia.numero_guia);
+        .prepare('SELECT numero_guia, costo_facturado, fecha_facturado FROM envios WHERE numero_guia = ?')
+        .get(normalizarGuia(guia.numero_guia));
 
       if (envio && envio.costo_facturado != null) {
         guias_ya_cargadas.push({
@@ -48,6 +72,10 @@ router.post('/chequear', upload.single('pdf'), async (req, res, next) => {
       guias_total: guias.length,
       conteo_ya_cargadas: guias_ya_cargadas.length,
       guias_ya_cargadas,
+      // Guías cuyo importe no se pudo leer: no tienen costo y no se van a poder cargar.
+      guias_sin_costo: guias.filter((g) => g.costo_total == null).map((g) => g.numero_guia),
+      reconciliacion,
+      advertencias,
     });
   } catch (err) {
     next(err);
@@ -63,16 +91,49 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
 
     const sobreescribir = req.body.sobreescribir === 'true' || req.body.sobreescribir === true;
 
-    const { numero_factura, fecha_factura, guias } = await extraerFacturaUPS(req.file.buffer);
+    const extraido = await extraerFacturaUPS(req.file.buffer);
+    const {
+      numero_factura, fecha_factura, guias,
+      advertencias, total_declarado, suma_guias, diferencia, cuadra,
+    } = extraido;
 
     const db = getDb();
+
+    // Freno duro: si el PDF no dio ni una guía, no se registra una factura vacía.
+    // Antes esto entraba igual y dejaba una cabecera con 0 guías, indistinguible de
+    // una factura legítimamente vacía.
+    if (guias.length === 0) {
+      return res.status(422).json({
+        error: 'No se detectó ninguna guía en el PDF. No se cargó nada.',
+        advertencias,
+      });
+    }
+
+    // Segundo freno: la misma factura cargada dos veces. `facturas_cargadas` no tiene
+    // UNIQUE en numero_factura (y agregarlo sobre datos existentes es riesgoso), así
+    // que se chequea acá. No es a prueba de dos requests simultáneos, pero cubre el
+    // caso real: alguien sube el PDF, no ve el resultado, y lo vuelve a subir.
+    if (numero_factura) {
+      const yaCargada = await db
+        .prepare('SELECT id, fecha_carga FROM facturas_cargadas WHERE numero_factura = ? ORDER BY id DESC')
+        .get(numero_factura);
+      if (yaCargada && !sobreescribir) {
+        return res.status(409).json({
+          error: `La factura ${numero_factura} ya fue cargada el ${yaCargada.fecha_carga}. `
+            + 'Si querés volver a cargarla, marcá sobreescribir.',
+          factura_id_anterior: yaCargada.id,
+        });
+      }
+    }
 
     const config = await db
       .prepare('SELECT ganancia_minima_pct FROM configuracion WHERE courier = ?')
       .get('UPS');
     const umbral = config?.ganancia_minima_pct ?? 20;
 
-    const hoy = new Date().toISOString().slice(0, 10);
+    // hoyLocal(): con toISOString() (UTC) una carga de facturas de noche dejaba
+    // fecha_facturado un día adelantada.
+    const hoy = hoyLocal();
 
     const resumen = {
       total_guias: guias.length,
@@ -80,7 +141,14 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
       omitidas_duplicado: 0,
       no_encontradas: 0,
       a_revisar: 0,
+      // Contadores que faltaban. Sin ellos, los números del resumen no sumaban al
+      // total y las guías que fallaban desaparecían sin dejar rastro visible: el
+      // operador veía "120 guías, 118 guardadas" sin saber cuáles dos se perdieron.
+      sin_costo: 0,
+      errores: 0,
       no_encontradas_lista: [],
+      sin_costo_lista: [],
+      errores_lista: [],
     };
 
     // Detalle por guía a persistir en factura_guias (encabezado primero para el id).
@@ -90,11 +158,23 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
 
     await db.transaction(async () => {
       for (const guia of guias) {
+        // Guía sin importe legible (el parser no pudo leer el neto). NO se escribe
+        // costo 0 en el envío: un costo cero hace que la comparación de margen ni
+        // siquiera corra y la guía queda 'pendiente' sin ninguna alerta, que era
+        // exactamente el modo de fallar en silencio que estamos sacando.
+        if (guia.costo_total == null) {
+          resumen.sin_costo++;
+          resumen.sin_costo_lista.push({ numero_guia: guia.numero_guia, pais: guia.pais });
+          detalle.push({ guia, envio_id: null, encontrada: 0 });
+          continue;
+        }
+
         await db.exec('SAVEPOINT factura_row');
         try {
+          // Igual que en /chequear: igualdad directa para que entre por el índice único.
           const envio = await db
-            .prepare('SELECT id, total_cobrado, costo_facturado FROM envios WHERE UPPER(numero_guia) = UPPER(?)')
-            .get(guia.numero_guia);
+            .prepare('SELECT id, total_cobrado, costo_facturado FROM envios WHERE numero_guia = ?')
+            .get(normalizarGuia(guia.numero_guia));
 
           detalle.push({ guia, envio_id: envio ? envio.id : null, encontrada: envio ? 1 : 0 });
 
@@ -146,6 +226,14 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
           await db.exec('ROLLBACK TO SAVEPOINT factura_row');
           await db.exec('RELEASE SAVEPOINT factura_row');
           console.error(`[facturas/cargar] Error en guía ${guia.numero_guia}:`, e.message);
+          // Antes esto solo iba al log del servidor y la guía no se contaba en NINGÚN
+          // contador: el resumen decía "120 guías, 118 guardadas" y las dos que faltaban
+          // eran invisibles. Ahora se cuentan y se listan.
+          resumen.errores++;
+          resumen.errores_lista.push({ numero_guia: guia.numero_guia, motivo: e.message });
+          // Y se saca del detalle, para que el ledger no diga que se procesó algo que falló.
+          const i = detalle.findIndex((d) => d.guia === guia);
+          if (i !== -1) detalle.splice(i, 1);
         }
       }
 
@@ -159,10 +247,14 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
 
       // Detalle por guía (peso, neto, recargos desglosados y costo) para los cruces
       // de peso y de recargos facturados vs cobrados.
+      // INSERT OR IGNORE + el índice único (factura_id, numero_guia): si por lo que
+      // sea la misma guía apareciera dos veces en el detalle, no se duplica la fila
+      // del ledger. Antes se insertaba incondicionalmente y un reintento dejaba el
+      // detalle con el doble de filas que la cabecera declaraba.
       for (const d of detalle) {
         const g = d.guia;
         await db.prepare(`
-          INSERT INTO factura_guias
+          INSERT OR IGNORE INTO factura_guias
             (factura_id, envio_id, numero_guia, pais, peso_facturado, neto, total_recargos, costo_total, cargos_json, encontrada)
           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
@@ -180,7 +272,22 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
       }
     });
 
-    res.json(resumen);
+    // Chequeo de coherencia del propio resumen: los contadores tienen que sumar el
+    // total. Si no suman, hay una guía que se perdió por un camino que no previmos, y
+    // es mejor decirlo que devolver números que no cierran.
+    const contadas = resumen.guardadas + resumen.omitidas_duplicado
+      + resumen.no_encontradas + resumen.sin_costo + resumen.errores;
+    if (contadas !== resumen.total_guias) {
+      resumen.advertencia_conteo =
+        `Los contadores suman ${contadas} pero la factura tenía ${resumen.total_guias} guías. `
+        + 'Hay guías sin clasificar: revisar.';
+    }
+
+    res.json({
+      ...resumen,
+      reconciliacion: { total_declarado, suma_guias, diferencia, cuadra },
+      advertencias,
+    });
   } catch (err) {
     next(err);
   }

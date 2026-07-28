@@ -67,6 +67,8 @@
     hide('fac-confirm');
     hide('fac-resumen');
     hide('fac-no-enc');
+    hide('fac-reconc');
+    hide('fac-advert');
   }
 
   async function onCargarClick() {
@@ -146,8 +148,14 @@
         <div class="fac-resumen-val ${res.no_encontradas > 0 ? 'danger' : ''}">${res.no_encontradas}</div>
         <div class="fac-resumen-lbl">No encontradas</div>
       </div>
+      ${contadorExtra(res.sin_costo, 'Sin costo')}
+      ${contadorExtra(res.errores, 'Con error')}
     `;
     show('fac-resumen');
+
+    // El backend ya devolvía estos datos; la pantalla no los mostraba.
+    renderReconciliacion(res.reconciliacion);
+    renderAdvertencias(res.advertencias, res.advertencia_conteo);
 
     if (res.no_encontradas > 0 && res.no_encontradas_lista?.length > 0) {
       const tbody = document.getElementById('fac-no-enc-body');
@@ -160,6 +168,67 @@
       `).join('');
       show('fac-no-enc');
     }
+  }
+
+  // Contadores que solo aparecen si tienen algo: guías sin importe legible y guías
+  // que fallaron al guardar. En una carga normal valen 0 y no ensucian el resumen;
+  // cuando valen algo, es justo lo que hay que ver.
+  function contadorExtra(valor, etiqueta) {
+    if (!valor) return '';
+    return `
+      <div class="fac-resumen-item">
+        <div class="fac-resumen-val danger">${valor}</div>
+        <div class="fac-resumen-lbl">${esc(etiqueta)}</div>
+      </div>
+    `;
+  }
+
+  // Suma de las guías vs. total declarado por la propia factura. Si no cuadra, la
+  // diferencia suele ser la percepción de Ingresos Brutos del pie, que UPS cobra y
+  // no aparece en el detalle por guía.
+  function renderReconciliacion(rec) {
+    if (!rec || rec.total_declarado == null) return;
+    const box = document.getElementById('fac-reconc');
+    const cuadra = rec.cuadra === true;
+    box.className = `fac-reconc ${cuadra ? 'ok' : 'warn'}`;
+    box.innerHTML = `
+      <div class="fac-reconc-title">
+        ${cuadra ? '✓ La factura cuadra' : '⚠ La factura NO cuadra'}
+      </div>
+      <div class="fac-reconc-nums">
+        <span>Suma de las guías: <b>$${Number(rec.suma_guias).toFixed(2)}</b></span>
+        <span>Total de la factura: <b>$${Number(rec.total_declarado).toFixed(2)}</b></span>
+        <span>Diferencia: <b>$${Number(rec.diferencia).toFixed(2)}</b></span>
+      </div>
+      ${cuadra ? '' : `
+        <div class="fac-reconc-nota">
+          La diferencia suele ser la percepción de Ingresos Brutos del pie de la factura,
+          que no está repartida por guía. Los costos guardados NO la incluyen.
+        </div>`}
+    `;
+    show('fac-reconc');
+  }
+
+  // Todo lo que el parser no pudo resolver. Antes esto no existía: los problemas se
+  // degradaban a 0 o se descartaban en silencio y la pantalla decía "todo OK".
+  function renderAdvertencias(advertencias, advertenciaConteo) {
+    const lista = (advertencias || []).slice();
+    if (advertenciaConteo) lista.push({ tipo: 'conteo', detalle: advertenciaConteo });
+    if (lista.length === 0) return;
+
+    const box = document.getElementById('fac-advert');
+    box.innerHTML = `
+      <div class="fac-advert-title">Avisos del lector de la factura (${lista.length})</div>
+      <ul class="fac-advert-list">
+        ${lista.map((a) => `
+          <li>
+            ${a.guia ? `<span class="mono">${esc(a.guia)}</span> — ` : ''}${esc(a.detalle)}
+            ${a.montos ? ` <span class="mono">[${a.montos.map((m) => '$' + Number(m).toFixed(2)).join(' · ')}]</span>` : ''}
+          </li>
+        `).join('')}
+      </ul>
+    `;
+    show('fac-advert');
   }
 
   // ── Pestaña REVISAR ─────────────────────────────────────────────────────────

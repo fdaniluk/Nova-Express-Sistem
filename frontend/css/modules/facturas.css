@@ -281,3 +281,68 @@
 .gain-pos  { color: var(--color-success); font-weight: 600; }
 .gain-neg  { color: var(--color-danger);  font-weight: 600; }
 .gain-zero { color: var(--color-muted); }
+
+/* ── Reconciliación contra el total del PDF ──────────────────────────────────
+   Compara la suma de las guías con el total que declara la propia factura.
+   Verde si cuadra, ámbar si no: no es un error, es algo que hay que mirar. */
+.fac-reconc {
+  margin-top: 1rem;
+  padding: 0.9rem 1.25rem;
+  border-radius: var(--radius);
+  border: 1px solid transparent;
+}
+.fac-reconc.ok {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+.fac-reconc.warn {
+  border-color: #fde68a;
+  background: #fffbeb;
+}
+.fac-reconc-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-bottom: 0.5rem;
+}
+.fac-reconc.ok   .fac-reconc-title { color: #15803d; }
+.fac-reconc.warn .fac-reconc-title { color: #b45309; }
+.fac-reconc-nums {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.5rem;
+  font-size: 0.85rem;
+  color: var(--color-text);
+}
+.fac-reconc-nums b { font-variant-numeric: tabular-nums; }
+.fac-reconc-nota {
+  margin-top: 0.6rem;
+  font-size: 0.78rem;
+  line-height: 1.45;
+  color: #92400e;
+}
+
+/* ── Avisos del parser ───────────────────────────────────────────────────────
+   Todo lo que el lector de la factura no pudo resolver. Antes esto se degradaba
+   a 0 o se descartaba en silencio. */
+.fac-advert {
+  margin-top: 1rem;
+  padding: 0.9rem 1.25rem;
+  border: 1px solid #fde68a;
+  border-radius: var(--radius);
+  background: #fffbeb;
+}
+.fac-advert-title {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #b45309;
+  margin-bottom: 0.5rem;
+}
+.fac-advert-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  font-size: 0.82rem;
+  line-height: 1.55;
+  color: var(--color-text);
+}
+.fac-advert-list li { margin-bottom: 0.3rem; }
+.fac-advert-list li:last-child { margin-bottom: 0; }

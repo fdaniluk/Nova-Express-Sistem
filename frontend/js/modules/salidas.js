@@ -139,6 +139,16 @@
     } catch (err) {
       console.warn('[salidas] No se pudieron cargar tolerancias:', err.message);
       tolerancias = {};
+      // Falla RUIDOSA a propósito. Con `tolerancias` en {}, difEval() evalúa
+      // `tol.pct != null && ...` como false SIEMPRE: ningún desvío contra la factura del
+      // courier se pinta en rojo nunca, y la pantalla queda idéntica a "todo dentro de
+      // tolerancia". Es un control de costos apagado sin que nadie se entere.
+      NovaUtils.showAlert(
+        alertBox,
+        'No se pudieron cargar las tolerancias: el semáforo de desvíos contra la factura '
+          + 'del courier quedó DESACTIVADO en esta pantalla. Recargá la página.',
+        'error'
+      );
     }
   }
 
@@ -211,7 +221,7 @@
     const months = getMonths();
     if (!months.length) { selectedMonth = null; return; }
     if (selectedMonth && months.includes(selectedMonth)) return;
-    const current = new Date().toISOString().slice(0, 7);
+    const current = NovaUtils.mesLocal();
     selectedMonth = months.includes(current) ? current : months[0];
   }
 
@@ -762,8 +772,10 @@
     return Math.max(0, Math.round((t - f) / 86400000));
   }
 
+  // Base del semáforo de antigüedad. Con toISOString() (UTC) después de las 21:00
+  // contaba un día de más y el semáforo se ponía rojo un día antes de los 15.
   function todayStr() {
-    return new Date().toISOString().slice(0, 10);
+    return NovaUtils.hoyLocal();
   }
 
   // ── Sorting ─────────────────────────────────────────────────────────────────

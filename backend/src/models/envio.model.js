@@ -222,7 +222,12 @@ async function actualizar(id, data) {
   const db = getDb();
   const actual = await buscarPorId(id);
   if (!actual) return null;
-  if (actual.liquidado && !data.forzar) {
+  // Sin escape hatch: antes existía un flag `data.forzar` que salteaba este freno.
+  // No lo usaba ningún archivo del frontend, pero cualquiera que mandara
+  // {"forzar": true} por PUT /api/envios/:id podía cambiarle el cliente y la fecha
+  // a un envío ya liquidado, dejando un liquidacion_items de una liquidación
+  // confirmada apuntando a otro cliente. Se elimina.
+  if (actual.liquidado) {
     const err = new Error('No se puede editar un envío ya liquidado');
     err.status = 400;
     throw err;

@@ -1,0 +1,16 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 470 210">
+  <!-- NOVA express — recreacion vectorial (letras redondeadas via stroke-linejoin) -->
+  <g fill="#3D3452" stroke="#3D3452" stroke-width="11" stroke-linejoin="round" stroke-linecap="round"
+     font-family="'Trebuchet MS','Segoe UI',Arial,sans-serif" font-weight="bold">
+    <text x="34" y="140" font-size="132" letter-spacing="-3">N</text>
+    <text x="230" y="140" font-size="132" letter-spacing="-3">VA</text>
+  </g>
+  <!-- O: anillo bicolor (orbita) -->
+  <g fill="none" stroke-width="26" stroke-linecap="round">
+    <path d="M130.17 95.92 A45 45 0 1 1 219.83 95.92" stroke="#EC6A4C"/>
+    <path d="M218.47 103.65 A45 45 0 0 1 131.53 103.65" stroke="#3D3452"/>
+  </g>
+  <text x="250" y="193" font-size="47" font-style="italic" font-weight="bold" fill="#3D3452"
+        stroke="#3D3452" stroke-width="3" stroke-linejoin="round"
+        font-family="Georgia,'Times New Roman',serif">express</text>
+</svg>

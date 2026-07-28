@@ -2,6 +2,7 @@ const XLSX = require('xlsx');
 const ExcelJS = require('exceljs');
 const envioModel = require('../models/envio.model');
 const clienteModel = require('../models/cliente.model');
+const { hoyLocal } = require('../utils/fecha');
 const { normalizarDestino } = require('../utils/paises');
 const { calcularPesos, buscarZona, ZONAS_DHL, ZONAS_UPS } = require('./calculos.service');
 const { getDb } = require('../db');
@@ -97,6 +98,13 @@ function parseTipo(val) {
 function parseFecha(val) {
   if (!val) return null;
   if (val instanceof Date) {
+    // OJO: acá el toISOString() se deja A PROPÓSITO, no es el mismo caso que los "hoy"
+    // que se pasaron a hoyLocal(). `val` es una celda de fecha que parseó XLSX, y según
+    // cómo la haya construido puede representar medianoche UTC o medianoche local.
+    // Con el servidor en -03, la medianoche local cae el MISMO día en UTC, así que
+    // toISOString() da el resultado correcto; formatearla con getters locales podría
+    // restarle un día si XLSX la armó en UTC. Cambiar esto requiere probarlo contra
+    // planillas reales antes de tocarlo.
     return val.toISOString().slice(0, 10);
   }
   const s = String(val).trim();
@@ -196,7 +204,7 @@ async function importarSalidas(buffer) {
 
         const payload = {
           cliente_id,
-          fecha: parseFecha(m.fecha) || new Date().toISOString().slice(0, 10),
+          fecha: parseFecha(m.fecha) || hoyLocal(),
           courier,
           tipo_envio: parseTipo(m.tipo_envio),
           numero_guia: guia,
@@ -470,7 +478,7 @@ function nombreArchivoExport(clienteNombre, fecha) {
     .replace(/[̀-ͯ]/g, '')
     .replace(/[^\w]/g, '')
     .slice(0, 40);
-  const f = (fecha || new Date().toISOString().slice(0, 10)).replace(/-/g, '');
+  const f = (fecha || hoyLocal()).replace(/-/g, '');
   return `DIARIO_${safe}Envio${f}.xlsx`;
 }
 

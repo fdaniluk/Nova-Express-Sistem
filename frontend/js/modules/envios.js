@@ -8,7 +8,8 @@
   let profitTocado = false;
 
   async function init() {
-    document.getElementById('fecha').value = new Date().toISOString().slice(0, 10);
+    // hoyLocal(): toISOString() es UTC y adelantaba la fecha un día después de las 21:00.
+    document.getElementById('fecha').value = NovaUtils.hoyLocal();
     rellenarSelectPaises();
     updatePaisLabel();
     await loadClientes();
@@ -478,7 +479,7 @@
     setProfitOrigen('');
     document.getElementById('envio-id').value = '';
     document.getElementById('form-title').textContent = 'Cargar envío';
-    document.getElementById('fecha').value = new Date().toISOString().slice(0, 10);
+    document.getElementById('fecha').value = NovaUtils.hoyLocal();
     document.getElementById('cantidad_bultos').value = 1;
     setFuelPctDefault();
     document.getElementById('bultos-extra').classList.add('hidden');

@@ -1,18 +1,19 @@
 const { Router } = require('express');
 const { getDb } = require('../db');
 const { deriveProfit, costoEstimado } = require('../utils/profit');
+const { hoyLocal, hoyLocalMas } = require('../utils/fecha');
 
 const router = Router();
 
 function getFechaDesde(periodo) {
   const now = new Date();
+  // hoyLocal(): con toISOString() (UTC) el período 'hoy' apuntaba a mañana después de
+  // las 21:00 y el dashboard salía vacío.
   if (periodo === 'hoy') {
-    return now.toISOString().slice(0, 10);
+    return hoyLocal(now);
   }
   if (periodo === 'semana') {
-    const d = new Date(now);
-    d.setDate(d.getDate() - 7);
-    return d.toISOString().slice(0, 10);
+    return hoyLocalMas(-7, now);
   }
   // 'mes' — primer día del mes en curso
   return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;

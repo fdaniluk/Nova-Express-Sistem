@@ -50,16 +50,55 @@ function prepare(sql) {
   };
 }
 
-async function transaction(fn) {
-  await run('BEGIN TRANSACTION');
-  try {
-    const result = await fn();
-    await run('COMMIT');
-    return result;
-  } catch (e) {
-    await run('ROLLBACK');
-    throw e;
-  }
+// ── Transacciones serializadas ──────────────────────────────────────────────
+// Toda la app comparte UNA sola conexión sqlite3 (`rawDb`). BEGIN/COMMIT/ROLLBACK
+// son estado global de esa conexión, y los handlers son async: sin una cola, los
+// statements de dos requests simultáneos se intercalan DENTRO de la misma
+// transacción. Consecuencias reales observadas al reproducirlo:
+//
+//   · el segundo BEGIN falla con "cannot start a transaction within a transaction";
+//   · el ROLLBACK del que falla aborta la transacción del que iba bien, y el
+//     usuario que ya recibió 200 OK pierde lo que guardó.
+//
+// `txQueue` encadena las transacciones: cada llamada espera a que termine la
+// anterior antes de emitir su BEGIN. La cola guarda siempre una promesa YA
+// resuelta o rechazada-y-atrapada, así que un fallo no la deja envenenada para
+// las siguientes.
+//
+// Nota: esto serializa solo las transacciones, no las lecturas sueltas. Las
+// operaciones largas (importación de Excel) hacen esperar a las demás — eso es
+// correcto y preferible a perder escrituras. El arreglo de fondo es una conexión
+// por request; esto cierra el agujero sin reescribir la capa de acceso.
+let txQueue = Promise.resolve();
+
+function transaction(fn) {
+  const result = txQueue.then(async () => {
+    await run('BEGIN TRANSACTION');
+    try {
+      const value = await fn();
+      await run('COMMIT');
+      return value;
+    } catch (e) {
+      // Si el ROLLBACK también falla (conexión caída, transacción ya abortada por
+      // SQLite) no lo dejamos tapar el error original, que es el que explica qué pasó.
+      try {
+        await run('ROLLBACK');
+      } catch (rollbackErr) {
+        console.error('[db] ROLLBACK falló tras un error de transacción:', rollbackErr.message);
+      }
+      throw e;
+    }
+  });
+
+  // La cola avanza pase lo que pase; el catch acá evita un unhandled rejection
+  // y evita que un fallo bloquee a las transacciones siguientes. El error real
+  // se propaga por `result`, que es lo que recibe quien llamó.
+  txQueue = result.then(
+    () => undefined,
+    () => undefined
+  );
+
+  return result;
 }
 
 function buildDbApi() {
@@ -350,6 +389,40 @@ async function migrateCobranzas() {
   await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cobranzas_pickup  ON cobranzas(pickup_id)');
 }
 
+// Índices que faltaban sobre las consultas que ya están en producción. Todos son
+// CREATE INDEX IF NOT EXISTS: correr esto de nuevo no hace nada y no cambia ningún
+// resultado, solo el plan de ejecución. Verificado con EXPLAIN QUERY PLAN contra la
+// base real: sin estos, cada consulta hace un scan completo de la tabla.
+//
+//   pickups(fecha)              -> pantalla de Operaciones del día y rezagados
+//   liquidacion_items(envio_id) -> borrado de envío (el UNIQUE existente arranca por
+//                                  liquidacion_id, así que no sirve para buscar por envío)
+//   envios(estado_revision)     -> bandeja de revisión de facturas
+//   envio_bultos(numero_guia)   -> búsqueda de guía por bulto en multi-bulto
+//   cuadrantes(pickup_id)       -> cuadrantes de un pickup
+//
+// NO se agrega acá el índice único que impediría que un mismo envío entre en dos
+// liquidaciones: la base de producción HOY tiene dos casos (envíos 31 y 147, cada uno
+// en un borrador y en una confirmada). Crear ese índice ahora haría fallar el arranque
+// del servidor. Primero hay que limpiar esos dos borradores; recién después se agrega.
+async function migrateIndices() {
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_pickups_fecha            ON pickups(fecha)');
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_liquidacion_items_envio  ON liquidacion_items(envio_id)');
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_envios_estado_revision   ON envios(estado_revision)');
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_envio_bultos_guia        ON envio_bultos(numero_guia)');
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cuadrantes_pickup        ON cuadrantes(pickup_id)');
+
+  // Único: una guía no puede aparecer dos veces en el detalle de la MISMA factura.
+  // Junto con el INSERT OR IGNORE de facturas.routes.js evita que un reintento deje
+  // el ledger con el doble de filas que las que declara la cabecera.
+  // Seguro de crear: `factura_guias` está vacía en producción (el módulo no se estrenó).
+  // Si alguna vez tuviera duplicados, esta línea haría fallar el arranque — en ese caso
+  // hay que limpiarlos primero.
+  await dbApi.exec(
+    'CREATE UNIQUE INDEX IF NOT EXISTS uq_factura_guias_factura_guia ON factura_guias(factura_id, numero_guia)'
+  );
+}
+
 async function initSchema() {
   const schema = fs.readFileSync(config.schemaPath, 'utf8');
   await dbApi.exec(schema);
@@ -363,6 +436,7 @@ async function initSchema() {
   await migrateProfitOverrides();
   await migrateFacturaGuias();
   await migrateCobranzas();
+  await migrateIndices();
   await seedIfEmpty();
 }
 

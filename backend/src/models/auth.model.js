@@ -23,8 +23,16 @@ async function borrarSesionPorTokenHash(token_hash) {
   await getDb().prepare('DELETE FROM sesiones WHERE token_hash = ?').run(token_hash);
 }
 
+// `expira_en` se guarda como ISO-8601 con T y Z (auth.routes.js), no con el formato
+// 'YYYY-MM-DD HH:MM:SS' que devuelve datetime('now'). Comparar contra datetime('now')
+// era comparar strings de dos formatos distintos: la 'T' (0x54) ordena DESPUÉS del
+// espacio (0x20), así que una sesión vencida el mismo día nunca se borraba.
+// Comparando ISO contra ISO el orden sí es cronológico.
 async function borrarSesionesExpiradas() {
-  await getDb().prepare("DELETE FROM sesiones WHERE expira_en < datetime('now')").run();
+  const { changes } = await getDb()
+    .prepare('DELETE FROM sesiones WHERE expira_en < ?')
+    .run(new Date().toISOString());
+  return changes;
 }
 
 module.exports = {

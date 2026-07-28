@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 210">
+  <text x="28" y="142" font-size="140" fill="#3D3452" font-family="Poppins" font-weight="bold" letter-spacing="-4">N</text>
+  <g fill="none" stroke-width="27" stroke-linecap="round">
+    <path d="M143.17 95.92 A46 46 0 1 1 234.83 95.92" stroke="#EC6A4C"/>
+    <path d="M233.2 104.4 A46 46 0 0 1 144.8 104.4" stroke="#3D3452"/>
+  </g>
+  <text x="247" y="142" font-size="140" fill="#3D3452" font-family="Poppins" font-weight="bold" letter-spacing="-4">VA</text>
+  <text x="262" y="194" font-size="50" fill="#3D3452" font-family="DejaVu Sans Mono" font-style="oblique" font-weight="bold">express</text>
+</svg>

@@ -53,7 +53,6 @@ router.post('/', async (req, res, next) => {
   try {
     const db = getDb();
     const { cliente_id, direccion, fecha, hora_inicio, hora_fin, notas, courier, recolector, tiene_cobro, tipo_recoleccion, llevar_plata, mostrar_en_operaciones } = req.body;
-    console.log('[POST /pickups] body:', JSON.stringify(req.body));
 
     if (!cliente_id || !direccion || !fecha || !hora_inicio || !hora_fin) {
       return res

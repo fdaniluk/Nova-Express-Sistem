@@ -361,6 +361,10 @@ router.post('/:id/recalcular', async (req, res, next) => {
       // el primer recálculo lo borra en silencio (mismo bug que país/courier). Viene del
       // modal (body.remota); si no vino, se lee del envío para no perderlo nunca.
       remota: body.remota != null ? body.remota : envio.remota,
+      // DDP: exactamente el mismo caso que `remota`, y se había quedado afuera. Sin esta
+      // línea `data.ddp` llega undefined -> false, y el primer "Recalcular" borra el cargo
+      // DDP en silencio: la utilidad del envío queda inflada por ese monto.
+      ddp: body.ddp != null ? body.ddp : envio.ddp,
       // Fuel% congelado del envío: el recálculo respeta el guardado (no el de config actual).
       fuel_pct: envio.fuel_pct,
       peso_real: body.peso_real,

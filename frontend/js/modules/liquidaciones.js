@@ -21,7 +21,9 @@
   function setDefaultDates() {
     const today = new Date();
     const first = new Date(today.getFullYear(), today.getMonth(), 1);
-    const iso = (d) => d.toISOString().slice(0, 10);
+    // hoyLocal(): con toISOString() (UTC) el período por defecto arrancaba corrido
+    // un día después de las 21:00 hora local.
+    const iso = (d) => NovaUtils.hoyLocal(d);
     ['pend-desde', 'liq-desde', 'hist-desde'].forEach((id) => {
       const el = document.getElementById(id);
       if (el) el.value = iso(first);

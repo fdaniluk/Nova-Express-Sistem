@@ -150,6 +150,7 @@ CREATE TABLE IF NOT EXISTS envio_bultos (
   ancho            REAL NOT NULL,
   alto             REAL NOT NULL,
   peso_volumetrico REAL NOT NULL DEFAULT 0,
+  numero_guia      TEXT,
   estado_caja      TEXT,
   FOREIGN KEY (envio_id) REFERENCES envios(id) ON DELETE CASCADE,
   UNIQUE (envio_id, numero_bulto)
@@ -306,6 +307,37 @@ CREATE TABLE IF NOT EXISTS cobranzas (
 CREATE INDEX IF NOT EXISTS idx_cobranzas_cliente ON cobranzas(cliente_id);
 CREATE INDEX IF NOT EXISTS idx_cobranzas_fecha   ON cobranzas(fecha);
 CREATE INDEX IF NOT EXISTS idx_cobranzas_pickup  ON cobranzas(pickup_id);
+
+-- Índices sobre las consultas más calientes (ver migrateIndices() en db/index.js).
+-- Sin estos, la pantalla de Operaciones del día, el borrado de un envío y la bandeja
+-- de revisión de facturas hacen un scan completo de su tabla en cada request.
+CREATE INDEX IF NOT EXISTS idx_pickups_fecha           ON pickups(fecha);
+CREATE INDEX IF NOT EXISTS idx_liquidacion_items_envio ON liquidacion_items(envio_id);
+CREATE INDEX IF NOT EXISTS idx_envios_estado_revision  ON envios(estado_revision);
+CREATE INDEX IF NOT EXISTS idx_envio_bultos_guia       ON envio_bultos(numero_guia);
+CREATE INDEX IF NOT EXISTS idx_cuadrantes_pickup       ON cuadrantes(pickup_id);
+
+-- Una guía no puede repetirse dentro del detalle de la misma factura.
+CREATE UNIQUE INDEX IF NOT EXISTS uq_factura_guias_factura_guia ON factura_guias(factura_id, numero_guia);
+
+-- Matriz de profit por cliente. Cada fila es un override sobre el escalar
+-- clientes.tarifa_pct, resuelto por precedencia celda > banda > zona > tabla > cliente
+-- (ver services/profit.service.js). La banda se guarda como par numérico peso_min/peso_max
+-- (ej 5 y 10; la banda 50+ es peso_min 50, peso_max NULL). zona/peso_min NULL modelan
+-- los niveles menos específicos. UNIQUE por las coordenadas para poder upsertear.
+CREATE TABLE IF NOT EXISTS profit_overrides (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  cliente_id INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+  servicio   TEXT NOT NULL CHECK (servicio IN ('DHL', 'UPS_EXP', 'UPS_SAVER')),
+  tipo       TEXT NOT NULL CHECK (tipo IN ('export', 'import')),
+  zona       INTEGER CHECK (zona IS NULL OR (zona BETWEEN 1 AND 6)),
+  peso_min   REAL,
+  peso_max   REAL,
+  profit_pct REAL NOT NULL,
+  UNIQUE (cliente_id, servicio, tipo, zona, peso_min)
+);
+
+CREATE INDEX IF NOT EXISTS idx_profit_overrides_cliente ON profit_overrides(cliente_id);
 
 -- Fuel inicial DHL y UPS al 39.5%
 INSERT OR IGNORE INTO configuracion (courier, fuel_pct) VALUES ('DHL', 39.5);

@@ -3,6 +3,7 @@ const configuracionModel = require('./configuracion.model');
 const envioModel = require('./envio.model');
 const { calcularFleteFuel, redondear2, cotizarEnvio, calcularSeguro, calcSeguroDHL } = require('../services/calculos.service');
 const { descomponerVenta } = require('../utils/desgloseVenta');
+const { hoyLocal } = require('../utils/fecha');
 
 // Migración automática: agrega columnas nuevas si no existen
 async function migrarColumnas() {
@@ -238,7 +239,9 @@ async function crear({ cliente_id, periodo_desde, periodo_hasta, envio_ids, carg
     }
 
     if (confirmar) {
-      const fecha = new Date().toISOString().slice(0, 10);
+      // hoyLocal(): toISOString() es UTC y dejaba una liquidación confirmada el 31 a las
+      // 22:00 fechada el 1 del mes siguiente.
+      const fecha = hoyLocal();
       await envioModel.marcarLiquidados(envio_ids, liquidacionId, fecha);
     }
 
@@ -259,7 +262,7 @@ async function confirmar(id) {
   }
 
   const envioIds = liq.items.map((i) => i.envio_id);
-  const fecha = new Date().toISOString().slice(0, 10);
+  const fecha = hoyLocal();
 
   await db.transaction(async () => {
     await db.prepare(
