@@ -6,7 +6,7 @@ const {
   UPS_SE_LIQD, UPS_SE_PK, UPS_SE_MN,
   UPS_SI_LIQD, UPS_SI_PK, UPS_SI_MN,
   getDHL, getDHLBig, getUPS, getUPSSaverEsIt,
-  getSurge, calcSeguroDHL, calcUPSDimExtras,
+  getSurge, calcSeguroDHL, calcSeguroUPS, calcUPSDimExtras,
   cotizarServicio: cotizarServicioCore,
 } = require('../../../shared/cotizador/cotizador-core');
 
@@ -41,20 +41,13 @@ function calcularPesos(pesoReal, bultos = [], dims = {}) {
   return { pesoVolumetrico, pesoFacturable };
 }
 
+// Seguro UPS. NO tiene la regla escrita acá: delega en el motor compartido, que es el
+// único lugar donde vive una tarifa. Antes esta función repetía la escala (0 / 15 / 1,5%)
+// con los números sueltos; coincidían con los del motor por casualidad, y el día que se
+// cambie la regla en un lado el otro se queda viejo. La función se conserva porque hay
+// código que la importa por este nombre.
 function calcularSeguro(fob) {
-  const valor = Number(fob) || 0;
-  if (valor < 100) return 0;
-  if (valor <= 1000) return 15;
-  return Math.round(valor * 0.015 * 100) / 100;
-}
-
-function calcularFleteFuel(totalCobrado, fob, fuelPct) {
-  const total       = Number(totalCobrado) || 0;
-  const seguro      = calcularSeguro(fob);
-  const fuelDecimal = (Number(fuelPct) || 0) / 100;
-  const flete       = Math.round(((total - seguro) / (1 + fuelDecimal)) * 100) / 100;
-  const fuel        = Math.round(flete * fuelDecimal * 100) / 100;
-  return { seguro, flete, fuel, total };
+  return calcSeguroUPS(Number(fob) || 0).monto;
 }
 
 function redondear2(n) {
@@ -262,7 +255,6 @@ module.exports = {
   pesoVolumetricoBulto,
   calcularPesos,
   calcularSeguro,
-  calcularFleteFuel,
   redondear2,
   cotizarEnvio,
   desglosarCosto,

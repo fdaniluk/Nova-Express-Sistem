@@ -1,7 +1,7 @@
 const { getDb } = require('../db');
 const configuracionModel = require('./configuracion.model');
 const envioModel = require('./envio.model');
-const { calcularFleteFuel, redondear2, cotizarEnvio, calcularSeguro, calcSeguroDHL } = require('../services/calculos.service');
+const { redondear2, cotizarEnvio } = require('../services/calculos.service');
 const { descomponerVenta } = require('../utils/desgloseVenta');
 const { hoyLocal } = require('../utils/fecha');
 
@@ -24,41 +24,12 @@ async function migrarColumnas() {
   }
 }
 
-// Descompone cot.precioBase (resultado de cotizarEnvio con profitPct=0) en flete/fuel/seguro
-// para poblar las columnas de liquidacion_items manteniendo flete+fuel+seguro = precioBase.
-//
-// UPS: precioBase = (fleteBase + surge) * (1 + fuel%) + manejo + seguro
-//   → flete = fleteBase + surge + manejo (surge y manejo combinados con flete)
-//   → fuel  = aplicado sobre (fleteBase + surge)
-//   → seguro = calcularSeguro(fob)
-//
-// DHL: precioBase = fleteBase * (1 + fuel%) + seguroDHL + goGreen
-//   → flete  = fleteBase (tarifa tabla pura)
-//   → fuel   = aplicado sobre flete
-//   → seguro = seguroDHL + goGreen combinados
-function descomponerPrecioBase(cot, envio, fuelPct) {
-  const fuelDecimal = fuelPct / 100;
-  const pf = envio.peso_facturable || 0;
-
-  if (envio.courier === 'DHL') {
-    const goGreen = redondear2(pf * 0.98);
-    const seguroDHL = calcSeguroDHL(envio.fob || 0).monto;
-    const seguro = redondear2(seguroDHL + goGreen);
-    const fleteConFuel = redondear2(cot.precioBase - seguro);
-    const flete = redondear2(fleteConFuel / (1 + fuelDecimal));
-    const fuel = redondear2(fleteConFuel - flete);
-    return { flete, fuel, seguro };
-  }
-
-  // UPS (EXP o SAV): precioBase = (fleteBase + surge) * (1+fuel%) + manejo + seguro
-  const seguro = calcularSeguro(envio.fob || 0);
-  const manejo = cot.manejo || 0;
-  const fleteConFuel = redondear2(cot.precioBase - seguro - manejo);
-  const fleteConSurge = redondear2(fleteConFuel / (1 + fuelDecimal));
-  const fuel = redondear2(fleteConFuel - fleteConSurge);
-  // Manejo se agrega al flete para mantener flete+fuel+seguro = precioBase
-  return { flete: redondear2(fleteConSurge + manejo), fuel, seguro };
-}
+// NOTA: acá vivía descomponerPrecioBase(), que rehacía por su cuenta el GoGreen
+// (pf × 0.98) y la composición flete/fuel/seguro de DHL y UPS. Era un SEGUNDO motor:
+// si cambiaba una tarifa en cotizador-core.js, esto seguía con el número viejo.
+// Ya no lo llamaba nadie (la liquidación lee los valores congelados del envío, no
+// recotiza), así que se eliminó. Si alguna vez hay que descomponer un precio, se hace
+// con el motor compartido, no con una copia.
 
 // Liquidación = documento de cara al cliente: LEE los valores ya guardados del envío y
 // los presenta de forma que el desglose cierre EXACTO en total_cobrado. NO recotiza: no

@@ -12,7 +12,11 @@
     "test-parser": "node scripts/test-parser-factura.js",
     "test-cotizador": "node scripts/test-cotizador-documento.js",
     "test-regla-doc": "node scripts/test-regla-documentos.js",
-    "test-api-doc": "node scripts/test-api-documentos-dhl.js"
+    "test-api-doc": "node scripts/test-api-documentos-dhl.js",
+    "test-recargos": "node scripts/test-recargos.js",
+    "test-tarifas-dhl": "node scripts/test-tarifas-dhl.js",
+    "test-motor-unico": "node scripts/test-motor-unico.js",
+    "test": "node scripts/test-motor-unico.js && node scripts/test-tarifas-dhl.js && node scripts/test-recargos.js && node scripts/test-cotizador-documento.js && node scripts/test-parser-factura.js && node scripts/test-api-documentos-dhl.js"
   },
   "keywords": [
     "nova-express",
