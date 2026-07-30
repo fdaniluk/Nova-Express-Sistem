@@ -27,6 +27,9 @@ catch {
 const crypto = require('crypto');
 const path = require('path');
 const { spawn } = require('child_process');
+// Arranque común: base de test fresca (copia de producción) y sesión válida.
+// Ver scripts/_base-test.js para por qué hace falta.
+const { prepararDb, abrirSesion } = require('./_base-test');
 
 const PORT = process.env.PORT_TEST || 3991;
 const BASE = `http://localhost:${PORT}`;
@@ -43,12 +46,19 @@ function esperar(ms) { return new Promise((r) => setTimeout(r, ms)); }
 
 async function main() {
   // ── servidor ──────────────────────────────────────────────────────────────
+  // Base de test: copia FRESCA de la de producción en cada corrida.
+  prepararDb(DB);
+
   const srv = spawn('node', [path.join(__dirname, '..', 'src', 'server.js')], {
     env: { ...process.env, DB_PATH: DB, PORT: String(PORT), NODE_ENV: 'production' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   srv.stdout.on('data', () => {});
   srv.stderr.on('data', (d) => process.stderr.write('[server] ' + d));
+  // Si el test se corta por un error, el servidor tiene que morir igual: si queda vivo se
+  // queda con el puerto y la corrida siguiente le habla al servidor VIEJO, con la base
+  // vieja, y falla con 401 sin motivo aparente.
+  process.on('exit', () => { try { srv.kill(); } catch {} });
 
   for (let i = 0; i < 40; i++) {
     try { const r = await fetch(BASE + '/api/health'); if (r.ok) break; } catch {}
@@ -58,12 +68,7 @@ async function main() {
   // sesión directa en la base, para no pasar por el login
   const sqlite3 = require('sqlite3');
   const db = new sqlite3.Database(DB);
-  const hash = crypto.createHash('sha256').update(TOKEN).digest('hex');
-  await new Promise((res, rej) => db.run(
-    'INSERT OR REPLACE INTO sesiones (token_hash, usuario_id, expira_en) VALUES (?,?,?)',
-    [hash, 1, new Date(Date.now() + 3600e3).toISOString()],
-    (e) => (e ? rej(e) : res())
-  ));
+  await abrirSesion(DB, TOKEN);
   db.close();
 
   const fs = require('fs');

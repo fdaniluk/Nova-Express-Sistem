@@ -308,10 +308,18 @@ function cotizarServicio(servicio, params) {
     contenido='paquete',
     zonaOverride,
     ddp=false,
+    // Precio de venta del flete en USD POR KILO. Es para los clientes que no trabajan con
+    // un % de ganancia sino con una tarifa fija por kilo (ver clientes.modo_tarifa y
+    // tarifa_kg_overrides). Cuando viene, REEMPLAZA al flete con margen: el flete de venta
+    // pasa a ser precioKgVenta × peso facturable y profitPct se ignora.
+    // No toca nada más: fuel, seguro, surge, DDP y zona de entrega siguen igual.
+    precioKgVenta=null,
   } = params;
   const fuel   = fuelPct   / 100;
   const profit = profitPct / 100;
   const zonaEntrega = normalizarEntrega(entrega, remota);
+  const kgVenta = Number(precioKgVenta);
+  const usaPorKg = Number.isFinite(kgVenta) && kgVenta > 0;
 
   // ── DHL ──────────────────────────────────────────────────────────────────────
   if(servicio==='DHL'){
@@ -339,7 +347,8 @@ function cotizarServicio(servicio, params) {
     const zeDHL=calcZonaEntrega('DHL',zonaEntrega,pf,pais);
     if(zeDHL)               extras.push([zeDHL.label,zeDHL.monto]);
     if(ddp)                 extras.push(['DDP',24.05]);
-    const conGan          =fleteBase*(1+profit);
+    // Tarifa por kilo: el flete de venta es precio × peso facturable, no flete + margen.
+    const conGan          =usaPorKg?parseFloat((kgVenta*pf).toFixed(2)):fleteBase*(1+profit);
     const subtotalConSurge=conGan;
     const fuelMonto       =subtotalConSurge*fuel;
     const extrasTotal     =extras.reduce((s,r)=>s+r[1],0);
@@ -351,6 +360,9 @@ function cotizarServicio(servicio, params) {
       goGreen,sobrepesoTotal,excesoTotal,noConvencionalTotal,seguro:seguroObj.monto,
       manejoCount:0,contornoExtra:0,contornoWarn:false,manejo:0,
       minPesoAplicado:false,
+      modoVenta:usaPorKg?'por_kg':'porcentaje',
+      precioKgVenta:usaPorKg?kgVenta:null,
+      pfVenta:usaPorKg?pf:null,
     };
   }
 
@@ -402,7 +414,10 @@ function cotizarServicio(servicio, params) {
   if(residencial)    extras.push(['Entrega residencial',5.65]);
   if(ddp)            extras.push(['DDP',24.05]);
   if(feeUSA>0)       extras.push(['Tarifa de procesamiento internacional (EE.UU.)',feeUSA]);
-  const conGan          =flete*(1+profit);
+  // Tarifa por kilo: el flete de venta es precio × peso facturable. Se usa pfRound, que es
+  // el peso que UPS efectivamente factura (redondeo a 0,5 kg y mínimo de 40 kg del Paquete
+  // de Mayor Tamaño), para que el cliente pague por los mismos kilos que paga el courier.
+  const conGan          =usaPorKg?parseFloat((kgVenta*pfRound).toFixed(2)):flete*(1+profit);
   const subtotalConSurge=conGan+surge;
   const fuelMonto       =subtotalConSurge*fuel;
   const extrasTotal     =extras.reduce((s,r)=>s+r[1],0);
@@ -414,6 +429,9 @@ function cotizarServicio(servicio, params) {
     manejoCount,contornoExtra,contornoWarn,manejo,
     seguro:seguroObj.monto,goGreen:0,dhlDimExtra:0,
     minPesoAplicado,minPesoExtra,
+    modoVenta:usaPorKg?'por_kg':'porcentaje',
+    precioKgVenta:usaPorKg?kgVenta:null,
+    pfVenta:usaPorKg?pfRound:null,
   };
 }
 

@@ -8,6 +8,9 @@ const SERVICIOS = ['DHL', 'UPS_EXP', 'UPS_SAVER'];
 const TIPOS = ['export', 'import'];
 const ZONAS = [1, 2, 3, 4, 5, 6];
 
+// Cómo se arma el precio de venta del flete de un cliente (clientes.modo_tarifa).
+const MODOS_TARIFA = ['porcentaje', 'por_kg'];
+
 // Bandas de peso fijas, en kg sobre peso facturable.
 // Límite inferior exclusivo, superior inclusivo, salvo la primera que incluye 0.
 // La banda 50+ no tiene tope (max = null).
@@ -279,16 +282,359 @@ async function eliminarOverride(clienteId, body) {
   return result.changes > 0;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Tarifa POR KILO (clientes con modo_tarifa = 'por_kg')
+//
+// Hay clientes cuya tarifa no es un porcentaje sobre el flete del courier sino un precio
+// fijo en dólares por kilo, según la zona y el rango de peso. Ejemplo real: de 1 a 10 kg
+// paga 5 USD el kilo, así que un envío de 6 kg tiene un flete de venta de 30 USD.
+//
+// Reglas (definidas con Felipe):
+//   · El precio por kilo REEMPLAZA el flete de venta. Nada más. Fuel, seguro, surge, DDP,
+//     zona de entrega y demás recargos del courier se calculan y se cobran igual que a
+//     cualquier otro cliente.
+//   · Los rangos los define cada cliente: no hay bandas fijas como en la matriz de profit.
+//   · Los límites son INCLUSIVOS de los dos lados. peso_max vacío = de ahí en adelante.
+// ─────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Valida y normaliza las coordenadas de una tarifa por kilo.
+ * A diferencia de validarCoordenadas (matriz de profit), el rango es libre: solo se exige
+ * que sea coherente (min >= 0, max > min).
+ * @throws {Error} con .status = 400 ante cualquier coordenada inválida.
+ */
+function validarCoordenadasKg({ servicio, tipo, zona, peso_min, peso_max }) {
+  const err = (msg) => {
+    const e = new Error(msg);
+    e.status = 400;
+    return e;
+  };
+
+  if (!SERVICIOS.includes(servicio)) {
+    throw err(`servicio inválido: ${servicio}. Válidos: ${SERVICIOS.join(', ')}`);
+  }
+  if (!TIPOS.includes(tipo)) {
+    throw err(`tipo inválido: ${tipo}. Válidos: ${TIPOS.join(', ')}`);
+  }
+
+  let zonaNorm = null;
+  if (zona !== null && zona !== undefined && zona !== '') {
+    zonaNorm = Number(zona);
+    if (!ZONAS.includes(zonaNorm)) {
+      throw err(`zona inválida: ${zona}. Válidas: ${ZONAS.join(', ')} o null`);
+    }
+  }
+
+  const vacio = (v) => v === null || v === undefined || v === '';
+
+  let minNorm = null;
+  let maxNorm = null;
+  if (!vacio(peso_min)) {
+    minNorm = Number(peso_min);
+    if (!Number.isFinite(minNorm) || minNorm < 0) {
+      throw err(`peso desde inválido: ${peso_min}`);
+    }
+  }
+  if (!vacio(peso_max)) {
+    maxNorm = Number(peso_max);
+    if (!Number.isFinite(maxNorm) || maxNorm <= 0) {
+      throw err(`peso hasta inválido: ${peso_max}`);
+    }
+  }
+  if (minNorm === null && maxNorm !== null) {
+    throw err('rango inválido: hay "peso hasta" sin "peso desde"');
+  }
+  if (minNorm !== null && maxNorm !== null && maxNorm <= minNorm) {
+    throw err(`rango inválido: "hasta" (${maxNorm}) tiene que ser mayor que "desde" (${minNorm})`);
+  }
+
+  return { servicio, tipo, zona: zonaNorm, peso_min: minNorm, peso_max: maxNorm };
+}
+
+/**
+ * Devuelve el modo de tarifa y el fuel propio de un cliente.
+ * @returns {Promise<{modo:string, fuelPctPropio:number|null, tarifaPct:number}|null>}
+ *          null si el cliente no existe.
+ */
+async function obtenerModoCliente(clienteId) {
+  const row = await getDb()
+    .prepare('SELECT modo_tarifa, fuel_pct_propio, tarifa_pct FROM clientes WHERE id = ?')
+    .get(clienteId);
+  if (!row) return null;
+  const modo = MODOS_TARIFA.includes(row.modo_tarifa) ? row.modo_tarifa : 'porcentaje';
+  const fuel =
+    row.fuel_pct_propio === null || row.fuel_pct_propio === undefined
+      ? null
+      : Number(row.fuel_pct_propio);
+  return {
+    modo,
+    fuelPctPropio: Number.isFinite(fuel) ? fuel : null,
+    tarifaPct: row.tarifa_pct ?? 0,
+  };
+}
+
+/**
+ * Resuelve el precio por kilo aplicable, con la MISMA precedencia que resolverProfit:
+ *   1. celda → servicio + tipo + zona + rango que contiene al peso
+ *   2. rango → servicio + tipo + rango que contiene al peso (zona NULL)
+ *   3. zona  → servicio + tipo + zona (sin rango)
+ *   4. tabla → servicio + tipo (sin zona ni rango)
+ * @returns {Promise<{precioKg:number, origen:string, peso_min, peso_max}|null>}
+ *          null si el cliente no tiene ninguna tarifa por kilo que aplique.
+ */
+async function resolverTarifaKg({ clienteId, servicio, tipo, zona, pesoFacturable }) {
+  const db = getDb();
+  const pf = Number(pesoFacturable);
+  const zonaNum = zona === null || zona === undefined || zona === '' ? null : Number(zona);
+
+  // El rango es libre, así que puede haber más de una fila que contenga al peso si la
+  // oficina cargó rangos superpuestos. Se toma la de "desde" más alto (la más específica)
+  // y se avisa por consola, que es un error de carga, no de cálculo.
+  const enRango = (rows) => {
+    const candidatos = rows.filter(
+      (r) => Number.isFinite(pf) && pf >= r.peso_min && (r.peso_max === null || pf <= r.peso_max)
+    );
+    if (candidatos.length > 1) {
+      console.warn(
+        `[resolverTarifaKg] rangos superpuestos (cliente_id=${clienteId}, ${servicio}/${tipo}, ` +
+          `zona=${zonaNum}, pf=${pf}): ${candidatos.map((c) => `${c.peso_min}-${c.peso_max}`).join(', ')}. ` +
+          'Se usa el de "desde" más alto.'
+      );
+    }
+    return candidatos.sort((a, b) => b.peso_min - a.peso_min)[0] || null;
+  };
+
+  // 1. celda: zona + rango.
+  if (zonaNum !== null && Number.isFinite(pf)) {
+    const rows = await db
+      .prepare(
+        `SELECT peso_min, peso_max, precio_kg FROM tarifa_kg_overrides
+         WHERE cliente_id = ? AND servicio = ? AND tipo = ? AND zona = ? AND peso_min IS NOT NULL`
+      )
+      .all(clienteId, servicio, tipo, zonaNum);
+    const hit = enRango(rows);
+    if (hit) return { precioKg: hit.precio_kg, origen: 'celda', peso_min: hit.peso_min, peso_max: hit.peso_max };
+  }
+
+  // 2. rango para todas las zonas.
+  if (Number.isFinite(pf)) {
+    const rows = await db
+      .prepare(
+        `SELECT peso_min, peso_max, precio_kg FROM tarifa_kg_overrides
+         WHERE cliente_id = ? AND servicio = ? AND tipo = ? AND zona IS NULL AND peso_min IS NOT NULL`
+      )
+      .all(clienteId, servicio, tipo);
+    const hit = enRango(rows);
+    if (hit) return { precioKg: hit.precio_kg, origen: 'banda', peso_min: hit.peso_min, peso_max: hit.peso_max };
+  }
+
+  // 3. zona entera, cualquier peso.
+  if (zonaNum !== null) {
+    const row = await db
+      .prepare(
+        `SELECT peso_min, peso_max, precio_kg FROM tarifa_kg_overrides
+         WHERE cliente_id = ? AND servicio = ? AND tipo = ? AND zona = ? AND peso_min IS NULL`
+      )
+      .get(clienteId, servicio, tipo, zonaNum);
+    if (row) return { precioKg: row.precio_kg, origen: 'zona', peso_min: null, peso_max: null };
+  }
+
+  // 4. general de la tabla.
+  const tablaRow = await db
+    .prepare(
+      `SELECT peso_min, peso_max, precio_kg FROM tarifa_kg_overrides
+       WHERE cliente_id = ? AND servicio = ? AND tipo = ? AND zona IS NULL AND peso_min IS NULL`
+    )
+    .get(clienteId, servicio, tipo);
+  if (tablaRow) return { precioKg: tablaRow.precio_kg, origen: 'tabla', peso_min: null, peso_max: null };
+
+  return null;
+}
+
+/**
+ * Resolvedor ÚNICO del precio de venta del flete. Es el que deben usar todos los
+ * llamadores (cotizador, alta de envío, endpoint de cotizar): decide solo, según el modo
+ * del cliente, si el flete se arma con un % de ganancia o con un precio por kilo.
+ *
+ * Si el cliente está en modo por_kg pero NINGUNA tarifa por kilo cubre ese peso/zona, NO
+ * se cobra cero ni se rompe: se cae al modo porcentaje y se devuelve el aviso en
+ * `advertencia` para que la pantalla lo muestre. Un agujero en la matriz es un error de
+ * carga que hay que ver, no un envío gratis.
+ *
+ * @returns {Promise<{modo, profitPct, precioKg, origen, advertencia}|null>} null si el
+ *          cliente no existe.
+ */
+async function resolverTarifaVenta({ clienteId, servicio, tipo, zona, pesoFacturable }) {
+  const info = await obtenerModoCliente(clienteId);
+  if (!info) return null;
+
+  if (info.modo === 'por_kg') {
+    const kg = await resolverTarifaKg({ clienteId, servicio, tipo, zona, pesoFacturable });
+    if (kg) {
+      return {
+        modo: 'por_kg',
+        profitPct: 0,
+        precioKg: kg.precioKg,
+        origen: kg.origen,
+        peso_min: kg.peso_min,
+        peso_max: kg.peso_max,
+        advertencia: null,
+      };
+    }
+    const porcentaje = await resolverProfit({ clienteId, servicio, tipo, zona, pesoFacturable });
+    const aviso =
+      `El cliente está en modo precio por kilo pero no hay tarifa cargada para ` +
+      `${servicio} ${tipo}${zona ? ` zona ${zona}` : ''} con ${pesoFacturable} kg. ` +
+      `Se cotizó con el porcentaje de ganancia (${porcentaje.profitPct}%).`;
+    console.warn(`[resolverTarifaVenta] cliente_id=${clienteId}: ${aviso}`);
+    return {
+      modo: 'porcentaje',
+      profitPct: porcentaje.profitPct,
+      precioKg: null,
+      origen: porcentaje.origen,
+      advertencia: aviso,
+    };
+  }
+
+  const porcentaje = await resolverProfit({ clienteId, servicio, tipo, zona, pesoFacturable });
+  return {
+    modo: 'porcentaje',
+    profitPct: porcentaje.profitPct,
+    precioKg: null,
+    origen: porcentaje.origen,
+    advertencia: null,
+  };
+}
+
+/**
+ * Fuel% que le corresponde a un cliente: el propio si tiene, si no null para que el
+ * llamador use el de Configuración. No inventa un default acá a propósito: el fuel de
+ * config lo resuelve configuracion.model, y este servicio no tiene por qué duplicarlo.
+ * @returns {Promise<number|null>}
+ */
+async function resolverFuelPropio(clienteId) {
+  if (!clienteId) return null;
+  const info = await obtenerModoCliente(clienteId);
+  return info ? info.fuelPctPropio : null;
+}
+
+/** Estado de la matriz por kilo para un servicio + tipo. */
+async function obtenerMatrizKg(clienteId, servicio, tipo) {
+  const rows = await getDb()
+    .prepare(
+      `SELECT id, zona, peso_min, peso_max, precio_kg
+       FROM tarifa_kg_overrides
+       WHERE cliente_id = ? AND servicio = ? AND tipo = ?
+       ORDER BY zona IS NOT NULL, zona, peso_min IS NOT NULL, peso_min`
+    )
+    .all(clienteId, servicio, tipo);
+
+  const tablaRow = rows.find((r) => r.zona === null && r.peso_min === null) || null;
+  const overrides = rows
+    .filter((r) => !(r.zona === null && r.peso_min === null))
+    .map((r) => ({
+      id: r.id,
+      zona: r.zona,
+      peso_min: r.peso_min,
+      peso_max: r.peso_max,
+      precio_kg: r.precio_kg,
+      nivel:
+        r.zona !== null && r.peso_min !== null ? 'celda' : r.peso_min !== null ? 'banda' : 'zona',
+    }));
+
+  return {
+    servicio,
+    tipo,
+    general_tabla: tablaRow ? { id: tablaRow.id, precio_kg: tablaRow.precio_kg } : null,
+    overrides,
+  };
+}
+
+/**
+ * Upsert de una tarifa por kilo. Igual que upsertOverride: manual, porque SQLite trata
+ * los NULL como distintos en un UNIQUE.
+ */
+async function upsertOverrideKg(clienteId, body) {
+  const db = getDb();
+  const { servicio, tipo, zona, peso_min, peso_max } = validarCoordenadasKg(body);
+
+  if (body.precio_kg === null || body.precio_kg === undefined || body.precio_kg === '') {
+    const e = new Error('precio_kg es obligatorio');
+    e.status = 400;
+    throw e;
+  }
+  const precioKg = Number(body.precio_kg);
+  if (!Number.isFinite(precioKg) || precioKg < 0) {
+    const e = new Error(`precio_kg inválido: ${body.precio_kg}`);
+    e.status = 400;
+    throw e;
+  }
+
+  const existente = await db
+    .prepare(
+      `SELECT id FROM tarifa_kg_overrides
+       WHERE cliente_id = ? AND servicio = ? AND tipo = ?
+         AND zona IS ? AND peso_min IS ?`
+    )
+    .get(clienteId, servicio, tipo, zona, peso_min);
+
+  if (existente) {
+    await db
+      .prepare('UPDATE tarifa_kg_overrides SET peso_max = ?, precio_kg = ? WHERE id = ?')
+      .run(peso_max, precioKg, existente.id);
+    return { id: existente.id, servicio, tipo, zona, peso_min, peso_max, precio_kg: precioKg };
+  }
+
+  const result = await db
+    .prepare(
+      `INSERT INTO tarifa_kg_overrides (cliente_id, servicio, tipo, zona, peso_min, peso_max, precio_kg)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`
+    )
+    .run(clienteId, servicio, tipo, zona, peso_min, peso_max, precioKg);
+
+  return {
+    id: result.lastInsertRowid,
+    servicio,
+    tipo,
+    zona,
+    peso_min,
+    peso_max,
+    precio_kg: precioKg,
+  };
+}
+
+/** Borra una tarifa por kilo puntual. @returns {Promise<boolean>} true si borró. */
+async function eliminarOverrideKg(clienteId, body) {
+  const { servicio, tipo, zona, peso_min } = validarCoordenadasKg(body);
+  const result = await getDb()
+    .prepare(
+      `DELETE FROM tarifa_kg_overrides
+       WHERE cliente_id = ? AND servicio = ? AND tipo = ?
+         AND zona IS ? AND peso_min IS ?`
+    )
+    .run(clienteId, servicio, tipo, zona, peso_min);
+  return result.changes > 0;
+}
+
 module.exports = {
   SERVICIOS,
   TIPOS,
   ZONAS,
   BANDAS,
+  MODOS_TARIFA,
   derivarBanda,
   validarCoordenadas,
+  validarCoordenadasKg,
   clienteExiste,
+  obtenerModoCliente,
   resolverProfit,
+  resolverTarifaKg,
+  resolverTarifaVenta,
+  resolverFuelPropio,
   obtenerMatriz,
+  obtenerMatrizKg,
   upsertOverride,
+  upsertOverrideKg,
   eliminarOverride,
+  eliminarOverrideKg,
 };

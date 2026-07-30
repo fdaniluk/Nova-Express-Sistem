@@ -26,7 +26,9 @@
     "test-guias-sin-envio": "node scripts/test-guias-sin-envio.js",
     "test-pantalla-sin-envio": "node scripts/test-pantalla-sin-envio.js",
     "test-orden-pendientes": "node scripts/test-orden-pendientes.js",
-    "test-liq-sin-cotizador": "node scripts/test-liquidacion-sin-cotizador.js"
+    "test-liq-sin-cotizador": "node scripts/test-liquidacion-sin-cotizador.js",
+    "test-tarifa-kg": "node scripts/test-tarifa-por-kg.js",
+    "test-pantalla-tarifa-kg": "node scripts/test-pantalla-tarifa-kg.js"
   },
   "keywords": [
     "nova-express",

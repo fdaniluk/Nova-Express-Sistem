@@ -158,7 +158,7 @@ function contenidoDe(tipoPaquete) {
   return String(tipoPaquete ?? '').toLowerCase() === 'd' ? 'documento' : 'paquete';
 }
 
-function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zonaOverride, bultos = [], residencial = false, remota = false, entrega, ddp = false, contenido = 'paquete' }) {
+function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zonaOverride, bultos = [], residencial = false, remota = false, entrega, ddp = false, contenido = 'paquete', precioKgVenta = null }) {
   const pf     = Number(pesoFacturable) || 0;
   const fuel   = (Number(fuelPct)   || 0) / 100;
   const profit = (Number(profitPct) || 0) / 100;
@@ -181,12 +181,20 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
     zonaOverride,
     ddp,
     contenido,
+    precioKgVenta,
   });
   if (!r) return null;
 
   // La ganancia aplica SOLO sobre el flete de tabla. El IPF ya no entra acá: pasa a costo
   // como el surge y el DDP (criterio de Felipe, 29/07).
-  const profitMontoRaw = r.fleteBase * profit * (1 + fuel);
+  // Con tarifa por kilo no hay porcentaje: la utilidad es la diferencia entre el flete que
+  // se le vende al cliente (precio × kilo) y el flete que cuesta el courier. Si el precio
+  // por kilo quedara por debajo del costo, esa diferencia da NEGATIVA — y así tiene que
+  // verse, para que se note que ese cliente está dando pérdida.
+  const profitMontoRaw =
+    r.modoVenta === 'por_kg'
+      ? (r.conGan - r.fleteBase) * (1 + fuel)
+      : r.fleteBase * profit * (1 + fuel);
   // precioBase = total sin profit = (flete+surge)*(1+fuel) + manejo + seguro [+ extras]
   const precioBaseRaw  = r.total - profitMontoRaw;
 
@@ -199,6 +207,9 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
       zona: r.zona,
       servicio: 'DHL Express',
       extras: r.extras,
+      modo_venta: r.modoVenta,
+      precio_kg: r.precioKgVenta,
+      kg_venta: r.pfVenta,
     };
   }
 
@@ -213,6 +224,9 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
     contorno: r.contornoExtra,
     servicio: servicio === 'UPS_EXP' ? 'UPS Expedited' : 'UPS Saver',
     extras: r.extras,
+    modo_venta: r.modoVenta,
+    precio_kg: r.precioKgVenta,
+    kg_venta: r.pfVenta,
   };
 }
 

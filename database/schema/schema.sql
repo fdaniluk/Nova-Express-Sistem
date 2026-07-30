@@ -22,7 +22,17 @@ CREATE TABLE IF NOT EXISTS clientes (
   codigo_postal        TEXT,
   localidad            TEXT,
   tipo_facturacion     TEXT DEFAULT 'Responsable inscripto',
-  tarifa_pct           REAL DEFAULT 0
+  tarifa_pct           REAL DEFAULT 0,
+  -- Cómo se arma el PRECIO DE VENTA del flete de este cliente:
+  --   'porcentaje' → flete de tabla + % de ganancia (matriz profit_overrides). Es el modo
+  --                  histórico y el que tienen todos los clientes salvo que se cambie.
+  --   'por_kg'     → precio fijo en USD por kilo según zona y rango de peso
+  --                  (tabla tarifa_kg_overrides). El precio por kilo REEMPLAZA el flete;
+  --                  fuel, seguro y recargos del courier se suman igual.
+  modo_tarifa          TEXT DEFAULT 'porcentaje' CHECK (modo_tarifa IN ('porcentaje', 'por_kg')),
+  -- Fuel propio del cliente, en %. NULL = usa el de Configuración (lo normal).
+  -- Solo cambia la cotización; el envío igual congela en fuel_pct el % que se le aplicó.
+  fuel_pct_propio      REAL
 );
 
 -- Configuración por courier (fuel y umbrales de negocio)
@@ -340,6 +350,34 @@ CREATE TABLE IF NOT EXISTS profit_overrides (
 );
 
 CREATE INDEX IF NOT EXISTS idx_profit_overrides_cliente ON profit_overrides(cliente_id);
+
+-- Tarifas de venta en USD POR KILO, para los clientes que no trabajan con % de ganancia
+-- sino con un precio fijo por kilo según el peso y la zona.
+--
+-- Misma forma que profit_overrides (cliente + servicio + tipo + zona + rango de peso) con
+-- dos diferencias: acá el rango lo define cada cliente (no hay bandas fijas) y el valor es
+-- el PRECIO DE VENTA del flete, no un porcentaje.
+--
+-- El precio por kilo reemplaza ÚNICAMENTE el flete. Fuel, seguro y los recargos del
+-- courier (surge, DDP, zona de entrega) se calculan y se suman igual que a cualquier otro
+-- cliente.
+CREATE TABLE IF NOT EXISTS tarifa_kg_overrides (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  cliente_id INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+  servicio   TEXT NOT NULL CHECK (servicio IN ('DHL', 'UPS_EXP', 'UPS_SAVER')),
+  tipo       TEXT NOT NULL CHECK (tipo IN ('export', 'import')),
+  zona       INTEGER CHECK (zona IS NULL OR (zona BETWEEN 1 AND 6)),
+  -- Rango de peso facturable, definido libremente por cliente (no hay bandas fijas).
+  -- Límite inferior INCLUSIVO, superior INCLUSIVO. peso_max NULL = "de peso_min en
+  -- adelante". peso_min NULL = vale para cualquier peso (el nivel menos específico,
+  -- igual que en profit_overrides).
+  peso_min   REAL,
+  peso_max   REAL,
+  precio_kg  REAL NOT NULL,
+  UNIQUE (cliente_id, servicio, tipo, zona, peso_min)
+);
+
+CREATE INDEX IF NOT EXISTS idx_tarifa_kg_cliente ON tarifa_kg_overrides(cliente_id);
 
 -- Fuel inicial DHL y UPS al 39.5%
 INSERT OR IGNORE INTO configuracion (courier, fuel_pct) VALUES ('DHL', 39.5);

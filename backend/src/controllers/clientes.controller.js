@@ -42,6 +42,9 @@ async function actualizar(req, res, next) {
     if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
     res.json(clienteModel.parseTarifa(cliente));
   } catch (e) {
+    // modo_tarifa / fuel_pct_propio inválidos llegan como 400 desde el modelo: se devuelve
+    // el mensaje, no un 500 pelado.
+    if (e.status === 400) return res.status(400).json({ error: e.message });
     next(e);
   }
 }

@@ -130,10 +130,18 @@ async function cotizar(req, res, next) {
 
     const tipoEfectivo = tipo || 'export';
 
-    // Resolución del profit: manual del body > matriz del cliente > profitPct plano.
-    // Sin cliente_id (o con profitManual) el comportamiento es idéntico al histórico.
+    // Resolución de la tarifa de venta: manual del body > cliente > profitPct plano.
+    // El cliente puede estar en modo porcentaje (matriz de profit) o en modo precio por
+    // kilo (tarifa_kg_overrides); de eso se encarga resolverTarifaVenta, que es el único
+    // lugar donde se decide. Sin cliente_id (o con profitManual) el comportamiento es
+    // idéntico al histórico.
     let profitEfectivo = profitPct || 0;
     let profitOrigen = 'body';
+    let precioKgVenta = null;
+    let modoVenta = 'porcentaje';
+    let advertencia = null;
+    let fuelEfectivo = Number(fuelPct) || 0;
+    let fuelOrigen = 'body';
 
     if (profitManual === true) {
       profitOrigen = 'manual';
@@ -144,7 +152,7 @@ async function cotizar(req, res, next) {
       const zonasMap =
         servicio === 'DHL' ? ZONAS_DHL : tipoEfectivo === 'import' ? ZONAS_UPS_I : ZONAS_UPS;
       const zonaResuelta = buscarZona(zonasMap, pais, zona);
-      const resuelto = await profitService.resolverProfit({
+      const resuelto = await profitService.resolverTarifaVenta({
         clienteId: cliente_id,
         servicio: servicioMatriz,
         tipo: tipoEfectivo,
@@ -154,21 +162,43 @@ async function cotizar(req, res, next) {
       if (resuelto) {
         profitEfectivo = resuelto.profitPct;
         profitOrigen = resuelto.origen;
+        precioKgVenta = resuelto.precioKg;
+        modoVenta = resuelto.modo;
+        advertencia = resuelto.advertencia;
       } else {
         // Cliente inexistente: no rompemos, caemos al profitPct del body y avisamos.
         console.warn(
-          `[cotizar] resolverProfit devolvió null (cliente_id=${cliente_id} inexistente); se usa profitPct del body`
+          `[cotizar] resolverTarifaVenta devolvió null (cliente_id=${cliente_id} inexistente); se usa profitPct del body`
         );
         profitOrigen = 'body';
       }
     }
 
-    const resultado = cotizarEnvio({ pais, tipo: tipoEfectivo, servicio, pesoFacturable, fob: fob || 0, fuelPct: fuelPct || 0, profitPct: profitEfectivo, zonaOverride: zona, bultos: bultos || [], remota: remota || false, entrega, ddp: ddp || false, contenido: contenido === 'documento' ? 'documento' : 'paquete' });
+    // Fuel propio del cliente: si lo tiene cargado, pisa al de Configuración que viene en
+    // el body. Es por cliente, no por envío: el envío igual congela el % que se le aplicó.
+    if (cliente_id) {
+      const fuelPropio = await profitService.resolverFuelPropio(cliente_id);
+      if (fuelPropio !== null) {
+        fuelEfectivo = fuelPropio;
+        fuelOrigen = 'cliente';
+      }
+    }
+
+    const resultado = cotizarEnvio({ pais, tipo: tipoEfectivo, servicio, pesoFacturable, fob: fob || 0, fuelPct: fuelEfectivo, profitPct: profitEfectivo, zonaOverride: zona, bultos: bultos || [], remota: remota || false, entrega, ddp: ddp || false, contenido: contenido === 'documento' ? 'documento' : 'paquete', precioKgVenta });
     if (!resultado) {
       const desc = pais ? `País "${pais}"` : `Zona ${zona}`;
       return res.status(404).json({ error: `${desc} no encontrado para ${servicio}` });
     }
-    res.json({ ...resultado, profit_aplicado: profitEfectivo, profit_origen: profitOrigen });
+    res.json({
+      ...resultado,
+      profit_aplicado: profitEfectivo,
+      profit_origen: profitOrigen,
+      modo_venta: modoVenta,
+      precio_kg_aplicado: precioKgVenta,
+      fuel_aplicado: fuelEfectivo,
+      fuel_origen: fuelOrigen,
+      advertencia,
+    });
   } catch (e) {
     next(e);
   }

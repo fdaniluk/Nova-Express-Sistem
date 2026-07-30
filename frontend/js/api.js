@@ -127,10 +127,23 @@ api.clientes.profit = {
   guardar: (id, body) => api.put(`/clientes/${id}/profit-matrix`, body),
   // api.delete no acepta body; se usa request() directo para enviar las coordenadas.
   borrar: (id, body) => request(`/clientes/${id}/profit-matrix`, { method: 'DELETE', body }),
+  // Resuelve la tarifa de VENTA del cliente. Devuelve { modo, profitPct, precioKg,
+  // origen, advertencia, fuelPctPropio }: el backend decide solo si ese cliente cobra
+  // por porcentaje o por precio por kilo.
   resolver: (id, params) => {
     const q = new URLSearchParams(params).toString();
     return api.get(`/clientes/${id}/profit-resolve?${q}`);
   },
+};
+
+// Tarifa en USD por kilo, para los clientes con modo_tarifa = 'por_kg'.
+api.clientes.tarifaKg = {
+  matriz: (id, servicio, tipo) => {
+    const q = new URLSearchParams({ servicio, tipo }).toString();
+    return api.get(`/clientes/${id}/tarifa-kg?${q}`);
+  },
+  guardar: (id, body) => api.put(`/clientes/${id}/tarifa-kg`, body),
+  borrar: (id, body) => request(`/clientes/${id}/tarifa-kg`, { method: 'DELETE', body }),
 };
 
 api.dashboard = {

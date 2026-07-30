@@ -67,7 +67,11 @@ async function resolve(req, res, next) {
       return res.status(400).json({ error: `tipo inválido. Válidos: ${profitService.TIPOS.join(', ')}` });
     }
 
-    const resultado = await profitService.resolverProfit({
+    // resolverTarifaVenta decide solo si el cliente cobra por porcentaje o por kilo.
+    // Sigue devolviendo profitPct y origen (el contrato de siempre) y agrega modo,
+    // precioKg y la advertencia si está en modo por kilo pero le falta la tarifa para
+    // ese peso/zona.
+    const resultado = await profitService.resolverTarifaVenta({
       clienteId: id,
       servicio,
       tipo,
@@ -78,10 +82,74 @@ async function resolve(req, res, next) {
     if (resultado === null) {
       return res.status(404).json({ error: 'Cliente no encontrado' });
     }
-    res.json(resultado);
+    const fuelPctPropio = await profitService.resolverFuelPropio(id);
+    res.json({ ...resultado, fuelPctPropio });
   } catch (e) {
     next(e);
   }
 }
 
-module.exports = { getMatrix, putOverride, deleteOverride, resolve };
+// ── Tarifa por kilo ──────────────────────────────────────────────────────────
+// Los mismos endpoints que la matriz de profit, pero contra tarifa_kg_overrides.
+
+// GET /api/clientes/:id/tarifa-kg?servicio=X&tipo=Y
+async function getMatrixKg(req, res, next) {
+  try {
+    const { id } = req.params;
+    const { servicio, tipo } = req.query;
+
+    if (!profitService.SERVICIOS.includes(servicio)) {
+      return res.status(400).json({ error: `servicio inválido. Válidos: ${profitService.SERVICIOS.join(', ')}` });
+    }
+    if (!profitService.TIPOS.includes(tipo)) {
+      return res.status(400).json({ error: `tipo inválido. Válidos: ${profitService.TIPOS.join(', ')}` });
+    }
+    if (!(await profitService.clienteExiste(id))) {
+      return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
+
+    res.json(await profitService.obtenerMatrizKg(id, servicio, tipo));
+  } catch (e) {
+    next(e);
+  }
+}
+
+// PUT /api/clientes/:id/tarifa-kg
+async function putOverrideKg(req, res, next) {
+  try {
+    const { id } = req.params;
+    if (!(await profitService.clienteExiste(id))) {
+      return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
+    res.json(await profitService.upsertOverrideKg(id, req.body));
+  } catch (e) {
+    if (e.status === 400) return res.status(400).json({ error: e.message });
+    next(e);
+  }
+}
+
+// DELETE /api/clientes/:id/tarifa-kg
+async function deleteOverrideKg(req, res, next) {
+  try {
+    const { id } = req.params;
+    if (!(await profitService.clienteExiste(id))) {
+      return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
+    const borrado = await profitService.eliminarOverrideKg(id, req.body);
+    if (!borrado) return res.status(404).json({ error: 'Tarifa no encontrada' });
+    res.status(204).end();
+  } catch (e) {
+    if (e.status === 400) return res.status(400).json({ error: e.message });
+    next(e);
+  }
+}
+
+module.exports = {
+  getMatrix,
+  putOverride,
+  deleteOverride,
+  resolve,
+  getMatrixKg,
+  putOverrideKg,
+  deleteOverrideKg,
+};

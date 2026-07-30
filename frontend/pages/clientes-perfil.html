@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Perfil de cliente — Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260730a">
+  <link rel="stylesheet" href="../css/main.css?v=20260730b">
   <style>
     .info-grid {
       display: grid;
@@ -85,6 +85,16 @@
     td.tarifa-cell .cell-del { position: absolute; top: 1px; right: 2px; font-size: 0.7rem; color: var(--color-muted); cursor: pointer; line-height: 1; }
     td.tarifa-cell .cell-del:hover { color: var(--color-danger); }
     td.tarifa-cell input { width: 60px; font-size: 0.8rem; padding: 0.1rem; text-align: center; }
+    /* Modo de tarifa (porcentaje / precio por kilo) y fuel propio del cliente */
+    .tarifas-modo { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; flex-wrap: wrap; }
+    .tarifas-modo label { font-size: 0.8rem; font-weight: 600; color: var(--color-muted); }
+    .tarifas-modo input { width: 150px; }
+    .tarifas-hint { font-size: 0.78rem; color: var(--color-muted); flex-basis: 100%; }
+    .tarifas-rangos { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; flex-wrap: wrap; }
+    .tarifas-rangos label { font-size: 0.8rem; font-weight: 600; color: var(--color-muted); }
+    .tarifas-rangos input { width: 90px; }
+    table.tarifas-grid td.banda-label .rango-del { float: right; font-size: 0.75rem; color: var(--color-muted); cursor: pointer; padding-left: 0.5rem; }
+    table.tarifas-grid td.banda-label .rango-del:hover { color: var(--color-danger); }
   </style>
 </head>
 <body>
@@ -180,10 +190,23 @@
       <!-- Matriz de tarifas (profit) -->
       <div class="card" id="card-tarifas">
         <div class="tarifas-header">
-          <h2 style="margin:0">Matriz de tarifas (profit)</h2>
+          <h2 style="margin:0">Matriz de tarifas</h2>
           <button class="btn btn-secondary btn-sm" id="btn-editar-tarifas">Editar tarifas</button>
         </div>
         <div id="tarifas-panel" class="hidden">
+          <!-- Modo de tarifa y fuel propio: valen para TODAS las tablas del cliente -->
+          <div class="tarifas-modo">
+            <label for="tarifas-modo-select">Modo de tarifa</label>
+            <select id="tarifas-modo-select">
+              <option value="porcentaje">Porcentaje de ganancia</option>
+              <option value="por_kg">Precio fijo por kilo</option>
+            </select>
+            <label for="tarifas-fuel-input">Fuel propio (%)</label>
+            <input type="number" id="tarifas-fuel-input" min="0" step="0.5" placeholder="usa Configuracion">
+            <button class="btn btn-primary btn-sm" id="btn-guardar-fuel">Guardar fuel</button>
+            <button class="btn btn-secondary btn-sm hidden" id="btn-borrar-fuel">Quitar fuel propio</button>
+            <span class="tarifas-hint" id="tarifas-modo-hint"></span>
+          </div>
           <div class="tabs" id="tarifas-tabs">
             <button class="tab active" data-serv="DHL" data-tipo="export">DHL Expo</button>
             <button class="tab" data-serv="DHL" data-tipo="import">DHL Impo</button>
@@ -193,10 +216,21 @@
             <button class="tab" data-serv="UPS_EXP" data-tipo="import">UPS Expedited Impo</button>
           </div>
           <div id="tarifas-general" class="tarifas-general">
-            <label for="tarifas-general-input">General de esta tabla (%)</label>
+            <label for="tarifas-general-input" id="tarifas-general-label">General de esta tabla (%)</label>
             <input type="number" id="tarifas-general-input" min="0" step="0.5" placeholder="">
             <button class="btn btn-primary btn-sm" id="btn-guardar-general">Guardar general</button>
             <button class="btn btn-secondary btn-sm hidden" id="btn-borrar-general">Quitar general</button>
+          </div>
+          <!-- Solo en modo precio por kilo: los rangos de peso los define cada cliente -->
+          <div id="tarifas-rangos" class="tarifas-rangos hidden">
+            <label>Agregar rango de peso</label>
+            <span>desde</span>
+            <input type="number" id="rango-desde" min="0" step="0.5" placeholder="0">
+            <span>hasta</span>
+            <input type="number" id="rango-hasta" min="0" step="0.5" placeholder="sin tope">
+            <span>kg · USD por kilo</span>
+            <input type="number" id="rango-precio" min="0" step="0.1" placeholder="5.00">
+            <button class="btn btn-primary btn-sm" id="btn-agregar-rango">Agregar rango</button>
           </div>
           <div id="tarifas-grid" class="tarifas-grid-wrap"></div>
         </div>
@@ -264,9 +298,9 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260730a"></script>
-<script src="../js/api.js?v=20260730a"></script>
-<script src="../js/main.js?v=20260730a"></script>
-<script src="../js/modules/clientes-perfil.js?v=20260730a"></script>
+<script src="/js/auth-guard.js?v=20260730b"></script>
+<script src="../js/api.js?v=20260730b"></script>
+<script src="../js/main.js?v=20260730b"></script>
+<script src="../js/modules/clientes-perfil.js?v=20260730b"></script>
 </body>
 </html>

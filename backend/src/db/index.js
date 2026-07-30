@@ -152,12 +152,27 @@ async function migrateClientes() {
     ['localidad',             'TEXT'],
     ['tipo_facturacion',      "TEXT DEFAULT 'Responsable inscripto'"],
     ['tarifa_pct',            'REAL DEFAULT 0'],
+    // Modo de tarifa de venta: 'porcentaje' (histórico) o 'por_kg' (precio fijo por kilo,
+    // ver tarifa_kg_overrides). El DEFAULT hace que todos los clientes que ya existen
+    // queden en 'porcentaje', o sea que nada cambia de precio al aplicar esta migración.
+    // El CHECK de schema.sql no se puede agregar por ALTER TABLE; la validación la hace
+    // el service antes de escribir.
+    ['modo_tarifa',           "TEXT DEFAULT 'porcentaje'"],
+    // Fuel propio del cliente en %. NULL = usa el de Configuración.
+    ['fuel_pct_propio',       'REAL'],
   ];
   for (const [col, def] of toAdd) {
     if (!existingCols.includes(col)) {
       await dbApi.exec(`ALTER TABLE clientes ADD COLUMN ${col} ${def}`);
     }
   }
+
+  // Filas viejas creadas antes de la columna: SQLite les pone el DEFAULT, pero si alguna
+  // quedó en NULL (por un INSERT explícito con NULL) el resolvedor la trataría como sin
+  // modo. Se normaliza acá para que nunca haya un cliente sin modo de tarifa.
+  await dbApi.exec(
+    "UPDATE clientes SET modo_tarifa = 'porcentaje' WHERE modo_tarifa IS NULL OR modo_tarifa = ''"
+  );
 }
 
 async function migratePickups() {
@@ -329,6 +344,30 @@ async function migrateProfitOverrides() {
   );
 }
 
+// Tarifas de venta en USD POR KILO (clientes con modo_tarifa = 'por_kg').
+// Misma forma que profit_overrides, con dos diferencias: el rango de peso lo define cada
+// cliente (no hay bandas fijas) y el valor guardado es el PRECIO DE VENTA del flete, no un
+// porcentaje. Ver services/profit.service.js para la precedencia y schema.sql para la
+// definición canónica.
+async function migrateTarifaKg() {
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS tarifa_kg_overrides (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      cliente_id INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+      servicio   TEXT NOT NULL CHECK (servicio IN ('DHL', 'UPS_EXP', 'UPS_SAVER')),
+      tipo       TEXT NOT NULL CHECK (tipo IN ('export', 'import')),
+      zona       INTEGER CHECK (zona IS NULL OR (zona BETWEEN 1 AND 6)),
+      peso_min   REAL,
+      peso_max   REAL,
+      precio_kg  REAL NOT NULL,
+      UNIQUE (cliente_id, servicio, tipo, zona, peso_min)
+    )
+  `);
+  await dbApi.exec(
+    'CREATE INDEX IF NOT EXISTS idx_tarifa_kg_cliente ON tarifa_kg_overrides(cliente_id)'
+  );
+}
+
 // Detalle por guía de cada factura UPS cargada (módulo Control de Facturas).
 // Idempotente para bases existentes en el VPS; ver schema.sql para la definición
 // canónica y la explicación de cada columna.
@@ -448,6 +487,7 @@ async function initSchema() {
   await migrateConfiguracion();
   await migrateUsuarios();
   await migrateProfitOverrides();
+  await migrateTarifaKg();
   await migrateFacturaGuias();
   await migrateCobranzas();
   await migrateIndices();

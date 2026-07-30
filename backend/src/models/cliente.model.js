@@ -70,6 +70,35 @@ async function actualizar(id, data) {
   const novaValor = novaProvisto
     ? ((data.nombre_nova && String(data.nombre_nova).trim()) || null)
     : null;
+
+  // Modo de tarifa: 'porcentaje' (flete + % de ganancia) o 'por_kg' (precio fijo por kilo).
+  // Se valida acá porque la columna se agrega por ALTER TABLE y ALTER no admite CHECK.
+  const modoProvisto =
+    data.modo_tarifa !== undefined && data.modo_tarifa !== null && data.modo_tarifa !== '';
+  if (modoProvisto && !['porcentaje', 'por_kg'].includes(data.modo_tarifa)) {
+    const e = new Error(`modo_tarifa inválido: ${data.modo_tarifa}. Válidos: porcentaje, por_kg`);
+    e.status = 400;
+    throw e;
+  }
+
+  // Fuel propio del cliente: tiene que poder BORRARSE (volver a usar el de Configuración),
+  // así que si la propiedad viene en el body se asigna directo —vacío = NULL— en vez de
+  // COALESCE, que nunca dejaría volver a null.
+  const fuelProvisto = Object.prototype.hasOwnProperty.call(data, 'fuel_pct_propio');
+  const fuelClausula = fuelProvisto
+    ? 'fuel_pct_propio = ?'
+    : 'fuel_pct_propio = COALESCE(?, fuel_pct_propio)';
+  let fuelValor = null;
+  if (fuelProvisto && data.fuel_pct_propio !== null && data.fuel_pct_propio !== '') {
+    const n = Number(data.fuel_pct_propio);
+    if (!Number.isFinite(n) || n < 0) {
+      const e = new Error(`fuel_pct_propio inválido: ${data.fuel_pct_propio}`);
+      e.status = 400;
+      throw e;
+    }
+    fuelValor = n;
+  }
+
   await db
     .prepare(
       `UPDATE clientes SET
@@ -87,6 +116,8 @@ async function actualizar(id, data) {
         localidad           = COALESCE(?, localidad),
         tipo_facturacion    = COALESCE(?, tipo_facturacion),
         tarifa_pct          = COALESCE(?, tarifa_pct),
+        modo_tarifa         = COALESCE(?, modo_tarifa),
+        ${fuelClausula},
         updated_at          = datetime('now', 'localtime')
        WHERE id = ?`
     )
@@ -105,6 +136,8 @@ async function actualizar(id, data) {
       data.localidad ?? null,
       data.tipo_facturacion ?? null,
       data.tarifa_pct !== undefined ? data.tarifa_pct : null,
+      modoProvisto ? data.modo_tarifa : null,
+      fuelValor,
       id
     );
   return buscarPorId(id);
