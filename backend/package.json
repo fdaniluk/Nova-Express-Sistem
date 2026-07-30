@@ -16,10 +16,12 @@
     "test-recargos": "node scripts/test-recargos.js",
     "test-tarifas-dhl": "node scripts/test-tarifas-dhl.js",
     "test-motor-unico": "node scripts/test-motor-unico.js",
-    "test": "node scripts/test-motor-unico.js && node scripts/test-tarifas-dhl.js && node scripts/test-recargos.js && node scripts/test-cotizador-documento.js && node scripts/test-parser-factura.js && node scripts/test-api-documentos-dhl.js && node scripts/test-ddp-salidas.js && node scripts/test-zona-entrega.js && node scripts/test-editar-envio.js",
+    "test": "node scripts/test-motor-unico.js && node scripts/test-tarifas-dhl.js && node scripts/test-recargos.js && node scripts/test-cotizador-documento.js && node scripts/test-parser-factura.js && node scripts/test-api-documentos-dhl.js && node scripts/test-ddp-salidas.js && node scripts/test-zona-entrega.js && node scripts/test-editar-envio.js && node scripts/test-validar-guia.js",
     "test-ddp-salidas": "node scripts/test-ddp-salidas.js",
     "test-zona-entrega": "node scripts/test-zona-entrega.js",
-    "test-editar-envio": "node scripts/test-editar-envio.js"
+    "test-editar-envio": "node scripts/test-editar-envio.js",
+    "test-validar-guia": "node scripts/test-validar-guia.js",
+    "test-aviso-guia": "node scripts/test-aviso-guia.js"
   },
   "keywords": [
     "nova-express",

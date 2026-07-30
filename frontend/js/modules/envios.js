@@ -279,6 +279,26 @@
     // envío a EE.UU.). Antes había un solo casillero y todo pagaba la de extendida.
     document.getElementById('entrega').addEventListener('change', debounce(updateCotizacion, 400));
 
+    // Aviso de guía mal tipeada. El número lleva un dígito verificador, así que un error
+    // de tipeo se detecta al instante y sin consultar al courier. AVISA, no bloquea: si
+    // frenara la carga por una sospecha sería peor que el problema.
+    const inputGuia = document.getElementById('numero_guia');
+    const avisoGuia = document.getElementById('aviso-guia');
+    function revisarGuia() {
+      if (!inputGuia || !avisoGuia || typeof validarGuia !== 'function') return;
+      const courier = document.getElementById('courier').value;
+      const v = validarGuia(courier, inputGuia.value);
+      if (v.estado === 'sospechosa') {
+        avisoGuia.textContent = '⌦ ' + v.motivo;
+        avisoGuia.style.display = '';
+      } else {
+        avisoGuia.style.display = 'none';
+      }
+    }
+    inputGuia?.addEventListener('blur', revisarGuia);
+    inputGuia?.addEventListener('input', debounce(revisarGuia, 500));
+    document.getElementById('courier').addEventListener('change', revisarGuia);
+
     // Recalcular al cambiar mercadería/documento: en DHL cambia la tabla de tarifa
     // (documento hasta 2 kg), así que el precio cambia. Sin este listener el operador
     // tildaba documento y el número de arriba seguía siendo el de mercadería.

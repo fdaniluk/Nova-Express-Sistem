@@ -469,7 +469,7 @@
 
     // Iconos (revisión/alerta/tracking) solo en el primer renglón del envío.
     const guiaIcons = isFirst
-      ? `${revisionIconHtml(e)}${alert ? alertIconHtml(alert, e) : ''}${e.courier === 'UPS' ? trackBtnHtml(e.numero_guia) : ''}`
+      ? `${revisionIconHtml(e)}${guiaSospechosaHtml(e.courier, bultoGuia)}${alert ? alertIconHtml(alert, e) : ''}${e.courier === 'UPS' ? trackBtnHtml(e.numero_guia) : ''}`
       : '';
 
     // Lápiz para editar la guía de ESTE bulto: solo en bultos reales (id no nulo).
@@ -681,6 +681,16 @@
   function alertIconHtml(level, e) {
     const color = level === 'rojo' ? '#dc2626' : '#d97706';
     return `<span class="alert-icon" title="${alertMsg(e)}" style="color:${color}">⚠</span>`;
+  }
+
+  // Aviso de guía mal tipeada. Usa el dígito verificador del número (validar-guia.js):
+  // no consulta a UPS ni a DHL, así que no depende de la red ni de una API.
+  // Es un AVISO, no un bloqueo: una guía con formato raro puede ser legítima.
+  function guiaSospechosaHtml(courier, guia) {
+    if (typeof validarGuia !== 'function') return '';
+    const v = validarGuia(courier, guia);
+    if (v.estado !== 'sospechosa') return '';
+    return `<span class="alert-icon guia-sospechosa" title="Guía posiblemente mal tipeada: ${esc(v.motivo)}" style="color:#d97706">⌦</span>`;
   }
 
   function revisionIconHtml(e) {
