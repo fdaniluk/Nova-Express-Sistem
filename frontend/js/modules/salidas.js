@@ -1658,6 +1658,10 @@
                   <input type="checkbox" id="saled-remota" style="width:auto;margin:0">
                   Área remota
                 </label>
+                <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px">
+                  <input type="checkbox" id="saled-ddp" style="width:auto;margin:0">
+                  DDP
+                </label>
               </div>
             </div>
             <div id="saled-lock-note" class="alert alert-info hidden" style="margin-top:8px">
@@ -1801,6 +1805,7 @@
     document.getElementById('saled-direccion').value = envio.direccion || 'expo';
     document.getElementById('saled-asegurado').checked = Boolean(envio.asegurado);
     document.getElementById('saled-remota').checked = Boolean(envio.remota);
+    document.getElementById('saled-ddp').checked = Boolean(envio.ddp);
 
     // Identidad editable: fecha, cliente, courier, país destino y "sin numerar".
     document.getElementById('saled-fecha').value = envio.fecha || '';
@@ -2130,6 +2135,9 @@
       // Área remota tal como está tildada AHORA en el modal: el backend re-aplica el recargo
       // en el recálculo con este valor (si no se manda, se pierde el recargo guardado).
       remota: document.getElementById('saled-remota').checked ? 1 : 0,
+      // DDP tal como está tildado AHORA: sin esto el recálculo lo recibe undefined y el
+      // cargo de 24.05 desaparece del desglose.
+      ddp: document.getElementById('saled-ddp').checked ? 1 : 0,
       pais_destino: document.getElementById('saled-pais-destino').value || null,
       courier: document.getElementById('saled-courier').value,
     };
@@ -2217,6 +2225,7 @@
       direccion:      document.getElementById('saled-direccion').value,
       asegurado:      document.getElementById('saled-asegurado').checked ? 1 : 0,
       remota:         document.getElementById('saled-remota').checked ? 1 : 0,
+      ddp:            document.getElementById('saled-ddp').checked ? 1 : 0,
       observaciones:  document.getElementById('saled-observaciones').value.trim() || null,
     };
     for (const f of ['flete', 'descuento', 'seguro', 'fuel', 'derechos', 'adicionales', 'otros', 'profit', 'porcentaje']) {

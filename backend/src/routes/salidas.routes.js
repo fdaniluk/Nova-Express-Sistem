@@ -61,6 +61,7 @@ router.get('/', async (req, res, next) => {
         e.peso_facturable,
         e.asegurado,
         e.remota,
+        e.ddp,
         e.zona,
         e.servicio_ups,
         e.fob                 AS valor_declarado,
@@ -250,6 +251,7 @@ router.get('/', async (req, res, next) => {
       peso_facturable: row.peso_facturable,
       asegurado: Boolean(row.asegurado),
       remota: Boolean(row.remota),
+      ddp: Boolean(row.ddp),
       zona: row.zona,
       servicio_ups: row.servicio_ups,
       valor_declarado: row.valor_declarado,
@@ -410,7 +412,7 @@ router.post('/:id/recalcular', async (req, res, next) => {
 // persistir; además, en envíos liquidados fecha y cliente_id quedan congelados (409).
 const SALIDAS_EDITABLE = [
   'fecha', 'cliente_id', 'courier', 'pais_destino', 'num_sal_cero',
-  'numero_guia', 'numero_salida', 'bulto', 'tipo_paquete', 'asegurado', 'remota', 'direccion',
+  'numero_guia', 'numero_salida', 'bulto', 'tipo_paquete', 'asegurado', 'remota', 'ddp', 'direccion',
   'peso_real', 'largo', 'ancho', 'alto', 'peso_facturable', 'peso_volumetrico',
   'flete', 'descuento', 'seguro', 'fuel', 'fuel_pct', 'derechos', 'adicionales', 'otros',
   'total_cobrado', 'profit', 'porcentaje', 'observaciones', 'extras_json',

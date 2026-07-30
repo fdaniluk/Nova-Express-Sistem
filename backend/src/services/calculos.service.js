@@ -120,12 +120,27 @@ function buscarZona(zonas, pais, zonaOverride) {
   return zonaOverride ? Number(zonaOverride) : undefined;
 }
 
-// Convierte bultos del backend al formato que espera calcUPSDimExtras del módulo.
+// Convierte bultos del backend al formato que espera el motor.
+//
+// `pf` (peso facturable del bulto = el mayor entre real y volumétrico) NO estaba, y era la
+// causa de una divergencia de USD 102 por bulto entre el cotizador y el backend: el
+// cotizador sí lo mandaba, así que un bulto liviano pero enorme (10 kg reales, 80 kg por
+// volumen) cobraba los 125 de sobrepeso en el cotizador y solo 23 de exceso de tamaño en el
+// alta. El tarifario de DHL dice "cada pieza cuyo peso real O VOLUMÉTRICO exceda los 70 kg",
+// así que los 125 son los correctos y el backend cobraba de menos.
+//
+// Mismo motor, distinta entrada: por eso no alcanza con compartir el archivo, hay que
+// mandarle los mismos datos.
 function mkBultosProc(bultos) {
-  return bultos.map(b => ({
-    dims: [Number(b.largo) || 0, Number(b.ancho) || 0, Number(b.alto) || 0].sort((x, y) => y - x),
-    pr:   Number(b.pesoReal ?? b.peso_real) || 0,
-  }));
+  return bultos.map(b => {
+    const pr  = Number(b.pesoReal ?? b.peso_real) || 0;
+    const vol = pesoVolumetricoBulto(b.largo, b.ancho, b.alto);
+    return {
+      dims: [Number(b.largo) || 0, Number(b.ancho) || 0, Number(b.alto) || 0].sort((x, y) => y - x),
+      pr,
+      pf: Math.max(pr, vol),
+    };
+  });
 }
 
 // Traduce el `tipo_paquete` que guarda la tabla `envios` ('m' mercadería / 'd' documento)

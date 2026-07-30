@@ -16,7 +16,8 @@
     "test-recargos": "node scripts/test-recargos.js",
     "test-tarifas-dhl": "node scripts/test-tarifas-dhl.js",
     "test-motor-unico": "node scripts/test-motor-unico.js",
-    "test": "node scripts/test-motor-unico.js && node scripts/test-tarifas-dhl.js && node scripts/test-recargos.js && node scripts/test-cotizador-documento.js && node scripts/test-parser-factura.js && node scripts/test-api-documentos-dhl.js"
+    "test": "node scripts/test-motor-unico.js && node scripts/test-tarifas-dhl.js && node scripts/test-recargos.js && node scripts/test-cotizador-documento.js && node scripts/test-parser-factura.js && node scripts/test-api-documentos-dhl.js && node scripts/test-ddp-salidas.js",
+    "test-ddp-salidas": "node scripts/test-ddp-salidas.js"
   },
   "keywords": [
     "nova-express",

@@ -141,6 +141,45 @@ for (const c of CASOS) {
     `motor ${a.toFixed(2)} · liquidador ${Number(b).toFixed(2)} · alta/Salidas ${d.toFixed(2)}`);
 }
 
+// ── 4-bis. Lo mismo, pero CON BULTOS ────────────────────────────────────────
+// Compartir el archivo del motor no alcanza: hay que mandarle los mismos datos. Acá estaba
+// escondida una divergencia de USD 102 por bulto — el cotizador le pasaba el peso facturable
+// de cada bulto y el backend no, así que un bulto liviano pero enorme cobraba sobrepeso en
+// una pantalla y exceso de tamaño en la otra.
+console.log('\n4-bis. El mismo envío con bultos, por el cotizador y por el backend\n');
+
+const BULTOS = [
+  { nombre: 'liviano y enorme (10 kg reales, 80 kg por volumen)', l: 100, a: 100, h: 40, pr: 10 },
+  { nombre: 'pesado de verdad (80 kg reales)',                    l: 50,  a: 40,  h: 30, pr: 80 },
+  { nombre: 'común',                                              l: 40,  a: 40,  h: 40, pr: 10 },
+  { nombre: 'lado largo de 110 cm',                               l: 110, a: 40,  h: 30, pr: 12 },
+  { nombre: 'no convencional DHL (30 kg)',                        l: 50,  a: 40,  h: 30, pr: 30 },
+  { nombre: 'contorno de 340 cm (mayor tamaño UPS)',              l: 140, a: 60,  h: 40, pr: 10 },
+];
+
+for (const servicio of ['DHL', 'UPS_EXP']) {
+  for (const b of BULTOS) {
+    const vol = (b.l * b.a * b.h) / 5000;
+    const pf = Math.max(b.pr, vol);
+    const dims = [b.l, b.a, b.h].sort((x, y) => y - x);
+    const comun = { pais: 'Brasil', tipo: 'export', fob: 300, fuelPct: 30 };
+    // el cotizador, que corre el motor en el navegador y manda pf por bulto
+    const front = core.cotizarServicio(servicio, {
+      ...comun, pf, profitPct: 0, bultosProc: [{ dims, pr: b.pr, pf }],
+    });
+    // el backend, que arma los bultos con mkBultosProc
+    const back = desglosarCosto({
+      ...comun, servicio, pesoFacturable: pf,
+      bultos: [{ largo: b.l, ancho: b.a, alto: b.h, peso_real: b.pr }],
+    });
+    check(`${servicio} · ${b.nombre}`,
+      front && back && Math.abs(front.total - back.total) <= 0.02,
+      front && back
+        ? `cotizador ${front.total.toFixed(2)} · backend ${back.total.toFixed(2)} · dif ${(front.total - back.total).toFixed(2)}`
+        : 'una de las dos no cotizó');
+  }
+}
+
 // ── 5. El profit se resuelve en un solo lugar ───────────────────────────────
 console.log('\n5. Resolución del profit\n');
 
