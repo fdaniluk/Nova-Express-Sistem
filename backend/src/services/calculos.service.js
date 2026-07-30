@@ -72,6 +72,7 @@ function labelATipo(label) {
   if (l.startsWith('Manejo adicional'))                        return 'manejo';
   if (l.startsWith('Paquete mayor tamaño') || l.includes('contorno')) return 'contorno';
   if (l.startsWith('Entrega residencial'))                     return 'residencial';
+  if (l.startsWith('Tarifa de procesamiento'))                 return 'ipf';
   return 'otro';
 }
 
@@ -183,8 +184,9 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
   });
   if (!r) return null;
 
-  // profitMonto según fórmula canónica del v8: aplica sobre (fleteBase + feeUSA)
-  const profitMontoRaw = (r.fleteBase + r.feeUSA) * profit * (1 + fuel);
+  // La ganancia aplica SOLO sobre el flete de tabla. El IPF ya no entra acá: pasa a costo
+  // como el surge y el DDP (criterio de Felipe, 29/07).
+  const profitMontoRaw = r.fleteBase * profit * (1 + fuel);
   // precioBase = total sin profit = (flete+surge)*(1+fuel) + manejo + seguro [+ extras]
   const precioBaseRaw  = r.total - profitMontoRaw;
 

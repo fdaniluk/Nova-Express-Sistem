@@ -200,13 +200,35 @@ check('el surge sigue entrando antes del combustible', (() => {
   return cerca(e.fuelMonto, e.subtotalConSurge * 0.30) && e.surge > 0;
 })());
 
-check('un envío común a EE.UU. sin extras no cambió de precio', (() => {
+check('el subtotal de un envío a EE.UU. es flete×(1+ganancia) + surge', (() => {
   const e = core.cotizarServicio('UPS_EXP', { ...base, pais: 'Estados Unidos', tipo: 'export',
     pf: 5, fuelPct: 30, profitPct: 100, bultosProc: [bulto(30, 20, 20, 5)] });
-  // flete tabulado + IPF, con 100% de ganancia, surge 0.50×5, fuel 30%
-  const esperado = (e.fleteBase + 2.50) * 2 + 2.50;
+  // El IPF ya NO entra acá: pasa a costo, va como extra después del fuel.
+  const esperado = e.fleteBase * 2 + 2.50;   // surge 0.50 × 5 kg
   return cerca(e.subtotalConSurge, esperado, 0.01);
 })());
+
+// ── 6-bis. El IPF pasa a costo ──────────────────────────────────────────────
+console.log('\n6-bis. El IPF no lleva ganancia ni combustible\n');
+
+{
+  const e = core.cotizarServicio('UPS_EXP', { ...base, pais: 'Estados Unidos', tipo: 'export',
+    pf: 5, fuelPct: 32, profitPct: 120 });
+  const f = (e.extras || []).find(([n]) => /procesamiento internacional/i.test(n));
+  check('el IPF aparece como línea propia en el desglose', !!f,
+    JSON.stringify((e.extras || []).map((x) => x[0])));
+  check('y son 2.50 exactos, sin margen ni fuel encima', f && cerca(f[1], 2.50),
+    f ? String(f[1]) : '-');
+  check('la ganancia se calcula solo sobre el flete de tabla',
+    cerca(e.conGan, e.fleteBase * 2.2, 0.01), `conGan ${e.conGan} vs ${e.fleteBase * 2.2}`);
+
+  // el mismo envío a un destino sin IPF: la única diferencia tiene que ser 2.50
+  const sinIpf = core.cotizarServicio('UPS_EXP', { ...base, pais: 'Canadá', tipo: 'export',
+    pf: 5, fuelPct: 32, profitPct: 120 });
+  check('un envío a EE.UU. cuesta exactamente 2.50 más que el mismo a Canadá',
+    cerca(e.total - sinIpf.total, 2.50, 0.02),
+    `${e.total.toFixed(2)} − ${sinIpf.total.toFixed(2)} = ${(e.total - sinIpf.total).toFixed(2)}`);
+}
 
 // ── 7. Zona de entrega: extendida y remota son DOS cargos ───────────────────
 console.log('\n7. Área extendida vs área remota (UPS)\n');

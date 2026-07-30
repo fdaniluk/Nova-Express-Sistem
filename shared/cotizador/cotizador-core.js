@@ -384,7 +384,11 @@ function cotizarServicio(servicio, params) {
     }
   }
   const surge=getSurge(pais,tipo,pfRound);
-  const flete=fleteBase+feeUSA;
+  // El IPF pasa A COSTO: no lleva ganancia ni combustible. Antes se sumaba al flete
+  // antes del margen, así que con 120% de utilidad esos 2.50 le llegaban al cliente
+  // como 5.50, y con el fuel encima como 7.26. Criterio de Felipe (29/07): los recargos
+  // del courier se pasan al costo, igual que el surge y el DDP.
+  const flete=fleteBase;
   const seguroObj=calcSeguroUPS(fob);
   const manejo=parseFloat((manejoCount*27.65+contornoExtra).toFixed(2));
   const extras=[];
@@ -397,6 +401,7 @@ function cotizarServicio(servicio, params) {
   // de la tabla nacional.
   if(residencial)    extras.push(['Entrega residencial',5.65]);
   if(ddp)            extras.push(['DDP',24.05]);
+  if(feeUSA>0)       extras.push(['Tarifa de procesamiento internacional (EE.UU.)',feeUSA]);
   const conGan          =flete*(1+profit);
   const subtotalConSurge=conGan+surge;
   const fuelMonto       =subtotalConSurge*fuel;
