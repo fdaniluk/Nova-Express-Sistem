@@ -213,6 +213,10 @@ async function migrateEnvios() {
     ['asegurado',        'INTEGER DEFAULT 0'],
     ['ddp',              'INTEGER DEFAULT 0'],
     ['remota',           'INTEGER DEFAULT 0'],
+    // Zona de entrega: NULL/'' normal · 'extendida' · 'remota'. Son dos cargos distintos
+    // de UPS. Los envíos viejos con remota=1 se leen como 'extendida', que es la tarifa
+    // que ya se les cobró, así que ninguno cambia de precio.
+    ['entrega',          'TEXT'],
     ['flete',            'REAL'],
     ['descuento',        'REAL'],
     ['seguro',           'REAL'],

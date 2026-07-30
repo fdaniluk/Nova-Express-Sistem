@@ -1655,8 +1655,12 @@
                   Asegurado
                 </label>
                 <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px">
-                  <input type="checkbox" id="saled-remota" style="width:auto;margin:0">
-                  Área remota
+                  Zona
+                  <select id="saled-entrega" style="width:auto;margin:0;padding:2px 4px;font-size:12px">
+                    <option value="normal">Normal</option>
+                    <option value="extendida">Extendida</option>
+                    <option value="remota">Remota</option>
+                  </select>
                 </label>
                 <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px">
                   <input type="checkbox" id="saled-ddp" style="width:auto;margin:0">
@@ -1804,7 +1808,7 @@
     document.getElementById('saled-tipo-paquete').value = envio.tipo_paquete ?? '';
     document.getElementById('saled-direccion').value = envio.direccion || 'expo';
     document.getElementById('saled-asegurado').checked = Boolean(envio.asegurado);
-    document.getElementById('saled-remota').checked = Boolean(envio.remota);
+    document.getElementById('saled-entrega').value = envio.entrega || (envio.remota ? 'extendida' : 'normal');
     document.getElementById('saled-ddp').checked = Boolean(envio.ddp);
 
     // Identidad editable: fecha, cliente, courier, país destino y "sin numerar".
@@ -2132,9 +2136,10 @@
     // cambio de país/courier antes del PATCH.
     const body = {
       asegurado: document.getElementById('saled-asegurado').checked ? 1 : 0,
-      // Área remota tal como está tildada AHORA en el modal: el backend re-aplica el recargo
+      // Zona de entrega tal como está AHORA en el modal: el backend re-aplica el recargo
       // en el recálculo con este valor (si no se manda, se pierde el recargo guardado).
-      remota: document.getElementById('saled-remota').checked ? 1 : 0,
+      entrega: document.getElementById('saled-entrega').value,
+      remota: document.getElementById('saled-entrega').value !== 'normal' ? 1 : 0,
       // DDP tal como está tildado AHORA: sin esto el recálculo lo recibe undefined y el
       // cargo de 24.05 desaparece del desglose.
       ddp: document.getElementById('saled-ddp').checked ? 1 : 0,
@@ -2224,7 +2229,8 @@
       tipo_paquete:   document.getElementById('saled-tipo-paquete').value || null,
       direccion:      document.getElementById('saled-direccion').value,
       asegurado:      document.getElementById('saled-asegurado').checked ? 1 : 0,
-      remota:         document.getElementById('saled-remota').checked ? 1 : 0,
+      entrega:        document.getElementById('saled-entrega').value,
+      remota:         document.getElementById('saled-entrega').value !== 'normal' ? 1 : 0,
       ddp:            document.getElementById('saled-ddp').checked ? 1 : 0,
       observaciones:  document.getElementById('saled-observaciones').value.trim() || null,
     };

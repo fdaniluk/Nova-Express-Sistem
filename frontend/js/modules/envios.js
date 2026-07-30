@@ -274,8 +274,10 @@
     // Recalcular al tildar/destildar DDP (passthrough +24.05)
     document.getElementById('ddp').addEventListener('change', debounce(updateCotizacion, 400));
 
-    // Recalcular al tildar/destildar Área remota (recargo que resuelve el motor)
-    document.getElementById('remota').addEventListener('change', debounce(updateCotizacion, 400));
+    // Recalcular al cambiar la zona de entrega (el recargo lo resuelve el motor).
+    // Son DOS cargos distintos de UPS: extendida (42.15 o 0.92/kg) y remota (5.86 por
+    // envío a EE.UU.). Antes había un solo casillero y todo pagaba la de extendida.
+    document.getElementById('entrega').addEventListener('change', debounce(updateCotizacion, 400));
 
     // Recalcular al cambiar mercadería/documento: en DHL cambia la tabla de tarifa
     // (documento hasta 2 kg), así que el precio cambia. Sin este listener el operador
@@ -388,7 +390,7 @@
         zona,
         bultos: bultosParaCotizar,
         ddp: document.getElementById('ddp').checked,
-        remota: document.getElementById('remota').checked,
+        entrega: document.getElementById('entrega').value,
         // Tipo de paquete → tarifa de DOCUMENTO de DHL (hasta 2 kg). El formulario ya tenía
         // el selector y lo guardaba en el envío, pero nunca se lo mandaba al cotizador: por
         // eso esta pantalla y el cotizador manual daban números distintos para el mismo
@@ -498,7 +500,10 @@
         fuel_pct: getFuelPctForm(),
         asegurado: document.getElementById('asegurado').checked ? 1 : 0,
         ddp: document.getElementById('ddp').checked ? 1 : 0,
-        remota: document.getElementById('remota').checked ? 1 : 0,
+        entrega: document.getElementById('entrega').value,
+        // `remota` se sigue guardando por compatibilidad: hay pantallas y consultas que
+        // lo leen, y los envíos viejos solo tienen ese flag.
+        remota: document.getElementById('entrega').value !== 'normal' ? 1 : 0,
         total_cobrado: parseFloat(document.getElementById('total_cobrado').value) || 0,
         observaciones: document.getElementById('observaciones').value.trim() || null,
         bultos: bultos.length ? bultos : undefined,
@@ -576,7 +581,8 @@
       envio.fuel_pct != null ? envio.fuel_pct : (fuelPctActual[envio.courier] ?? '');
     document.getElementById('asegurado').checked = Boolean(envio.asegurado);
     document.getElementById('ddp').checked = Boolean(envio.ddp);
-    document.getElementById('remota').checked = Boolean(envio.remota);
+    // Envío viejo: solo tiene el flag `remota`, que equivalía a la tarifa de extendida.
+    document.getElementById('entrega').value = envio.entrega || (envio.remota ? 'extendida' : 'normal');
     document.getElementById('total_cobrado').value = envio.total_cobrado;
     document.getElementById('observaciones').value = envio.observaciones || '';
     renderBultos();

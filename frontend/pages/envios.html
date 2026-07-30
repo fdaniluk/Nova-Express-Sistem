@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Registro de envíos – Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260729a">
-  <link rel="stylesheet" href="../css/modules/envios.css?v=20260729a">
+  <link rel="stylesheet" href="../css/main.css?v=20260729b">
+  <link rel="stylesheet" href="../css/modules/envios.css?v=20260729b">
   <style>
     .cot-header {
       display: flex;
@@ -206,8 +206,12 @@
               <input type="checkbox" id="ddp">
             </div>
             <div class="form-group">
-              <label for="remota">Área remota</label>
-              <input type="checkbox" id="remota">
+              <label for="entrega">Zona de entrega</label>
+              <select id="entrega">
+                <option value="normal">Normal</option>
+                <option value="extendida">Área extendida</option>
+                <option value="remota">Área remota</option>
+              </select>
             </div>
             <div class="form-group">
               <label for="total_cobrado">Total cobrado (USD) *</label>
@@ -319,10 +323,10 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260729a"></script>
-<script src="../js/api.js?v=20260729a"></script>
-<script src="../js/main.js?v=20260729a"></script>
-<script src="/shared/cotizador/cotizador-core.js?v=20260729a"></script>
-<script src="../js/modules/envios.js?v=20260729a"></script>
+<script src="/js/auth-guard.js?v=20260729b"></script>
+<script src="../js/api.js?v=20260729b"></script>
+<script src="../js/main.js?v=20260729b"></script>
+<script src="/shared/cotizador/cotizador-core.js?v=20260729b"></script>
+<script src="../js/modules/envios.js?v=20260729b"></script>
 </body>
 </html>

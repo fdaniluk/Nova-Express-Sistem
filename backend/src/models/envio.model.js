@@ -143,6 +143,9 @@ async function calcularDesgloseAlCosto(data, pesoFacturable) {
     zonaOverride: data.zona,
     bultos,
     remota: data.remota ? true : false,
+    // Zona de entrega ('extendida' | 'remota'). Si el envío es viejo y solo tiene el flag
+    // `remota`, el motor lo lee como 'extendida', que es la tarifa que ya se le cobró.
+    entrega: data.entrega ?? null,
     ddp: data.ddp ? true : false,
     // Tipo de paquete → tarifa de documento de DHL (hasta 2 kg). Sin esto el costo se
     // congelaba siempre con la tabla de mercadería, aunque el envío estuviera marcado
@@ -166,10 +169,10 @@ async function crear(data) {
           cliente_id, fecha, courier, tipo_envio, numero_guia, pais_destino, destino_raw, direccion, zona,
           cantidad_bultos, peso_real, largo, ancho, alto,
           peso_volumetrico, peso_facturable, fob, total_cobrado, observaciones,
-          numero_salida, bulto, tipo_paquete, asegurado, ddp, remota,
+          numero_salida, bulto, tipo_paquete, asegurado, ddp, remota, entrega,
           flete, descuento, seguro, fuel, fuel_pct, derechos, adicionales, otros, profit, porcentaje,
           extras_json, servicio_ups
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         data.cliente_id,
@@ -197,6 +200,7 @@ async function crear(data) {
         data.asegurado ?? 0,
         data.ddp ?? 0,
         data.remota ?? 0,
+        data.entrega ?? null,
         desglose ? desglose.flete : (data.flete ?? null),
         desglose ? desglose.descuento : (data.descuento ?? null),
         desglose ? desglose.seguro : (data.seguro ?? null),

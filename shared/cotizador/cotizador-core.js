@@ -245,6 +245,33 @@ function calcUPSDimExtras(bultosProc){
   return{manejoCount,contornoExtra,contornoWarn,minPesoExtra,minPesoAplicado};
 }
 
+// Traduce lo que mande el caller a 'normal' | 'extendida' | 'remota'.
+// Compatibilidad: quien siga mandando solo `remota:true` (código viejo, envíos ya cargados)
+// obtiene 'extendida', que es exactamente la tarifa que el sistema venía cobrando.
+function normalizarEntrega(entrega,remota){
+  const v=String(entrega??'').trim().toLowerCase();
+  if(v==='extendida'||v==='remota'||v==='normal')return v;
+  return remota?'extendida':'normal';
+}
+
+// Recargo de zona de entrega, por courier.
+//   DHL  — un solo cargo: 40.00 USD o 0.80 USD/kg, el mayor
+//   UPS  — extendida: 42.15 o 0.92/kg, el mayor
+//          remota:    5.86 por envío a Estados Unidos (incluye Alaska y Hawaii);
+//                     al resto del mundo, la misma de extendida
+function calcZonaEntrega(courier,zonaEntrega,pf,pais){
+  if(zonaEntrega!=='extendida'&&zonaEntrega!=='remota')return null;
+  if(courier==='DHL'){
+    return{label:zonaEntrega==='remota'?'Área remota':'Área extendida',
+           monto:Math.max(40,pf*0.8)};
+  }
+  if(zonaEntrega==='remota'&&pais==='Estados Unidos'){
+    return{label:'Área remota (EE.UU.)',monto:5.86};
+  }
+  return{label:zonaEntrega==='remota'?'Área remota':'Área extendida',
+         monto:Math.max(42.15,pf*0.92)};
+}
+
 function calcImpuestos(fob,flete,arancel){
   const seguroCIF=fob*0.015;
   const CIF=fob+flete+seguroCIF;
@@ -270,12 +297,21 @@ function cotizarServicio(servicio, params) {
     fuelPct=0, profitPct=0,
     bultosProc=[],
     residencial=false, remota=false,
+    // Zona de entrega: 'normal' | 'extendida' | 'remota'. Son DOS cargos distintos del
+    // tarifario de UPS y el sistema tenía un solo casillero:
+    //   Área extendida → 42.15 o 0.92/kg, el mayor
+    //   Área remota    → 5.86 por envío a EE.UU., y 42.15 / 0.92 al resto
+    // DHL tiene un solo cargo de zona (40 o 0.80/kg), así que ahí las dos dan lo mismo.
+    // `remota:true` sin `entrega` se lee como 'extendida', que es la tarifa que el sistema
+    // venía cobrando: así ningún envío ya cargado cambia de precio.
+    entrega,
     contenido='paquete',
     zonaOverride,
     ddp=false,
   } = params;
   const fuel   = fuelPct   / 100;
   const profit = profitPct / 100;
+  const zonaEntrega = normalizarEntrega(entrega, remota);
 
   // ── DHL ──────────────────────────────────────────────────────────────────────
   if(servicio==='DHL'){
@@ -300,7 +336,8 @@ function cotizarServicio(servicio, params) {
     if(excesoTotal>0)       extras.push(['Exceso de tamaño (DHL)',excesoTotal]);
     if(noConvencionalTotal>0)extras.push(['Pieza no convencional 25–70 kg (DHL)',noConvencionalTotal]);
     if(seguroObj.monto>0)   extras.push(['Seguro DHL',seguroObj.monto]);
-    if(remota)              extras.push(['Área remota',Math.max(40,pf*0.8)]);
+    const zeDHL=calcZonaEntrega('DHL',zonaEntrega,pf,pais);
+    if(zeDHL)               extras.push([zeDHL.label,zeDHL.monto]);
     if(ddp)                 extras.push(['DDP',24.05]);
     const conGan          =fleteBase*(1+profit);
     const subtotalConSurge=conGan;
@@ -354,7 +391,8 @@ function cotizarServicio(servicio, params) {
   if(manejoCount>0)  extras.push([`Manejo adicional (${manejoCount} bulto${manejoCount>1?'s':''})`,manejoCount*27.65]);
   if(contornoExtra>0)extras.push(['Paquete mayor tamaño — contorno >300 cm',contornoExtra]);
   if(seguroObj.monto>0)extras.push(['Seguro',seguroObj.monto]);
-  if(remota)         extras.push(['Área remota',Math.max(42.15,pf*0.92)]);
+  const zeUPS=calcZonaEntrega('UPS',zonaEntrega,pf,pais);
+  if(zeUPS)          extras.push([zeUPS.label,zeUPS.monto]);
   // Entrega residencial: 5.65 es la tarifa INTERNACIONAL. Los 6.00 que había acá son los
   // de la tabla nacional.
   if(residencial)    extras.push(['Entrega residencial',5.65]);
@@ -387,7 +425,7 @@ if(typeof module!=='undefined'&&module.exports){
     UPS_SAVER_ES_IT,UPS_SAVER_ES_PK,UPS_SAVER_IT_PK,
     resolverZona,
     getPesoVol,getDHL,getDHLBig,getUPS,getUPSSaverEsIt,
-    getSurge,calcSeguroUPS,calcSeguroDHL,calcDHLExtras,calcUPSDimExtras,calcImpuestos,
+    getSurge,calcSeguroUPS,calcSeguroDHL,calcDHLExtras,calcUPSDimExtras,calcImpuestos,calcZonaEntrega,normalizarEntrega,
     cotizarServicio,
   };
 }

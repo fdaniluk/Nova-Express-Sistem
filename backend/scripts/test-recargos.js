@@ -167,15 +167,17 @@ check('la entrega residencial internacional cobra 5.65', filaRes && cerca(filaRe
 // ── 6. Lo que ya estaba bien no se movió ────────────────────────────────────
 console.log('\n6. Regresión: lo que ya estaba bien\n');
 
-check('área remota DHL sigue en 40 / 0.80 por kg', (() => {
+// El MONTO de `remota:true` no cambió; sí cambió la etiqueta, que ahora dice "Área
+// extendida" porque es la tarifa que ese flag venía cobrando. Lo que importa es la plata.
+check('el recargo de zona de DHL sigue en 40 / 0.80 por kg', (() => {
   const e = core.cotizarServicio('DHL', { ...base, pais: 'Estados Unidos', tipo: 'export', pf: 100, remota: true });
-  const f = e.extras.find(([n]) => /remota/i.test(n));
+  const f = e.extras.find(([n]) => /remota|extendida/i.test(n));
   return f && cerca(f[1], 80);
 })());
 
-check('área remota UPS sigue en 42.15 / 0.92 por kg', (() => {
+check('el recargo de zona de UPS sigue en 42.15 / 0.92 por kg', (() => {
   const e = core.cotizarServicio('UPS_EXP', { ...base, pais: 'Estados Unidos', tipo: 'export', pf: 100, remota: true });
-  const f = e.extras.find(([n]) => /remota/i.test(n));
+  const f = e.extras.find(([n]) => /remota|extendida/i.test(n));
   return f && cerca(f[1], 92);
 })());
 
@@ -205,6 +207,47 @@ check('un envío común a EE.UU. sin extras no cambió de precio', (() => {
   const esperado = (e.fleteBase + 2.50) * 2 + 2.50;
   return cerca(e.subtotalConSurge, esperado, 0.01);
 })());
+
+// ── 7. Zona de entrega: extendida y remota son DOS cargos ───────────────────
+console.log('\n7. Área extendida vs área remota (UPS)\n');
+
+const zonaDe = (servicio, pais, entrega, pf = 20) => {
+  const r = core.cotizarServicio(servicio, { ...base, pais, tipo: 'export', pf, entrega });
+  const f = (r.extras || []).find(([n]) => /remota|extendida/i.test(n));
+  return f ? { label: f[0], monto: f[1] } : null;
+};
+
+check('normal no cobra recargo de zona', zonaDe('UPS_EXP', 'Estados Unidos', 'normal') === null);
+check('extendida cobra 42.15 o 0.92/kg, el mayor',
+  cerca(zonaDe('UPS_EXP', 'Estados Unidos', 'extendida').monto, 42.15));
+check('extendida con 60 kg cobra 0.92/kg (55.20)',
+  cerca(zonaDe('UPS_EXP', 'Estados Unidos', 'extendida', 60).monto, 55.20),
+  String(zonaDe('UPS_EXP', 'Estados Unidos', 'extendida', 60).monto));
+check('remota a EE.UU. cobra 5.86 por envío',
+  cerca(zonaDe('UPS_EXP', 'Estados Unidos', 'remota').monto, 5.86),
+  String(zonaDe('UPS_EXP', 'Estados Unidos', 'remota').monto));
+check('remota a EE.UU. no escala con el peso',
+  cerca(zonaDe('UPS_EXP', 'Estados Unidos', 'remota', 200).monto, 5.86));
+check('remota al resto del mundo cobra la de extendida',
+  cerca(zonaDe('UPS_EXP', 'Brasil', 'remota').monto, 42.15));
+check('DHL tiene un solo cargo de zona: 40 o 0.80/kg',
+  cerca(zonaDe('DHL', 'Brasil', 'extendida').monto, 40)
+  && cerca(zonaDe('DHL', 'Brasil', 'remota').monto, 40));
+check('DHL con 100 kg cobra 0.80/kg (80.00)',
+  cerca(zonaDe('DHL', 'Brasil', 'remota', 100).monto, 80));
+
+// COMPATIBILIDAD: esto es lo que protege a los envíos ya cargados
+console.log('\n8. Compatibilidad: los envíos ya cargados no cambian de precio\n');
+
+for (const [servicio, esperado] of [['UPS_EXP', 42.15], ['DHL', 40]]) {
+  const viejo = core.cotizarServicio(servicio, { ...base, pais: 'Estados Unidos', tipo: 'export', pf: 20, remota: true });
+  const f = (viejo.extras || []).find(([n]) => /remota|extendida/i.test(n));
+  check(`${servicio}: un envío viejo con solo remota:true sigue pagando ${esperado}`,
+    f && cerca(f[1], esperado), f ? `${f[0]} = ${f[1]}` : 'no cobró nada');
+}
+const sinNada = core.cotizarServicio('UPS_EXP', { ...base, pais: 'Estados Unidos', tipo: 'export', pf: 20 });
+check('sin remota ni entrega no cobra nada de zona',
+  !(sinNada.extras || []).some(([n]) => /remota|extendida/i.test(n)));
 
 console.log('\n' + '─'.repeat(60));
 console.log(`${ok} pasaron · ${fail} fallaron`);

@@ -110,6 +110,7 @@ CREATE TABLE IF NOT EXISTS envios (
   asegurado           INTEGER DEFAULT 0,
   ddp                 INTEGER DEFAULT 0,
   remota              INTEGER DEFAULT 0,
+  entrega             TEXT,
   flete               REAL,
   descuento           REAL,
   seguro              REAL,

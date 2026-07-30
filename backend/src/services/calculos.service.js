@@ -67,6 +67,7 @@ function labelATipo(label) {
   if (l.startsWith('Sobrepeso'))                               return 'sobrepeso';
   if (l.startsWith('Exceso de tamaño'))                        return 'oversize';
   if (l.startsWith('Área remota'))                             return 'area_remota';
+  if (l.startsWith('Área extendida'))                          return 'area_extendida';
   if (l.startsWith('DDP'))                                     return 'ddp';
   if (l.startsWith('Manejo adicional'))                        return 'manejo';
   if (l.startsWith('Paquete mayor tamaño') || l.includes('contorno')) return 'contorno';
@@ -156,7 +157,7 @@ function contenidoDe(tipoPaquete) {
   return String(tipoPaquete ?? '').toLowerCase() === 'd' ? 'documento' : 'paquete';
 }
 
-function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zonaOverride, bultos = [], residencial = false, remota = false, ddp = false, contenido = 'paquete' }) {
+function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zonaOverride, bultos = [], residencial = false, remota = false, entrega, ddp = false, contenido = 'paquete' }) {
   const pf     = Number(pesoFacturable) || 0;
   const fuel   = (Number(fuelPct)   || 0) / 100;
   const profit = (Number(profitPct) || 0) / 100;
@@ -175,6 +176,7 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
     bultosProc: mkBultosProc(bultos),
     residencial,
     remota,
+    entrega,
     zonaOverride,
     ddp,
     contenido,
@@ -224,7 +226,7 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
 // Por construcción flete+seguro+fuel+adicionales == total (costo a profit 0).
 // El fuelPct debe ser el autoritativo de config (lo resuelve el caller).
 // Devuelve null si el país no figura en las tablas y no hay zonaOverride.
-function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zonaOverride, bultos = [], residencial = false, remota = false, ddp = false, contenido = 'paquete' }) {
+function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zonaOverride, bultos = [], residencial = false, remota = false, entrega, ddp = false, contenido = 'paquete' }) {
   const paisCanon = canonizarPais(pais) || pais || '';
   const r = cotizarServicioCore(servicio, {
     pais: paisCanon,
@@ -236,6 +238,7 @@ function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zo
     bultosProc: mkBultosProc(bultos),
     residencial,
     remota,
+    entrega,
     zonaOverride,
     ddp,
     contenido,

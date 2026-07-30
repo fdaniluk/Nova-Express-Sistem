@@ -61,6 +61,7 @@ router.get('/', async (req, res, next) => {
         e.peso_facturable,
         e.asegurado,
         e.remota,
+        e.entrega,
         e.ddp,
         e.zona,
         e.servicio_ups,
@@ -251,6 +252,8 @@ router.get('/', async (req, res, next) => {
       peso_facturable: row.peso_facturable,
       asegurado: Boolean(row.asegurado),
       remota: Boolean(row.remota),
+      // Envío viejo (sin `entrega`): su flag `remota` equivalía a la tarifa de extendida.
+      entrega: row.entrega || (row.remota ? 'extendida' : 'normal'),
       ddp: Boolean(row.ddp),
       zona: row.zona,
       servicio_ups: row.servicio_ups,
@@ -363,6 +366,9 @@ router.post('/:id/recalcular', async (req, res, next) => {
       // el primer recálculo lo borra en silencio (mismo bug que país/courier). Viene del
       // modal (body.remota); si no vino, se lee del envío para no perderlo nunca.
       remota: body.remota != null ? body.remota : envio.remota,
+      // Zona de entrega: igual criterio que remota y ddp — del modal si vino, del envío
+      // si no. Sin `entrega`, un envío viejo cae en 'extendida' y no cambia de precio.
+      entrega: body.entrega != null ? body.entrega : envio.entrega,
       // DDP: exactamente el mismo caso que `remota`, y se había quedado afuera. Sin esta
       // línea `data.ddp` llega undefined -> false, y el primer "Recalcular" borra el cargo
       // DDP en silencio: la utilidad del envío queda inflada por ese monto.
@@ -412,7 +418,7 @@ router.post('/:id/recalcular', async (req, res, next) => {
 // persistir; además, en envíos liquidados fecha y cliente_id quedan congelados (409).
 const SALIDAS_EDITABLE = [
   'fecha', 'cliente_id', 'courier', 'pais_destino', 'num_sal_cero',
-  'numero_guia', 'numero_salida', 'bulto', 'tipo_paquete', 'asegurado', 'remota', 'ddp', 'direccion',
+  'numero_guia', 'numero_salida', 'bulto', 'tipo_paquete', 'asegurado', 'remota', 'entrega', 'ddp', 'direccion',
   'peso_real', 'largo', 'ancho', 'alto', 'peso_facturable', 'peso_volumetrico',
   'flete', 'descuento', 'seguro', 'fuel', 'fuel_pct', 'derechos', 'adicionales', 'otros',
   'total_cobrado', 'profit', 'porcentaje', 'observaciones', 'extras_json',
