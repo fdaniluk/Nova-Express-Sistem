@@ -252,6 +252,39 @@ async function actualizar(id, data) {
     alto: data.alto ?? actual.alto,
   });
 
+  // ── Recálculo del costo al editar ────────────────────────────────────────────
+  //
+  // Antes esto NO se hacía: se actualizaban el peso, el país y el courier, pero las
+  // columnas de costo (flete, seguro, fuel, adicionales, extras_json) quedaban con el
+  // número del alta. Editar un envío de 5 kg a 50 kg dejaba el costo de 5 kg y una
+  // utilidad fantasma. Además tipo_paquete, asegurado, ddp y la zona de entrega ni
+  // siquiera se guardaban: tildarlos en la edición no hacía nada.
+  //
+  // Solo se recalcula si cambió algo que MUEVE el precio. Una edición de observaciones
+  // o del número de guía no puede recotizar: el costo quedó congelado con la tarifa y
+  // el fuel del día del alta, y recalcularlo por una nota lo movería sin motivo.
+  const CAMPOS_QUE_MUEVEN_EL_COSTO = [
+    'peso_real', 'largo', 'ancho', 'alto', 'bultos', 'cantidad_bultos',
+    'pais_destino', 'zona', 'courier', 'tipo_envio', 'servicio_ups',
+    'fob', 'fuel_pct', 'tipo_paquete', 'asegurado', 'ddp', 'remota', 'entrega',
+  ];
+  const cambioElCosto = CAMPOS_QUE_MUEVEN_EL_COSTO.some((c) => {
+    if (data[c] === undefined) return false;
+    if (c === 'bultos') return true;
+    return String(data[c] ?? '') !== String(actual[c] ?? '');
+  });
+
+  let desglose = null;
+  if (cambioElCosto) {
+    // El fuel se toma del envío (el congelado en su alta) salvo que la edición lo cambie:
+    // un envío de mayo se recalcula con el fuel de mayo, no con el de hoy.
+    desglose = await calcularDesgloseAlCosto({
+      ...merged,
+      bultos: bultos.length ? bultos : undefined,
+      fuel_pct: data.fuel_pct !== undefined ? data.fuel_pct : actual.fuel_pct,
+    }, pesoFacturable);
+  }
+
   await db.transaction(async () => {
     await db.prepare(
       `UPDATE envios SET
@@ -261,6 +294,11 @@ async function actualizar(id, data) {
         peso_volumetrico = ?, peso_facturable = ?,
         fob = ?, total_cobrado = ?, observaciones = ?,
         servicio_ups = ?, fuel_pct = ?,
+        tipo_paquete = ?, asegurado = ?, ddp = ?, remota = ?, entrega = ?,
+        flete = COALESCE(?, flete), descuento = COALESCE(?, descuento),
+        seguro = COALESCE(?, seguro), fuel = COALESCE(?, fuel),
+        derechos = COALESCE(?, derechos), adicionales = COALESCE(?, adicionales),
+        otros = COALESCE(?, otros), extras_json = COALESCE(?, extras_json),
         updated_at = datetime('now', 'localtime')
        WHERE id = ?`
     ).run(
@@ -282,7 +320,21 @@ async function actualizar(id, data) {
       data.total_cobrado ?? actual.total_cobrado,
       data.observaciones !== undefined ? data.observaciones : actual.observaciones,
       (data.courier ?? actual.courier) === 'UPS' ? (data.servicio_ups !== undefined ? data.servicio_ups : actual.servicio_ups) : null,
-      data.fuel_pct !== undefined ? data.fuel_pct : actual.fuel_pct,
+      desglose ? desglose.fuel_pct : (data.fuel_pct !== undefined ? data.fuel_pct : actual.fuel_pct),
+      data.tipo_paquete !== undefined ? data.tipo_paquete : actual.tipo_paquete,
+      data.asegurado !== undefined ? (data.asegurado ? 1 : 0) : actual.asegurado,
+      data.ddp !== undefined ? (data.ddp ? 1 : 0) : actual.ddp,
+      data.remota !== undefined ? (data.remota ? 1 : 0) : actual.remota,
+      data.entrega !== undefined ? data.entrega : actual.entrega,
+      // COALESCE en el SQL: si no hubo recálculo van todos NULL y la columna no se toca.
+      desglose ? desglose.flete : null,
+      desglose ? desglose.descuento : null,
+      desglose ? desglose.seguro : null,
+      desglose ? desglose.fuel : null,
+      desglose ? desglose.derechos : null,
+      desglose ? desglose.adicionales : null,
+      desglose ? desglose.otros : null,
+      desglose && desglose.extras && desglose.extras.length ? JSON.stringify(desglose.extras) : null,
       id
     );
     if (data.bultos !== undefined) {
