@@ -71,21 +71,78 @@ async function testFacturaReal() {
   check('lee la fecha', r.fecha_factura === '31/05/2026', r.fecha_factura);
   check('detecta 10 guías', r.guias.length === 10, `detectó ${r.guias.length}`);
   check('ninguna guía sin costo', r.guias.every((g) => g.costo_total != null));
-  check('suma de guías = 3068.33', r.suma_guias === 3068.33, `dio ${r.suma_guias}`);
+  check('suma de guías (sin percepción) = 3068.33', r.suma_guias === 3068.33, `dio ${r.suma_guias}`);
 
   // Lo importante: ahora LEE el total del PDF en vez de tenerlo hardcodeado.
   check('lee el total declarado del PDF', r.total_declarado === 3159.55, `dio ${r.total_declarado}`);
-  check('detecta que NO cuadra', r.cuadra === false, `cuadra=${r.cuadra}`);
+  check('lee el subtotal del pie de la factura', r.subtotal_factura === 3068.33, `dio ${r.subtotal_factura}`);
   check('la diferencia es 91.22 (percepción IIBB)', r.diferencia === 91.22, `dio ${r.diferencia}`);
-  check(
-    'avisa del descuadre',
-    r.advertencias.some((a) => a.tipo === 'total_no_cuadra')
-  );
 
   console.log(`\n   suma guías ${r.suma_guias} · total PDF ${r.total_declarado} · dif ${r.diferencia}`);
   console.log(`   advertencias: ${r.advertencias.length}`);
   for (const a of r.advertencias) console.log(`     · [${a.tipo}] ${a.guia || ''}`);
   return r;
+}
+
+// ── 2-bis. Percepción de Ingresos Brutos ────────────────────────────────────
+//
+// Decisión de negocio del 29/07: la percepción ES COSTO del envío. Se reparte entre las
+// guías proporcional a lo que costó cada una.
+//
+// La prueba que más importa es la última: si la suma de las guías NO cuadra con el
+// subtotal del pie, la diferencia no es percepción sino una guía que no se leyó, y
+// repartirla ensuciaría el costo de TODOS los envíos de la factura.
+
+async function testPercepcion() {
+  console.log('\n2-bis. Percepción de Ingresos Brutos repartida entre las guías\n');
+  const r = await extraerFacturaUPS(fs.readFileSync(PDF));
+  const conCosto = r.guias.filter((g) => g.costo_total != null);
+
+  check('reparte la percepción', r.percepciones_repartidas === true);
+  check('la percepción es 91.22', r.percepciones === 91.22, `dio ${r.percepciones}`);
+  check('avisa que la repartió', r.advertencias.some((a) => a.tipo === 'percepcion_repartida'));
+  check('ya no avisa de descuadre', !r.advertencias.some((a) => a.tipo === 'total_no_cuadra'));
+
+  check('todas las guías tienen su parte de percepción',
+    conCosto.every((g) => typeof g.percepcion === 'number'));
+
+  // el reparto tiene que dar EXACTO, sin centavos perdidos
+  const sumaPerc = Math.round(conCosto.reduce((s, g) => s + g.percepcion, 0) * 100) / 100;
+  check('las partes suman exactamente la percepción', sumaPerc === 91.22, `sumaron ${sumaPerc}`);
+
+  check('la suma final de las guías da el total de la factura',
+    Math.abs(r.suma_guias_final - r.total_declarado) < 0.005,
+    `${r.suma_guias_final} vs ${r.total_declarado}`);
+
+  // proporcionalidad: la guía más cara se lleva la parte más grande
+  const orden = [...conCosto].sort((a, b) => b.costo_total - a.costo_total);
+  check('la guía más cara se lleva la mayor parte de la percepción',
+    orden[0].percepcion >= orden[orden.length - 1].percepcion,
+    `${orden[0].percepcion} vs ${orden[orden.length - 1].percepcion}`);
+
+  console.log(`\n   ${conCosto.length} guías · percepción ${r.percepciones} · suma final ${r.suma_guias_final}`);
+
+  // ── el caso peligroso ─────────────────────────────────────────────────────
+  console.log('\n   Si falta una guía, NO se reparte nada:\n');
+  const original = fs.readFileSync(PDF);
+  const pdfParse = require('pdf-parse');
+  const real = await pdfParse(original);
+  // se rompe el importe de una guía para que la suma no cuadre contra el subtotal
+  const texto = real.text.replace('       199,10      -177,20        77,25       -68,67', '');
+  const mod = { ...real, text: texto };
+  const cache = require.cache[require.resolve('pdf-parse')];
+  const orig = cache.exports;
+  cache.exports = async () => mod;
+  delete require.cache[require.resolve('../src/services/factura-ups.service.js')];
+  const svc = require('../src/services/factura-ups.service.js');
+  const roto = await svc.extraerFacturaUPS(original);
+  cache.exports = orig;
+  delete require.cache[require.resolve('../src/services/factura-ups.service.js')];
+
+  check('con una guía ilegible NO reparte percepción', roto.percepciones_repartidas === false,
+    `repartidas=${roto.percepciones_repartidas}`);
+  check('y avisa del descuadre en vez de ensuciar los costos',
+    roto.advertencias.some((a) => a.tipo === 'total_no_cuadra'));
 }
 
 // ── 3. Escenarios de cambio de formato de UPS ───────────────────────────────
@@ -190,6 +247,7 @@ async function testGuiaPaginada() {
 
   testParseImporte();
   await testFacturaReal();
+  await testPercepcion();
   await testUpsCambiaColumnas();
   await testGuiaRefacturada();
   await testGuiaPaginada();

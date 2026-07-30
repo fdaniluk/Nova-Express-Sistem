@@ -277,6 +277,7 @@ CREATE TABLE IF NOT EXISTS factura_guias (
   peso_facturado  REAL,
   neto            REAL,
   total_recargos  REAL,
+  percepcion      REAL,
   costo_total     REAL,
   cargos_json     TEXT,   -- [{ "nombre": ..., "monto": ... }, ...] desglose de recargos UPS
   encontrada      INTEGER NOT NULL DEFAULT 0,

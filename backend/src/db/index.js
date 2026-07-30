@@ -343,6 +343,9 @@ async function migrateFacturaGuias() {
       peso_facturado  REAL,
       neto            REAL,
       total_recargos  REAL,
+      -- Parte de la percepción de Ingresos Brutos que le tocó a esta guía. Ya está
+      -- sumada dentro de costo_total; se guarda aparte para poder auditarla.
+      percepcion      REAL,
       costo_total     REAL,
       cargos_json     TEXT,
       encontrada      INTEGER NOT NULL DEFAULT 0,
@@ -352,6 +355,13 @@ async function migrateFacturaGuias() {
   await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_factura_guias_factura ON factura_guias(factura_id)');
   await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_factura_guias_envio   ON factura_guias(envio_id)');
   await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_factura_guias_guia    ON factura_guias(numero_guia)');
+
+  // La tabla se crea con CREATE TABLE IF NOT EXISTS: en una base donde YA existe
+  // (producción) las columnas nuevas no aparecen solas y hay que agregarlas.
+  const cols = (await dbApi.prepare('PRAGMA table_info(factura_guias)').all()).map((c) => c.name);
+  if (!cols.includes('percepcion')) {
+    await dbApi.exec('ALTER TABLE factura_guias ADD COLUMN percepcion REAL');
+  }
 }
 
 // Permisos por usuario. editar_config habilita entrar y guardar en Configuración

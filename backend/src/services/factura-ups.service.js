@@ -79,6 +79,56 @@ function leerTotalDeclarado(lines) {
   return null;
 }
 
+// Subtotal del pie de la factura (la fila de números que va debajo de
+// "Conceptos Gravados / Sub.Total / IVA Insc.% / Perc. IIBB").
+//
+// Para qué sirve: es el número contra el que tiene que cuadrar la suma de las guías.
+// Si cuadra, la diferencia contra el TOTAL son exclusivamente las percepciones y se
+// pueden repartir. Si NO cuadra, hay una guía que el parser no leyó y esa diferencia
+// no es percepción: repartirla ensuciaría el costo de todos los envíos.
+//
+// En la factura de ejemplo la fila es:
+//   3,068,33   3,068,33   0,00   0,00   45,61   45,61
+// y el total es 3.159,55 → 3.068,33 + 45,61 + 45,61. Son DOS percepciones, no una.
+function leerSubtotalFactura(lines) {
+  for (let i = 0; i < lines.length; i++) {
+    if (!/Perc\.?\s*IIBB/i.test(lines[i])) continue;
+    // La fila numérica viene a las pocas líneas del rótulo (en el medio puede haber un
+    // código de autorización). Se busca la primera con 4 números o más.
+    for (let j = i + 1; j < Math.min(i + 6, lines.length); j++) {
+      // La fila numérica no tiene letras. Sin este filtro, el código de autorización
+      // que va en el medio ("DNB1/02R421/16") pasa por una fila de cuatro números.
+      if (/[A-Za-z]/.test(lines[j])) continue;
+      const nums = (lines[j].match(/-?[\d.,]+/g) || [])
+        .map((t) => parseImporte(t))
+        .filter((v) => v != null);
+      if (nums.length >= 4) return nums[0];
+    }
+  }
+  return null;
+}
+
+// Reparte un importe entre las guías, proporcional a lo que costó cada una, cuidando
+// que la suma de las partes dé EXACTO el importe repartido (método del resto mayor).
+// Sin esto, redondear cada parte por separado deja diferencias de centavos y la
+// factura no vuelve a cuadrar nunca.
+function repartirProporcional(importe, guias) {
+  const base = guias.reduce((s, g) => s + (g.costo_total || 0), 0);
+  if (!(base > 0) || !(Math.abs(importe) > 0)) return guias.map(() => 0);
+  const exactos = guias.map((g) => (importe * (g.costo_total || 0)) / base);
+  const pisos = exactos.map((v) => Math.floor(v * 100) / 100);
+  let resto = Math.round((importe - pisos.reduce((s, v) => s + v, 0)) * 100);
+  // los centavos que sobran van a las guías con mayor resto decimal
+  const orden = exactos
+    .map((v, i) => ({ i, resto: v * 100 - Math.floor(v * 100) }))
+    .sort((a, b) => b.resto - a.resto);
+  const out = pisos.slice();
+  for (let k = 0; k < orden.length && resto > 0; k++, resto--) {
+    out[orden[k].i] = r2(out[orden[k].i] + 0.01);
+  }
+  return out.map(r2);
+}
+
 async function extraerFacturaUPS(buffer) {
   const data = await pdfParse(buffer);
   const lines = data.text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
@@ -264,19 +314,54 @@ async function extraerFacturaUPS(buffer) {
   const conCosto = resultado.filter((g) => g.costo_total != null);
   const suma_guias = r2(conCosto.reduce((s, g) => s + g.costo_total, 0));
 
+  const subtotal_factura = leerSubtotalFactura(lines);
+
   let diferencia = null;
   let cuadra = null;
+  // Percepción de Ingresos Brutos: decisión de negocio tomada el 29/07 (Felipe lo
+  // consultó con su jefe) → ES COSTO del envío. Se reparte entre las guías,
+  // proporcional a lo que costó cada una.
+  //
+  // El reparto SOLO se hace si la suma de las guías cuadra con el subtotal del pie.
+  // Si no cuadra, la diferencia no es percepción sino una guía que no se leyó, y
+  // repartirla ensuciaría el costo de todos los envíos de la factura.
+  let percepciones = null;
+  let percepciones_repartidas = false;
+
   if (total_declarado != null) {
     diferencia = r2(total_declarado - suma_guias);
     cuadra = Math.abs(diferencia) < 0.05;
-    if (!cuadra) {
+
+    const subtotalCuadra = subtotal_factura != null
+      && Math.abs(subtotal_factura - suma_guias) < 0.05;
+
+    if (!cuadra && subtotalCuadra) {
+      percepciones = r2(total_declarado - subtotal_factura);
+      const partes = repartirProporcional(percepciones, conCosto);
+      conCosto.forEach((g, i) => {
+        g.percepcion = partes[i];
+        g.costo_total = r2(g.costo_total + partes[i]);
+      });
+      percepciones_repartidas = true;
+      advertencias.push({
+        tipo: 'percepcion_repartida',
+        detalle:
+          `Se repartieron USD ${percepciones.toFixed(2)} de percepción de Ingresos Brutos `
+          + `entre las ${conCosto.length} guías, proporcional al costo de cada una. `
+          + 'El costo de cada envío la incluye.',
+      });
+    } else if (!cuadra) {
       advertencias.push({
         tipo: 'total_no_cuadra',
         detalle:
           `La suma de las guías (USD ${suma_guias.toFixed(2)}) no coincide con el total `
           + `declarado en la factura (USD ${total_declarado.toFixed(2)}). `
           + `Diferencia: USD ${diferencia.toFixed(2)}. `
-          + 'Suele ser la percepción de Ingresos Brutos del pie de la factura.',
+          + (subtotal_factura == null
+            ? 'No se pudo leer el subtotal del pie, así que NO se repartió percepción: '
+              + 'la diferencia puede ser una guía que no se leyó.'
+            : `El subtotal del pie dice USD ${subtotal_factura.toFixed(2)}, que tampoco `
+              + 'coincide con las guías. NO se repartió percepción: revisá la factura.'),
       });
     }
   } else {
@@ -302,9 +387,14 @@ async function extraerFacturaUPS(buffer) {
     fecha_factura,
     guias: resultado,
     total_declarado,
+    subtotal_factura,
     suma_guias,
     diferencia,
     cuadra,
+    percepciones,
+    percepciones_repartidas,
+    // suma final, ya con la percepción adentro de cada guía
+    suma_guias_final: r2(conCosto.reduce((s, g) => s + g.costo_total, 0)),
     advertencias,
   };
 }

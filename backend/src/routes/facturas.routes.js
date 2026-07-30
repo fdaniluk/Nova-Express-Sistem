@@ -255,8 +255,8 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
         const g = d.guia;
         await db.prepare(`
           INSERT OR IGNORE INTO factura_guias
-            (factura_id, envio_id, numero_guia, pais, peso_facturado, neto, total_recargos, costo_total, cargos_json, encontrada)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (factura_id, envio_id, numero_guia, pais, peso_facturado, neto, total_recargos, percepcion, costo_total, cargos_json, encontrada)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           facturaId,
           d.envio_id,
@@ -265,6 +265,7 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
           g.peso ?? null,
           g.neto ?? null,
           g.total_recargos ?? null,
+          g.percepcion ?? null,
           g.costo_total ?? null,
           JSON.stringify(g.cargos ?? []),
           d.encontrada
