@@ -5,8 +5,6 @@
   let lastLiquidacionId = null;
   let lastPreview = null;
 
-  // Mapa de cotizaciones ingresadas por el usuario: { envio_id: { profitPct, servicio, resultado } }
-  const cotizacionesMap = {};
 
   async function init() {
     await loadClientes();
@@ -151,13 +149,11 @@
       const grupos = await NovaAPI.liquidaciones.pendientes(params);
       enviosPendientesCliente = grupos[0]?.envios || [];
 
-      // Limpiar cotizaciones anteriores
-      Object.keys(cotizacionesMap).forEach(k => delete cotizacionesMap[k]);
 
       const tbody = document.getElementById('liq-envios-body');
       if (!enviosPendientesCliente.length) {
         document.getElementById('liq-envios-wrap').classList.remove('hidden');
-        tbody.innerHTML = '<tr><td colspan="9" class="empty">Sin envíos en el período</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty">Sin envíos en el período</td></tr>';
         return;
       }
 
@@ -170,51 +166,6 @@
           <td>${NovaUtils.formatMoney(e.fob)}</td>
           <td>${NovaUtils.formatMoney(e.total_cobrado)}</td>
           <td><input type="number" class="liq-adicional" step="0.01" min="0" value="0" style="width:80px"></td>
-          <td>
-            <button type="button" class="btn btn-sm btn-secondary btn-cotizar" data-envio-id="${e.id}" title="Calcular cotización para este envío">
-              🧮 Cotizar
-            </button>
-          </td>
-          <td class="cot-resultado" id="cot-res-${e.id}">—</td>
-        </tr>
-        <tr class="cot-panel hidden" id="cot-panel-${e.id}">
-          <td colspan="9">
-            <div class="cotizador-inline">
-              <div class="cot-campos">
-                <div class="form-group">
-                  <label>Servicio</label>
-                  <select class="cot-servicio">
-                    <option value="DHL">DHL Express</option>
-                    <option value="UPS_EXP">UPS Expedited</option>
-                    <option value="UPS_SAV">UPS Saver</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label>Peso facturable (kg)</label>
-                  <input type="number" class="cot-peso" step="0.1" min="0" value="${e.peso_facturable || e.peso_real || 0}">
-                </div>
-                <div class="form-group">
-                  <label>Tipo operación</label>
-                  <select class="cot-tipo">
-                    <option value="export">Exportación</option>
-                    <option value="import">Importación</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label>% Profit cliente</label>
-                  <input type="number" class="cot-profit" step="0.1" min="0" value="">
-                </div>
-                <div class="form-group">
-                  <label>% Fuel</label>
-                  <input type="number" class="cot-fuel" step="0.1" min="0" value="39">
-                </div>
-              </div>
-              <button type="button" class="btn btn-primary btn-calc-cot" data-envio-id="${e.id}" data-pais="${e.pais_destino || ''}" data-fob="${e.fob || 0}" data-zona="${e.zona || ''}">
-                Calcular
-              </button>
-              <div class="cot-detalle hidden" id="cot-det-${e.id}"></div>
-            </div>
-          </td>
         </tr>
       `).join('');
 
@@ -225,41 +176,11 @@
       document.getElementById('btn-confirmar-liq').disabled = true;
       document.getElementById('btn-export-borrador').disabled = true;
 
-      // Bind botones cotizar
-      tbody.querySelectorAll('.btn-cotizar').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          const envioId = btn.dataset.envioId;
-          const panel = document.getElementById(`cot-panel-${envioId}`);
-          panel.classList.toggle('hidden');
-        });
-      });
-
-      // Bind botones calcular cotización
-      tbody.querySelectorAll('.btn-calc-cot').forEach((btn) => {
-        btn.addEventListener('click', () => calcularCotizacion(btn));
-      });
-
-      // Precarga del % profit desde la matriz por fila + marca de edición manual.
-      tbody.querySelectorAll('.cot-panel').forEach((row) => {
-        const profitInput = row.querySelector('.cot-profit');
-        if (profitInput) {
-          // Lo tipeado a mano gana sobre la matriz y borra la etiqueta de origen.
-          profitInput.addEventListener('input', () => {
-            profitInput.dataset.tocado = '1';
-            setProfitOrigenFila(row, '');
-          });
-        }
-        // Cambiar servicio o tipo cambia el contexto de la matriz: reset + re-precarga.
-        row.querySelectorAll('.cot-servicio, .cot-tipo').forEach((el) => {
-          el.addEventListener('change', () => {
-            if (profitInput) delete profitInput.dataset.tocado;
-            precargarProfitFila(row);
-          });
-        });
-        // El peso también entra en la resolución; re-precarga (respeta lo tipeado a mano).
-        row.querySelector('.cot-peso')?.addEventListener('change', () => precargarProfitFila(row));
-        precargarProfitFila(row);
-      });
+      // El botón "Cotizar" por fila se sacó (29/07). Recalculaba y mostraba un precio,
+      // pero el resultado NUNCA llegaba a la liquidación: el backend ignora `cotizaciones`
+      // a propósito desde que se decidió que la liquidación NO recotiza y lee los valores
+      // congelados del envío (ver el comentario en liquidacion.model.js). El botón era lo
+      // que quedó de la etapa anterior.
 
     } catch (err) {
       NovaUtils.showAlert(alertBox, err.message, 'error');
@@ -267,172 +188,6 @@
   }
 
   // ── Precarga de % profit desde la matriz ─────────────────────────
-  function origenLabel(origen) {
-    switch (origen) {
-      case 'celda': return 'matriz: celda';
-      case 'banda': return 'matriz: banda';
-      case 'zona': return 'matriz: zona';
-      case 'tabla': return 'matriz: tabla';
-      case 'cliente': return 'general cliente';
-      default: return ''; // manual / body: es el número tipeado, no se rotula
-    }
-  }
-
-  // Muestra (o limpia) el origen del profit dentro del form-group del input, una sola vez.
-  function setProfitOrigenFila(row, texto) {
-    const grp = row.querySelector('.cot-profit')?.closest('.form-group');
-    if (!grp) return;
-    let el = grp.querySelector('.cot-profit-origen');
-    if (!el) {
-      el = document.createElement('small');
-      el.className = 'cot-profit-origen';
-      el.style.cssText = 'color:#2563eb;font-size:11px;';
-      grp.appendChild(el);
-    }
-    el.textContent = texto || '';
-  }
-
-  // Precarga .cot-profit de una fila desde la matriz del cliente seleccionado. Si falta
-  // contexto cae a tarifa_pct del cliente; si no hay cliente deja el input vacío. No pisa
-  // lo tipeado a mano (dataset.tocado).
-  async function precargarProfitFila(row) {
-    const profitInput = row.querySelector('.cot-profit');
-    if (!profitInput || profitInput.dataset.tocado === '1') return;
-
-    const clienteId = parseInt(document.getElementById('liq-cliente').value, 10);
-    if (!clienteId) { profitInput.value = ''; setProfitOrigenFila(row, ''); return; }
-    const cliente = clientes.find((c) => c.id === clienteId);
-
-    const precargaSimple = () => {
-      profitInput.value = (cliente && cliente.tarifa_pct != null && cliente.tarifa_pct > 0)
-        ? cliente.tarifa_pct
-        : '';
-      setProfitOrigenFila(row, '');
-    };
-
-    const btn = row.querySelector('.btn-calc-cot');
-    const pais = btn?.dataset.pais || '';
-    const zona = parseInt(btn?.dataset.zona, 10);
-    const pf = parseFloat(row.querySelector('.cot-peso').value) || 0;
-    if (((!pais || pais === '—') && isNaN(zona)) || pf <= 0) { precargaSimple(); return; }
-
-    const servicio = row.querySelector('.cot-servicio').value;
-    // El resolver valida contra el enum de la matriz: UPS_SAV -> UPS_SAVER solo acá.
-    const servicioResolve = servicio === 'UPS_SAV' ? 'UPS_SAVER' : servicio;
-    const tipo = row.querySelector('.cot-tipo').value;
-
-    const params = { servicio: servicioResolve, tipo, pf };
-    if (!isNaN(zona)) params.zona = zona;
-
-    try {
-      const r = await NovaAPI.clientes.profit.resolver(clienteId, params);
-      if (r && r.profitPct != null) {
-        profitInput.value = r.profitPct;
-        setProfitOrigenFila(row, origenLabel(r.origen));
-      } else {
-        precargaSimple();
-      }
-    } catch (err) {
-      console.warn('[liquidaciones] profit-resolve falló, uso precarga simple:', err.message);
-      precargaSimple();
-    }
-  }
-
-  async function calcularCotizacion(btn) {
-    const envioId = parseInt(btn.dataset.envioId, 10);
-    const pais = btn.dataset.pais;
-    const fob = parseFloat(btn.dataset.fob) || 0;
-    const zona = parseInt(btn.dataset.zona, 10) || undefined;
-    const panel = btn.closest('.cotizador-inline');
-    const servicio = panel.querySelector('.cot-servicio').value;
-    const pesoFacturable = parseFloat(panel.querySelector('.cot-peso').value) || 0;
-    const tipo = panel.querySelector('.cot-tipo').value;
-    const profitInput = panel.querySelector('.cot-profit');
-    const profitPct = parseFloat(profitInput.value) || 0;
-    const profitManual = profitInput.dataset.tocado === '1';
-    const fuelPct = parseFloat(panel.querySelector('.cot-fuel').value) || 0;
-    const clienteId = parseInt(document.getElementById('liq-cliente').value, 10) || undefined;
-
-    if ((!pais || pais === '—') && !zona) {
-      NovaUtils.showAlert(alertBox, 'El envío no tiene país ni zona asignados', 'error');
-      return;
-    }
-
-    try {
-      btn.textContent = '...';
-      btn.disabled = true;
-
-      const res = await NovaAPI.liquidaciones.cotizar({
-        pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zona,
-        cliente_id: clienteId,
-        // profitManual true => backend usa profitPct; false => resuelve por matriz.
-        profitManual,
-      });
-
-      // El backend puede haber resuelto el profit por matriz: usamos lo efectivamente
-      // aplicado para mostrar y guardar (y sincronizamos el input si no fue manual).
-      const profitAplicado = res.profit_aplicado != null ? res.profit_aplicado : profitPct;
-      if (res.profit_aplicado != null && !profitManual) {
-        profitInput.value = res.profit_aplicado;
-        const row = btn.closest('.cot-panel');
-        if (row) setProfitOrigenFila(row, origenLabel(res.profit_origen));
-      }
-
-      // Guardar resultado en el mapa
-      cotizacionesMap[envioId] = {
-        envio_id: envioId,
-        profitPct: profitAplicado,
-        servicio: res.servicio,
-        precioFinal: res.precioFinal,
-        utilidad: res.utilidad,
-      };
-
-      // Mostrar desglose interno
-      const det = document.getElementById(`cot-det-${envioId}`);
-      det.innerHTML = `
-        <div class="cot-desglose">
-          <div class="cot-fila"><span>Precio base (con fuel)</span><span>${NovaUtils.formatMoney(res.precioBase)}</span></div>
-          <div class="cot-fila cot-profit-row"><span>Profit ${profitAplicado}%</span><span>+ ${NovaUtils.formatMoney(res.profitMonto)}</span></div>
-          <div class="cot-fila cot-total-row"><span>Precio final sugerido</span><span>${NovaUtils.formatMoney(res.precioFinal)}</span></div>
-          <div class="cot-fila cot-utilidad-row"><span>💰 Utilidad empresa</span><span>${NovaUtils.formatMoney(res.utilidad)}</span></div>
-        </div>
-        <div style="margin-top:8px;display:flex;gap:8px;align-items:center;">
-          <label style="font-size:12px;color:#666;">Precio final (editable):</label>
-          <input type="number" class="cot-precio-editable" step="0.01" value="${res.precioFinal}" style="width:110px;">
-          <button type="button" class="btn btn-sm btn-primary btn-aplicar-cot" data-envio-id="${envioId}">Aplicar</button>
-        </div>
-      `;
-      det.classList.remove('hidden');
-
-      // Bind aplicar
-      det.querySelector('.btn-aplicar-cot').addEventListener('click', () => {
-        const precioEditable = parseFloat(det.querySelector('.cot-precio-editable').value) || res.precioFinal;
-        cotizacionesMap[envioId].precioFinal = precioEditable;
-        cotizacionesMap[envioId].utilidad = redondear2(precioEditable - res.precioBase);
-
-        // Mostrar en la columna de resultado
-        const resCell = document.getElementById(`cot-res-${envioId}`);
-        resCell.innerHTML = `
-          <span class="badge badge-cotizado">${NovaUtils.formatMoney(precioEditable)}</span>
-          <span class="util-badge">💰 ${NovaUtils.formatMoney(cotizacionesMap[envioId].utilidad)}</span>
-        `;
-
-        // Cerrar panel
-        document.getElementById(`cot-panel-${envioId}`).classList.add('hidden');
-      });
-
-    } catch (err) {
-      NovaUtils.showAlert(alertBox, err.message || 'Error al cotizar', 'error');
-    } finally {
-      btn.textContent = 'Calcular';
-      btn.disabled = false;
-    }
-  }
-
-  function redondear2(n) {
-    return Math.round(Number(n) * 100) / 100;
-  }
-
   function getSelectedEnvios() {
     const rows = document.querySelectorAll('#liq-envios-body tr[data-envio-id]');
     const ids = [];
@@ -451,11 +206,6 @@
     return { envio_ids: ids, cargos };
   }
 
-  function getCotizaciones(envio_ids) {
-    return envio_ids
-      .filter(id => cotizacionesMap[id])
-      .map(id => cotizacionesMap[id]);
-  }
 
   async function calcularPreview() {
     const cliente_id = parseInt(document.getElementById('liq-cliente').value, 10);
@@ -464,7 +214,9 @@
       NovaUtils.showAlert(alertBox, 'Seleccione al menos un envío', 'error');
       return;
     }
-    const cotizaciones = getCotizaciones(envio_ids);
+    // La liquidación NO recotiza: el backend arma el desglose con los valores
+    // congelados en cada envío. Se manda vacío para no cambiar el contrato de la API.
+    const cotizaciones = [];
     try {
       const preview = await NovaAPI.liquidaciones.preview({
         cliente_id,

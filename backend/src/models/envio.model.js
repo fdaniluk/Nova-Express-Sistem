@@ -375,25 +375,35 @@ async function listarPendientesPorCliente(filtros = {}) {
     params.push(filtros.tipo_cobro);
   }
 
-  sql += ' ORDER BY c.nombre COLLATE NOCASE, e.fecha';
+  // Se ordena por el MISMO nombre que se muestra en pantalla. Antes ordenaba por
+  // `c.nombre` (la razón social) y mostraba `nombre_nova`: para los clientes donde los
+  // dos difieren —"POLO TOP" se muestra como "GONZALO DE URQUIZA"— la lista parecía
+  // desordenada al azar.
+  sql += " ORDER BY COALESCE(NULLIF(c.nombre_nova,''), c.nombre) COLLATE NOCASE, e.fecha";
   const rows = (await db.prepare(sql).all(...params)).map(mapEnvio);
 
-  const grupos = {};
+  // Map y NO un objeto común: las claves de un objeto que parecen números las reordena
+  // JavaScript de menor a mayor, así que `Object.values()` devolvía los grupos por
+  // cliente_id y tiraba a la basura el ORDER BY alfabético de la consulta. La lista de
+  // pendientes salía ordenada por el número interno de cliente, que no significa nada
+  // para el que la mira. Map respeta el orden en que se van agregando.
+  const grupos = new Map();
   for (const row of rows) {
     const key = row.cliente_id;
-    if (!grupos[key]) {
-      grupos[key] = {
+    if (!grupos.has(key)) {
+      grupos.set(key, {
         cliente_id: row.cliente_id,
         cliente_nombre: row.cliente_nombre,
         tipo_cobro: row.tipo_cobro,
         envios: [],
         total_cobrado: 0,
-      };
+      });
     }
-    grupos[key].envios.push(row);
-    grupos[key].total_cobrado += row.total_cobrado || 0;
+    const g = grupos.get(key);
+    g.envios.push(row);
+    g.total_cobrado += row.total_cobrado || 0;
   }
-  return Object.values(grupos);
+  return [...grupos.values()];
 }
 
 async function marcarLiquidados(envioIds, liquidacionId, fechaLiquidacion) {

@@ -49,7 +49,8 @@ router.get('/', async (req, res, next) => {
          FROM cuadrantes q
          JOIN clientes c ON q.cliente_id = c.id
          WHERE q.fecha = ?
-         ORDER BY c.nombre ASC`
+         -- por el mismo nombre que se muestra (ver COALESCE del SELECT)
+         ORDER BY COALESCE(NULLIF(c.nombre_nova,''), c.nombre) COLLATE NOCASE ASC`
       )
       .all(fecha);
 
@@ -63,7 +64,8 @@ router.get('/', async (req, res, next) => {
          JOIN clientes c ON q.cliente_id = c.id
          WHERE (q.check_despachado = 0 OR q.check_despachado IS NULL)
            AND q.fecha < ?
-         ORDER BY q.fecha ASC, c.nombre ASC`
+         -- por el mismo nombre que se muestra (ver COALESCE del SELECT)
+         ORDER BY q.fecha ASC, COALESCE(NULLIF(c.nombre_nova,''), c.nombre) COLLATE NOCASE ASC`
       )
       .all(fecha);
 
