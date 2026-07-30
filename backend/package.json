@@ -21,7 +21,8 @@
     "test-zona-entrega": "node scripts/test-zona-entrega.js",
     "test-editar-envio": "node scripts/test-editar-envio.js",
     "test-validar-guia": "node scripts/test-validar-guia.js",
-    "test-aviso-guia": "node scripts/test-aviso-guia.js"
+    "test-aviso-guia": "node scripts/test-aviso-guia.js",
+    "test-cartel-peso": "node scripts/test-cartel-peso.js"
   },
   "keywords": [
     "nova-express",
