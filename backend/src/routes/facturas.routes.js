@@ -351,6 +351,59 @@ router.get('/guias', async (req, res, next) => {
   }
 });
 
+// ── Guías facturadas sin envío ───────────────────────────────────────────────
+//
+// Cada fila acá es una guía que el courier COBRÓ y que no tiene envío en el sistema.
+// O el envío nunca se cargó (y entonces no se le facturó a nadie: plata que se pagó y no
+// se cobró), o el número de guía se tipeó mal al cargarlo.
+//
+// El backend ya las venía guardando (`factura_guias.encontrada = 0`), pero la única
+// pantalla que las mostraba era el resumen del momento de cargar la factura: al salir
+// de ahí no se volvían a ver nunca. Esto las consulta de todas las facturas cargadas.
+
+// GET /api/facturas/sin-envio
+router.get('/sin-envio', async (req, res, next) => {
+  try {
+    const db = getDb();
+    const rows = await db.prepare(`
+      SELECT
+        fg.id, fg.numero_guia, fg.pais, fg.peso_facturado, fg.costo_total, fg.percepcion,
+        f.numero_factura, f.fecha_factura, f.fecha_carga, f.courier
+      FROM factura_guias fg
+      JOIN facturas_cargadas f ON f.id = fg.factura_id
+      WHERE fg.encontrada = 0
+      ORDER BY f.fecha_carga DESC, fg.id DESC
+    `).all();
+
+    const resultado = rows.map((r) => ({
+      id: r.id,
+      numero_guia: r.numero_guia,
+      pais: r.pais,
+      peso_facturado: r.peso_facturado,
+      costo_total: r.costo_total,
+      percepcion: r.percepcion,
+      factura: r.numero_factura,
+      fecha_factura: r.fecha_factura,
+      fecha_carga: r.fecha_carga,
+      courier: r.courier,
+    }));
+
+    // NO se sugiere "¿quisiste decir X?". Se probó y se sacó a pedido de Felipe (29/07):
+    // todas las guías de Nova comparten el prefijo y solo cambian los últimos dígitos, así
+    // que dos guías LEGÍTIMAS y distintas pueden diferir en un caracter. La sugerencia
+    // apuntaría a un envío correcto y alguien podría "corregirlo" mal. Con marcar que la
+    // guía no existe alcanza.
+
+    res.json({
+      total: resultado.length,
+      costo_total: Math.round(resultado.reduce((s, g) => s + (g.costo_total || 0), 0) * 100) / 100,
+      guias: resultado,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // PATCH /api/facturas/guias/:id/estado
 // Actualiza estado_revision de un envío con costo facturado.
 router.patch('/guias/:id/estado', async (req, res, next) => {

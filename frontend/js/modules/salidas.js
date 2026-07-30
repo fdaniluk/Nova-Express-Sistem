@@ -469,7 +469,7 @@
 
     // Iconos (revisión/alerta/tracking) solo en el primer renglón del envío.
     const guiaIcons = isFirst
-      ? `${revisionIconHtml(e)}${guiaSospechosaHtml(e.courier, bultoGuia)}${alert ? alertIconHtml(alert, e) : ''}${e.courier === 'UPS' ? trackBtnHtml(e.numero_guia) : ''}`
+      ? `${revisionIconHtml(e)}${alert ? alertIconHtml(alert, e) : ''}${e.courier === 'UPS' ? trackBtnHtml(e.numero_guia) : ''}`
       : '';
 
     // Lápiz para editar la guía de ESTE bulto: solo en bultos reales (id no nulo).
@@ -504,7 +504,7 @@
       <td data-col="numero_salida" class="numsal-cell" title="Marcar fila">${fmtNum(e.num_sal_mes)}</td>
       <td data-col="courier">${env(courierBadge(e.courier))}</td>
       <td data-col="fecha">${env(NovaUtils.formatDate(e.fecha))}</td>
-      <td class="mono" data-col="numero_guia"><span class="bulto-guia-text">${esc(bultoGuia)}</span>${bultoGuiaEdit}${guiaIcons}</td>
+      <td class="mono${guiaMalaAttrs(e.courier, bultoGuia)}" data-col="numero_guia"><span class="bulto-guia-text">${esc(bultoGuia)}</span>${bultoGuiaEdit}${guiaIcons}</td>
       <td data-col="tipo_cobro">${env(cobroBadge(e.tipo_cobro))}</td>
       <td data-col="cliente_nombre">${env(`<a href="clientes-perfil.html?id=${e.cliente_id}">${esc(e.cliente_nombre)}</a>`)}</td>
       <td data-col="destino">${env(esc(e.destino))}</td>
@@ -683,14 +683,17 @@
     return `<span class="alert-icon" title="${alertMsg(e)}" style="color:${color}">⚠</span>`;
   }
 
-  // Aviso de guía mal tipeada. Usa el dígito verificador del número (validar-guia.js):
-  // no consulta a UPS ni a DHL, así que no depende de la red ni de una API.
-  // Es un AVISO, no un bloqueo: una guía con formato raro puede ser legítima.
-  function guiaSospechosaHtml(courier, guia) {
+  // Guía mal tipeada: se pinta la CELDA entera. Antes era un ícono chiquito al lado del
+  // número y no llamaba la atención (pedido de Felipe, 29/07).
+  //
+  // Usa el dígito verificador del número (validar-guia.js): no consulta a UPS ni a DHL, así
+  // que no depende de la red. Avisa, no bloquea: una guía con formato raro puede ser
+  // legítima, por eso se pinta pero no se impide nada.
+  function guiaMalaAttrs(courier, guia) {
     if (typeof validarGuia !== 'function') return '';
     const v = validarGuia(courier, guia);
     if (v.estado !== 'sospechosa') return '';
-    return `<span class="alert-icon guia-sospechosa" title="Guía posiblemente mal tipeada: ${esc(v.motivo)}" style="color:#d97706">⌦</span>`;
+    return ` cell-guia-mala" title="Guía mal cargada: ${esc(v.motivo)}`;
   }
 
   function revisionIconHtml(e) {
@@ -2657,7 +2660,18 @@
         // Restaurar la celda (con lápiz e iconos) y refrescar solo el texto de la guía:
         // vacío en el bulto → fallback a la guía del envío (igual que en el render).
         cell.innerHTML = original;
-        cell.querySelector('.bulto-guia-text').textContent = bulto.numero_guia || envio.numero_guia || '';
+        const guiaNueva = bulto.numero_guia || envio.numero_guia || '';
+        cell.querySelector('.bulto-guia-text').textContent = guiaNueva;
+        // Se re-evalúa el pintado: si la corrigieron, la celda tiene que dejar de estar
+        // marcada en el acto, sin recargar la pantalla.
+        const malAhora = typeof validarGuia === 'function'
+          && validarGuia(envio.courier, guiaNueva).estado === 'sospechosa';
+        cell.classList.toggle('cell-guia-mala', malAhora);
+        if (malAhora) {
+          cell.title = 'Guía mal cargada: ' + validarGuia(envio.courier, guiaNueva).motivo;
+        } else {
+          cell.removeAttribute('title');
+        }
         // Regenerar el checkbox de "Copiar guías" de esta fila: su value depende
         // de la guía recién editada. Preservar el estado marcado si lo estaba.
         const isFirst = !tr.classList.contains('bulto-detail-row');

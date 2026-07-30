@@ -103,10 +103,28 @@ async function main() {
   check('el validador está cargado en Salidas',
     await page.evaluate(() => typeof validarGuia === 'function'));
 
-  const iconos = await page.evaluate(() => document.querySelectorAll('.guia-sospechosa').length);
+  const pintadas = await page.evaluate(() =>
+    document.querySelectorAll('td[data-col="numero_guia"].cell-guia-mala').length);
   const filas = await page.evaluate(() => document.querySelectorAll('td[data-col="numero_guia"]').length);
   check('hay renglones de guías en pantalla', filas > 0, `${filas} renglones`);
-  console.log(`      ${filas} renglones · ${iconos} marcados como sospechosos`);
+  check('las guías mal tipeadas tienen la celda pintada', pintadas > 0, `${pintadas} pintadas`);
+  console.log(`      ${filas} renglones · ${pintadas} celdas pintadas`);
+
+  // el color tiene que verse de verdad, no solo estar la clase puesta
+  const fondo = await page.evaluate(() => {
+    const td = document.querySelector('td[data-col="numero_guia"].cell-guia-mala');
+    return td ? getComputedStyle(td).backgroundColor : null;
+  });
+  check('la celda pintada tiene fondo ámbar', fondo === 'rgb(254, 243, 199)', fondo);
+
+  const titulo = await page.evaluate(() => {
+    const td = document.querySelector('td[data-col="numero_guia"].cell-guia-mala');
+    return td ? td.getAttribute('title') : null;
+  });
+  check('y al pasar el mouse explica el motivo', /mal cargada/i.test(titulo || ''), titulo);
+
+  const iconosViejos = await page.evaluate(() => document.querySelectorAll('.guia-sospechosa').length);
+  check('ya no queda el ícono chiquito', iconosViejos === 0, `${iconosViejos}`);
 
   console.log('\n3. Sin errores de JavaScript\n');
   const relevantes = errores.filter((x) => !/favicon|net::ERR/i.test(x));

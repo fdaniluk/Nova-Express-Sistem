@@ -200,6 +200,8 @@ api.facturas = {
     return request('/facturas/cargar', { method: 'POST', body: fd });
   },
   guias: () => api.get('/facturas/guias'),
+  // Guías que el courier facturó y que no tienen envío en el sistema.
+  sinEnvio: () => api.get('/facturas/sin-envio'),
   actualizarEstado: (id, estado_revision) =>
     request(`/facturas/guias/${id}/estado`, { method: 'PATCH', body: { estado_revision } }),
 };

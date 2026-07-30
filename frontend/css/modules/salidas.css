@@ -415,6 +415,16 @@ th:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: '⇅'; }
   font-weight: 700;
 }
 
+/* ── Guía mal tipeada ── */
+/* El número de guía lleva un dígito verificador; cuando no cierra, la celda entera se
+   pinta. Ámbar y no rojo a propósito: el rojo ya significa "el courier facturó de más".
+   Esto es "revisá cómo se cargó", que es otra cosa. */
+.salidas-table td.cell-guia-mala {
+  background: #fef3c7;
+  color: #92400e;
+  font-weight: 700;
+}
+
 /* ── Foco de comparación: "Compra Total" azul mientras la guía está pendiente ── */
 /* Existe SOLO mientras hay trabajo pendiente: la celda que muestra la botonera ✓/✕ en
    Revisión (isRevisionPendiente) pinta su Compra Total de azul suave = "este es el número

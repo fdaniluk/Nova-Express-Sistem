@@ -2,6 +2,7 @@
   // ── Estado ──────────────────────────────────────────────────────────────────
   let pdfFile = null;             // archivo seleccionado
   let revisarLoaded = false;      // si la pestaña Revisar ya cargó datos
+  let sinEnvioLoaded = false;     // idem para la pestaña Sin envío
   let revisarData = [];           // guías cargadas para Revisar
 
   const alertBox = document.getElementById('alert-box');
@@ -9,6 +10,10 @@
   // ── Init ────────────────────────────────────────────────────────────────────
   function init() {
     bindTabs();
+    document.getElementById('btn-sinenvio-reload')?.addEventListener('click', loadSinEnvio);
+    // Se consulta al entrar a la pantalla para que el número del cartelito de la pestaña
+    // esté a la vista sin tener que abrirla.
+    loadSinEnvio();
     bindCargar();
   }
 
@@ -22,8 +27,10 @@
         const tab = btn.dataset.tab;
         document.getElementById('tab-cargar').classList.toggle('hidden', tab !== 'cargar');
         document.getElementById('tab-revisar').classList.toggle('hidden', tab !== 'revisar');
+        document.getElementById('tab-sinenvio').classList.toggle('hidden', tab !== 'sinenvio');
 
         if (tab === 'revisar' && !revisarLoaded) loadRevisar();
+        if (tab === 'sinenvio' && !sinEnvioLoaded) loadSinEnvio();
       });
     });
   }
@@ -232,6 +239,47 @@
   }
 
   // ── Pestaña REVISAR ─────────────────────────────────────────────────────────
+
+  // ── Pestaña SIN ENVÍO ───────────────────────────────────────────────────────
+  //
+  // Guías que el courier facturó y que no tienen envío cargado. La info ya se guardaba
+  // (factura_guias.encontrada = 0) pero solo se veía en el resumen del momento de cargar
+  // la factura: al salir de ahí no se volvía a ver nunca.
+
+  async function loadSinEnvio() {
+    const tbody = document.getElementById('fac-sinenvio-body');
+    const counter = document.getElementById('fac-sinenvio-counter');
+    const badge = document.getElementById('sinenvio-badge');
+    tbody.innerHTML = '<tr><td colspan="5" class="empty">Cargando…</td></tr>';
+    try {
+      const res = await NovaAPI.facturas.sinEnvio();
+      sinEnvioLoaded = true;
+      const guias = res.guias || [];
+
+      if (badge) {
+        badge.textContent = guias.length;
+        badge.classList.toggle('hidden', guias.length === 0);
+      }
+      counter.textContent = guias.length
+        ? `${guias.length} guía${guias.length > 1 ? 's' : ''} · ${fmtUSD(res.costo_total)} facturados`
+        : '';
+
+      if (!guias.length) {
+        tbody.innerHTML = '<tr><td colspan="5" class="empty">Ninguna. Todas las guías facturadas tienen su envío cargado.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = guias.map((g) => `<tr>
+        <td class="mono">${esc(g.numero_guia)}</td>
+        <td>${esc(g.factura || '')}<div class="em" style="font-size:11px">${esc(g.fecha_factura || '')}</div></td>
+        <td>${esc(g.pais || '')}</td>
+        <td class="num">${g.peso_facturado != null ? Number(g.peso_facturado).toFixed(1) + ' kg' : '<span class="em">—</span>'}</td>
+        <td class="num">${fmtUSD(g.costo_total)}</td>
+      </tr>`).join('');
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="5" class="empty">No se pudo cargar: ${esc(e.message || e)}</td></tr>`;
+    }
+  }
 
   async function loadRevisar() {
     const tbody = document.getElementById('fac-table-body');

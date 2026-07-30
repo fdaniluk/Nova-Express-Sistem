@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Control de Facturas – Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260729e">
-  <link rel="stylesheet" href="../css/modules/facturas.css?v=20260729e">
+  <link rel="stylesheet" href="../css/main.css?v=20260729h">
+  <link rel="stylesheet" href="../css/modules/facturas.css?v=20260729h">
 </head>
 <body>
 <div class="app-layout">
@@ -88,6 +88,7 @@
       <div class="tabs">
         <button class="tab active" data-tab="cargar">Cargar factura</button>
         <button class="tab" data-tab="revisar">Revisar guías</button>
+        <button class="tab" data-tab="sinenvio">Sin envío <span id="sinenvio-badge" class="tab-badge hidden">0</span></button>
       </div>
 
       <!-- ── PESTAÑA: CARGAR ─────────────────────────────── -->
@@ -142,6 +143,44 @@
       </div>
 
       <!-- ── PESTAÑA: REVISAR ────────────────────────────── -->
+      <!-- ── PESTAÑA: SIN ENVÍO ──────────────────────────────
+           Guías que el courier facturó y que no tienen envío cargado. Cada una es plata
+           que se pagó y que no se le facturó a nadie, o un número de guía mal tipeado. -->
+      <div id="tab-sinenvio" class="hidden">
+        <div class="card">
+          <div class="fac-revisar-header">
+            <h2 style="margin:0">Guías facturadas sin envío en el sistema</h2>
+            <div style="display:flex;gap:0.5rem;align-items:center">
+              <span class="fac-revisar-counter" id="fac-sinenvio-counter"></span>
+              <button class="btn btn-sm btn-secondary" id="btn-sinenvio-reload">↺ Actualizar</button>
+            </div>
+          </div>
+
+          <p style="font-size:13px;color:var(--text-secondary,#6b6860);margin:0 0 12px">
+            El courier cobró estas guías y no hay ningún envío cargado con ese número.
+            O el envío nunca se cargó — y entonces no se le facturó a ningún cliente —,
+            o la guía se tipeó mal al cargar el envío.
+          </p>
+
+          <div class="fac-table-wrap">
+            <table class="fac-table" id="fac-sinenvio-table">
+              <thead>
+                <tr>
+                  <th>Guía facturada</th>
+                  <th>Factura</th>
+                  <th>País</th>
+                  <th class="num">Peso</th>
+                  <th class="num">Costo</th>
+                </tr>
+              </thead>
+              <tbody id="fac-sinenvio-body">
+                <tr><td colspan="5" class="empty">Cargando…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <div id="tab-revisar" class="hidden">
         <div class="card">
           <div class="fac-revisar-header">
@@ -180,9 +219,9 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260729e"></script>
-<script src="../js/api.js?v=20260729e"></script>
-<script src="../js/main.js?v=20260729e"></script>
-<script src="../js/modules/facturas.js?v=20260729e"></script>
+<script src="/js/auth-guard.js?v=20260729h"></script>
+<script src="../js/api.js?v=20260729h"></script>
+<script src="../js/main.js?v=20260729h"></script>
+<script src="../js/modules/facturas.js?v=20260729h"></script>
 </body>
 </html>
