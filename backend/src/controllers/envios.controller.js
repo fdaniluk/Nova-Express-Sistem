@@ -36,6 +36,13 @@ async function crear(req, res, next) {
   try {
     const errDoc = errorDocumentoSoloDHL(req.body.tipo_paquete, req.body.courier);
     if (errDoc) return res.status(400).json({ error: errDoc });
+    // `peso_real` NO está en la lista: un envío se puede cargar SIN PESAR.
+    //
+    // Hay clientes cuyos paquetes no pasan por el depósito (Kasdorf y parecidos): se les
+    // manda la guía, la imprimen y despachan, y los pesos reales llegan días después. El
+    // envío se carga igual el día que sale, y cuando llegan los pesos se completan desde
+    // Salidas. Sin peso, las columnas de costo quedan vacías (ver sinPesar() en
+    // envio.model): el envío existe, pero no aporta plata inventada a ningún total.
     const required = [
       'cliente_id',
       'fecha',
@@ -43,14 +50,18 @@ async function crear(req, res, next) {
       'tipo_envio',
       'numero_guia',
       'pais_destino',
-      'peso_real',
     ];
     for (const f of required) {
       if (req.body[f] === undefined || req.body[f] === '') {
         return res.status(400).json({ error: `Campo obligatorio: ${f}` });
       }
     }
-    const envio = await envioModel.crear(req.body);
+    // peso_real es NOT NULL en la base: sin pesar se guarda 0, que es el marcador.
+    const body = { ...req.body };
+    if (body.peso_real === undefined || body.peso_real === '' || body.peso_real === null) {
+      body.peso_real = 0;
+    }
+    const envio = await envioModel.crear(body);
     res.status(201).json(envio);
   } catch (e) {
     if (e.message?.includes('UNIQUE')) {

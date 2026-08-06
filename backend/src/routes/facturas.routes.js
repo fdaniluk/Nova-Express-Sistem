@@ -95,6 +95,7 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
     const {
       numero_factura, fecha_factura, guias,
       advertencias, total_declarado, suma_guias, diferencia, cuadra,
+      subtotal_factura, percepciones,
     } = extraido;
 
     const db = getDb();
@@ -237,11 +238,20 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
         }
       }
 
+      // Los tres totales del pie del PDF se guardan junto con la cabecera. El parser ya
+      // los calculaba, pero antes solo se mostraban en el resumen de la carga y se
+      // perdian: una vez cargada la factura no quedaba forma de verificar que la suma
+      // de las guias diera el total. Es la diferencia entre poder auditar la percepcion
+      // de Ingresos Brutos y tener que volver a abrir el PDF a mano.
       const header = await db.prepare(`
         INSERT INTO facturas_cargadas
-          (courier, numero_factura, fecha_factura, cantidad_guias, guias_cruzadas, guias_no_encontradas, usuario)
-        VALUES ('UPS', ?, ?, ?, ?, ?, NULL)
-      `).run(numero_factura, fecha_factura, guias.length, resumen.guardadas, resumen.no_encontradas);
+          (courier, numero_factura, fecha_factura, cantidad_guias, guias_cruzadas, guias_no_encontradas, usuario,
+           total_declarado, subtotal_factura, percepciones)
+        VALUES ('UPS', ?, ?, ?, ?, ?, NULL, ?, ?, ?)
+      `).run(
+        numero_factura, fecha_factura, guias.length, resumen.guardadas, resumen.no_encontradas,
+        total_declarado ?? null, subtotal_factura ?? null, percepciones ?? null
+      );
 
       const facturaId = header.lastInsertRowid;
 

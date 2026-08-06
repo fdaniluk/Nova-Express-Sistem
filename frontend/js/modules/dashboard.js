@@ -1,5 +1,47 @@
 (function () {
   const alertBox = document.getElementById('alert-box');
+
+  // ── Franja de salud ───────────────────────────────────────────────────────
+  // Pide el semaforo del panel de salud y, si hay algo en rojo, lo muestra arriba del
+  // Dashboard. Es lo que hace que el panel sirva sin tener que acordarse de entrar.
+  //
+  // Tres decisiones:
+  //   · Si esta todo en verde, la franja NO aparece. Un aviso permanente se vuelve
+  //     paisaje y se deja de leer.
+  //   · Un chequeo que no pudo correr tambien enciende la franja. "No se pudo mirar" no
+  //     es lo mismo que "esta bien", y confundirlos es como se pierde un backup.
+  //   · Si la consulta falla (403 de un usuario sin permiso, red caida) la franja se
+  //     queda callada y NO rompe el Dashboard. El Dashboard es la pantalla principal;
+  //     no puede quedar en blanco porque falle un accesorio.
+  (async function franjaSalud() {
+    const el = document.getElementById('franja-salud');
+    if (!el) return;
+    try {
+      const r = await NovaAPI.salud.resumen();
+      const rojos = r.rojos || [];
+      const errores = r.errores || [];
+      if (!rojos.length && !errores.length) return;
+
+      const partes = [];
+      if (rojos.length) {
+        partes.push(rojos.map((x) => `${x.titulo}${x.cantidad ? ` (${x.cantidad})` : ''}`).join(' · '));
+      }
+      if (errores.length) {
+        partes.push(`${errores.length} chequeo(s) no pudieron correr: ${errores.map((x) => x.titulo).join(', ')}`);
+      }
+
+      const total = rojos.length + errores.length;
+      el.innerHTML =
+        `<strong>${total} ${total === 1 ? 'cosa necesita' : 'cosas necesitan'} atencion.</strong> `
+        + 'Ver el panel de salud →'
+        + `<div class="franja-detalle">${partes.join(' · ')}</div>`;
+      el.hidden = false;
+    } catch (err) {
+      // Silencio deliberado: sin permiso o sin red, el Dashboard sigue funcionando igual.
+      console.warn('[dashboard] No se pudo leer el panel de salud:', err.message);
+    }
+  })();
+
   const mesSelector = document.getElementById('mes-selector');
   const periodoLabel = document.getElementById('periodo-label');
 

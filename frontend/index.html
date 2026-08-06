@@ -4,7 +4,20 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard — Nova Express</title>
-  <link rel="stylesheet" href="css/main.css?v=20260730b">
+  <link rel="stylesheet" href="css/main.css?v=20260804e">
+  <style>
+    /* Franja de salud del Dashboard. Roja y arriba de todo a proposito: es lo unico de
+       esta pantalla que pide una accion. Enlaza al panel completo. */
+    .franja-salud {
+      display: block; margin-bottom: 1rem; padding: 0.75rem 1rem;
+      background: #fef2f2; border: 1px solid #fecaca; border-left: 4px solid var(--color-danger);
+      border-radius: var(--radius); color: var(--color-text); text-decoration: none;
+      font-size: 0.9rem;
+    }
+    .franja-salud:hover { background: #fee2e2; }
+    .franja-salud strong { color: var(--color-danger); }
+    .franja-salud .franja-detalle { color: var(--color-muted); font-size: 0.85rem; margin-top: 0.2rem; }
+  </style>
 </head>
 <body>
 <div class="app-layout">
@@ -66,6 +79,10 @@
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
         <span>Configuración</span>
       </a>
+      <a href="pages/salud.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
+        <span>Salud</span>
+      </a>
     </nav>
     <div class="sidebar-footer">
       <button class="nav-item nav-logout" id="btn-logout">
@@ -88,6 +105,10 @@
 
     <div class="page-body">
       <div id="alert-box"></div>
+
+      <!-- Franja de salud: solo aparece si hay algo en rojo o algun chequeo que no pudo
+           correr. En verde no ocupa lugar, para que el dia que aparezca signifique algo. -->
+      <a id="franja-salud" class="franja-salud" href="pages/salud.html" hidden></a>
 
       <!-- Metric cards -->
       <div class="metrics-grid" id="metrics-grid">
@@ -132,9 +153,9 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260730b"></script>
-<script src="js/api.js?v=20260730b"></script>
-<script src="js/main.js?v=20260730b"></script>
-<script src="js/modules/dashboard.js?v=20260730b"></script>
+<script src="/js/auth-guard.js?v=20260804e"></script>
+<script src="js/api.js?v=20260804e"></script>
+<script src="js/main.js?v=20260804e"></script>
+<script src="js/modules/dashboard.js?v=20260804e"></script>
 </body>
 </html>

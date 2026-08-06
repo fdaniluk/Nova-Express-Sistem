@@ -257,6 +257,7 @@
     // Mostrar selector de variante UPS solo cuando courier = UPS y precargar el fuel del courier
     document.getElementById('courier').addEventListener('change', function () {
       document.getElementById('cot-ups-wrap').style.display = this.value === 'UPS' ? '' : 'none';
+      aplicarVisibilidadProteccionDoc(true);
       setFuelPctDefault();
     });
 
@@ -273,6 +274,7 @@
 
     // Recalcular al tildar/destildar DDP (passthrough +24.05)
     document.getElementById('ddp').addEventListener('change', debounce(updateCotizacion, 400));
+    document.getElementById('proteccion_doc').addEventListener('change', debounce(updateCotizacion, 400));
 
     // Recalcular al cambiar la zona de entrega (el recargo lo resuelve el motor).
     // Son DOS cargos distintos de UPS: extendida (42.15 o 0.92/kg) y remota (5.86 por
@@ -304,9 +306,34 @@
     // tildaba documento y el número de arriba seguía siendo el de mercadería.
     document.getElementById('tipo_paquete').addEventListener('change', () => {
       aplicarReglaDocumentos();
+      aplicarVisibilidadProteccionDoc(true);
       updateCotizacion();
     });
     aplicarReglaDocumentos();
+    aplicarVisibilidadProteccionDoc(true);
+  }
+
+  // ── Visibilidad de la Proteccion de Documentos de DHL ───────────────────────
+  // El servicio cubre documentos valiosos (pasaportes, visas, certificados), asi que la
+  // tilde solo tiene sentido cuando el envio ES un documento y va por DHL. Pedido de
+  // Felipe el 04/08: que no aparezca en los demas casos.
+  //
+  // El parametro `destildar` existe por una razon concreta: cuando el usuario cambia el
+  // courier o el tipo de paquete, destildar es la consecuencia correcta de SU accion. Pero
+  // al ABRIR un envio guardado no se puede tocar: destildarlo ahi seria cambiarle la plata
+  // a un envio sin que nadie lo haya pedido. Por eso, al cargar, un envio que tenga el
+  // cargo puesto se muestra igual aunque hoy no califique — asi se ve y se decide, en vez
+  // de esconder un cobro activo.
+  function aplicarVisibilidadProteccionDoc(destildar = false) {
+    const grupo = document.getElementById('grupo-proteccion-doc');
+    const chk = document.getElementById('proteccion_doc');
+    const tipoPaq = document.getElementById('tipo_paquete');
+    const courier = document.getElementById('courier');
+    if (!grupo || !chk || !tipoPaq || !courier) return;
+
+    const aplica = courier.value === 'DHL' && tipoPaq.value === 'd';
+    if (!aplica && destildar) chk.checked = false;
+    grupo.style.display = (aplica || chk.checked) ? '' : 'none';
   }
 
   // ── Regla de negocio: los DOCUMENTOS solo se despachan por DHL ──────────────
@@ -410,6 +437,7 @@
         zona,
         bultos: bultosParaCotizar,
         ddp: document.getElementById('ddp').checked,
+        proteccionDoc: document.getElementById('proteccion_doc').checked,
         entrega: document.getElementById('entrega').value,
         // Tipo de paquete → tarifa de DOCUMENTO de DHL (hasta 2 kg). El formulario ya tenía
         // el selector y lo guardaba en el envío, pero nunca se lo mandaba al cotizador: por
@@ -520,6 +548,7 @@
         fuel_pct: getFuelPctForm(),
         asegurado: document.getElementById('asegurado').checked ? 1 : 0,
         ddp: document.getElementById('ddp').checked ? 1 : 0,
+        proteccion_doc: document.getElementById('proteccion_doc').checked ? 1 : 0,
         entrega: document.getElementById('entrega').value,
         // `remota` se sigue guardando por compatibilidad: hay pantallas y consultas que
         // lo leen, y los envíos viejos solo tienen ese flag.
@@ -561,6 +590,7 @@
     aplicarBloqueoMultibulto();
     // form.reset() devuelve tipo_paquete a 'm': hay que re-habilitar UPS.
     aplicarReglaDocumentos();
+    aplicarVisibilidadProteccionDoc(true);
     document.getElementById('btn-cancelar-edit').classList.add('hidden');
     document.getElementById('cot-panel').classList.add('hidden');
     document.getElementById('cot-resultado').innerHTML = '';
@@ -601,6 +631,9 @@
       envio.fuel_pct != null ? envio.fuel_pct : (fuelPctActual[envio.courier] ?? '');
     document.getElementById('asegurado').checked = Boolean(envio.asegurado);
     document.getElementById('ddp').checked = Boolean(envio.ddp);
+    document.getElementById('proteccion_doc').checked = Boolean(envio.proteccion_doc);
+    // Sin destildar: si el envio ya tiene el cargo, se muestra aunque hoy no califique.
+    aplicarVisibilidadProteccionDoc(false);
     // Envío viejo: solo tiene el flag `remota`, que equivalía a la tarifa de extendida.
     document.getElementById('entrega').value = envio.entrega || (envio.remota ? 'extendida' : 'normal');
     document.getElementById('total_cobrado').value = envio.total_cobrado;

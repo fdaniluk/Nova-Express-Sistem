@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Perfil de cliente — Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260730b">
+  <link rel="stylesheet" href="../css/main.css?v=20260804e">
   <style>
     .info-grid {
       display: grid;
@@ -95,6 +95,11 @@
     .tarifas-rangos input { width: 90px; }
     table.tarifas-grid td.banda-label .rango-del { float: right; font-size: 0.75rem; color: var(--color-muted); cursor: pointer; padding-left: 0.5rem; }
     table.tarifas-grid td.banda-label .rango-del:hover { color: var(--color-danger); }
+    /* Celda sin precio por kilo cargado: ese peso y esa zona se cobran con el PORCENTAJE
+       de ganancia del cliente. No es un agujero, es el caso mixto, asi que se muestra
+       distinto de un valor cargado pero sin pinta de error. */
+    td.tarifa-cell.por-pct { color: var(--color-muted); font-style: italic; background: #fafafa; }
+    .tarifas-rangos select { width: auto; font-size: 0.8rem; padding: 0.25rem 0.4rem; }
   </style>
 </head>
 <body>
@@ -157,6 +162,10 @@
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
         <span>Configuración</span>
       </a>
+      <a href="salud.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
+        <span>Salud</span>
+      </a>
     </nav>
     <div class="sidebar-footer">
       <button class="nav-item nav-logout" id="btn-logout">
@@ -207,6 +216,16 @@
             <button class="btn btn-secondary btn-sm hidden" id="btn-borrar-fuel">Quitar fuel propio</button>
             <span class="tarifas-hint" id="tarifas-modo-hint"></span>
           </div>
+          <!-- Seguro negociado del cliente. Vale para DHL y para UPS por igual. -->
+          <div class="tarifas-modo">
+            <label for="tarifas-seguro-pct">Seguro propio (%)</label>
+            <input type="number" id="tarifas-seguro-pct" min="0" step="0.1" placeholder="usa el del courier">
+            <label for="tarifas-seguro-min">Minimo (USD)</label>
+            <input type="number" id="tarifas-seguro-min" min="0" step="0.5" placeholder="sin minimo">
+            <button class="btn btn-primary btn-sm" id="btn-guardar-seguro">Guardar seguro</button>
+            <button class="btn btn-secondary btn-sm hidden" id="btn-borrar-seguro">Quitar seguro propio</button>
+            <span class="tarifas-hint" id="tarifas-seguro-hint"></span>
+          </div>
           <div class="tabs" id="tarifas-tabs">
             <button class="tab active" data-serv="DHL" data-tipo="export">DHL Expo</button>
             <button class="tab" data-serv="DHL" data-tipo="import">DHL Impo</button>
@@ -230,7 +249,20 @@
             <input type="number" id="rango-hasta" min="0" step="0.5" placeholder="sin tope">
             <span>kg · USD por kilo</span>
             <input type="number" id="rango-precio" min="0" step="0.1" placeholder="5.00">
+            <span>en</span>
+            <!-- Elegir una zona sola es lo que permite el caso MIXTO: esa zona cobra por
+                 kilo y las demas siguen por porcentaje de ganancia. -->
+            <select id="rango-zona">
+              <option value="">todas las zonas</option>
+              <option value="1">solo zona 1</option>
+              <option value="2">solo zona 2</option>
+              <option value="3">solo zona 3</option>
+              <option value="4">solo zona 4</option>
+              <option value="5">solo zona 5</option>
+              <option value="6">solo zona 6</option>
+            </select>
             <button class="btn btn-primary btn-sm" id="btn-agregar-rango">Agregar rango</button>
+            <span class="tarifas-hint" id="tarifas-grid-ayuda"></span>
           </div>
           <div id="tarifas-grid" class="tarifas-grid-wrap"></div>
         </div>
@@ -298,9 +330,9 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260730b"></script>
-<script src="../js/api.js?v=20260730b"></script>
-<script src="../js/main.js?v=20260730b"></script>
-<script src="../js/modules/clientes-perfil.js?v=20260730b"></script>
+<script src="/js/auth-guard.js?v=20260804e"></script>
+<script src="../js/api.js?v=20260804e"></script>
+<script src="../js/main.js?v=20260804e"></script>
+<script src="../js/modules/clientes-perfil.js?v=20260804e"></script>
 </body>
 </html>

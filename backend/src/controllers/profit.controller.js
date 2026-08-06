@@ -83,7 +83,11 @@ async function resolve(req, res, next) {
       return res.status(404).json({ error: 'Cliente no encontrado' });
     }
     const fuelPctPropio = await profitService.resolverFuelPropio(id);
-    res.json({ ...resultado, fuelPctPropio });
+    // Seguro negociado del cliente ({pct, min} o null). El cotizador lo necesita para
+    // pasárselo al motor: sin esto cotizaría con la escala de lista y el envío se cargaría
+    // con un seguro distinto del que se le factura.
+    const seguroPropio = await profitService.resolverSeguroPropio(id);
+    res.json({ ...resultado, fuelPctPropio, seguroPropio });
   } catch (e) {
     next(e);
   }

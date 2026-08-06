@@ -168,7 +168,37 @@ function getSurge(pais,tipo,pf){
   return pf*0.50;
 }
 
-function calcSeguroUPS(v){
+// Seguro propio del cliente (clientes.seguro_pct_propio / seguro_min_propio).
+// Hay clientes con un porcentaje negociado distinto del 1,5% de lista —1% en Gianastasio
+// y Cueros—, y el piso tampoco es igual para todos, así que van los dos por cliente.
+//
+// Cuando el cliente tiene uno cargado, REEMPLAZA la escala del courier entera, en DHL y en
+// UPS por igual: no quedan ni el escalón de USD 15 de UPS ni el mínimo de 17,50 de DHL.
+// Es a propósito: si el cliente negoció "1% con mínimo 10", eso es lo que paga, y dejar el
+// escalón viejo abajo lo haría pagar 15 en un envío de USD 200 que debería costarle 10.
+//
+// El valor 0 sigue sin pagar seguro en los dos casos: no hay nada que asegurar.
+// @param {{pct:number, min:number|null}|null} propio
+// Ojo con el null: isFinite(null) devuelve TRUE (null se convierte en 0). Un cliente con
+// el porcentaje vacío y un mínimo cargado terminaba cobrando ese mínimo en vez de volver a
+// la escala del courier, que es lo que corresponde. Hay que descartarlo a mano.
+const _numOnull=(x)=>(x===null||x===undefined||x===''||!isFinite(Number(x)))?null:Number(x);
+
+function seguroPropioMonto(v,propio){
+  if(!propio)return null;
+  const pct=_numOnull(propio.pct);
+  if(pct===null)return null;
+  if(v<=0)return{monto:0,desc:'Sin seguro (valor = 0)'};
+  const raw=parseFloat((v*(pct/100)).toFixed(2));
+  const piso=_numOnull(propio.min)===null?0:Number(propio.min);
+  const m=parseFloat(Math.max(piso,raw).toFixed(2));
+  const pctTxt=`${pct}%`;
+  if(raw<piso)return{monto:m,desc:`Seguro del cliente: mínimo USD ${piso.toFixed(2)} (${pctTxt} daba USD ${raw.toFixed(2)})`};
+  return{monto:m,desc:`Seguro del cliente: ${pctTxt} × USD ${v.toLocaleString('es-AR')} = USD ${m.toFixed(2)}`};
+}
+
+function calcSeguroUPS(v,propio){
+  const p=seguroPropioMonto(v,propio); if(p)return p;
   if(v<=0)return{monto:0,desc:'Sin seguro (valor = 0)'};
   if(v<100)return{monto:0,desc:'Sin cargo (valor menor a USD 100)'};
   if(v<=1000)return{monto:15,desc:'Seguro: USD 15.00 fijo (USD 100–1.000)'};
@@ -176,7 +206,13 @@ function calcSeguroUPS(v){
   return{monto:m,desc:`Seguro: 1.5% × USD ${v.toLocaleString('es-AR')} = USD ${m.toFixed(2)}`};
 }
 
-function calcSeguroDHL(v){
+// Protección de Documentos de DHL — USD 7,50 por envío. Precio de tarifario, no de Nova:
+// si DHL lo actualiza, se cambia acá y queda cambiado en el cotizador, en el alta de envío,
+// en Salidas y en la liquidación.
+const DHL_PROTECCION_DOC=7.50;
+
+function calcSeguroDHL(v,propio){
+  const p=seguroPropioMonto(v,propio); if(p)return p;
   if(v<=0)return{monto:0,desc:'Sin seguro (valor = 0)'};
   const raw=parseFloat((v*0.015).toFixed(2));
   const m=Math.max(17.50,raw);
@@ -308,12 +344,20 @@ function cotizarServicio(servicio, params) {
     contenido='paquete',
     zonaOverride,
     ddp=false,
+    // Protección de Documentos de DHL: USD 7,50 por envío, a pedido del cliente.
+    // Tarifario DHL Express Argentina, hoja "Servicios y cargos públicos": es un servicio
+    // OPCIONAL ("si va a enviar documentos valiosos, pasaportes, solicitudes para visas o
+    // certificados legales"), por eso es una tilde y no algo automático. Solo DHL.
+    proteccionDoc=false,
     // Precio de venta del flete en USD POR KILO. Es para los clientes que no trabajan con
     // un % de ganancia sino con una tarifa fija por kilo (ver clientes.modo_tarifa y
     // tarifa_kg_overrides). Cuando viene, REEMPLAZA al flete con margen: el flete de venta
     // pasa a ser precioKgVenta × peso facturable y profitPct se ignora.
     // No toca nada más: fuel, seguro, surge, DDP y zona de entrega siguen igual.
     precioKgVenta=null,
+    // Seguro negociado del cliente: { pct, min } o null. Cuando viene, reemplaza la escala
+    // de seguro del courier en DHL y en UPS. Ver seguroPropioMonto().
+    seguroPropio=null,
   } = params;
   const fuel   = fuelPct   / 100;
   const profit = profitPct / 100;
@@ -337,7 +381,7 @@ function cotizarServicio(servicio, params) {
     const aplicaGoGreen=!(tipo==='import'&&pf>50);
     const goGreen=aplicaGoGreen?parseFloat((pf*0.98).toFixed(2)):0;
     const{sobrepesoTotal,excesoTotal,noConvencionalTotal}=calcDHLExtras(bultosProc);
-    const seguroObj=calcSeguroDHL(fob);
+    const seguroObj=calcSeguroDHL(fob,seguroPropio);
     const extras=[];
     if(goGreen>0)           extras.push([`GoGreen (${Number(pf.toFixed(3))} kg × USD 0.98)`,goGreen]);
     if(sobrepesoTotal>0)    extras.push(['Sobrepeso (DHL)',sobrepesoTotal]);
@@ -347,6 +391,9 @@ function cotizarServicio(servicio, params) {
     const zeDHL=calcZonaEntrega('DHL',zonaEntrega,pf,pais);
     if(zeDHL)               extras.push([zeDHL.label,zeDHL.monto]);
     if(ddp)                 extras.push(['DDP',24.05]);
+    // Va DESPUÉS del margen y sin fuel, como el DDP y el resto de los recargos del courier:
+    // criterio de Felipe del 29/07, la ganancia se calcula solo sobre el flete de tabla.
+    if(proteccionDoc)       extras.push(['Protección de documentos (DHL)',DHL_PROTECCION_DOC]);
     // Tarifa por kilo: el flete de venta es precio × peso facturable, no flete + margen.
     const conGan          =usaPorKg?parseFloat((kgVenta*pf).toFixed(2)):fleteBase*(1+profit);
     const subtotalConSurge=conGan;
@@ -401,7 +448,7 @@ function cotizarServicio(servicio, params) {
   // como 5.50, y con el fuel encima como 7.26. Criterio de Felipe (29/07): los recargos
   // del courier se pasan al costo, igual que el surge y el DDP.
   const flete=fleteBase;
-  const seguroObj=calcSeguroUPS(fob);
+  const seguroObj=calcSeguroUPS(fob,seguroPropio);
   const manejo=parseFloat((manejoCount*27.65+contornoExtra).toFixed(2));
   const extras=[];
   if(manejoCount>0)  extras.push([`Manejo adicional (${manejoCount} bulto${manejoCount>1?'s':''})`,manejoCount*27.65]);
@@ -448,7 +495,7 @@ if(typeof module!=='undefined'&&module.exports){
     UPS_SAVER_ES_IT,UPS_SAVER_ES_PK,UPS_SAVER_IT_PK,
     resolverZona,
     getPesoVol,getDHL,getDHLBig,getUPS,getUPSSaverEsIt,
-    getSurge,calcSeguroUPS,calcSeguroDHL,calcDHLExtras,calcUPSDimExtras,calcImpuestos,calcZonaEntrega,normalizarEntrega,
+    getSurge,calcSeguroUPS,calcSeguroDHL,seguroPropioMonto,DHL_PROTECCION_DOC,calcDHLExtras,calcUPSDimExtras,calcImpuestos,calcZonaEntrega,normalizarEntrega,
     cotizarServicio,
   };
 }

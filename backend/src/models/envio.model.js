@@ -106,10 +106,31 @@ async function listar(filtros = {}) {
   return rows.map(mapEnvio);
 }
 
+// ¿Este envío todavía no fue pesado?
+//
+// Hay clientes cuyos envíos no pasan por el depósito (Kasdorf y parecidos): se les manda la
+// guía, la imprimen y despachan, y los pesos y medidas reales llegan dias después. Esos
+// envíos se cargan igual el mismo día, sin pesar.
+//
+// El marcador es el peso facturable en 0. No hace falta una columna nueva: un envío real no
+// puede pesar cero, y peso_real es NOT NULL en la base, así que 0 es el único valor posible
+// para "todavía no lo sé". Cambiar esa columna a NULL obligaría a reconstruir la tabla de
+// envíos entera, que es mucho riesgo para lo que aporta.
+function sinPesar(pesoFacturable) {
+  return !(Number(pesoFacturable) > 0);
+}
+
 // Calcula el desglose AL COSTO (profit 0) congelado al alta, usando el mismo motor
 // que el cotizador y el liquidador. El fuel% es el autoritativo de config (no el del
 // cliente). Devuelve null si el país no figura en las tablas y no hay zona manual.
+//
+// También devuelve null si el envío está SIN PESAR. Antes no: con peso 0 el motor
+// devolvía el flete mínimo de la tabla (USD 21,90 en UPS zona 2, el renglón de 0,5 kg) y
+// ese número quedaba guardado como si fuera el costo real. Entre que se carga el envío y
+// llegan los pesos, esa plata inventada se sumaba en Salidas, en el dashboard y en la
+// utilidad. Sin peso no hay costo: las columnas quedan vacías hasta que se pese.
 async function calcularDesgloseAlCosto(data, pesoFacturable) {
+  if (sinPesar(pesoFacturable)) return null;
   const courier = data.courier;
   const servicio = courier === 'DHL'
     ? 'DHL'
@@ -147,6 +168,9 @@ async function calcularDesgloseAlCosto(data, pesoFacturable) {
     // `remota`, el motor lo lee como 'extendida', que es la tarifa que ya se le cobró.
     entrega: data.entrega ?? null,
     ddp: data.ddp ? true : false,
+    // Protección de Documentos de DHL (USD 7,50). Sin esta línea el cargo se pierde al
+    // congelar el costo y reaparece como descuadre al conciliar contra la factura.
+    proteccionDoc: data.proteccion_doc ? true : false,
     // Tipo de paquete → tarifa de documento de DHL (hasta 2 kg). Sin esto el costo se
     // congelaba siempre con la tabla de mercadería, aunque el envío estuviera marcado
     // como documento, y la utilidad de esos envíos quedaba mal calculada.
@@ -169,10 +193,10 @@ async function crear(data) {
           cliente_id, fecha, courier, tipo_envio, numero_guia, pais_destino, destino_raw, direccion, zona,
           cantidad_bultos, peso_real, largo, ancho, alto,
           peso_volumetrico, peso_facturable, fob, total_cobrado, observaciones,
-          numero_salida, bulto, tipo_paquete, asegurado, ddp, remota, entrega,
+          numero_salida, bulto, tipo_paquete, asegurado, ddp, proteccion_doc, remota, entrega,
           flete, descuento, seguro, fuel, fuel_pct, derechos, adicionales, otros, profit, porcentaje,
           extras_json, servicio_ups
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         data.cliente_id,
@@ -199,6 +223,7 @@ async function crear(data) {
         data.tipo_paquete ?? null,
         data.asegurado ?? 0,
         data.ddp ?? 0,
+        data.proteccion_doc ?? 0,
         data.remota ?? 0,
         data.entrega ?? null,
         desglose ? desglose.flete : (data.flete ?? null),
@@ -266,7 +291,7 @@ async function actualizar(id, data) {
   const CAMPOS_QUE_MUEVEN_EL_COSTO = [
     'peso_real', 'largo', 'ancho', 'alto', 'bultos', 'cantidad_bultos',
     'pais_destino', 'zona', 'courier', 'tipo_envio', 'servicio_ups',
-    'fob', 'fuel_pct', 'tipo_paquete', 'asegurado', 'ddp', 'remota', 'entrega',
+    'fob', 'fuel_pct', 'tipo_paquete', 'asegurado', 'ddp', 'proteccion_doc', 'remota', 'entrega',
   ];
   const cambioElCosto = CAMPOS_QUE_MUEVEN_EL_COSTO.some((c) => {
     if (data[c] === undefined) return false;
@@ -285,6 +310,18 @@ async function actualizar(id, data) {
     }, pesoFacturable);
   }
 
+  // Si la edición dejó al envío SIN PESAR (le sacaron los pesos), las columnas de costo
+  // tienen que quedar vacías, no conservar el número viejo. Con el COALESCE de siempre se
+  // quedarían con el costo del peso anterior, que ya no corresponde a nada.
+  const limpiarCosto = cambioElCosto && sinPesar(pesoFacturable);
+  const costoSet = limpiarCosto
+    ? `flete = ?, descuento = ?, seguro = ?, fuel = ?,
+        derechos = ?, adicionales = ?, otros = ?, extras_json = ?`
+    : `flete = COALESCE(?, flete), descuento = COALESCE(?, descuento),
+        seguro = COALESCE(?, seguro), fuel = COALESCE(?, fuel),
+        derechos = COALESCE(?, derechos), adicionales = COALESCE(?, adicionales),
+        otros = COALESCE(?, otros), extras_json = COALESCE(?, extras_json)`;
+
   await db.transaction(async () => {
     await db.prepare(
       `UPDATE envios SET
@@ -294,11 +331,8 @@ async function actualizar(id, data) {
         peso_volumetrico = ?, peso_facturable = ?,
         fob = ?, total_cobrado = ?, observaciones = ?,
         servicio_ups = ?, fuel_pct = ?,
-        tipo_paquete = ?, asegurado = ?, ddp = ?, remota = ?, entrega = ?,
-        flete = COALESCE(?, flete), descuento = COALESCE(?, descuento),
-        seguro = COALESCE(?, seguro), fuel = COALESCE(?, fuel),
-        derechos = COALESCE(?, derechos), adicionales = COALESCE(?, adicionales),
-        otros = COALESCE(?, otros), extras_json = COALESCE(?, extras_json),
+        tipo_paquete = ?, asegurado = ?, ddp = ?, proteccion_doc = ?, remota = ?, entrega = ?,
+        ${costoSet},
         updated_at = datetime('now', 'localtime')
        WHERE id = ?`
     ).run(
@@ -324,9 +358,12 @@ async function actualizar(id, data) {
       data.tipo_paquete !== undefined ? data.tipo_paquete : actual.tipo_paquete,
       data.asegurado !== undefined ? (data.asegurado ? 1 : 0) : actual.asegurado,
       data.ddp !== undefined ? (data.ddp ? 1 : 0) : actual.ddp,
+      data.proteccion_doc !== undefined ? (data.proteccion_doc ? 1 : 0) : actual.proteccion_doc,
       data.remota !== undefined ? (data.remota ? 1 : 0) : actual.remota,
       data.entrega !== undefined ? data.entrega : actual.entrega,
-      // COALESCE en el SQL: si no hubo recálculo van todos NULL y la columna no se toca.
+      // Los ocho de abajo son siempre los mismos parámetros; lo que cambia es el SQL de
+      // arriba. Sin recálculo van todos NULL y el COALESCE deja la columna como estaba;
+      // con el envío sin pesar, esos mismos NULL la vacían.
       desglose ? desglose.flete : null,
       desglose ? desglose.descuento : null,
       desglose ? desglose.seguro : null,

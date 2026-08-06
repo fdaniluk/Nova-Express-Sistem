@@ -123,7 +123,7 @@ async function cotizar(req, res, next) {
     // 2 kg. El cotizador manual siempre lo mandó; Cargar envío no, y por eso las dos
     // pantallas daban números distintos para el mismo documento. Si no viene se asume
     // 'paquete', que es el comportamiento histórico (no rompe otros llamadores).
-    const { pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zona, bultos, ddp, remota, entrega, cliente_id, profitManual, contenido } = req.body;
+    const { pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zona, bultos, ddp, proteccionDoc, remota, entrega, cliente_id, profitManual, contenido } = req.body;
     if (!servicio || !pesoFacturable) {
       return res.status(400).json({ error: 'servicio y pesoFacturable son obligatorios' });
     }
@@ -184,7 +184,13 @@ async function cotizar(req, res, next) {
       }
     }
 
-    const resultado = cotizarEnvio({ pais, tipo: tipoEfectivo, servicio, pesoFacturable, fob: fob || 0, fuelPct: fuelEfectivo, profitPct: profitEfectivo, zonaOverride: zona, bultos: bultos || [], remota: remota || false, entrega, ddp: ddp || false, contenido: contenido === 'documento' ? 'documento' : 'paquete', precioKgVenta });
+    // Seguro negociado del cliente: reemplaza la escala del courier en los dos couriers.
+    // Mismo criterio que el fuel: es del cliente, no del envío.
+    const seguroPropio = cliente_id
+      ? await profitService.resolverSeguroPropio(cliente_id)
+      : null;
+
+    const resultado = cotizarEnvio({ pais, tipo: tipoEfectivo, servicio, pesoFacturable, fob: fob || 0, fuelPct: fuelEfectivo, profitPct: profitEfectivo, zonaOverride: zona, bultos: bultos || [], remota: remota || false, entrega, ddp: ddp || false, proteccionDoc: proteccionDoc || false, contenido: contenido === 'documento' ? 'documento' : 'paquete', precioKgVenta, seguroPropio });
     if (!resultado) {
       const desc = pais ? `País "${pais}"` : `Zona ${zona}`;
       return res.status(404).json({ error: `${desc} no encontrado para ${servicio}` });
@@ -197,6 +203,7 @@ async function cotizar(req, res, next) {
       precio_kg_aplicado: precioKgVenta,
       fuel_aplicado: fuelEfectivo,
       fuel_origen: fuelOrigen,
+      seguro_propio: seguroPropio,
       advertencia,
     });
   } catch (e) {

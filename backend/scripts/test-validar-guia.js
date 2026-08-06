@@ -117,10 +117,23 @@ check('una guía vacía no dispara nada', validarGuia('UPS', '').estado === 'des
     console.log('    esté mirando. La base de desarrollo tiene guías inventadas y todas van a');
     console.log('    salir marcadas, y eso está bien. Lo que prueba que el algoritmo funciona');
     console.log('    son los casos fijos de arriba.)');
-    db.close();
+    // `db.close()` de sqlite3 NO es sincronico: encola el cierre en un hilo del pool y avisa
+  // por un handle async de libuv. Si el proceso arranca a salir antes de que ese aviso
+  // llegue, el hilo termina llamando uv_async_send sobre un handle que YA se esta cerrando
+  // y en Windows eso revienta con:
+  //   Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), file src\win\async.c, line 94
+  // No falla ningun test: se muere Node y corta la cadena del `npm test` a la mitad. En
+  // Linux la carrera casi siempre sale bien y por eso no se veia. Esperar el callback del
+  // close es la sincronizacion que faltaba.
+  await new Promise((res) => db.close(() => res()));
   }
 
   console.log('\n' + '─'.repeat(60));
   console.log(`${ok} pasaron · ${fail} fallaron`);
-  process.exit(fail === 0 ? 0 : 1);
+  // No se llama process.exit(): matar el proceso a mano mientras sqlite3 todavía tiene
+  // cosas pendientes es lo que venía reventando en Windows. Se deja el código de salida y
+  // Node termina solo cuando no le queda nada a medio cerrar. El timer con .unref() es la
+  // red de seguridad: no sostiene el proceso, solo actúa si a los 3 s sigue en pie.
+  process.exitCode = (fail === 0 ? 0 : 1);
+  setTimeout(() => process.exit((fail === 0 ? 0 : 1)), 3000).unref();
 })();

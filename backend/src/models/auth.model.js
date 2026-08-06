@@ -12,7 +12,7 @@ async function crearSesion(usuario_id, token_hash, expira_en) {
 
 async function buscarSesionConUsuario(token_hash) {
   return getDb().prepare(
-    `SELECT s.expira_en, s.usuario_id, u.usuario, u.rol, u.ver_dashboard, u.editar_config, u.activo
+    `SELECT s.expira_en, s.usuario_id, u.usuario, u.rol, u.ver_dashboard, u.editar_config, u.ver_salud, u.activo
      FROM sesiones s
      JOIN usuarios u ON u.id = s.usuario_id
      WHERE s.token_hash = ?`

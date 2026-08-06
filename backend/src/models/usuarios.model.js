@@ -2,13 +2,13 @@ const { getDb } = require('../db');
 
 async function listarUsuarios() {
   return getDb()
-    .prepare('SELECT id, usuario, rol, ver_dashboard, editar_config, activo, creado_en FROM usuarios ORDER BY id')
+    .prepare('SELECT id, usuario, rol, ver_dashboard, editar_config, ver_salud, activo, creado_en FROM usuarios ORDER BY id')
     .all();
 }
 
 async function buscarUsuarioPorId(id) {
   return getDb()
-    .prepare('SELECT id, usuario, rol, ver_dashboard, editar_config, activo, creado_en FROM usuarios WHERE id = ?')
+    .prepare('SELECT id, usuario, rol, ver_dashboard, editar_config, ver_salud, activo, creado_en FROM usuarios WHERE id = ?')
     .get(id);
 }
 
@@ -18,10 +18,10 @@ async function buscarUsuarioPorNombre(nombre) {
     .get(nombre);
 }
 
-async function crearUsuario({ usuario, password_hash, rol, ver_dashboard, editar_config }) {
+async function crearUsuario({ usuario, password_hash, rol, ver_dashboard, editar_config, ver_salud }) {
   const result = await getDb()
-    .prepare('INSERT INTO usuarios (usuario, password_hash, rol, ver_dashboard, editar_config, activo) VALUES (?, ?, ?, ?, ?, 1)')
-    .run(usuario, password_hash, rol, ver_dashboard, editar_config);
+    .prepare('INSERT INTO usuarios (usuario, password_hash, rol, ver_dashboard, editar_config, ver_salud, activo) VALUES (?, ?, ?, ?, ?, ?, 1)')
+    .run(usuario, password_hash, rol, ver_dashboard, editar_config, ver_salud);
   return result.lastInsertRowid;
 }
 

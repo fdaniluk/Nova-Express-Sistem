@@ -1069,8 +1069,71 @@ td.detail-expandable { cursor: pointer; }
   color: var(--color-muted);
 }
 
+/* Envio cargado sin pesos ni medidas: se marca en la columna de peso facturable para que
+   no se lea como "peso cero". El costo de esos envios queda en blanco a proposito. */
+.badge-sin-pesar {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 10px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+
+td.cell-sin-pesar { background: #fffbeb; }
+
 .saled-recalc-ok { color: #15803d; }
 .saled-recalc-err { color: #dc2626; }
+
+/* Panel de "Calcular venta": muestra el precio sugerido con el profit del cliente y, si el
+   envio YA tenia una venta cargada, las dos cifras y la diferencia antes de pisar nada.
+   El sistema nunca reemplaza plata solo: siempre hay que apretar el boton. */
+.saled-venta-panel {
+  margin-top: 0.6rem;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid #bfdbfe;
+  border-radius: 6px;
+  background: #eff6ff;
+  font-size: 13px;
+}
+
+.saled-venta-linea {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 2px 0;
+}
+
+.saled-venta-linea b { font-variant-numeric: tabular-nums; }
+
+.saled-venta-total {
+  border-top: 1px solid #bfdbfe;
+  margin-top: 0.35rem;
+  padding-top: 0.35rem;
+  font-weight: 600;
+}
+
+.saled-venta-dif-pos { color: #15803d; }
+.saled-venta-dif-neg { color: #dc2626; }
+
+.saled-venta-acciones {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  margin-top: 0.6rem;
+}
+
+.saled-venta-aviso {
+  margin-top: 0.5rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: 4px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 12px;
+}
 
 /* Desglose de adicionales (solo lectura) bajo la grilla de Costos. Informativo: se ve
    secundario respecto a los inputs editables. */

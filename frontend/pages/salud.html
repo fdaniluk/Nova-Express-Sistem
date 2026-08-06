@@ -3,9 +3,76 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Operaciones — Nova Express</title>
+  <title>Salud del sistema – Nova Express</title>
   <link rel="stylesheet" href="../css/main.css?v=20260804e">
-  <link rel="stylesheet" href="../css/modules/operaciones.css?v=20260804e">
+  <style>
+    /* Semaforo del encabezado: tres contadores grandes. El rojo manda. */
+    .salud-semaforo { display: flex; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.2rem; }
+    .salud-tile {
+      flex: 1 1 160px; background: #fff; border: 1px solid var(--color-border);
+      border-radius: var(--radius); padding: 0.9rem 1.1rem; border-left-width: 4px;
+    }
+    .salud-tile .tile-num { font-size: 2rem; font-weight: 700; line-height: 1.1; }
+    .salud-tile .tile-label {
+      font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.03em;
+      color: var(--color-muted);
+    }
+    .salud-tile.rojo  { border-left-color: var(--color-danger); }
+    .salud-tile.rojo  .tile-num { color: var(--color-danger); }
+    .salud-tile.ambar { border-left-color: var(--color-accent); }
+    .salud-tile.ambar .tile-num { color: #b45309; }
+    .salud-tile.ok    { border-left-color: var(--color-success); }
+    .salud-tile.ok    .tile-num { color: var(--color-success); }
+    .salud-tile.error { border-left-color: #7c3aed; }
+    .salud-tile.error .tile-num { color: #7c3aed; }
+
+    .salud-grupo-titulo {
+      font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.04em;
+      color: var(--color-muted); margin: 1.6rem 0 0.6rem;
+    }
+
+    .chequeo {
+      background: #fff; border: 1px solid var(--color-border); border-left-width: 4px;
+      border-radius: var(--radius); margin-bottom: 0.7rem; overflow: hidden;
+    }
+    .chequeo.rojo  { border-left-color: var(--color-danger); }
+    .chequeo.ambar { border-left-color: var(--color-accent); }
+    .chequeo.ok    { border-left-color: var(--color-success); }
+    .chequeo.error { border-left-color: #7c3aed; }
+
+    .chequeo-head {
+      display: flex; align-items: flex-start; gap: 0.8rem;
+      padding: 0.85rem 1rem; cursor: pointer;
+    }
+    .chequeo-head:hover { background: #fafbfc; }
+    .chequeo.ok .chequeo-head { cursor: default; }
+    .chequeo-punto {
+      width: 10px; height: 10px; border-radius: 50%; margin-top: 0.42rem; flex: none;
+    }
+    .chequeo.rojo  .chequeo-punto { background: var(--color-danger); }
+    .chequeo.ambar .chequeo-punto { background: var(--color-accent); }
+    .chequeo.ok    .chequeo-punto { background: var(--color-success); }
+    .chequeo.error .chequeo-punto { background: #7c3aed; }
+    .chequeo-texto { flex: 1; min-width: 0; }
+    .chequeo-titulo { font-weight: 600; }
+    .chequeo-resumen { font-size: 0.86rem; color: var(--color-muted); margin-top: 0.2rem; }
+    .chequeo-derecha { display: flex; align-items: center; gap: 0.7rem; flex: none; }
+    .chequeo-monto { font-weight: 700; color: var(--color-danger); white-space: nowrap; }
+    .chequeo-flecha { color: var(--color-muted); font-size: 0.8rem; }
+
+    .chequeo-cuerpo { display: none; padding: 0 1rem 1rem; }
+    .chequeo.abierto .chequeo-cuerpo { display: block; }
+    .chequeo-cuerpo table { width: 100%; font-size: 0.85rem; }
+    .chequeo-acciones {
+      margin-top: 0.7rem; display: flex; gap: 0.6rem; align-items: center;
+      font-size: 0.85rem; color: var(--color-muted);
+    }
+    .chequeo-error {
+      background: #f5f3ff; border: 1px solid #ddd6fe; border-radius: var(--radius);
+      padding: 0.6rem 0.8rem; font-size: 0.85rem; margin-bottom: 0.6rem;
+    }
+    .salud-pie { margin-top: 1.6rem; font-size: 0.8rem; color: var(--color-muted); }
+  </style>
 </head>
 <body>
 <div class="app-layout">
@@ -51,7 +118,7 @@
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
         <span>Pickups</span>
       </a>
-      <a href="operaciones.html" class="nav-item active">
+      <a href="operaciones.html" class="nav-item">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1" ry="1"/><path d="m9 12 2 2 4-4"/></svg></span>
         <span>Operaciones</span>
       </a>
@@ -67,7 +134,7 @@
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
         <span>Configuración</span>
       </a>
-      <a href="salud.html" class="nav-item">
+      <a href="salud.html" class="nav-item active">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
         <span>Salud</span>
       </a>
@@ -82,23 +149,22 @@
 
   <div class="page-content">
     <div class="page-header">
-      <div>
-        <h1>Operaciones</h1>
-        <div id="subtitle-ops" style="font-size:0.82rem;color:var(--color-muted);margin-top:0.1rem">—</div>
-      </div>
-      <div class="date-nav">
-        <button class="btn-day" id="btn-prev-day" title="Día anterior">&#8249;</button>
-        <span class="date-label" id="date-label">—</span>
-        <button class="btn-day" id="btn-next-day" title="Día siguiente">&#8250;</button>
-        <input type="date" id="date-picker" title="Ir a fecha">
+      <h1>Salud del sistema</h1>
+      <div class="period-selector">
+        <button class="btn btn-secondary" id="btn-refrescar">Volver a revisar</button>
       </div>
     </div>
 
     <div class="page-body">
       <div id="alert-box"></div>
-      <div class="ops-list" id="ops-list">
-        <div class="ops-empty">Cargando...</div>
+
+      <div class="salud-semaforo" id="semaforo">
+        <div class="salud-tile"><div class="tile-label">Revisando...</div></div>
       </div>
+
+      <div id="grupos"></div>
+
+      <div class="salud-pie" id="pie"></div>
     </div>
   </div>
 </div>
@@ -106,6 +172,6 @@
 <script src="/js/auth-guard.js?v=20260804e"></script>
 <script src="../js/api.js?v=20260804e"></script>
 <script src="../js/main.js?v=20260804e"></script>
-<script src="../js/modules/operaciones.js?v=20260804e"></script>
+<script src="../js/modules/salud.js?v=20260804e"></script>
 </body>
 </html>

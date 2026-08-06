@@ -28,6 +28,7 @@ async function requireAuth(req, res, next) {
       rol: session.rol,
       ver_dashboard: session.ver_dashboard,
       editar_config: session.editar_config,
+      ver_salud: session.ver_salud,
     };
     next();
   } catch (err) {
@@ -50,6 +51,17 @@ function requireConfig(req, res, next) {
   next();
 }
 
+// Panel de salud. Misma regla que requireConfig: el admin SIEMPRE puede, los demás
+// necesitan ver_salud = 1. Es un permiso aparte del dashboard a propósito — el
+// dashboard muestra la plata que se hizo, el panel de salud muestra lo que está roto,
+// y no tienen por qué verlos las mismas personas.
+function requireSalud(req, res, next) {
+  if (!req.usuario || (req.usuario.rol !== 'admin' && req.usuario.ver_salud !== 1)) {
+    return res.status(403).json({ error: 'Acceso denegado al panel de salud' });
+  }
+  next();
+}
+
 function requireAdmin(req, res, next) {
   if (!req.usuario || req.usuario.rol !== 'admin') {
     return res.status(403).json({ error: 'Se requiere rol administrador' });
@@ -57,4 +69,4 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-module.exports = { requireAuth, requireDashboard, requireConfig, requireAdmin };
+module.exports = { requireAuth, requireDashboard, requireConfig, requireSalud, requireAdmin };

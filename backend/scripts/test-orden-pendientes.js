@@ -77,5 +77,10 @@ function check(nombre, cond, detalle = '') {
 
   console.log('\n' + '─'.repeat(60));
   console.log(`${ok} pasaron · ${fail} fallaron`);
-  process.exit(fail === 0 ? 0 : 1);
+  // No se llama process.exit(): matar el proceso a mano mientras sqlite3 todavía tiene
+  // cosas pendientes es lo que venía reventando en Windows. Se deja el código de salida y
+  // Node termina solo cuando no le queda nada a medio cerrar. El timer con .unref() es la
+  // red de seguridad: no sostiene el proceso, solo actúa si a los 3 s sigue en pie.
+  process.exitCode = (fail === 0 ? 0 : 1);
+  setTimeout(() => process.exit((fail === 0 ? 0 : 1)), 3000).unref();
 })().catch((e) => { console.error('✗ Error inesperado:', e); process.exit(1); });

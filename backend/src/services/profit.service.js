@@ -358,7 +358,10 @@ function validarCoordenadasKg({ servicio, tipo, zona, peso_min, peso_max }) {
  */
 async function obtenerModoCliente(clienteId) {
   const row = await getDb()
-    .prepare('SELECT modo_tarifa, fuel_pct_propio, tarifa_pct FROM clientes WHERE id = ?')
+    .prepare(
+      `SELECT modo_tarifa, fuel_pct_propio, tarifa_pct, seguro_pct_propio, seguro_min_propio
+         FROM clientes WHERE id = ?`
+    )
     .get(clienteId);
   if (!row) return null;
   const modo = MODOS_TARIFA.includes(row.modo_tarifa) ? row.modo_tarifa : 'porcentaje';
@@ -366,10 +369,17 @@ async function obtenerModoCliente(clienteId) {
     row.fuel_pct_propio === null || row.fuel_pct_propio === undefined
       ? null
       : Number(row.fuel_pct_propio);
+  const num = (v) => {
+    if (v === null || v === undefined || v === '') return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
   return {
     modo,
     fuelPctPropio: Number.isFinite(fuel) ? fuel : null,
     tarifaPct: row.tarifa_pct ?? 0,
+    seguroPctPropio: num(row.seguro_pct_propio),
+    seguroMinPropio: num(row.seguro_min_propio),
   };
 }
 
@@ -482,10 +492,16 @@ async function resolverTarifaVenta({ clienteId, servicio, tipo, zona, pesoFactur
       };
     }
     const porcentaje = await resolverProfit({ clienteId, servicio, tipo, zona, pesoFacturable });
+    // Redacción neutra a propósito. Antes decía "el cliente está en modo precio por kilo
+    // PERO no hay tarifa cargada", que sonaba a error de carga. Desde que la pantalla deja
+    // cargar un rango para una zona sola, esto también es el caso MIXTO y es deliberado:
+    // esa zona se cobra por porcentaje. El sistema no puede distinguir un agujero de una
+    // decisión, así que informa el hecho sin acusar a nadie — pero lo sigue mostrando,
+    // para que un olvido de carga tampoco pase desapercibido.
     const aviso =
-      `El cliente está en modo precio por kilo pero no hay tarifa cargada para ` +
-      `${servicio} ${tipo}${zona ? ` zona ${zona}` : ''} con ${pesoFacturable} kg. ` +
-      `Se cotizó con el porcentaje de ganancia (${porcentaje.profitPct}%).`;
+      `${zona ? `La zona ${zona}` : 'Este envío'} no tiene precio por kilo cargado en ` +
+      `${servicio} ${tipo} para ${pesoFacturable} kg: se cotizó con el porcentaje de ` +
+      `ganancia (${porcentaje.profitPct}%).`;
     console.warn(`[resolverTarifaVenta] cliente_id=${clienteId}: ${aviso}`);
     return {
       modo: 'porcentaje',
@@ -512,6 +528,22 @@ async function resolverTarifaVenta({ clienteId, servicio, tipo, zona, pesoFactur
  * config lo resuelve configuracion.model, y este servicio no tiene por qué duplicarlo.
  * @returns {Promise<number|null>}
  */
+/**
+ * Seguro negociado del cliente, en la forma que espera el motor: { pct, min } o null.
+ *
+ * Devuelve null salvo que el cliente tenga seguro_pct_propio cargado. Sin porcentaje no
+ * hay seguro propio posible: un mínimo suelto no define ninguna regla, así que se ignora.
+ * El mínimo sí puede venir vacío — significa "sin piso", no "piso cero heredado".
+ *
+ * @returns {Promise<{pct:number, min:number|null}|null>}
+ */
+async function resolverSeguroPropio(clienteId) {
+  if (!clienteId) return null;
+  const info = await obtenerModoCliente(clienteId);
+  if (!info || info.seguroPctPropio === null) return null;
+  return { pct: info.seguroPctPropio, min: info.seguroMinPropio };
+}
+
 async function resolverFuelPropio(clienteId) {
   if (!clienteId) return null;
   const info = await obtenerModoCliente(clienteId);
@@ -631,6 +663,7 @@ module.exports = {
   resolverTarifaKg,
   resolverTarifaVenta,
   resolverFuelPropio,
+  resolverSeguroPropio,
   obtenerMatriz,
   obtenerMatrizKg,
   upsertOverride,

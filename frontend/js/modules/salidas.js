@@ -516,7 +516,7 @@
       <td class="num">${fmtDim(alto)}</td>
       <td class="num">${fmtKg(pesoReal)}</td>
       <td class="num">${fmtKg(pesoVol)}</td>
-      <td class="num" data-col="peso_facturable">${env(fmtKg(e.peso_facturable))}</td>
+      <td class="num${sinPesarEnvio(e) ? ' cell-sin-pesar' : ''}" data-col="peso_facturable">${env(pesoFacturableCellHtml(e))}</td>
       <td class="num">${env(fmtUSD(e.valor_declarado))}</td>
       <td>${env(e.asegurado ? 'Sí' : 'No')}</td>
       <td class="num venta-total-cell${ventaExp ? ' detail-expandable' : ''}"${ventaExp ? ` data-detail-envio="${e.id}"` : ''} data-col="total">${ventaTotalCellHtml(e, isFirst)}</td>
@@ -540,6 +540,20 @@
     `;
 
     return tr;
+  }
+
+  // ¿Este envío está SIN PESAR? Son los que se cargan el día que salen para clientes cuyos
+  // paquetes no pasan por el depósito (Kasdorf y parecidos): los pesos reales llegan días
+  // después. Peso facturable en 0 es el marcador; el backend deja el costo en blanco hasta
+  // que se pesen, así que no hay que confundirlos con un envío de costo cero.
+  function sinPesarEnvio(e) {
+    return !(Number(e.peso_facturable) > 0);
+  }
+
+  // Celda de peso facturable: "sin pesar" en vez de "0.0 kg", que se lee como si pesara cero.
+  function pesoFacturableCellHtml(e) {
+    if (sinPesarEnvio(e)) return '<span class="badge-sin-pesar">sin pesar</span>';
+    return fmtKg(e.peso_facturable);
   }
 
   // Celda "Adic": monto + un ▸ clickeable SOLO en la fila principal (isFirst) y solo si
@@ -1679,6 +1693,12 @@
                   <input type="checkbox" id="saled-ddp" style="width:auto;margin:0">
                   DDP
                 </label>
+                <!-- Proteccion de Documentos de DHL: USD 7,50 por envio, a pedido. Se
+                     esconde en UPS porque es un servicio que solo existe en DHL. -->
+                <label id="saled-prot-doc-label" style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px" title="Protección de documentos de DHL — USD 7,50 por envío">
+                  <input type="checkbox" id="saled-proteccion-doc" style="width:auto;margin:0">
+                  Prot. doc.
+                </label>
               </div>
             </div>
             <div id="saled-lock-note" class="alert alert-info hidden" style="margin-top:8px">
@@ -1707,6 +1727,14 @@
               <button type="button" class="btn btn-secondary" id="saled-recalcular">Recalcular</button>
               <span id="saled-recalc-status" class="saled-recalc-status"></span>
             </div>
+            <!-- Calcular venta: para los envios que se cargan sin pesar (Kasdorf y
+                 parecidos). Recalcular trae el COSTO; este trae lo que hay que COBRARLE,
+                 usando el profit ya cargado del cliente. -->
+            <div class="saled-recalc-bar">
+              <button type="button" class="btn btn-secondary" id="saled-calcular-venta">Calcular venta</button>
+              <span id="saled-venta-status" class="saled-recalc-status"></span>
+            </div>
+            <div id="saled-venta-panel" class="saled-venta-panel hidden"></div>
           </div>
           <div id="saled-costos-block">
             <div class="sal-section-title">Costos (USD)</div>
@@ -1743,6 +1771,9 @@
     document.getElementById('sal-modal-save').addEventListener('click', saveEditModal);
     document.getElementById('sal-modal-delete').addEventListener('click', deleteEditModal);
     document.getElementById('saled-recalcular').addEventListener('click', recalcularDesglose);
+    document.getElementById('saled-calcular-venta').addEventListener('click', calcularVenta);
+    document.getElementById('saled-courier').addEventListener('change', () => toggleProtDocVisible(true));
+    document.getElementById('saled-tipo-paquete').addEventListener('change', () => toggleProtDocVisible(true));
     document.getElementById('saled-estado-caja').addEventListener('click', onEstadoCajaClick);
 
     // Profit/% se re-derivan en vivo: total cobrado fijo − suma de costos. Aplica tanto
@@ -1823,11 +1854,15 @@
     document.getElementById('saled-asegurado').checked = Boolean(envio.asegurado);
     document.getElementById('saled-entrega').value = envio.entrega || (envio.remota ? 'extendida' : 'normal');
     document.getElementById('saled-ddp').checked = Boolean(envio.ddp);
+    document.getElementById('saled-proteccion-doc').checked = Boolean(envio.proteccion_doc);
 
     // Identidad editable: fecha, cliente, courier, país destino y "sin numerar".
     document.getElementById('saled-fecha').value = envio.fecha || '';
     fillClienteSelect(envio.cliente_id);
     document.getElementById('saled-courier').value = envio.courier || 'DHL';
+    // Recién acá: la visibilidad de la protección de documentos mira el courier Y el tipo
+    // de paquete, así que tiene que correr después de que los dos estén cargados.
+    toggleProtDocVisible(false);
     fillPaisSelect(envio.destino);
     document.getElementById('saled-sin-numerar').checked = Boolean(envio.num_sal_cero);
 
@@ -2156,6 +2191,7 @@
       // DDP tal como está tildado AHORA: sin esto el recálculo lo recibe undefined y el
       // cargo de 24.05 desaparece del desglose.
       ddp: document.getElementById('saled-ddp').checked ? 1 : 0,
+      proteccion_doc: document.getElementById('saled-proteccion-doc').checked ? 1 : 0,
       pais_destino: document.getElementById('saled-pais-destino').value || null,
       courier: document.getElementById('saled-courier').value,
     };
@@ -2209,6 +2245,211 @@
     }
   }
 
+  // La Proteccion de Documentos de DHL cubre documentos valiosos (pasaportes, visas,
+  // certificados), asi que la tilde solo tiene sentido cuando el envio ES un documento y
+  // va por DHL. Pedido de Felipe el 04/08.
+  //
+  // `destildar` distingue quien disparo el cambio: si el usuario cambio el courier o el
+  // tipo de paquete, destildar es la consecuencia de SU accion. Al ABRIR un envio guardado
+  // no se toca — destildarlo ahi seria cambiarle la plata a un envio sin que nadie lo
+  // pida —, asi que un envio que ya tenga el cargo se muestra igual aunque hoy no
+  // califique: mejor verlo y decidir que esconder un cobro activo.
+  function toggleProtDocVisible(destildar = false) {
+    const label = document.getElementById('saled-prot-doc-label');
+    const chk = document.getElementById('saled-proteccion-doc');
+    const courierEl = document.getElementById('saled-courier');
+    const tipoEl = document.getElementById('saled-tipo-paquete');
+    if (!label || !chk || !courierEl || !tipoEl) return;
+    const aplica = courierEl.value === 'DHL' && tipoEl.value === 'd';
+    if (!aplica && destildar) chk.checked = false;
+    label.style.display = (aplica || chk.checked) ? 'flex' : 'none';
+  }
+
+  // ── Calcular venta ──────────────────────────────────────────────────────────
+  //
+  // Para que se entienda por que existe: hay clientes cuyos envios NO pasan por el deposito
+  // (Kasdorf y parecidos). Se les manda la guia, la imprimen y despachan, y los pesos reales
+  // llegan dias despues. El envio se carga sin pesar el dia que sale, y cuando llegan los
+  // pesos se completan desde aca.
+  //
+  // "Recalcular" ya traia el COSTO con esos pesos. Lo que faltaba era lo otro: cuanto hay que
+  // COBRARLE. Ese calculo existia solo en la pantalla de Cargar envio; en Salidas habia que
+  // escribir el total a mano y el sistema recien ahi derivaba la utilidad restando.
+  //
+  // Usa el mismo endpoint y el mismo resolvedor de tarifa que Cargar envio
+  // (POST /liquidaciones/cotizar con profitManual:false), asi que respeta la matriz de profit
+  // del cliente, la tarifa por kilo si la tiene, y su fuel propio. Un solo lugar decide el
+  // precio de venta.
+  //
+  // NUNCA pisa el total solo: si el envio ya tenia venta cargada, muestra las dos cifras y la
+  // diferencia, y hay que apretar "Reemplazar". Es la leccion del caso Asaplast: el cotizador
+  // automatico piso un precio que el cliente ya habia aceptado y pagado.
+  async function calcularVenta() {
+    if (!editEnvio) return;
+    const btn = document.getElementById('saled-calcular-venta');
+    const status = document.getElementById('saled-venta-status');
+    const panel = document.getElementById('saled-venta-panel');
+    panel.classList.add('hidden');
+
+    // Sin peso no hay precio. Si el envio venia sin pesar y recien le cargaron los kilos,
+    // el peso facturable todavia no esta calculado: se pide primero el recalculo, que es
+    // el paso que igual habria que dar.
+    let pf = parseNum(document.getElementById('saled-peso-facturable').value);
+    if (!(pf > 0)) {
+      status.className = 'saled-recalc-status';
+      status.textContent = 'Calculando el peso facturable…';
+      await recalcularDesglose();
+      pf = parseNum(document.getElementById('saled-peso-facturable').value);
+    }
+    if (!(pf > 0)) {
+      status.className = 'saled-recalc-status saled-recalc-err';
+      status.textContent = 'Cargá primero el peso y las medidas: sin peso no hay precio.';
+      return;
+    }
+
+    const clienteId = parseInt(document.getElementById('saled-cliente').value, 10);
+    if (!clienteId) {
+      status.className = 'saled-recalc-status saled-recalc-err';
+      status.textContent = 'El envío no tiene cliente: sin cliente no hay tarifa que aplicar.';
+      return;
+    }
+
+    const courier = document.getElementById('saled-courier').value;
+    const servicio = courier === 'DHL'
+      ? 'DHL'
+      : (editEnvio.servicio_ups === 'UPS_SAV' ? 'UPS_SAV' : 'UPS_EXP');
+    const tipo = String(editEnvio.tipo_envio || '').toLowerCase().includes('import')
+      ? 'import' : 'export';
+
+    const body = {
+      pais: document.getElementById('saled-pais-destino').value || null,
+      tipo,
+      servicio,
+      pesoFacturable: pf,
+      fob: editEnvio.fob || 0,
+      // El fuel del envio, no el de hoy: un envio de mayo se cotiza con el fuel de mayo.
+      // Si el cliente tiene fuel propio, el backend lo pisa (y hace bien: ese es el fuel
+      // que se le cobra al cliente, distinto del que nos cobra el courier).
+      fuelPct: editEnvio.fuel_pct != null ? Number(editEnvio.fuel_pct) : 0,
+      profitPct: 0,
+      zona: editEnvio.zona ? Number(editEnvio.zona) : undefined,
+      ddp: document.getElementById('saled-ddp').checked,
+      proteccionDoc: document.getElementById('saled-proteccion-doc').checked,
+      entrega: document.getElementById('saled-entrega').value,
+      contenido: document.getElementById('saled-tipo-paquete').value === 'd' ? 'documento' : 'paquete',
+      cliente_id: clienteId,
+      // false = que el backend resuelva el profit por la matriz del cliente e ignore el 0
+      // de arriba. Es lo mismo que hace Cargar envio cuando el usuario no toca el profit.
+      profitManual: false,
+    };
+    if (editMulti) {
+      body.bultos = readBultosFromModal().map((b) => ({
+        peso_real: b.peso_real, largo: b.largo, ancho: b.ancho, alto: b.alto,
+      }));
+    } else {
+      const num = (id) => {
+        const v = document.getElementById(id).value;
+        return v !== '' ? Number(v) : null;
+      };
+      body.bultos = [{
+        peso_real: num('saled-peso-real'),
+        largo: num('saled-largo'), ancho: num('saled-ancho'), alto: num('saled-alto'),
+      }];
+    }
+
+    btn.disabled = true;
+    status.className = 'saled-recalc-status';
+    status.textContent = 'Calculando…';
+
+    try {
+      const r = await NovaAPI.liquidaciones.cotizar(body);
+      status.textContent = '';
+      renderVentaPanel(r);
+    } catch (err) {
+      const msg = /zona|pa[ií]s/i.test(err.message)
+        ? 'No se pudo calcular: país o zona no reconocidos por el motor.'
+        : `No se pudo calcular: ${err.message}`;
+      status.className = 'saled-recalc-status saled-recalc-err';
+      status.textContent = msg;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // Panel del precio sugerido. Si ya habia una venta cargada muestra las dos y la diferencia,
+  // y el boton pasa a decir "Reemplazar" — hay que confirmarlo a mano.
+  function renderVentaPanel(r) {
+    const panel = document.getElementById('saled-venta-panel');
+    const actual = parseNum(document.getElementById('saled-total').value);
+    const sugerido = Number(r.precioFinal) || 0;
+    const yaTenia = actual > 0;
+    const dif = Math.round((sugerido - actual) * 100) / 100;
+
+    const origen = {
+      celda: 'celda de la matriz', banda: 'banda de peso', zona: 'zona',
+      tabla: 'general de la tabla', cliente: '% del cliente', body: 'el valor del formulario',
+    }[r.profit_origen] || r.profit_origen || '—';
+
+    const comoSeArma = r.modo_venta === 'por_kg'
+      ? `Precio por kilo USD ${Number(r.precio_kg_aplicado).toFixed(2)} · ${origen}`
+      : `Profit ${r.profit_aplicado}% · ${origen}`;
+
+    const filas = [
+      `<div class="saled-venta-linea"><span>Servicio</span><b>${esc(r.servicio)} · Zona ${esc(String(r.zona))}</b></div>`,
+      `<div class="saled-venta-linea"><span>Costo con fuel ${r.fuel_aplicado}%${r.fuel_origen === 'cliente' ? ' (propio del cliente)' : ''}</span><b>${fmtUSDPlano(r.precioBase)}</b></div>`,
+      `<div class="saled-venta-linea"><span>${esc(comoSeArma)}</span><b>+ ${fmtUSDPlano(r.profitMonto)}</b></div>`,
+      `<div class="saled-venta-linea saled-venta-total"><span>Precio de venta sugerido</span><b>${fmtUSDPlano(sugerido)}</b></div>`,
+    ];
+
+    if (yaTenia) {
+      const cls = dif > 0 ? 'saled-venta-dif-pos' : dif < 0 ? 'saled-venta-dif-neg' : '';
+      const signo = dif > 0 ? '+' : '';
+      filas.push(
+        `<div class="saled-venta-linea"><span>Lo que tiene cargado hoy</span><b>${fmtUSDPlano(actual)}</b></div>`,
+        `<div class="saled-venta-linea"><span>Diferencia</span><b class="${cls}">${signo}${fmtUSDPlano(dif)}</b></div>`
+      );
+    }
+
+    const aviso = r.advertencia
+      ? `<div class="saled-venta-aviso">${esc(r.advertencia)}</div>`
+      : '';
+    const avisoPisar = yaTenia
+      ? `<div class="saled-venta-aviso">Este envío ya tiene una venta cargada. Si reemplazás, se pierde el número anterior.</div>`
+      : '';
+
+    panel.innerHTML = filas.join('') + aviso + avisoPisar + `
+      <div class="saled-venta-acciones">
+        <button type="button" class="btn btn-primary btn-sm" id="saled-venta-aplicar">
+          ${yaTenia ? 'Reemplazar por el sugerido' : 'Usar este precio'}
+        </button>
+        <button type="button" class="btn btn-secondary btn-sm" id="saled-venta-descartar">
+          ${yaTenia ? 'Dejar como está' : 'Descartar'}
+        </button>
+      </div>`;
+    panel.classList.remove('hidden');
+
+    document.getElementById('saled-venta-aplicar').addEventListener('click', () => {
+      document.getElementById('saled-total').value = sugerido.toFixed(2);
+      // Profit y % se re-derivan solos con la misma cuenta de siempre (total − costos), asi
+      // que no hay dos formas distintas de calcular la utilidad.
+      recalcProfit();
+      panel.classList.add('hidden');
+      const status = document.getElementById('saled-venta-status');
+      status.className = 'saled-recalc-status saled-recalc-ok';
+      status.textContent = 'Venta aplicada. Revisá y guardá para persistir.';
+    });
+    document.getElementById('saled-venta-descartar').addEventListener('click', () => {
+      panel.classList.add('hidden');
+      document.getElementById('saled-venta-status').textContent = '';
+    });
+  }
+
+  // fmtUSD devuelve HTML con <span class="em"> para los vacios; aca hace falta texto plano.
+  function fmtUSDPlano(v) {
+    const n = Number(v);
+    return Number.isFinite(n) ? `$${n.toFixed(2)}` : '—';
+  }
+
   function closeEditModal() {
     document.getElementById('sal-edit-overlay').classList.add('hidden');
     editEnvio = null;
@@ -2245,6 +2486,7 @@
       entrega:        document.getElementById('saled-entrega').value,
       remota:         document.getElementById('saled-entrega').value !== 'normal' ? 1 : 0,
       ddp:            document.getElementById('saled-ddp').checked ? 1 : 0,
+      proteccion_doc: document.getElementById('saled-proteccion-doc').checked ? 1 : 0,
       observaciones:  document.getElementById('saled-observaciones').value.trim() || null,
     };
     for (const f of ['flete', 'descuento', 'seguro', 'fuel', 'derechos', 'adicionales', 'otros', 'profit', 'porcentaje']) {

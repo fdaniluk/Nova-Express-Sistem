@@ -219,4 +219,11 @@ api.facturas = {
     request(`/facturas/guias/${id}/estado`, { method: 'PATCH', body: { estado_revision } }),
 };
 
+// Panel de salud. Solo lectura: no hay POST/PATCH/DELETE a proposito.
+api.salud = {
+  chequear: () => api.get('/salud'),
+  // Solo el semaforo, para la franja del Dashboard.
+  resumen: () => api.get('/salud/resumen'),
+};
+
 window.NovaAPI = api;

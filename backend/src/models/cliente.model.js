@@ -99,6 +99,30 @@ async function actualizar(id, data) {
     fuelValor = n;
   }
 
+  // Seguro propio del cliente: mismo criterio que el fuel, tiene que poder borrarse para
+  // volver a la escala del courier. Se valida cada campo por separado porque el mínimo
+  // puede existir sin porcentaje mientras la oficina está cargando, y al revés.
+  const seguroCampos = [
+    ['seguro_pct_propio', Object.prototype.hasOwnProperty.call(data, 'seguro_pct_propio')],
+    ['seguro_min_propio', Object.prototype.hasOwnProperty.call(data, 'seguro_min_propio')],
+  ];
+  const seguroClausulas = [];
+  const seguroValores = [];
+  for (const [col, provisto] of seguroCampos) {
+    seguroClausulas.push(provisto ? `${col} = ?` : `${col} = COALESCE(?, ${col})`);
+    let valor = null;
+    if (provisto && data[col] !== null && data[col] !== '') {
+      const n = Number(data[col]);
+      if (!Number.isFinite(n) || n < 0) {
+        const e = new Error(`${col} inválido: ${data[col]}`);
+        e.status = 400;
+        throw e;
+      }
+      valor = n;
+    }
+    seguroValores.push(valor);
+  }
+
   await db
     .prepare(
       `UPDATE clientes SET
@@ -118,6 +142,7 @@ async function actualizar(id, data) {
         tarifa_pct          = COALESCE(?, tarifa_pct),
         modo_tarifa         = COALESCE(?, modo_tarifa),
         ${fuelClausula},
+        ${seguroClausulas.join(',\n        ')},
         updated_at          = datetime('now', 'localtime')
        WHERE id = ?`
     )
@@ -138,6 +163,7 @@ async function actualizar(id, data) {
       data.tarifa_pct !== undefined ? data.tarifa_pct : null,
       modoProvisto ? data.modo_tarifa : null,
       fuelValor,
+      ...seguroValores,
       id
     );
   return buscarPorId(id);

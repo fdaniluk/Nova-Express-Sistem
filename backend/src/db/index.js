@@ -160,6 +160,14 @@ async function migrateClientes() {
     ['modo_tarifa',           "TEXT DEFAULT 'porcentaje'"],
     // Fuel propio del cliente en %. NULL = usa el de Configuración.
     ['fuel_pct_propio',       'REAL'],
+    // Seguro propio del cliente. NULL = regla de siempre de cada courier
+    // (UPS: 0 / 15 fijo / 1,5% · DHL: max(17,50 ; 1,5%)). Con valor cargado, ese cliente
+    // paga max(seguro_min_propio ; valor declarado × seguro_pct_propio) en LOS DOS
+    // couriers. Hay clientes con 1% negociado en vez del 1,5% (Gianastasio, Cueros).
+    // El mínimo va en su propia columna porque no es el mismo para todos: se carga por
+    // cliente y, vacío, no hay piso.
+    ['seguro_pct_propio',     'REAL'],
+    ['seguro_min_propio',     'REAL'],
   ];
   for (const [col, def] of toAdd) {
     if (!existingCols.includes(col)) {
@@ -227,6 +235,10 @@ async function migrateEnvios() {
     ['tipo_paquete',     'TEXT'],
     ['asegurado',        'INTEGER DEFAULT 0'],
     ['ddp',              'INTEGER DEFAULT 0'],
+    // Protección de Documentos de DHL (USD 7,50 por envío). Servicio OPCIONAL del
+    // tarifario, se pide con una tilde. DEFAULT 0 = ningún envío que ya existe cambia
+    // de precio al aplicar esta migración.
+    ['proteccion_doc',   'INTEGER DEFAULT 0'],
     ['remota',           'INTEGER DEFAULT 0'],
     // Zona de entrega: NULL/'' normal · 'extendida' · 'remota'. Son dos cargos distintos
     // de UPS. Los envíos viejos con remota=1 se leen como 'extendida', que es la tarifa
@@ -401,16 +413,39 @@ async function migrateFacturaGuias() {
   if (!cols.includes('percepcion')) {
     await dbApi.exec('ALTER TABLE factura_guias ADD COLUMN percepcion REAL');
   }
+
+  // Totales de la cabecera de la factura. El parser ya los calcula (total declarado en
+  // el pie del PDF, subtotal antes de percepciones, y la percepción que se repartió),
+  // pero no se guardaban: solo se veían en el resumen de la carga y se perdían.
+  //
+  // Sin esto no hay forma de verificar, después, que la suma de las guías dé el total
+  // de la factura — que es justo el agujero por donde se colaron los USD 91,22 de
+  // percepción de Ingresos Brutos de la factura de ejemplo. El panel de salud usa
+  // estas tres columnas para el chequeo "facturas que no cuadran".
+  const colsF = (await dbApi.prepare('PRAGMA table_info(facturas_cargadas)').all()).map((c) => c.name);
+  for (const [col, def] of [
+    ['total_declarado', 'REAL'],
+    ['subtotal_factura', 'REAL'],
+    ['percepciones', 'REAL'],
+  ]) {
+    if (!colsF.includes(col)) {
+      await dbApi.exec(`ALTER TABLE facturas_cargadas ADD COLUMN ${col} ${def}`);
+    }
+  }
 }
 
 // Permisos por usuario. editar_config habilita entrar y guardar en Configuración
 // sin ser admin (regla admin OR editar_config); ver middleware requireConfig.
+// ver_salud hace lo mismo con el panel de salud (regla admin OR ver_salud; ver
+// middleware requireSalud). Se separó de ver_dashboard a propósito: el dashboard
+// muestra la plata que se hizo, el panel de salud muestra lo que está roto.
 // Idempotente para bases existentes en el VPS; DEFAULT 0 deja a los empleados sin
 // acceso hasta que un admin se los otorgue.
 async function migrateUsuarios() {
   const cols = (await dbApi.prepare('PRAGMA table_info(usuarios)').all()).map((c) => c.name);
   const toAdd = [
     ['editar_config', 'INTEGER NOT NULL DEFAULT 0'],
+    ['ver_salud', 'INTEGER NOT NULL DEFAULT 0'],
   ];
   for (const [col, def] of toAdd) {
     if (!cols.includes(col)) {

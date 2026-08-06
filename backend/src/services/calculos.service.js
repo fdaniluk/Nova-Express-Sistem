@@ -69,6 +69,7 @@ function labelATipo(label) {
   if (l.startsWith('Área remota'))                             return 'area_remota';
   if (l.startsWith('Área extendida'))                          return 'area_extendida';
   if (l.startsWith('DDP'))                                     return 'ddp';
+  if (l.startsWith('Protección de documentos'))                return 'proteccion_doc';
   if (l.startsWith('Manejo adicional'))                        return 'manejo';
   if (l.startsWith('Paquete mayor tamaño') || l.includes('contorno')) return 'contorno';
   if (l.startsWith('Entrega residencial'))                     return 'residencial';
@@ -158,7 +159,7 @@ function contenidoDe(tipoPaquete) {
   return String(tipoPaquete ?? '').toLowerCase() === 'd' ? 'documento' : 'paquete';
 }
 
-function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zonaOverride, bultos = [], residencial = false, remota = false, entrega, ddp = false, contenido = 'paquete', precioKgVenta = null }) {
+function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zonaOverride, bultos = [], residencial = false, remota = false, entrega, ddp = false, proteccionDoc = false, contenido = 'paquete', precioKgVenta = null, seguroPropio = null }) {
   const pf     = Number(pesoFacturable) || 0;
   const fuel   = (Number(fuelPct)   || 0) / 100;
   const profit = (Number(profitPct) || 0) / 100;
@@ -180,8 +181,12 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
     entrega,
     zonaOverride,
     ddp,
+    proteccionDoc,
     contenido,
     precioKgVenta,
+    // Seguro negociado del cliente ({pct, min}) o null. Lo resuelve profit.service; acá
+    // solo se pasa. Reemplaza la escala de seguro del courier en DHL y en UPS.
+    seguroPropio,
   });
   if (!r) return null;
 
@@ -242,7 +247,7 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
 // Por construcción flete+seguro+fuel+adicionales == total (costo a profit 0).
 // El fuelPct debe ser el autoritativo de config (lo resuelve el caller).
 // Devuelve null si el país no figura en las tablas y no hay zonaOverride.
-function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zonaOverride, bultos = [], residencial = false, remota = false, entrega, ddp = false, contenido = 'paquete' }) {
+function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zonaOverride, bultos = [], residencial = false, remota = false, entrega, ddp = false, proteccionDoc = false, contenido = 'paquete' }) {
   const paisCanon = canonizarPais(pais) || pais || '';
   const r = cotizarServicioCore(servicio, {
     pais: paisCanon,
@@ -257,6 +262,7 @@ function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zo
     entrega,
     zonaOverride,
     ddp,
+    proteccionDoc,
     contenido,
   });
   if (!r) return null;
@@ -273,7 +279,12 @@ function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zo
   // reconciliación: se reporta sin romper el alta (no se tapa).
   const extras = construirExtrasDesglose(r);
   const sumExtras = redondear2(extras.reduce((s, e) => s + e.monto, 0));
-  if (Math.abs(sumExtras - adicionales) > 0.01) {
+  // La comparación va EN CENTAVOS, no en pesos. Con `Math.abs(a - b) > 0.01` la coma
+  // flotante hacía saltar el aviso con diferencias de exactamente un centavo: 1.47 - 1.46
+  // da 0.010000000000000009, que es mayor que 0.01. El aviso se disparaba sin que hubiera
+  // nada roto —el propio comentario de arriba dice que ±0.01 es tolerable— y ensuciaba los
+  // logs del VPS tapando los descuadres de verdad.
+  if (Math.round(Math.abs(sumExtras - adicionales) * 100) > 1) {
     console.warn(
       `[desglosarCosto] reconciliación de extras no cuadra: Σ=${sumExtras} != adicionales=${adicionales} ` +
       `(servicio=${servicio}, pais=${paisCanon}, zona=${r.zona})`

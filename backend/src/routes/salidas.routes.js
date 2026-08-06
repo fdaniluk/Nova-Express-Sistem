@@ -63,6 +63,7 @@ router.get('/', async (req, res, next) => {
         e.remota,
         e.entrega,
         e.ddp,
+        e.proteccion_doc,
         e.zona,
         e.servicio_ups,
         e.fob                 AS valor_declarado,
@@ -255,6 +256,7 @@ router.get('/', async (req, res, next) => {
       // Envío viejo (sin `entrega`): su flag `remota` equivalía a la tarifa de extendida.
       entrega: row.entrega || (row.remota ? 'extendida' : 'normal'),
       ddp: Boolean(row.ddp),
+      proteccion_doc: Boolean(row.proteccion_doc),
       zona: row.zona,
       servicio_ups: row.servicio_ups,
       valor_declarado: row.valor_declarado,
@@ -339,6 +341,11 @@ router.post('/:id/recalcular', async (req, res, next) => {
       });
     }
 
+    // Bultos: los del modal si vinieron; si no, los GUARDADOS del envío. Antes, cuando el
+    // body no traía bultos se usaba una lista vacía y el peso salía de los campos sueltos
+    // —que tampoco venían—, así que un recálculo que solo cambiaba el DDP o el país perdía
+    // el peso y devolvía cualquier cosa. Mismo criterio que remota/ddp/entrega: del modal si
+    // vino, del envío si no.
     const bultos = (Array.isArray(body.bultos) && body.bultos.length > 0)
       ? body.bultos.map((b) => ({
           peso_real: b.peso_real,
@@ -346,7 +353,9 @@ router.post('/:id/recalcular', async (req, res, next) => {
           ancho: b.ancho,
           alto: b.alto,
         }))
-      : [];
+      : (await db
+          .prepare('SELECT peso_real, largo, ancho, alto FROM envio_bultos WHERE envio_id = ? ORDER BY numero_bulto')
+          .all(id));
 
     // ZONA: la zona guardada es un override atado al país viejo. Si el país efectivo cambió
     // respecto al guardado, usarla daría una tarifa equivocada: pasamos null para que el
@@ -373,20 +382,41 @@ router.post('/:id/recalcular', async (req, res, next) => {
       // línea `data.ddp` llega undefined -> false, y el primer "Recalcular" borra el cargo
       // DDP en silencio: la utilidad del envío queda inflada por ese monto.
       ddp: body.ddp != null ? body.ddp : envio.ddp,
+      // Protección de documentos de DHL: mismo criterio que el DDP. Sin esta línea el
+      // primer "Recalcular" borraría los 7,50 en silencio.
+      proteccion_doc: body.proteccion_doc != null ? body.proteccion_doc : envio.proteccion_doc,
       // Mercadería o documento: en DHL selecciona la tabla de documento (hasta 2 kg). Se
       // toma del modal si vino y si no del envío, igual que remota y ddp. Sin esto, un
       // recálculo sobre un documento lo re-costeaba como mercadería.
       tipo_paquete: body.tipo_paquete != null ? body.tipo_paquete : envio.tipo_paquete,
       // Fuel% congelado del envío: el recálculo respeta el guardado (no el de config actual).
       fuel_pct: envio.fuel_pct,
-      peso_real: body.peso_real,
-      largo: body.largo,
-      ancho: body.ancho,
-      alto: body.alto,
+      // Peso y medidas: del modal si el campo vino en el body, del envío si no. `undefined`
+      // es "no lo mandaron" y `null` es "lo borraron a propósito", y son cosas distintas:
+      // borrar el peso tiene que dejar el envío sin pesar, pero no mandarlo no puede
+      // borrarlo por accidente.
+      peso_real: body.peso_real !== undefined ? body.peso_real : envio.peso_real,
+      largo: body.largo !== undefined ? body.largo : envio.largo,
+      ancho: body.ancho !== undefined ? body.ancho : envio.ancho,
+      alto: body.alto !== undefined ? body.alto : envio.alto,
       bultos,
     };
 
     const { pesoVolumetrico, pesoFacturable } = buildPesos(data);
+
+    // Envío SIN PESAR: no es un error de país, es que todavía no se sabe cuánto pesa. Se
+    // devuelve el desglose vacío en vez de un 422, para que el modal muestre los campos en
+    // blanco y no un cartel rojo que no ayuda. Es el estado normal de los envíos de los
+    // clientes cuyos paquetes no pasan por el depósito, entre que salen y llegan los pesos.
+    if (!(Number(pesoFacturable) > 0)) {
+      return res.json({
+        flete: null, seguro: null, fuel: null, fuel_pct: envio.fuel_pct,
+        adicionales: null, extras: [], total: null,
+        peso_facturable: pesoFacturable, peso_volumetrico: pesoVolumetrico,
+        zona: envio.zona, sin_pesar: true,
+      });
+    }
+
     const desglose = await calcularDesgloseAlCosto(data, pesoFacturable);
     if (!desglose) {
       return res.status(422).json({
@@ -418,7 +448,7 @@ router.post('/:id/recalcular', async (req, res, next) => {
 // persistir; además, en envíos liquidados fecha y cliente_id quedan congelados (409).
 const SALIDAS_EDITABLE = [
   'fecha', 'cliente_id', 'courier', 'pais_destino', 'num_sal_cero',
-  'numero_guia', 'numero_salida', 'bulto', 'tipo_paquete', 'asegurado', 'remota', 'entrega', 'ddp', 'direccion',
+  'numero_guia', 'numero_salida', 'bulto', 'tipo_paquete', 'asegurado', 'remota', 'entrega', 'ddp', 'proteccion_doc', 'direccion',
   'peso_real', 'largo', 'ancho', 'alto', 'peso_facturable', 'peso_volumetrico',
   'flete', 'descuento', 'seguro', 'fuel', 'fuel_pct', 'derechos', 'adicionales', 'otros',
   'total_cobrado', 'profit', 'porcentaje', 'observaciones', 'extras_json',

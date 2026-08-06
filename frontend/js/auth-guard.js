@@ -50,6 +50,21 @@
           }
         }
 
+        // Panel de salud: visible para admin O usuarios con ver_salud = 1.
+        // Misma forma que Configuracion, incluido el redirect si alguien entra por URL.
+        if (user.rol !== 'admin' && user.ver_salud !== 1) {
+          document.querySelectorAll(
+            'a[href="salud.html"], a[href="pages/salud.html"], a[href="/pages/salud.html"]'
+          ).forEach(function (el) {
+            el.style.display = 'none';
+          });
+          const path = window.location.pathname;
+          if (path.endsWith('salud.html')) {
+            location.replace('/pages/envios.html');
+            return;
+          }
+        }
+
         const btnLogout = document.getElementById('btn-logout');
         if (btnLogout) {
           btnLogout.addEventListener('click', function () {

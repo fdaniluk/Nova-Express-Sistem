@@ -328,6 +328,10 @@
   // El modo lo guarda clientes.modo_tarifa y vale para las seis tablas del cliente.
 
   let matrizActual = null;
+  // General de la matriz de PROFIT de la tabla activa. En modo por kilo hace falta para
+  // poder decir en la grilla con qué porcentaje se cobra una zona que no tiene precio por
+  // kilo, sin ir al servidor celda por celda.
+  let matrizProfitGeneral = null;
   let tabActivo = { servicio: 'DHL', tipo: 'export' };
   let tarifasCargado = false;
 
@@ -383,9 +387,22 @@
     const oz = overrideZona(zona);
     if (oz) return { val: valorDe(oz), propio: false };
     if (matrizActual.general_tabla) return { val: valorDe(matrizActual.general_tabla), propio: false };
-    if (esPorKg()) return { val: null, propio: false };
+    // Modo por kilo sin ningun precio que aplique: ese peso y esa zona se cobran con el
+    // PORCENTAJE de ganancia del cliente. El motor ya lo hace asi (resolverTarifaVenta cae
+    // al porcentaje); antes la grilla mostraba un guion, que se leia como un agujero de
+    // carga. Es justamente el caso MIXTO: una zona por kilo y las otras por porcentaje.
+    if (esPorKg()) return { val: null, propio: false, porPct: true };
     const cli = clienteData && clienteData.tarifa_pct != null ? clienteData.tarifa_pct : 0;
     return { val: cli, propio: false };
+  }
+
+  // Porcentaje que le queda a una celda que NO tiene precio por kilo. Es el mismo orden de
+  // precedencia que resuelve el backend, pero leido de la matriz de profit del cliente para
+  // poder mostrarlo sin ir al servidor. Si no hay nada, el porcentaje general del cliente.
+  function pctDeRespaldo() {
+    const g = matrizProfitGeneral;
+    if (g !== null && g !== undefined) return g;
+    return clienteData && clienteData.tarifa_pct != null ? clienteData.tarifa_pct : 0;
   }
 
   // Cómo se muestra un valor en la grilla: "12%" o "USD 5.00".
@@ -412,6 +429,17 @@
       matrizActual = esPorKg()
         ? await NovaAPI.clientes.tarifaKg.matriz(clienteId, tabActivo.servicio, tabActivo.tipo)
         : await NovaAPI.clientes.profit.matriz(clienteId, tabActivo.servicio, tabActivo.tipo);
+
+      // En modo por kilo se trae además el general de profit: es el porcentaje con el que
+      // se cobra una zona sin precio por kilo, y hay que poder mostrarlo en la grilla.
+      // Si falla, no se rompe la pantalla: se cae al porcentaje general del cliente.
+      matrizProfitGeneral = null;
+      if (esPorKg()) {
+        try {
+          const mp = await NovaAPI.clientes.profit.matriz(clienteId, tabActivo.servicio, tabActivo.tipo);
+          matrizProfitGeneral = mp && mp.general_tabla ? mp.general_tabla.profit_pct : null;
+        } catch { /* se usa el general del cliente */ }
+      }
       renderModo();
       renderGeneral();
       renderGrid();
@@ -435,8 +463,48 @@
     btnBorrarFuel.classList.toggle('hidden', fuelPropio === null || fuelPropio === undefined);
     rangos.classList.toggle('hidden', !esPorKg());
     hint.textContent = esPorKg()
-      ? 'Precio fijo por kilo: reemplaza el flete. El fuel, el seguro y los recargos del courier se cobran igual. Si un peso no cae en ningun rango, se cotiza con el porcentaje y el sistema avisa.'
+      ? 'Precio fijo por kilo: reemplaza el flete. El fuel, el seguro y los recargos del courier se cobran igual.'
       : 'Porcentaje de ganancia sobre el flete del courier. Es el modo normal.';
+
+    // Explicación de cómo se usa la grilla. Antes no había ninguna, y la única pista de que
+    // las celdas eran clickeables era el cursorcito: la función de poner un precio distinto
+    // por zona existía desde el principio y nadie sabía que estaba.
+    const ayuda = document.getElementById('tarifas-grid-ayuda');
+    if (ayuda) {
+      ayuda.textContent = esPorKg()
+        ? 'Hacé clic en cualquier celda para ponerle otro precio a esa zona. La ✕ de la celda quita ese precio; la ✕ del rango borra la fila entera. Las celdas en gris se cobran con el porcentaje de ganancia.'
+        : '';
+    }
+
+    renderSeguro();
+  }
+
+  // Seguro negociado del cliente. Vale para DHL y UPS por igual: cuando esta cargado,
+  // reemplaza la escala del courier entera (ni el escalon de USD 15 de UPS ni el minimo
+  // de 17,50 de DHL siguen aplicando).
+  function renderSeguro() {
+    const pct = document.getElementById('tarifas-seguro-pct');
+    const min = document.getElementById('tarifas-seguro-min');
+    const btnBorrar = document.getElementById('btn-borrar-seguro');
+    const hint = document.getElementById('tarifas-seguro-hint');
+    if (!pct) return;
+
+    const vacio = (v) => v === null || v === undefined || v === '';
+    const segPct = clienteData ? clienteData.seguro_pct_propio : null;
+    const segMin = clienteData ? clienteData.seguro_min_propio : null;
+    pct.value = vacio(segPct) ? '' : segPct;
+    min.value = vacio(segMin) ? '' : segMin;
+    btnBorrar.classList.toggle('hidden', vacio(segPct));
+
+    if (vacio(segPct)) {
+      hint.textContent =
+        'Sin seguro propio usa la escala de cada courier: UPS 0 hasta USD 100, USD 15 fijo hasta 1.000 y 1,5% arriba; DHL el mayor entre USD 17,50 y el 1,5%.';
+      return;
+    }
+    const piso = vacio(segMin) ? 'sin minimo' : `minimo USD ${Number(segMin).toFixed(2)}`;
+    hint.textContent =
+      `Este cliente paga ${segPct}% del valor declarado (${piso}) en DHL y en UPS. ` +
+      'Reemplaza la escala del courier: no se le cobra el escalon de USD 15 ni el minimo de 17,50.';
   }
 
   function renderGeneral() {
@@ -484,10 +552,15 @@
         : '';
       html += `<tr><td class="banda-label">${bandaLabel(banda)}${borrarFila}</td>`;
       TARIFAS_ZONAS.forEach((zona) => {
-        const { val, propio } = valorEfectivo(zona, banda);
-        const cls = propio ? 'tarifa-cell propio' : 'tarifa-cell heredado';
+        const { val, propio, porPct } = valorEfectivo(zona, banda);
+        let cls = propio ? 'tarifa-cell propio' : 'tarifa-cell heredado';
+        if (porPct) cls += ' por-pct';
         const del = propio ? '<span class="cell-del" title="Quitar override">✕</span>' : '';
-        html += `<td class="${cls}" data-zona="${zona}" data-min="${banda.min}" data-max="${maxAttr}">${del}<span class="cell-val">${formatoValor(val)}</span></td>`;
+        const texto = porPct ? `${pctDeRespaldo()}% de ganancia` : formatoValor(val);
+        const title = porPct
+          ? 'Esta zona no tiene precio por kilo: se cobra con el porcentaje de ganancia. Hacé clic para ponerle un precio por kilo.'
+          : 'Hacé clic para cambiar el precio de esta zona';
+        html += `<td class="${cls}" data-zona="${zona}" data-min="${banda.min}" data-max="${maxAttr}" title="${title}">${del}<span class="cell-val">${texto}</span></td>`;
       });
       html += '</tr>';
     });
@@ -739,12 +812,64 @@
     });
     document.getElementById('btn-borrar-fuel').addEventListener('click', () => guardarFuel(null));
 
-    // Alta de un rango de peso (solo modo por kilo). Se guarda como "todas las zonas";
-    // después se puede pisar zona por zona haciendo clic en la celda.
+    // Seguro propio: los dos campos se guardan juntos. Sin porcentaje no hay regla posible,
+    // asi que vaciar el porcentaje borra tambien el minimo y el cliente vuelve al courier.
+    const inputSegPct = document.getElementById('tarifas-seguro-pct');
+    const inputSegMin = document.getElementById('tarifas-seguro-min');
+    async function guardarSeguro(pctVal, minVal) {
+      try {
+        clienteData = await NovaAPI.clientes.actualizar(clienteId, {
+          seguro_pct_propio: pctVal,
+          seguro_min_propio: pctVal === null ? null : minVal,
+        });
+        renderSeguro();
+        NovaUtils.showAlert(
+          alertBox,
+          pctVal === null
+            ? 'El cliente vuelve al seguro de cada courier'
+            : 'Seguro propio guardado',
+          'success'
+        );
+      } catch (err) {
+        NovaUtils.showAlert(alertBox, err.message);
+      }
+    }
+    document.getElementById('btn-guardar-seguro').addEventListener('click', () => {
+      const valPct = inputSegPct.value.trim();
+      if (valPct === '') return guardarSeguro(null, null);
+      const n = parseFloat(valPct);
+      if (!Number.isFinite(n) || n < 0) {
+        NovaUtils.showAlert(alertBox, 'El seguro propio tiene que ser un numero mayor o igual a 0');
+        return;
+      }
+      const valMin = inputSegMin.value.trim();
+      let m = null;
+      if (valMin !== '') {
+        m = parseFloat(valMin);
+        if (!Number.isFinite(m) || m < 0) {
+          NovaUtils.showAlert(alertBox, 'El minimo tiene que ser un numero mayor o igual a 0');
+          return;
+        }
+      }
+      guardarSeguro(n, m);
+    });
+    document.getElementById('btn-borrar-seguro').addEventListener('click', () => guardarSeguro(null, null));
+
+    // Alta de un rango de peso (solo modo por kilo). Por defecto se guarda para "todas las
+    // zonas" y después se puede pisar zona por zona haciendo clic en la celda.
+    //
+    // Eligiendo UNA zona en el selector se guarda SOLO esa: el rango queda sin precio
+    // general, y las demás zonas de ese peso se cobran con el porcentaje de ganancia. Ese
+    // es el caso MIXTO —una zona por kilo y el resto por porcentaje—, que el motor soporta
+    // desde siempre (resolverTarifaKg devuelve null y resolverTarifaVenta cae al
+    // porcentaje) pero que desde la pantalla no se podía armar, porque el alta creaba
+    // siempre la fila de "todas las zonas".
     document.getElementById('btn-agregar-rango').addEventListener('click', async () => {
       const desdeEl = document.getElementById('rango-desde');
       const hastaEl = document.getElementById('rango-hasta');
       const precioEl = document.getElementById('rango-precio');
+      const zonaEl = document.getElementById('rango-zona');
+      const zonaSel = zonaEl && zonaEl.value !== '' ? Number(zonaEl.value) : null;
       const desde = parseFloat(desdeEl.value);
       const hasta = hastaEl.value.trim() === '' ? null : parseFloat(hastaEl.value);
       const precio = parseFloat(precioEl.value);
@@ -764,7 +889,7 @@
         await NovaAPI.clientes.tarifaKg.guardar(clienteId, {
           servicio: tabActivo.servicio,
           tipo: tabActivo.tipo,
-          zona: null,
+          zona: zonaSel,
           peso_min: desde,
           peso_max: hasta,
           precio_kg: precio,
@@ -772,7 +897,16 @@
         desdeEl.value = '';
         hastaEl.value = '';
         precioEl.value = '';
+        if (zonaEl) zonaEl.value = '';
         await cargarMatriz();
+        if (zonaSel !== null) {
+          NovaUtils.showAlert(
+            alertBox,
+            `Rango cargado solo para la zona ${zonaSel}. Las otras zonas de ese peso se cobran ` +
+              'con el porcentaje de ganancia; se ven en gris en la grilla.',
+            'success'
+          );
+        }
       } catch (err) {
         NovaUtils.showAlert(alertBox, err.message);
       }

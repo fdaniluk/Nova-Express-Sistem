@@ -32,7 +32,17 @@ CREATE TABLE IF NOT EXISTS clientes (
   modo_tarifa          TEXT DEFAULT 'porcentaje' CHECK (modo_tarifa IN ('porcentaje', 'por_kg')),
   -- Fuel propio del cliente, en %. NULL = usa el de Configuración (lo normal).
   -- Solo cambia la cotización; el envío igual congela en fuel_pct el % que se le aplicó.
-  fuel_pct_propio      REAL
+  fuel_pct_propio      REAL,
+  -- Seguro propio del cliente. NULL en las dos = regla de siempre de cada courier
+  -- (UPS: 0 si el valor < 100, USD 15 fijo hasta 1.000, 1,5% arriba ·
+  --  DHL: el mayor entre USD 17,50 y el 1,5%).
+  -- Con seguro_pct_propio cargado, ese cliente paga en LOS DOS couriers:
+  --     valor declarado = 0            → 0
+  --     si no                          → max(seguro_min_propio ; valor × seguro_pct_propio)
+  -- seguro_min_propio vacío = sin piso. Existe porque el mínimo negociado no es igual
+  -- para todos los clientes.
+  seguro_pct_propio    REAL,
+  seguro_min_propio    REAL
 );
 
 -- Configuración por courier (fuel y umbrales de negocio)
@@ -119,6 +129,11 @@ CREATE TABLE IF NOT EXISTS envios (
   tipo_paquete        TEXT,
   asegurado           INTEGER DEFAULT 0,
   ddp                 INTEGER DEFAULT 0,
+  -- Protección de Documentos de DHL: USD 7,50 por envío. Es un servicio OPCIONAL del
+  -- tarifario (documentos valiosos, pasaportes, certificados legales), así que se pide
+  -- con una tilde. Solo aplica en DHL. Va como recargo al costo, sin margen ni fuel,
+  -- igual que el DDP.
+  proteccion_doc      INTEGER DEFAULT 0,
   remota              INTEGER DEFAULT 0,
   entrega             TEXT,
   flete               REAL,
@@ -271,7 +286,14 @@ CREATE TABLE IF NOT EXISTS facturas_cargadas (
   cantidad_guias        INTEGER NOT NULL DEFAULT 0,
   guias_cruzadas        INTEGER NOT NULL DEFAULT 0,
   guias_no_encontradas  INTEGER NOT NULL DEFAULT 0,
-  usuario               TEXT DEFAULT NULL
+  usuario               TEXT DEFAULT NULL,
+  -- Totales del pie del PDF, tal como los leyó el parser. Se guardan para poder
+  -- verificar despues que la suma de las guias del detalle de la factura de el total
+  -- declarado; sin esto, la diferencia (percepcion de Ingresos Brutos y cualquier otro
+  -- cargo de cabecera) queda sin rastro una vez cargada la factura.
+  total_declarado       REAL,
+  subtotal_factura      REAL,
+  percepciones          REAL
 );
 
 -- Detalle por guía de cada factura cargada (módulo Control de Facturas).
@@ -391,6 +413,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
   rol            TEXT NOT NULL DEFAULT 'empleado' CHECK(rol IN ('admin','empleado')),
   ver_dashboard  INTEGER NOT NULL DEFAULT 0,
   editar_config  INTEGER NOT NULL DEFAULT 0,
+  -- Panel de salud: admin OR ver_salud = 1 (ver middleware requireSalud).
+  ver_salud      INTEGER NOT NULL DEFAULT 0,
   activo         INTEGER NOT NULL DEFAULT 1,
   creado_en      TEXT DEFAULT (datetime('now'))
 );

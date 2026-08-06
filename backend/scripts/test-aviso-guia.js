@@ -50,7 +50,27 @@ async function main() {
   // Si el test se corta por un error, el servidor tiene que morir igual: si queda vivo se
   // queda con el puerto y la corrida siguiente le habla al servidor VIEJO, con la base
   // vieja, y falla con 401 sin motivo aparente.
-  process.on('exit', () => { try { srv.kill(); } catch {} });
+  // Windows: llamar srv.kill() DOS VECES sobre el mismo handle revienta libuv con
+  //   Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), file src\win\async.c, line 94
+  // Pasaba porque el cierre explícito mata el server y, acto seguido, process.exit() dispara
+  // este mismo handler, que lo vuelve a matar cuando el handle ya se está cerrando. En Linux
+  // no se notaba; en Windows cortaba el `npm test` entero a mitad de la cadena, sin que
+  // ningún test hubiera fallado. El guard hace que solo la primera llamada tenga efecto.
+  let srvMuerto = false;
+  const matarSrv = () => { if (srvMuerto) return; srvMuerto = true; try { srv.kill(); } catch {} };
+  process.on('exit', matarSrv);
+  // Matar al server NO es instantaneo: kill() manda la senal y el proceso hijo tarda en
+  // morir. Si se llama process.exit() antes de que muera, Node se cae en Windows con
+  //   Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), file src/win/async.c, line 94
+  // porque el handle del hijo se esta cerrando cuando el proceso ya arranco a salir. No
+  // falla ningun test: se muere Node y corta la cadena del `npm test` a la mitad. Esta
+  // funcion espera al 'exit' del hijo (con tope de 2 s por si quedara colgado) para que el
+  // handle este cerrado ANTES de salir.
+  const esperarSrvMuerto = () => new Promise((res) => {
+    if (srv.exitCode !== null || srv.signalCode !== null) return res();
+    srv.once('exit', res);
+    setTimeout(res, 2000);
+  });
 
   for (let i = 0; i < 40; i++) {
     try { const r = await fetch(BASE + '/api/health'); if (r.ok) break; } catch {}
@@ -137,10 +157,18 @@ async function main() {
   check('ningún error en las dos pantallas', relevantes.length === 0, relevantes.slice(0, 2).join(' | '));
 
   await browser.close();
-  srv.kill();
+  matarSrv();
   console.log('\n' + '─'.repeat(60));
   console.log(`${ok} pasaron · ${fail} fallaron`);
-  process.exit(fail === 0 ? 0 : 1);
+  await esperarSrvMuerto();
+  // Ni siquiera acá se llama process.exit(): matar el proceso a mano es lo que venía
+  // reventando en Windows. Se deja el código de salida y Node termina solo cuando no le
+  // queda nada pendiente, que es cuando ya no hay ningún handle a medio cerrar.
+  // El timer es la red de seguridad por si algo quedara vivo (sockets keep-alive de
+  // fetch, por ejemplo): va con .unref(), así NO sostiene el proceso —si no hay nada
+  // más, Node sale igual al instante— y solo actúa si a los 3 s todavía sigue en pie.
+  process.exitCode = (fail === 0 ? 0 : 1);
+  setTimeout(() => process.exit((fail === 0 ? 0 : 1)), 3000).unref();
 }
 
 main().catch((e) => { console.error('✗ Error inesperado:', e); process.exit(1); });

@@ -13,3 +13,8 @@ facturas-ejemplo/
 # Scripts de prueba / herramientas locales de un solo uso (y sus backups)
 backend/scripts/seed_*
 backend/scripts/*.backup.json
+
+# Carpetas de trabajo de Cowork y paquetes temporales de entrega
+_to_delete/
+.claude/
+*.tgz
