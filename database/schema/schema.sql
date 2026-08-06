@@ -340,6 +340,24 @@ CREATE TABLE IF NOT EXISTS cobranzas (
 
 CREATE INDEX IF NOT EXISTS idx_cobranzas_cliente ON cobranzas(cliente_id);
 CREATE INDEX IF NOT EXISTS idx_cobranzas_fecha   ON cobranzas(fecha);
+
+-- Asiento de los cierres de período. Cada vez que alguien baja el Excel de las salidas
+-- de un mes o una semana para archivarlo, queda la fila. NO guarda el archivo: guarda
+-- que se hizo, quién y cuántas filas tenía. El panel de salud lo lee para avisar el mes
+-- que nadie lo bajó — que es como esta clase de rutina se muere, en silencio.
+CREATE TABLE IF NOT EXISTS cierres (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  tipo        TEXT NOT NULL CHECK (tipo IN ('mes','semana','rango')),
+  desde       TEXT NOT NULL,
+  hasta       TEXT NOT NULL,
+  filas       INTEGER NOT NULL DEFAULT 0,
+  usuario_id  INTEGER REFERENCES usuarios(id),
+  usuario     TEXT,
+  creado_en   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_cierres_desde ON cierres(desde);
+CREATE INDEX IF NOT EXISTS idx_cierres_tipo  ON cierres(tipo, desde);
 CREATE INDEX IF NOT EXISTS idx_cobranzas_pickup  ON cobranzas(pickup_id);
 
 -- Índices sobre las consultas más calientes (ver migrateIndices() en db/index.js).
@@ -415,6 +433,10 @@ CREATE TABLE IF NOT EXISTS usuarios (
   editar_config  INTEGER NOT NULL DEFAULT 0,
   -- Panel de salud: admin OR ver_salud = 1 (ver middleware requireSalud).
   ver_salud      INTEGER NOT NULL DEFAULT 0,
+  -- Cierre de mes/semana: admin OR cerrar_mes = 1 (ver middleware requireCierre).
+  -- Permite bajar el Excel de las salidas de un período para archivarlo fuera del
+  -- sistema. Va aparte de ver_salud porque lo usa administración, no dirección.
+  cerrar_mes     INTEGER NOT NULL DEFAULT 0,
   activo         INTEGER NOT NULL DEFAULT 1,
   creado_en      TEXT DEFAULT (datetime('now'))
 );

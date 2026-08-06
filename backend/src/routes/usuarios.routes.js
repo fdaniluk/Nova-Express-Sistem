@@ -15,7 +15,8 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { usuario, password, rol, ver_dashboard, editar_config, ver_salud } = req.body || {};
+    const { usuario, password, rol, ver_dashboard, editar_config, ver_salud, cerrar_mes } =
+      req.body || {};
 
     if (!usuario || !String(usuario).trim())
       return res.status(400).json({ error: 'El nombre de usuario es requerido' });
@@ -30,6 +31,9 @@ router.post('/', async (req, res, next) => {
     // ver_salud es opcional al crear: un usuario nuevo arranca sin acceso al panel.
     if (ver_salud !== undefined && ![0, 1].includes(Number(ver_salud)))
       return res.status(400).json({ error: 'ver_salud debe ser 0 o 1' });
+    // cerrar_mes, igual: opcional al crear, arranca en 0.
+    if (cerrar_mes !== undefined && ![0, 1].includes(Number(cerrar_mes)))
+      return res.status(400).json({ error: 'cerrar_mes debe ser 0 o 1' });
 
     const existente = await model.buscarUsuarioPorNombre(String(usuario).trim());
     if (existente) return res.status(409).json({ error: 'Ya existe un usuario con ese nombre' });
@@ -42,6 +46,7 @@ router.post('/', async (req, res, next) => {
       ver_dashboard: Number(ver_dashboard),
       editar_config: Number(editar_config),
       ver_salud: ver_salud === undefined ? 0 : Number(ver_salud),
+      cerrar_mes: cerrar_mes === undefined ? 0 : Number(cerrar_mes),
     });
 
     const nuevo = await model.buscarUsuarioPorId(id);
@@ -54,7 +59,7 @@ router.post('/', async (req, res, next) => {
 router.patch('/:id', async (req, res, next) => {
   try {
     const id = Number(req.params.id);
-    const { rol, ver_dashboard, editar_config, ver_salud, activo } = req.body || {};
+    const { rol, ver_dashboard, editar_config, ver_salud, cerrar_mes, activo } = req.body || {};
     const campos = {};
 
     if (rol !== undefined) {
@@ -76,6 +81,11 @@ router.patch('/:id', async (req, res, next) => {
       if (![0, 1].includes(Number(ver_salud)))
         return res.status(400).json({ error: 'ver_salud debe ser 0 o 1' });
       campos.ver_salud = Number(ver_salud);
+    }
+    if (cerrar_mes !== undefined) {
+      if (![0, 1].includes(Number(cerrar_mes)))
+        return res.status(400).json({ error: 'cerrar_mes debe ser 0 o 1' });
+      campos.cerrar_mes = Number(cerrar_mes);
     }
     if (activo !== undefined) {
       if (![0, 1].includes(Number(activo)))

@@ -446,6 +446,11 @@ async function migrateUsuarios() {
   const toAdd = [
     ['editar_config', 'INTEGER NOT NULL DEFAULT 0'],
     ['ver_salud', 'INTEGER NOT NULL DEFAULT 0'],
+    // Cierre de mes/semana: bajar el Excel de las salidas del período para archivarlo
+    // fuera del sistema. Es un permiso aparte a propósito: se le da a administración,
+    // que no tiene por qué ser admin ni ver el panel de salud, y lo que se lleva es la
+    // planilla del período entero.
+    ['cerrar_mes', 'INTEGER NOT NULL DEFAULT 0'],
   ];
   for (const [col, def] of toAdd) {
     if (!cols.includes(col)) {
@@ -475,6 +480,27 @@ async function migrateCobranzas() {
   await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cobranzas_cliente ON cobranzas(cliente_id)');
   await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cobranzas_fecha   ON cobranzas(fecha)');
   await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cobranzas_pickup  ON cobranzas(pickup_id)');
+}
+
+// Asiento de los cierres: cada vez que alguien baja el Excel de un período queda la
+// fila. NO guarda el archivo (eso vive en la computadora de administración): guarda que
+// se hizo, quién y cuántas filas tenía. Con eso el panel de salud puede avisar el mes
+// que nadie lo bajó, que es el modo en que este tipo de rutina se muere: sin ruido.
+async function migrateCierres() {
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS cierres (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      tipo        TEXT NOT NULL CHECK (tipo IN ('mes','semana','rango')),
+      desde       TEXT NOT NULL,
+      hasta       TEXT NOT NULL,
+      filas       INTEGER NOT NULL DEFAULT 0,
+      usuario_id  INTEGER REFERENCES usuarios(id),
+      usuario     TEXT,
+      creado_en   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    )
+  `);
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cierres_desde ON cierres(desde)');
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cierres_tipo  ON cierres(tipo, desde)');
 }
 
 // Índices que faltaban sobre las consultas que ya están en producción. Todos son
@@ -525,6 +551,7 @@ async function initSchema() {
   await migrateTarifaKg();
   await migrateFacturaGuias();
   await migrateCobranzas();
+  await migrateCierres();
   await migrateIndices();
   await seedIfEmpty();
 }

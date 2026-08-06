@@ -29,6 +29,7 @@ async function requireAuth(req, res, next) {
       ver_dashboard: session.ver_dashboard,
       editar_config: session.editar_config,
       ver_salud: session.ver_salud,
+      cerrar_mes: session.cerrar_mes,
     };
     next();
   } catch (err) {
@@ -62,6 +63,18 @@ function requireSalud(req, res, next) {
   next();
 }
 
+// Cierre de mes/semana. Misma regla de siempre: el admin puede, los demás necesitan
+// cerrar_mes = 1. Es un permiso aparte de los otros dos a propósito: lo usa
+// administración para archivar la planilla del período, no dirección para mirar plata.
+// Lo que se lleva quien lo tiene es el detalle completo de las salidas del período, así
+// que no se regala junto con el acceso a la pantalla de Salidas.
+function requireCierre(req, res, next) {
+  if (!req.usuario || (req.usuario.rol !== 'admin' && req.usuario.cerrar_mes !== 1)) {
+    return res.status(403).json({ error: 'Acceso denegado al cierre de período' });
+  }
+  next();
+}
+
 function requireAdmin(req, res, next) {
   if (!req.usuario || req.usuario.rol !== 'admin') {
     return res.status(403).json({ error: 'Se requiere rol administrador' });
@@ -69,4 +82,6 @@ function requireAdmin(req, res, next) {
   next();
 }
 
-module.exports = { requireAuth, requireDashboard, requireConfig, requireSalud, requireAdmin };
+module.exports = {
+  requireAuth, requireDashboard, requireConfig, requireSalud, requireCierre, requireAdmin,
+};

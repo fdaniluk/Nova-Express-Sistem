@@ -141,13 +141,21 @@ async function main() {
   console.log('\n1. Sobre una base sin problemas, no inventa ninguno\n');
 
   const limpio = (await pedirSalud()).body;
-  check('devuelve los 13 chequeos', limpio.chequeos.length === 13, String(limpio.chequeos.length));
+  // 14 desde el 06/08/2026, cuando se sumó "cierres" (los meses archivados fuera del
+  // sistema). Este número se toca a mano a propósito: si alguien agrega un chequeo y no
+  // actualiza el test, el test se lo recuerda.
+  check('devuelve los 14 chequeos', limpio.chequeos.length === 14, String(limpio.chequeos.length));
   check('ninguno falló al correr', limpio.resumen.error === 0,
     limpio.chequeos.filter((c) => c.error).map((c) => `${c.id}: ${c.error}`).join(' | '));
 
-  // Todos los chequeos de base tienen que dar OK. El de backups es la excepción
-  // deliberada: avisa siempre que no hay copia fuera del servidor, que es cierto.
-  const falsosPositivos = limpio.chequeos.filter((c) => c.severidad !== 'ok' && c.id !== 'backups');
+  // Todos los chequeos de base tienen que dar OK. Hay dos excepciones deliberadas, y las
+  // dos dicen algo cierto sobre una base recién creada:
+  //   · backups → mientras no haya copia fuera del servidor, avisa. Se apaga solo cuando
+  //     corre scripts/copia-externa.sh (lo cubre test-copia-externa.js).
+  //   · cierres → una base nueva no tiene ningún mes archivado todavía.
+  const IGNORAR = ['backups', 'cierres'];
+  const falsosPositivos = limpio.chequeos.filter(
+    (c) => c.severidad !== 'ok' && !IGNORAR.includes(c.id));
   check('ningún chequeo se enciende sin motivo', falsosPositivos.length === 0,
     falsosPositivos.map((c) => `${c.id} (${c.severidad}): ${c.resumen}`).join(' | '));
 

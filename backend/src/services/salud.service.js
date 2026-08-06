@@ -47,6 +47,11 @@ const DIAS_BORRADOR = 7;
 // un rato más tarde que la de ayer sin disparar una falsa alarma.
 const HORAS_BACKUP = 26;
 
+// Lo mismo, pero para la copia que sale del VPS a OneDrive (scripts/copia-externa.sh).
+// Corre por cron una vez por día; 36 h deja pasar un atraso o un reinicio sin dar una
+// falsa alarma, y no deja pasar dos días seguidos sin copia afuera.
+const HORAS_COPIA_EXTERNA = 36;
+
 function r2(n) {
   return Math.round((n || 0) * 100) / 100;
 }
@@ -490,13 +495,41 @@ async function chequeoEnviosSinPrecio(db) {
 }
 
 // ── 10. Backups ─────────────────────────────────────────────────────────────
-// El limitador L2. Este chequeo NO puede resolver que los backups viven en el mismo
-// disco que la base — eso es una decisión de infraestructura. Lo que sí hace es que,
-// el día que el backup deje de correr, se sepa ese día y no el día de restaurar.
+// El limitador L2. Mira dos cosas distintas:
 //
-// Mira tres cosas: que haya uno reciente, que la serie no se haya cortado, y que el
-// último no haya encogido de golpe (un backup que se achica de golpe suele ser un
-// backup truncado, y un backup truncado se ve igual de bien que uno bueno en un `ls`).
+//  · Las copias LOCALES, las que hace la app sola en el disco del VPS: que haya una
+//    reciente, que la serie no se haya cortado, y que la última no haya encogido de
+//    golpe (un backup truncado se ve igual de bien que uno bueno en un `ls`).
+//
+//  · La copia EXTERNA, la que scripts/copia-externa.sh manda a OneDrive todos los días.
+//    Es la única que sobrevive a que se pierda el VPS entero. Este chequeo lee la marca
+//    que deja ese script, no OneDrive: le alcanza con saber si el trabajo corrió y cómo
+//    le fue.
+//
+// La copia externa es lo que decide el color de fondo. Un backup local impecable con la
+// copia externa cortada hace una semana NO es un backup: es una copia en el mismo disco
+// que la cosa que se puede perder. Antes esto avisaba en ámbar permanente, y un aviso
+// que está siempre encendido es un aviso que nadie mira.
+function leerCopiaExterna(dir) {
+  const marca = path.join(dir, '.copia-externa.json');
+  if (!fs.existsSync(marca)) return null;
+  try {
+    const m = JSON.parse(fs.readFileSync(marca, 'utf8'));
+    const cuando = new Date(m.cuando);
+    return {
+      ok: m.ok === true,
+      error: m.error || null,
+      destino: m.destino || '—',
+      archivo: m.archivo || '',
+      copias: Number(m.copias_remotas) || 0,
+      horas: Number.isNaN(cuando.getTime()) ? null : (Date.now() - cuando.getTime()) / 3600000,
+      cuando: Number.isNaN(cuando.getTime()) ? '—' : cuando.toISOString().slice(0, 16).replace('T', ' '),
+    };
+  } catch (e) {
+    return { ok: false, error: `la marca de la copia externa está ilegible (${e.message})`, horas: null, copias: 0, destino: '—', archivo: '', cuando: '—' };
+  }
+}
+
 function chequeoBackups() {
   const dir = path.join(path.dirname(config.dbPath), 'backups');
   if (!fs.existsSync(dir)) {
@@ -539,21 +572,111 @@ function chequeoBackups() {
     }
   }
 
-  // Aviso permanente: mientras no haya copia fuera del VPS, esto no está resuelto.
-  if (severidad === 'ok') severidad = 'ambar';
-  problemas.push('los backups están en el mismo disco que la base, sin copia afuera');
+  // ── La copia que se va del VPS ────────────────────────────────────────────
+  const ext = leerCopiaExterna(dir);
+  let resumenExterna;
+
+  if (!ext) {
+    // Nunca corrió: es el estado que había antes de armar esto.
+    if (severidad === 'ok') severidad = 'ambar';
+    resumenExterna = 'No hay copia fuera del VPS: las copias están todas en el mismo disco que la base.';
+  } else if (!ext.ok) {
+    severidad = 'rojo';
+    resumenExterna = `La copia a ${ext.destino} FALLÓ (${ext.cuando}): ${ext.error || 'sin detalle'}.`;
+  } else if (ext.horas === null || ext.horas > HORAS_COPIA_EXTERNA) {
+    severidad = 'rojo';
+    const dias = ext.horas === null ? '?' : Math.floor(ext.horas / 24);
+    resumenExterna = `La copia a ${ext.destino} dejó de correr: la última fue hace ${dias} día(s) (${ext.cuando}).`;
+  } else {
+    resumenExterna =
+      `Copia fuera del VPS OK: ${ext.copias} copia(s) en ${ext.destino}, `
+      + `la última hace ${ext.horas < 1 ? 'menos de una hora' : `${Math.round(ext.horas)} h`}.`;
+  }
 
   return {
     severidad,
     cantidad: archivos.length,
     resumen:
-      `${archivos.length} backup(s), el último de hace ${horas < 1 ? 'menos de una hora' : `${Math.round(horas)} h`}. `
-      + `${problemas.join('; ')}.`,
+      `${archivos.length} backup(s) en el VPS, el último de hace `
+      + `${horas < 1 ? 'menos de una hora' : `${Math.round(horas)} h`}`
+      + `${problemas.length ? `; ${problemas.join('; ')}` : ''}. ${resumenExterna}`,
     ...acotar(archivos.slice(-10).reverse().map((a) => ({
       archivo: a.archivo,
       tamano_kb: a.tamano_kb,
       fecha: a.fecha.toISOString().slice(0, 16).replace('T', ' '),
     }))),
+  };
+}
+
+// ── 10.b Cierres de mes sin hacer ───────────────────────────────────────────
+// El cierre de mes es la copia que NO depende de nosotros: la planilla que administración
+// baja y guarda en su computadora, y que sirve incluso si se pierden el sistema, el VPS y
+// OneDrive juntos. Su punto débil es obvio y humano: depende de que alguien se acuerde.
+//
+// Esta clase de rutina no se abandona de golpe, se abandona de a poco. Por eso el chequeo
+// mira los ÚLTIMOS TRES MESES CERRADOS y no solo el anterior: un mes suelto sin cerrar es
+// un descuido, dos o tres es una costumbre que se murió.
+//
+// Los primeros días del mes no cuentan: nadie cierra julio el 1 de agosto a la mañana.
+const DIAS_GRACIA_CIERRE = 5;
+
+async function chequeoCierres(db) {
+  const hoy = new Date(`${hoyLocal()}T12:00:00`);
+  const p = (n) => String(n).padStart(2, '0');
+
+  // Los meses completos hacia atrás. Si estamos dentro de la gracia, el mes recién
+  // terminado todavía no se le reclama a nadie.
+  const saltar = hoy.getDate() <= DIAS_GRACIA_CIERRE ? 1 : 0;
+  const meses = [];
+  for (let i = 1 + saltar; i <= 3 + saltar; i++) {
+    const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+    meses.push(`${d.getFullYear()}-${p(d.getMonth() + 1)}`);
+  }
+
+  const filas = await db.prepare(`
+    SELECT tipo, desde, hasta, filas, usuario, creado_en
+    FROM cierres WHERE tipo = 'mes' ORDER BY desde DESC LIMIT 24`).all();
+  const cerrados = new Set(filas.map((f) => String(f.desde).slice(0, 7)));
+  const faltan = meses.filter((m) => !cerrados.has(m));
+
+  if (!filas.length) {
+    return {
+      severidad: 'ambar',
+      cantidad: meses.length,
+      resumen:
+        'Nunca se hizo un cierre de mes. Es la copia que se guarda fuera del sistema, en '
+        + 'la computadora de administración: la única que sirve si se pierde todo lo demás.',
+      detalle: meses.map((m) => ({ mes: m, estado: 'sin cerrar' })),
+    };
+  }
+
+  const ultimo = filas[0];
+  const detalle = meses.map((m) => {
+    const f = filas.find((x) => String(x.desde).slice(0, 7) === m);
+    return f
+      ? { mes: m, estado: 'cerrado', envios: f.filas, por: f.usuario || '—', cuando: f.creado_en }
+      : { mes: m, estado: 'SIN CERRAR', envios: '—', por: '—', cuando: '—' };
+  });
+
+  if (!faltan.length) {
+    return {
+      severidad: 'ok',
+      cantidad: 0,
+      resumen:
+        `Los últimos ${meses.length} meses están archivados. El último cierre fue `
+        + `${String(ultimo.desde).slice(0, 7)} (${ultimo.filas} envíos, por ${ultimo.usuario || '—'}).`,
+      ...acotar(detalle),
+    };
+  }
+
+  return {
+    severidad: faltan.length >= 2 ? 'rojo' : 'ambar',
+    cantidad: faltan.length,
+    resumen:
+      `${faltan.length === 1 ? 'Falta el cierre de' : 'Faltan los cierres de'} ${faltan.join(', ')}. `
+      + `El último que se archivó fue ${String(ultimo.desde).slice(0, 7)}. `
+      + 'Se baja desde Salidas, con el botón "Cierre · Mes".',
+    ...acotar(detalle),
   };
 }
 
@@ -729,6 +852,9 @@ async function correrChequeos() {
 
     correr({ id: 'backups', grupo: 'higiene', titulo: 'Backups de la base',
       link: null }, async () => chequeoBackups()),
+
+    correr({ id: 'cierres', grupo: 'higiene', titulo: 'Cierres de mes archivados',
+      link: { href: 'salidas.html', texto: 'Ir a Salidas' } }, () => chequeoCierres(db)),
 
     correr({ id: 'borradores_viejos', grupo: 'higiene', titulo: 'Liquidaciones en borrador olvidadas',
       link: { href: 'liquidaciones.html', texto: 'Ir a Liquidaciones' } }, () => chequeoBorradoresViejos(db)),

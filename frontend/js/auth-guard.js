@@ -65,6 +65,16 @@
           }
         }
 
+        // Permisos sueltos DENTRO de una pantalla (no pantallas enteras): cualquier
+        // elemento con data-perm="<permiso>" se esconde si el usuario no lo tiene. El
+        // admin siempre lo tiene. Lo usa el bloque de Cierre de periodo en Salidas: la
+        // pantalla la ve todo el mundo, pero llevarse la planilla del mes entero no.
+        // Es solo la capa visual — el que manda es el middleware del backend.
+        document.querySelectorAll('[data-perm]').forEach(function (el) {
+          var permiso = el.getAttribute('data-perm');
+          if (user.rol !== 'admin' && user[permiso] !== 1) el.style.display = 'none';
+        });
+
         const btnLogout = document.getElementById('btn-logout');
         if (btnLogout) {
           btnLogout.addEventListener('click', function () {

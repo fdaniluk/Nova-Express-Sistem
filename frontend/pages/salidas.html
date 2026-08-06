@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Salidas – Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260804e">
-  <link rel="stylesheet" href="../css/modules/salidas.css?v=20260804e">
+  <link rel="stylesheet" href="../css/main.css?v=20260806e">
+  <link rel="stylesheet" href="../css/modules/salidas.css?v=20260806e">
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body class="salidas-page">
@@ -92,6 +92,23 @@
         <button class="btn btn-sm btn-primary" id="btn-exportar-excel">
           ↓ Exportar Excel
         </button>
+        <!-- Cierre de periodo: la planilla que se archiva FUERA del sistema. Se ve solo
+             con el permiso cerrar_mes (o siendo admin); lo esconde auth-guard.js.
+             A diferencia de "Exportar Excel", que baja lo que quedo filtrado en pantalla,
+             esto baja SIEMPRE el periodo completo y lo arma el servidor. -->
+        <div class="cierre-box" data-perm="cerrar_mes">
+          <span class="cierre-titulo">Cierre</span>
+          <input type="month" id="cierre-mes" class="cierre-mes" title="Mes a archivar">
+          <button class="btn btn-sm btn-primary" id="btn-cierre-mes"
+                  title="Baja el Excel con TODAS las salidas del mes elegido, para guardarlo fuera del sistema">
+            ↓ Mes
+          </button>
+          <button class="btn btn-sm btn-secondary" id="btn-cierre-semana"
+                  title="Baja el Excel de las salidas de esta semana (lunes a hoy)">
+            ↓ Semana
+          </button>
+          <span id="cierre-ultimo" class="cierre-ultimo"></span>
+        </div>
       </div>
     </div>
 
@@ -180,11 +197,11 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260804e"></script>
-<script src="../js/api.js?v=20260804e"></script>
-<script src="../js/main.js?v=20260804e"></script>
-<script src="/shared/cotizador/cotizador-core.js?v=20260804e"></script>
-<script src="/shared/guias/validar-guia.js?v=20260804e"></script>
-<script src="../js/modules/salidas.js?v=20260804e"></script>
+<script src="/js/auth-guard.js?v=20260806e"></script>
+<script src="../js/api.js?v=20260806e"></script>
+<script src="../js/main.js?v=20260806e"></script>
+<script src="/shared/cotizador/cotizador-core.js?v=20260806e"></script>
+<script src="/shared/guias/validar-guia.js?v=20260806e"></script>
+<script src="../js/modules/salidas.js?v=20260806e"></script>
 </body>
 </html>

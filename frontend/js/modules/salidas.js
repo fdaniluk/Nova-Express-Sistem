@@ -1017,6 +1017,116 @@
   // ── Auto 6: exportar a Excel ─────────────────────────────────────────────────
   function bindExport() {
     document.getElementById('btn-exportar-excel').addEventListener('click', exportarExcel);
+    bindCierre();
+  }
+
+  // ── Cierre de período ────────────────────────────────────────────────────────
+  // OJO con la diferencia, que es la que importa: "Exportar Excel" baja lo que quedó
+  // filtrado en pantalla y lo arma el navegador con una librería que se descarga de
+  // internet. "Cierre" baja el período COMPLETO, lo arma el servidor, y queda asentado
+  // que se hizo. El primero es una comodidad; el segundo es el respaldo que se archiva.
+  function bindCierre() {
+    const caja = document.querySelector('.cierre-box');
+    if (!caja) return;
+
+    // El mes por defecto es el ANTERIOR durante los primeros 5 días, y el actual después.
+    // Es el momento en que se cierra: el 1 o el 2 nadie quiere archivar el mes que recién
+    // empieza, quiere el que terminó.
+    const hoy = new Date();
+    const ref = new Date(hoy);
+    if (hoy.getDate() <= 5) ref.setMonth(ref.getMonth() - 1);
+    const inputMes = document.getElementById('cierre-mes');
+    inputMes.value = `${ref.getFullYear()}-${String(ref.getMonth() + 1).padStart(2, '0')}`;
+
+    document.getElementById('btn-cierre-mes').addEventListener('click', () => {
+      const mes = inputMes.value;
+      if (!/^\d{4}-\d{2}$/.test(mes)) {
+        NovaUtils.showAlert(alertBox, 'Elegí un mes para cerrar', 'error');
+        return;
+      }
+      bajarCierre(`tipo=mes&mes=${mes}`, `el mes ${mes}`);
+    });
+
+    document.getElementById('btn-cierre-semana').addEventListener('click', () => {
+      bajarCierre('tipo=semana', 'la semana');
+    });
+
+    refrescarUltimoCierre();
+  }
+
+  // La descarga va por fetch y no por un link directo para poder leer el resultado: si el
+  // período salió vacío hay que decirlo, porque un Excel sin filas se archiva igual y
+  // nadie se entera hasta que lo necesita.
+  async function bajarCierre(query, comoSeLlama) {
+    const botones = document.querySelectorAll('#btn-cierre-mes, #btn-cierre-semana');
+    botones.forEach((b) => { b.disabled = true; });
+    try {
+      const r = await fetch(`/api/salidas/exportar?${query}`, { credentials: 'same-origin' });
+      if (!r.ok) {
+        let msg = `No se pudo generar el cierre de ${comoSeLlama}`;
+        if (r.status === 403) msg = 'No tenés permiso para hacer el cierre de período';
+        else {
+          try { const j = await r.json(); if (j && j.error) msg = j.error; } catch { /* no era JSON */ }
+        }
+        NovaUtils.showAlert(alertBox, msg, 'error');
+        return;
+      }
+
+      const filas = Number(r.headers.get('X-Nova-Filas') || 0);
+      const nombre = nombreDeContentDisposition(r.headers.get('Content-Disposition'))
+        || 'Nova-salidas.xlsx';
+      const blob = await r.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = nombre;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+
+      if (filas === 0) {
+        NovaUtils.showAlert(alertBox,
+          `El cierre de ${comoSeLlama} salió SIN envíos. Revisá que el período sea el correcto.`,
+          'error');
+      } else {
+        NovaUtils.showAlert(alertBox,
+          `Cierre de ${comoSeLlama} descargado: ${filas} envío(s). Guardalo en la carpeta de respaldos.`,
+          'success');
+      }
+      refrescarUltimoCierre();
+    } catch (e) {
+      NovaUtils.showAlert(alertBox, 'No se pudo generar el cierre: ' + e.message, 'error');
+    } finally {
+      botones.forEach((b) => { b.disabled = false; });
+    }
+  }
+
+  function nombreDeContentDisposition(cd) {
+    if (!cd) return null;
+    const m = /filename="?([^"]+)"?/.exec(cd);
+    return m ? m[1] : null;
+  }
+
+  // Muestra de cuándo es el último cierre. Si hace más de 40 días que nadie cierra, se
+  // pinta en ámbar. Es el mismo dato que mira el panel de salud, acá al lado del botón.
+  async function refrescarUltimoCierre() {
+    const span = document.getElementById('cierre-ultimo');
+    if (!span) return;
+    try {
+      const lista = await NovaAPI.get('/salidas/cierres');
+      const ultimo = (lista || []).find((c) => c.tipo === 'mes') || (lista || [])[0];
+      if (!ultimo) {
+        span.textContent = 'nunca se cerró un período';
+        span.classList.add('atrasado');
+        return;
+      }
+      const dias = Math.round((Date.now() - new Date(ultimo.creado_en).getTime()) / 86400000);
+      span.textContent = `último: ${ultimo.desde.slice(0, 7)} (${ultimo.filas} envíos)`;
+      span.classList.toggle('atrasado', dias > 40);
+    } catch {
+      span.textContent = '';
+    }
   }
 
   // Desvío % para el Excel: número redondeado (facturado − base)/base×100, o '' si la base

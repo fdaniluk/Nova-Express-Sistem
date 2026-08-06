@@ -42,6 +42,9 @@
           <td style="text-align:center">
             <input type="checkbox" class="salud-check" data-id="${u.id}" ${u.ver_salud ? 'checked' : ''}>
           </td>
+          <td style="text-align:center">
+            <input type="checkbox" class="cierre-check" data-id="${u.id}" ${u.cerrar_mes ? 'checked' : ''}>
+          </td>
           <td>
             <div class="estado-cell">
               <span class="badge ${u.activo ? 'badge-liquidado' : 'badge-pendiente'}">${u.activo ? 'Activo' : 'Inactivo'}</span>
@@ -92,6 +95,19 @@
         var id = cb.dataset.id;
         try {
           await NovaAPI.patch('/usuarios/' + id, { editar_config: cb.checked ? 1 : 0 });
+          await cargarUsuarios();
+        } catch (err) {
+          NovaUtils.showAlert(alertBox, err.message);
+          await cargarUsuarios();
+        }
+      });
+    });
+
+    tabla.querySelectorAll('input.cierre-check').forEach(function (cb) {
+      cb.addEventListener('change', async function () {
+        var id = cb.dataset.id;
+        try {
+          await NovaAPI.patch('/usuarios/' + id, { cerrar_mes: cb.checked ? 1 : 0 });
           await cargarUsuarios();
         } catch (err) {
           NovaUtils.showAlert(alertBox, err.message);
@@ -157,6 +173,7 @@
         ver_dashboard: document.getElementById('u-ver-dashboard').checked ? 1 : 0,
         editar_config: document.getElementById('u-editar-config').checked ? 1 : 0,
         ver_salud: document.getElementById('u-ver-salud').checked ? 1 : 0,
+        cerrar_mes: document.getElementById('u-cerrar-mes').checked ? 1 : 0,
       };
       try {
         await NovaAPI.post('/usuarios', data);

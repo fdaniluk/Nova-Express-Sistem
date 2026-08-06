@@ -2,7 +2,7 @@
 /**
  * test-pantalla-salud.js — la pantalla del panel de salud, en un navegador de verdad.
  *
- * El servicio y sus 13 chequeos los cubre test-salud.js. Esto controla lo otro: que lo
+ * El servicio y sus 14 chequeos los cubre test-salud.js. Esto controla lo otro: que lo
  * que el backend detecta llegue efectivamente a los ojos de alguien. Un servicio
  * perfecto detrás de una pantalla que no pinta nada no le sirve a nadie.
  *
@@ -137,7 +137,8 @@ async function main() {
   check('hay al menos un contador en rojo', tiles.some((c) => c.includes('rojo')), tiles.join(' | '));
 
   const tarjetas = await page.evaluate(() => document.querySelectorAll('.chequeo').length);
-  check('se listan los 13 chequeos', tarjetas === 13, String(tarjetas));
+  // 14 desde el 06/08/2026, cuando se sumo "cierres" (los meses archivados afuera).
+  check('se listan los 14 chequeos', tarjetas === 14, String(tarjetas));
 
   const enVerde = await page.evaluate(() => document.querySelectorAll('.chequeo.ok').length);
   check('los chequeos en verde también se muestran', enVerde > 0, String(enVerde));

@@ -1230,3 +1230,36 @@ td.cell-sin-pesar { background: #fffbeb; }
   background: #94a3b8;
   background-clip: content-box;
 }
+
+/* ── Cierre de periodo ────────────────────────────────────────────────────────
+   El bloque que baja la planilla del mes o de la semana para archivarla fuera del
+   sistema. Va separado visualmente de "Exportar Excel" a proposito: son dos cosas
+   distintas y confundirlas es el error caro (exportar baja lo filtrado; cerrar baja
+   el periodo entero). El separador de la izquierda marca ese corte. */
+.cierre-box {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 10px;
+  margin-left: 4px;
+  border-left: 1px solid var(--color-border, #d8dee9);
+}
+.cierre-titulo {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #64748b;
+}
+.cierre-mes {
+  height: 28px;
+  padding: 0 6px;
+  font-size: 12px;
+  border: 1px solid var(--color-border, #d8dee9);
+  border-radius: 4px;
+  background: #fff;
+}
+/* De cuando es el ultimo cierre hecho. Si hace mas de un mes que nadie cierra, se
+   pinta en ambar: es un aviso al costado, no un cartel que tape la pantalla. */
+.cierre-ultimo { font-size: 11px; color: #64748b; white-space: nowrap; }
+.cierre-ultimo.atrasado { color: #b45309; font-weight: 600; }

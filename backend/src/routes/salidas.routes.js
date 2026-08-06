@@ -5,6 +5,9 @@ const { pesoVolumetricoBulto } = require('../services/calculos.service');
 const { deriveProfit } = require('../utils/profit');
 const { descomponerVenta } = require('../utils/desgloseVenta');
 const configuracionModel = require('../models/configuracion.model');
+const cierreService = require('../services/cierre.service');
+const { hoyLocal } = require('../utils/fecha');
+const { requireCierre } = require('../middleware/auth');
 
 const router = Router();
 
@@ -36,258 +39,331 @@ function normalizarEstadoCaja(raw) {
   return { ok: false, value: undefined };
 }
 
-router.get('/', async (req, res, next) => {
-  try {
-    const db = getDb();
-    let sql = `
-      SELECT
-        e.id,
-        e.numero_salida,
-        e.courier,
-        e.fecha,
-        e.numero_guia,
-        e.pais_destino        AS destino,
-        e.destino_raw,
-        e.direccion,
-        e.bulto,
-        e.tipo_paquete,
-        e.tipo_envio,
-        e.cantidad_bultos,
-        e.peso_real           AS peso,
-        e.largo,
-        e.ancho,
-        e.alto,
-        e.peso_volumetrico,
-        e.peso_facturable,
-        e.asegurado,
-        e.remota,
-        e.entrega,
-        e.ddp,
-        e.proteccion_doc,
-        e.zona,
-        e.servicio_ups,
-        e.fob                 AS valor_declarado,
-        e.flete,
-        e.descuento,
-        e.seguro,
-        e.fuel,
-        e.fuel_pct,
-        e.derechos,
-        e.adicionales,
-        e.otros,
-        e.extras_json,
-        e.total_cobrado       AS total,
-        e.profit,
-        e.porcentaje,
-        e.observaciones,
-        e.estado_revision,
-        e.costo_facturado,
-        e.peso_facturado,
-        e.courier_facturado,
-        e.fecha_facturado,
-        e.num_sal_cero,
-        e.liquidado,
-        e.fecha_liquidacion,
-        e.liquidacion_id,
-        e.created_at,
-        c.id                  AS cliente_id,
-        COALESCE(NULLIF(c.nombre_nova,''), c.nombre) AS cliente_nombre,
-        c.tipo_cobro,
-        li.venta_liq          AS venta_liq
-      FROM envios e
-      JOIN clientes c ON c.id = e.cliente_id
-      -- Venta congelada de la liquidación confirmada (total_usd = total_cobrado + adicional
-      -- manual). La consume deriveProfit para la rama de costo real: cuando el envío está
-      -- liquidado, el costo real se resta contra ESTA venta (la completa), no contra
-      -- total_cobrado. Pre-agregado por envío para no duplicar filas. SOLO lectura.
-      LEFT JOIN (
-        SELECT envio_id, SUM(total_usd) AS venta_liq
-        FROM liquidacion_items
-        WHERE liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
-        GROUP BY envio_id
-      ) li ON li.envio_id = e.id
-      WHERE 1=1`;
+// El listado de Salidas, sin Express de por medio. Lo usan DOS cosas: el GET que dibuja
+// la pantalla y el cierre de período, que arma el Excel. Vivía entero adentro del
+// handler; se sacó afuera para que la planilla que se archiva no pueda desviarse nunca de
+// lo que la oficina ve en pantalla — si algún día cambia una columna, cambia en los dos
+// lados o en ninguno.
+async function listarSalidas({ desde, hasta } = {}) {
+  const db = getDb();
+  let sql = `
+    SELECT
+      e.id,
+      e.numero_salida,
+      e.courier,
+      e.fecha,
+      e.numero_guia,
+      e.pais_destino        AS destino,
+      e.destino_raw,
+      e.direccion,
+      e.bulto,
+      e.tipo_paquete,
+      e.tipo_envio,
+      e.cantidad_bultos,
+      e.peso_real           AS peso,
+      e.largo,
+      e.ancho,
+      e.alto,
+      e.peso_volumetrico,
+      e.peso_facturable,
+      e.asegurado,
+      e.remota,
+      e.entrega,
+      e.ddp,
+      e.proteccion_doc,
+      e.zona,
+      e.servicio_ups,
+      e.fob                 AS valor_declarado,
+      e.flete,
+      e.descuento,
+      e.seguro,
+      e.fuel,
+      e.fuel_pct,
+      e.derechos,
+      e.adicionales,
+      e.otros,
+      e.extras_json,
+      e.total_cobrado       AS total,
+      e.profit,
+      e.porcentaje,
+      e.observaciones,
+      e.estado_revision,
+      e.costo_facturado,
+      e.peso_facturado,
+      e.courier_facturado,
+      e.fecha_facturado,
+      e.num_sal_cero,
+      e.liquidado,
+      e.fecha_liquidacion,
+      e.liquidacion_id,
+      e.created_at,
+      c.id                  AS cliente_id,
+      COALESCE(NULLIF(c.nombre_nova,''), c.nombre) AS cliente_nombre,
+      c.tipo_cobro,
+      li.venta_liq          AS venta_liq
+    FROM envios e
+    JOIN clientes c ON c.id = e.cliente_id
+    -- Venta congelada de la liquidación confirmada (total_usd = total_cobrado + adicional
+    -- manual). La consume deriveProfit para la rama de costo real: cuando el envío está
+    -- liquidado, el costo real se resta contra ESTA venta (la completa), no contra
+    -- total_cobrado. Pre-agregado por envío para no duplicar filas. SOLO lectura.
+    LEFT JOIN (
+      SELECT envio_id, SUM(total_usd) AS venta_liq
+      FROM liquidacion_items
+      WHERE liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
+      GROUP BY envio_id
+    ) li ON li.envio_id = e.id
+    WHERE 1=1`;
 
-    const params = [];
+  const params = [];
 
-    if (req.query.desde) {
-      sql += ' AND e.fecha >= ?';
-      params.push(req.query.desde);
-    }
-    if (req.query.hasta) {
-      sql += ' AND e.fecha <= ?';
-      params.push(req.query.hasta);
-    }
+  if (desde) {
+    sql += ' AND e.fecha >= ?';
+    params.push(desde);
+  }
+  if (hasta) {
+    sql += ' AND e.fecha <= ?';
+    params.push(hasta);
+  }
 
-    sql += ' ORDER BY e.fecha DESC, e.id DESC';
+  sql += ' ORDER BY e.fecha DESC, e.id DESC';
 
-    const rows = await db.prepare(sql).all(...params);
+  const rows = await db.prepare(sql).all(...params);
 
-    // Número correlativo de salida (num_sal): se calcula al vuelo sobre TODOS los
-    // envíos en orden cronológico de carga (id ASC), NO sobre el subconjunto filtrado.
-    // Es global y estable: el id más bajo es 1, el siguiente 2, etc. Filtrar por fecha
-    // no renumera nada. No se persiste: al borrar un envío los números se recalculan
-    // solos sin huecos en el próximo request.
-    const numSalPorEnvio = new Map();
-    const todosLosIds = await db.prepare('SELECT id FROM envios ORDER BY id ASC').all();
-    todosLosIds.forEach((r, i) => numSalPorEnvio.set(r.id, i + 1));
+  // Número correlativo de salida (num_sal): se calcula al vuelo sobre TODOS los
+  // envíos en orden cronológico de carga (id ASC), NO sobre el subconjunto filtrado.
+  // Es global y estable: el id más bajo es 1, el siguiente 2, etc. Filtrar por fecha
+  // no renumera nada. No se persiste: al borrar un envío los números se recalculan
+  // solos sin huecos en el próximo request.
+  const numSalPorEnvio = new Map();
+  const todosLosIds = await db.prepare('SELECT id FROM envios ORDER BY id ASC').all();
+  todosLosIds.forEach((r, i) => numSalPorEnvio.set(r.id, i + 1));
 
-    // Bultos por envío: una sola query (sin N+1) y se indexan en memoria por envio_id.
-    const bultosPorEnvio = new Map();
-    const envioIds = rows.map((r) => r.id);
-    if (envioIds.length > 0) {
-      const placeholders = envioIds.map(() => '?').join(', ');
-      const bultoRows = await db
-        .prepare(`
-          SELECT id, envio_id, numero_bulto, peso_real, largo, ancho, alto, peso_volumetrico, numero_guia, estado_caja
-          FROM envio_bultos
-          WHERE envio_id IN (${placeholders})
-          ORDER BY envio_id, numero_bulto`)
-        .all(...envioIds);
-      for (const b of bultoRows) {
-        if (!bultosPorEnvio.has(b.envio_id)) bultosPorEnvio.set(b.envio_id, []);
-        bultosPorEnvio.get(b.envio_id).push({
-          id: b.id,
-          numero_bulto: b.numero_bulto,
-          peso_real: b.peso_real,
-          largo: b.largo,
-          ancho: b.ancho,
-          alto: b.alto,
-          peso_volumetrico: b.peso_volumetrico,
-          numero_guia: b.numero_guia,
-          estado_caja: b.estado_caja ?? null,
-        });
-      }
-    }
-
-    // Recargos facturados por envío: el desglose (cargos_json) de lo que el courier facturó
-    // por esa guía. Puede haber VARIAS filas por envío si la factura se recargó; nos quedamos
-    // con la MÁS RECIENTE (mayor id). Una sola query (sin N+1), indexada por envio_id igual
-    // que bultosPorEnvio. Sin factura cargada → el envío no está en el mapa → array vacío.
-    const recargosPorEnvio = new Map();
-    if (envioIds.length > 0) {
-      const placeholders = envioIds.map(() => '?').join(', ');
-      // ORDER BY id ASC: al iterar, la fila de mayor id (más reciente) sobrescribe y gana.
-      const guiaRows = await db
-        .prepare(`
-          SELECT envio_id, cargos_json
-          FROM factura_guias
-          WHERE envio_id IN (${placeholders})
-          ORDER BY id ASC`)
-        .all(...envioIds);
-      for (const g of guiaRows) {
-        recargosPorEnvio.set(g.envio_id, parseExtras(g.cargos_json));
-      }
-    }
-
-    // Devuelve el array de bultos del envío. Multi-bulto: filas reales (id no nulo).
-    // Bulto único (sin filas en envio_bultos): un bulto sintético (id null) armado
-    // desde los campos primarios del propio envío.
-    const bultosDe = (row) => {
-      const reales = bultosPorEnvio.get(row.id);
-      if (reales && reales.length > 0) return reales;
-      return [{
-        id: null,
-        numero_bulto: 1,
-        peso_real: row.peso,
-        largo: row.largo,
-        ancho: row.ancho,
-        alto: row.alto,
-        peso_volumetrico: row.peso_volumetrico,
-        numero_guia: null,
-        // Bulto único sin fila propia: nunca tiene estado materializado. NULL = rojo en
-        // la lectura. Para fijarle estado el front llama al endpoint que materializa la fila.
-        estado_caja: null,
-      }];
-    };
-
-    // Fuel% para el desglose de venta: mismo criterio que liquidacion.model → calcularItem.
-    // Si el envío tiene fuel_pct propio (congelado) se usa ESE; si es NULL se cae a la config
-    // vigente del courier (fuelCfg?.fuel_pct ?? 0). Se lee la config UNA vez (sin N+1) y se
-    // indexa por courier; la lectura por courier equivale a obtenerFuel(courier).
-    const fuelCfgRows = await configuracionModel.listarFuel();
-    const fuelCfgPorCourier = new Map(fuelCfgRows.map((r) => [r.courier, r.fuel_pct]));
-    const resolverFuelPct = (row) => {
-      if (row.fuel_pct !== null && row.fuel_pct !== undefined) return row.fuel_pct;
-      return fuelCfgPorCourier.has(row.courier) ? (fuelCfgPorCourier.get(row.courier) ?? 0) : 0;
-    };
-
-    // Desglose de venta (SOLO lectura): descompone total_cobrado en flete/fuel/seguro/adicional
-    // con el helper compartido de la Etapa 1, usando el fuel_pct resuelto arriba. Va a nivel
-    // envío (no por bulto). total_cobrado falsy (0/null) → sin venta cargada → null.
-    const ventaDesgloseDe = (row) => {
-      if (!row.total) return null;
-      return descomponerVenta({
-        total_cobrado: row.total,
-        seguro: row.seguro,
-        adicionales: row.adicionales,
-        derechos: row.derechos,
-        otros: row.otros,
-        fuel_pct: resolverFuelPct(row),
+  // Bultos por envío: una sola query (sin N+1) y se indexan en memoria por envio_id.
+  const bultosPorEnvio = new Map();
+  const envioIds = rows.map((r) => r.id);
+  if (envioIds.length > 0) {
+    const placeholders = envioIds.map(() => '?').join(', ');
+    const bultoRows = await db
+      .prepare(`
+        SELECT id, envio_id, numero_bulto, peso_real, largo, ancho, alto, peso_volumetrico, numero_guia, estado_caja
+        FROM envio_bultos
+        WHERE envio_id IN (${placeholders})
+        ORDER BY envio_id, numero_bulto`)
+      .all(...envioIds);
+    for (const b of bultoRows) {
+      if (!bultosPorEnvio.has(b.envio_id)) bultosPorEnvio.set(b.envio_id, []);
+      bultosPorEnvio.get(b.envio_id).push({
+        id: b.id,
+        numero_bulto: b.numero_bulto,
+        peso_real: b.peso_real,
+        largo: b.largo,
+        ancho: b.ancho,
+        alto: b.alto,
+        peso_volumetrico: b.peso_volumetrico,
+        numero_guia: b.numero_guia,
+        estado_caja: b.estado_caja ?? null,
       });
-    };
+    }
+  }
 
-    // Profit/porcentaje/compra_total derivados AL VUELO por deriveProfit (utils/profit.js),
-    // la MISMA función que agrega el Dashboard, para que coincidan al centavo.
-    const result = rows.map((row) => ({
-      id: row.id,
-      num_sal: numSalPorEnvio.get(row.id),
-      numero_salida: row.numero_salida,
-      courier: row.courier,
-      fecha: row.fecha,
-      numero_guia: row.numero_guia,
-      tipo_cobro: row.tipo_cobro,
-      cliente_id: row.cliente_id,
-      cliente_nombre: row.cliente_nombre,
-      destino: row.destino,
-      destino_raw: row.destino_raw,
-      direccion: row.direccion || (row.tipo_envio === 'importacion' ? 'impo' : 'expo'),
-      bulto: row.bulto,
-      tipo_paquete: row.tipo_paquete,
-      cantidad_bultos: row.cantidad_bultos,
-      peso: row.peso,
+  // Recargos facturados por envío: el desglose (cargos_json) de lo que el courier facturó
+  // por esa guía. Puede haber VARIAS filas por envío si la factura se recargó; nos quedamos
+  // con la MÁS RECIENTE (mayor id). Una sola query (sin N+1), indexada por envio_id igual
+  // que bultosPorEnvio. Sin factura cargada → el envío no está en el mapa → array vacío.
+  const recargosPorEnvio = new Map();
+  if (envioIds.length > 0) {
+    const placeholders = envioIds.map(() => '?').join(', ');
+    // ORDER BY id ASC: al iterar, la fila de mayor id (más reciente) sobrescribe y gana.
+    const guiaRows = await db
+      .prepare(`
+        SELECT envio_id, cargos_json
+        FROM factura_guias
+        WHERE envio_id IN (${placeholders})
+        ORDER BY id ASC`)
+      .all(...envioIds);
+    for (const g of guiaRows) {
+      recargosPorEnvio.set(g.envio_id, parseExtras(g.cargos_json));
+    }
+  }
+
+  // Devuelve el array de bultos del envío. Multi-bulto: filas reales (id no nulo).
+  // Bulto único (sin filas en envio_bultos): un bulto sintético (id null) armado
+  // desde los campos primarios del propio envío.
+  const bultosDe = (row) => {
+    const reales = bultosPorEnvio.get(row.id);
+    if (reales && reales.length > 0) return reales;
+    return [{
+      id: null,
+      numero_bulto: 1,
+      peso_real: row.peso,
       largo: row.largo,
       ancho: row.ancho,
       alto: row.alto,
       peso_volumetrico: row.peso_volumetrico,
-      peso_facturable: row.peso_facturable,
-      asegurado: Boolean(row.asegurado),
-      remota: Boolean(row.remota),
-      // Envío viejo (sin `entrega`): su flag `remota` equivalía a la tarifa de extendida.
-      entrega: row.entrega || (row.remota ? 'extendida' : 'normal'),
-      ddp: Boolean(row.ddp),
-      proteccion_doc: Boolean(row.proteccion_doc),
-      zona: row.zona,
-      servicio_ups: row.servicio_ups,
-      valor_declarado: row.valor_declarado,
-      flete: row.flete,
-      descuento: row.descuento,
-      seguro: row.seguro,
-      fuel: row.fuel,
-      derechos: row.derechos,
-      adicionales: row.adicionales,
-      otros: row.otros,
-      extras: parseExtras(row.extras_json),
-      total: row.total,
-      venta_desglose: ventaDesgloseDe(row),
-      ...deriveProfit(row),
-      observaciones: row.observaciones,
-      estado_revision: row.estado_revision ?? null,
-      // Datos de lo que el courier facturó por este envío (módulo Control de Facturas).
-      // Los escalares viven en la propia fila de envios; recargos_facturados es el desglose
-      // de la factura MÁS RECIENTE cruzada a este envío (array vacío si no hay factura).
-      costo_facturado: row.costo_facturado ?? null,
-      peso_facturado: row.peso_facturado ?? null,
-      courier_facturado: row.courier_facturado ?? null,
-      fecha_facturado: row.fecha_facturado ?? null,
-      recargos_facturados: recargosPorEnvio.get(row.id) ?? [],
-      num_sal_cero: Boolean(row.num_sal_cero),
-      liquidado: Boolean(row.liquidado),
-      fecha_liquidacion: row.fecha_liquidacion,
-      bultos: bultosDe(row),
-    }));
+      numero_guia: null,
+      // Bulto único sin fila propia: nunca tiene estado materializado. NULL = rojo en
+      // la lectura. Para fijarle estado el front llama al endpoint que materializa la fila.
+      estado_caja: null,
+    }];
+  };
 
-    res.json(result);
+  // Fuel% para el desglose de venta: mismo criterio que liquidacion.model → calcularItem.
+  // Si el envío tiene fuel_pct propio (congelado) se usa ESE; si es NULL se cae a la config
+  // vigente del courier (fuelCfg?.fuel_pct ?? 0). Se lee la config UNA vez (sin N+1) y se
+  // indexa por courier; la lectura por courier equivale a obtenerFuel(courier).
+  const fuelCfgRows = await configuracionModel.listarFuel();
+  const fuelCfgPorCourier = new Map(fuelCfgRows.map((r) => [r.courier, r.fuel_pct]));
+  const resolverFuelPct = (row) => {
+    if (row.fuel_pct !== null && row.fuel_pct !== undefined) return row.fuel_pct;
+    return fuelCfgPorCourier.has(row.courier) ? (fuelCfgPorCourier.get(row.courier) ?? 0) : 0;
+  };
+
+  // Desglose de venta (SOLO lectura): descompone total_cobrado en flete/fuel/seguro/adicional
+  // con el helper compartido de la Etapa 1, usando el fuel_pct resuelto arriba. Va a nivel
+  // envío (no por bulto). total_cobrado falsy (0/null) → sin venta cargada → null.
+  const ventaDesgloseDe = (row) => {
+    if (!row.total) return null;
+    return descomponerVenta({
+      total_cobrado: row.total,
+      seguro: row.seguro,
+      adicionales: row.adicionales,
+      derechos: row.derechos,
+      otros: row.otros,
+      fuel_pct: resolverFuelPct(row),
+    });
+  };
+
+  // Profit/porcentaje/compra_total derivados AL VUELO por deriveProfit (utils/profit.js),
+  // la MISMA función que agrega el Dashboard, para que coincidan al centavo.
+  const result = rows.map((row) => ({
+    id: row.id,
+    num_sal: numSalPorEnvio.get(row.id),
+    numero_salida: row.numero_salida,
+    courier: row.courier,
+    fecha: row.fecha,
+    numero_guia: row.numero_guia,
+    tipo_cobro: row.tipo_cobro,
+    cliente_id: row.cliente_id,
+    cliente_nombre: row.cliente_nombre,
+    destino: row.destino,
+    destino_raw: row.destino_raw,
+    direccion: row.direccion || (row.tipo_envio === 'importacion' ? 'impo' : 'expo'),
+    bulto: row.bulto,
+    tipo_paquete: row.tipo_paquete,
+    cantidad_bultos: row.cantidad_bultos,
+    peso: row.peso,
+    largo: row.largo,
+    ancho: row.ancho,
+    alto: row.alto,
+    peso_volumetrico: row.peso_volumetrico,
+    peso_facturable: row.peso_facturable,
+    asegurado: Boolean(row.asegurado),
+    remota: Boolean(row.remota),
+    // Envío viejo (sin `entrega`): su flag `remota` equivalía a la tarifa de extendida.
+    entrega: row.entrega || (row.remota ? 'extendida' : 'normal'),
+    ddp: Boolean(row.ddp),
+    proteccion_doc: Boolean(row.proteccion_doc),
+    zona: row.zona,
+    servicio_ups: row.servicio_ups,
+    valor_declarado: row.valor_declarado,
+    flete: row.flete,
+    descuento: row.descuento,
+    seguro: row.seguro,
+    fuel: row.fuel,
+    derechos: row.derechos,
+    adicionales: row.adicionales,
+    otros: row.otros,
+    extras: parseExtras(row.extras_json),
+    total: row.total,
+    venta_desglose: ventaDesgloseDe(row),
+    ...deriveProfit(row),
+    observaciones: row.observaciones,
+    estado_revision: row.estado_revision ?? null,
+    // Datos de lo que el courier facturó por este envío (módulo Control de Facturas).
+    // Los escalares viven en la propia fila de envios; recargos_facturados es el desglose
+    // de la factura MÁS RECIENTE cruzada a este envío (array vacío si no hay factura).
+    costo_facturado: row.costo_facturado ?? null,
+    peso_facturado: row.peso_facturado ?? null,
+    courier_facturado: row.courier_facturado ?? null,
+    fecha_facturado: row.fecha_facturado ?? null,
+    recargos_facturados: recargosPorEnvio.get(row.id) ?? [],
+    num_sal_cero: Boolean(row.num_sal_cero),
+    liquidado: Boolean(row.liquidado),
+    fecha_liquidacion: row.fecha_liquidacion,
+    bultos: bultosDe(row),
+  }));
+
+  return result;
+}
+
+router.get('/', async (req, res, next) => {
+  try {
+    res.json(await listarSalidas(req.query));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// ── Cierre de período ───────────────────────────────────────────────────────
+// Baja el Excel de las salidas de un mes o una semana para archivarlo fuera del sistema.
+// Es la última capa de respaldo: una planilla que abre cualquiera, en cualquier máquina,
+// sin depender del sistema, del VPS ni de ninguna cuenta nuestra.
+//
+// Queda asentado en la tabla `cierres` que se hizo, quién y cuántas filas tenía. El
+// archivo NO se guarda del lado del servidor a propósito: guardarlo acá sería otra copia
+// en el mismo lugar, que es justo lo que este mecanismo viene a evitar.
+//
+// Va ANTES de cualquier ruta con :id, para que 'exportar' no se lea como un id.
+router.get('/exportar', requireCierre, async (req, res, next) => {
+  try {
+    const { tipo, mes, semana, desde, hasta } = req.query || {};
+    let rango = null;
+    if (tipo === 'mes' || mes) rango = cierreService.rangoDelMes(mes || hoyLocal().slice(0, 7));
+    else if (tipo === 'semana') rango = cierreService.rangoDeLaSemana(semana);
+    else if (desde && hasta) rango = cierreService.rangoLibre(desde, hasta);
+
+    if (!rango) {
+      return res.status(400).json({
+        error: 'Período inválido. Se espera tipo=mes&mes=AAAA-MM, tipo=semana, o desde y hasta.',
+      });
+    }
+
+    const filas = await listarSalidas({ desde: rango.desde, hasta: rango.hasta });
+    const usuario = req.usuario ? req.usuario.usuario : null;
+    const buffer = await cierreService.construirExcel(filas, rango, usuario);
+
+    // El asiento no puede voltear la descarga: si falla el INSERT, el archivo igual sale.
+    // Perder el registro es molesto; perder el cierre del mes por eso sería absurdo.
+    try {
+      await getDb()
+        .prepare('INSERT INTO cierres (tipo, desde, hasta, filas, usuario_id, usuario) VALUES (?,?,?,?,?,?)')
+        .run(rango.tipo, rango.desde, rango.hasta, filas.length,
+          req.usuario ? req.usuario.id : null, usuario);
+    } catch (e) {
+      console.error('[cierres] no se pudo asentar el cierre:', e.message);
+    }
+
+    res.setHeader('Content-Type',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition',
+      `attachment; filename="${cierreService.nombreArchivo(rango)}"`);
+    res.setHeader('X-Nova-Filas', String(filas.length));
+    res.send(Buffer.from(buffer));
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Los últimos cierres hechos. Lo usa la pantalla para mostrar de cuándo es el último, y
+// es la misma fuente que mira el panel de salud.
+router.get('/cierres', requireCierre, async (req, res, next) => {
+  try {
+    const filas = await getDb()
+      .prepare(`SELECT id, tipo, desde, hasta, filas, usuario, creado_en
+                FROM cierres ORDER BY id DESC LIMIT 24`)
+      .all();
+    res.json(filas);
   } catch (err) {
     next(err);
   }
