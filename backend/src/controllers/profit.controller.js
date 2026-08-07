@@ -1,3 +1,4 @@
+const cotizacionService = require('../services/cotizacion.service');
 const profitService = require('../services/profit.service');
 
 // GET /api/clientes/:id/profit-matrix?servicio=X&tipo=Y
@@ -58,7 +59,7 @@ async function deleteOverride(req, res, next) {
 async function resolve(req, res, next) {
   try {
     const { id } = req.params;
-    const { servicio, tipo, zona, pf } = req.query;
+    const { servicio, tipo, zona, pf, pais } = req.query;
 
     if (!profitService.SERVICIOS.includes(servicio)) {
       return res.status(400).json({ error: `servicio inválido. Válidos: ${profitService.SERVICIOS.join(', ')}` });
@@ -66,6 +67,18 @@ async function resolve(req, res, next) {
     if (!profitService.TIPOS.includes(tipo)) {
       return res.status(400).json({ error: `tipo inválido. Válidos: ${profitService.TIPOS.join(', ')}` });
     }
+
+    // LA ZONA SE RESUELVE IGUAL QUE AL COTIZAR: manda el país, la zona suelta es respaldo.
+    // Antes esta pantalla preguntaba sin país, y sin país no hay zona: nunca encontraba la
+    // celda de la matriz y devolvía el porcentaje general del cliente. Resultado: Cargar
+    // envío MOSTRABA 75% mientras el sistema COBRABA el 70% de la celda (07/08/2026, lo
+    // encontró la oficina). Los dos números salen ahora del mismo resolvedor.
+    const zonaEfectiva = cotizacionService.resolverZona({
+      servicio: servicio === 'UPS_SAVER' ? 'UPS_SAV' : servicio,
+      tipo,
+      pais: pais || null,
+      zona: zona === undefined || zona === '' ? undefined : zona,
+    });
 
     // resolverTarifaVenta decide solo si el cliente cobra por porcentaje o por kilo.
     // Sigue devolviendo profitPct y origen (el contrato de siempre) y agrega modo,
@@ -75,7 +88,7 @@ async function resolve(req, res, next) {
       clienteId: id,
       servicio,
       tipo,
-      zona: zona === undefined ? null : zona,
+      zona: zonaEfectiva === undefined ? null : zonaEfectiva,
       pesoFacturable: pf,
     });
 

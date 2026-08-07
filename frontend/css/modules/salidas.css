@@ -1263,3 +1263,19 @@ td.cell-sin-pesar { background: #fffbeb; }
    pinta en ambar: es un aviso al costado, no un cartel que tape la pantalla. */
 .cierre-ultimo { font-size: 11px; color: #64748b; white-space: nowrap; }
 .cierre-ultimo.atrasado { color: #b45309; font-weight: 600; }
+
+/* Aviso de precio de venta desfasado. Aparece cuando Recalcular cambio el costo y el
+   precio cargado quedo calculado para el peso anterior. Ambar y no rojo: no es un error
+   del sistema, es una decision que alguien tiene que tomar. Pero tiene que verse. */
+.saled-venta-aviso {
+  margin: 10px 0 0;
+  padding: 10px 12px;
+  border: 1px solid #f0c36d;
+  border-left: 4px solid #e0a800;
+  border-radius: 4px;
+  background: #fff8e6;
+  color: #6b4e00;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.saled-venta-aviso.hidden { display: none; }

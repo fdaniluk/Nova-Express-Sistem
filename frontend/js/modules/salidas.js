@@ -1795,6 +1795,10 @@
               <button type="button" class="btn btn-secondary" id="saled-calcular-venta">Calcular venta</button>
               <span id="saled-venta-status" class="saled-recalc-status"></span>
             </div>
+            <!-- Aviso de venta desfasada: aparece solo cuando Recalcular dejo el precio
+                 calculado para el peso anterior. Va ARRIBA del panel de venta a proposito:
+                 es lo primero que tiene que leer quien acaba de cambiar el peso. -->
+            <div id="saled-venta-aviso" class="saled-venta-aviso hidden"></div>
             <div id="saled-venta-panel" class="saled-venta-panel hidden"></div>
           </div>
           <div id="saled-costos-block">
@@ -1939,6 +1943,10 @@
       document.getElementById(`saled-${f}`).value = envio[f] ?? '';
     }
     document.getElementById('saled-total').value = envio.total ?? '';
+    // El aviso de venta desfasada es de la sesion de edicion, no del envio: al abrir otro
+    // se limpia, si no arrastraria el cartel del anterior.
+    ventaDesfasada = null;
+    pintarAvisoVenta();
     document.getElementById('saled-observaciones').value = envio.observaciones ?? '';
 
     // Desglose de adicionales: precargar desde el envío. Al abrir no está "dirty" (solo
@@ -2294,6 +2302,12 @@
       recalcProfit();
       status.className = 'saled-recalc-status saled-recalc-ok';
       status.textContent = 'Desglose actualizado. Revisá y guardá para persistir.';
+      // Recalcular toca el COSTO. Si el envio ya tenia un precio de venta, ese precio se
+      // calculo con el peso VIEJO y ahora quedo desfasado, sin que nada avise. Asi se
+      // facturaba mal: cambias el peso, guardas, y el precio viejo queda. Lo encontro la
+      // oficina el 07/08/2026 (un envio de 5 kg pasado a 50 kg seguia cobrando el de 5 kg,
+      // USD 372 de menos). Se chequea ACA, apenas cambia el costo.
+      await chequearVentaDesfasada();
     } catch (err) {
       // Caso típico 422: país/zona que el motor no reconoce para este envío.
       const msg = /zona|pa[ií]s|desglose/i.test(err.message)
@@ -2304,6 +2318,52 @@
     } finally {
       btn.disabled = false;
     }
+  }
+
+  // ── Aviso de venta desfasada ────────────────────────────────────────────────
+  // `ventaDesfasada` guarda el precio que corresponderia al peso actual, o null si el
+  // precio cargado esta bien. Lo lee el guardado para pedir confirmacion: un cartel que
+  // no frena nada se termina ignorando, y aca lo que se pierde es plata.
+  let ventaDesfasada = null;
+
+  async function chequearVentaDesfasada() {
+    ventaDesfasada = null;
+    pintarAvisoVenta();
+    const totalRaw = document.getElementById('saled-total').value;
+    const total = totalRaw === '' ? 0 : Number(totalRaw);
+    // Sin venta cargada no hay nada que contradecir: el envio se completa despues.
+    if (!(total > 0)) return;
+    try {
+      const body = armarBodyCotizacion();
+      if (!body) return;
+      const r = await NovaAPI.liquidaciones.cotizar(body);
+      const sugerido = Number(r.precioFinal);
+      if (!isFinite(sugerido) || sugerido <= 0) return;
+      // Un centavo de redondeo no es un desfase. Se avisa desde un dolar de diferencia.
+      if (Math.abs(sugerido - total) >= 1) {
+        ventaDesfasada = { sugerido, cargado: total };
+      }
+      pintarAvisoVenta();
+    } catch (e) {
+      // Que no se pueda chequear NO puede romper el recalculo. Se deja sin aviso.
+      console.warn('[salidas] no se pudo chequear el precio de venta:', e.message);
+    }
+  }
+
+  function pintarAvisoVenta() {
+    const cont = document.getElementById('saled-venta-aviso');
+    if (!cont) return;
+    if (!ventaDesfasada) { cont.classList.add('hidden'); cont.innerHTML = ''; return; }
+    const { sugerido, cargado } = ventaDesfasada;
+    const dif = sugerido - cargado;
+    cont.classList.remove('hidden');
+    cont.innerHTML = `
+      <strong>El precio de venta no corresponde a este peso.</strong>
+      Tiene cargado <strong>US$ ${cargado.toFixed(2)}</strong> y con el peso actual seria
+      <strong>US$ ${sugerido.toFixed(2)}</strong>
+      (${dif > 0 ? 'se estarian cobrando' : 'se estarian cobrando de mas'}
+      <strong>US$ ${Math.abs(dif).toFixed(2)}</strong> ${dif > 0 ? 'de menos' : ''}).
+      Toca <strong>Calcular venta</strong> para actualizarlo.`;
   }
 
   // La Proteccion de Documentos de DHL cubre documentos valiosos (pasaportes, visas,
@@ -2345,6 +2405,58 @@
   // NUNCA pisa el total solo: si el envio ya tenia venta cargada, muestra las dos cifras y la
   // diferencia, y hay que apretar "Reemplazar". Es la leccion del caso Asaplast: el cotizador
   // automatico piso un precio que el cliente ya habia aceptado y pagado.
+  // Arma el pedido de cotizacion del envio abierto. Lo usan DOS cosas: el boton
+  // "Calcular venta" y el chequeo silencioso que corre despues de Recalcular. Esta
+  // afuera a proposito: si cada uno armara lo suyo, el aviso podria contradecir al
+  // boton, que es exactamente la clase de desvio que venimos de arreglar.
+  // Devuelve null si todavia no hay con que cotizar.
+  function armarBodyCotizacion() {
+    if (!editEnvio) return null;
+    const pf = parseNum(document.getElementById('saled-peso-facturable').value);
+    if (!(pf > 0)) return null;
+    const clienteId = parseInt(document.getElementById('saled-cliente').value, 10);
+    if (!clienteId) return null;
+    const courier = document.getElementById('saled-courier').value;
+    const servicio = courier === 'DHL' ? 'DHL'
+      : (editEnvio.servicio_ups === 'UPS_SAV' ? 'UPS_SAV' : 'UPS_EXP');
+    const tipo = String(editEnvio.tipo_envio || '').toLowerCase().includes('import')
+      ? 'import' : 'export';
+    const body = {
+      pais: document.getElementById('saled-pais-destino').value || null,
+      tipo,
+      servicio,
+      pesoFacturable: pf,
+      fob: editEnvio.fob || 0,
+      // EL FUEL NO SE MANDA A PROPOSITO: lo resuelve el servidor con la cadena completa
+      // (fuel propio del cliente -> congelado del envio -> configuracion del courier).
+      // Aca antes iba un 0 cuando el envio no tenia fuel congelado, y los envios viejos
+      // lo tienen vacio: se sugeria el precio SIN combustible, USD 89 de menos en un
+      // envio de 30 kg. Lo encontro la oficina el 07/08/2026.
+      profitPct: 0,
+      zona: editEnvio.zona ? Number(editEnvio.zona) : undefined,
+      ddp: document.getElementById('saled-ddp').checked,
+      proteccionDoc: document.getElementById('saled-proteccion-doc').checked,
+      entrega: document.getElementById('saled-entrega').value,
+      contenido: document.getElementById('saled-tipo-paquete').value === 'd'
+        ? 'documento' : 'paquete',
+      cliente_id: clienteId,
+      // Con el envio_id el servidor completa lo que no venga arriba.
+      envio_id: editEnvio.id,
+      profitManual: false,
+    };
+    const num = (id) => {
+      const v = document.getElementById(id).value;
+      return v !== '' ? Number(v) : null;
+    };
+    body.bultos = editMulti
+      ? readBultosFromModal().map((b) => ({
+        peso_real: b.peso_real, largo: b.largo, ancho: b.ancho, alto: b.alto,
+      }))
+      : [{ peso_real: num('saled-peso-real'), largo: num('saled-largo'),
+        ancho: num('saled-ancho'), alto: num('saled-alto') }];
+    return body;
+  }
+
   async function calcularVenta() {
     if (!editEnvio) return;
     const btn = document.getElementById('saled-calcular-venta');
@@ -2367,56 +2479,14 @@
       status.textContent = 'Cargá primero el peso y las medidas: sin peso no hay precio.';
       return;
     }
-
-    const clienteId = parseInt(document.getElementById('saled-cliente').value, 10);
-    if (!clienteId) {
+    if (!parseInt(document.getElementById('saled-cliente').value, 10)) {
       status.className = 'saled-recalc-status saled-recalc-err';
       status.textContent = 'El envío no tiene cliente: sin cliente no hay tarifa que aplicar.';
       return;
     }
 
-    const courier = document.getElementById('saled-courier').value;
-    const servicio = courier === 'DHL'
-      ? 'DHL'
-      : (editEnvio.servicio_ups === 'UPS_SAV' ? 'UPS_SAV' : 'UPS_EXP');
-    const tipo = String(editEnvio.tipo_envio || '').toLowerCase().includes('import')
-      ? 'import' : 'export';
-
-    const body = {
-      pais: document.getElementById('saled-pais-destino').value || null,
-      tipo,
-      servicio,
-      pesoFacturable: pf,
-      fob: editEnvio.fob || 0,
-      // El fuel del envio, no el de hoy: un envio de mayo se cotiza con el fuel de mayo.
-      // Si el cliente tiene fuel propio, el backend lo pisa (y hace bien: ese es el fuel
-      // que se le cobra al cliente, distinto del que nos cobra el courier).
-      fuelPct: editEnvio.fuel_pct != null ? Number(editEnvio.fuel_pct) : 0,
-      profitPct: 0,
-      zona: editEnvio.zona ? Number(editEnvio.zona) : undefined,
-      ddp: document.getElementById('saled-ddp').checked,
-      proteccionDoc: document.getElementById('saled-proteccion-doc').checked,
-      entrega: document.getElementById('saled-entrega').value,
-      contenido: document.getElementById('saled-tipo-paquete').value === 'd' ? 'documento' : 'paquete',
-      cliente_id: clienteId,
-      // false = que el backend resuelva el profit por la matriz del cliente e ignore el 0
-      // de arriba. Es lo mismo que hace Cargar envio cuando el usuario no toca el profit.
-      profitManual: false,
-    };
-    if (editMulti) {
-      body.bultos = readBultosFromModal().map((b) => ({
-        peso_real: b.peso_real, largo: b.largo, ancho: b.ancho, alto: b.alto,
-      }));
-    } else {
-      const num = (id) => {
-        const v = document.getElementById(id).value;
-        return v !== '' ? Number(v) : null;
-      };
-      body.bultos = [{
-        peso_real: num('saled-peso-real'),
-        largo: num('saled-largo'), ancho: num('saled-ancho'), alto: num('saled-alto'),
-      }];
-    }
+    const body = armarBodyCotizacion();
+    if (!body) return;
 
     btn.disabled = true;
     status.className = 'saled-recalc-status';
@@ -2491,6 +2561,9 @@
 
     document.getElementById('saled-venta-aplicar').addEventListener('click', () => {
       document.getElementById('saled-total').value = sugerido.toFixed(2);
+      // Se acaba de poner el precio que corresponde: ya no hay desfase que avisar.
+      ventaDesfasada = null;
+      pintarAvisoVenta();
       // Profit y % se re-derivan solos con la misma cuenta de siempre (total − costos), asi
       // que no hay dos formas distintas de calcular la utilidad.
       recalcProfit();
@@ -2532,6 +2605,22 @@
       NovaUtils.showAlert(document.getElementById('sal-modal-alert'), 'El número de guía no puede estar vacío', 'error');
       document.getElementById('saled-guia').focus();
       return;
+    }
+
+    // Guardar con el precio calculado para otro peso es el error que costo plata. No se
+    // bloquea —hay precios negociados aparte que son legitimos— pero no se guarda callado.
+    if (ventaDesfasada) {
+      const { sugerido, cargado } = ventaDesfasada;
+      const dif = sugerido - cargado;
+      const ok = window.confirm(
+        'El precio de venta no corresponde a este peso.\n\n'
+        + `Cargado:  US$ ${cargado.toFixed(2)}\n`
+        + `Deberia ser:  US$ ${sugerido.toFixed(2)}\n`
+        + `Diferencia:  US$ ${Math.abs(dif).toFixed(2)} ${dif > 0 ? 'de MENOS' : 'de MAS'}\n\n`
+        + 'Si es un precio negociado aparte, esta bien guardarlo asi.\n'
+        + 'Si no, cancela y toca "Calcular venta".\n\n'
+        + 'Guardar igual?');
+      if (!ok) return;
     }
 
     saveBtn.disabled = true;

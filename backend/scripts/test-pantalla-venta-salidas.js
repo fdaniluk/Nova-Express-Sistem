@@ -203,7 +203,60 @@ async function main() {
   check('no avisa de pisar nada, porque la venta estaba en 0',
     !/ya tiene una venta cargada/.test(panel3));
 
-  console.log('\n7. Sin errores de JavaScript\n');
+  console.log('\n7. Recalcular avisa cuando el precio queda viejo\n');
+
+  // EL CASO QUE ENCONTRO LA OFICINA (07/08/2026). Un envio cargado con su precio, al que
+  // despues le cambian el peso: Recalcular actualiza el COSTO y el precio de venta queda
+  // calculado para el peso anterior. Antes eso se guardaba en silencio y se facturaba mal
+  // (5 kg pasados a 50 kg seguian cobrando el precio de 5 kg: USD 372 de menos).
+  const cli3 = await (await fetch(BASE + '/api/clientes', {
+    method: 'POST', headers: H, body: JSON.stringify({ nombre: 'AVISO DESFASE', tarifa_pct: 80 }),
+  })).json();
+  const chico = await (await fetch(BASE + '/api/envios', {
+    method: 'POST', headers: H,
+    body: JSON.stringify({
+      cliente_id: cli3.id, fecha: hoy, courier: 'UPS', tipo_envio: 'exportacion',
+      numero_guia: '1Z000DESFASE00001', pais_destino: 'Estados Unidos', servicio_ups: 'UPS_EXP',
+      peso_real: 5, largo: 30, ancho: 25, alto: 20, total_cobrado: 120,
+    }),
+  })).json();
+  check('el envio arranca con su precio cargado', Number(chico.total_cobrado) === 120);
+
+  await page.goto(`${BASE}/pages/salidas.html`);
+  await esperar(3000);
+  await page.click('text=1Z000DESFASE00001');
+  await esperar(1000);
+  check('sin tocar nada NO hay aviso',
+    await page.$eval('#saled-venta-aviso', (e) => e.classList.contains('hidden')));
+
+  // Le cambian el peso de 5 a 50 kg y recalculan, que es lo que hicieron en la oficina.
+  await page.fill('#saled-peso-real', '50');
+  await page.fill('#saled-largo', '60');
+  await page.fill('#saled-ancho', '50');
+  await page.fill('#saled-alto', '40');
+  await page.click('#saled-recalcular');
+  await esperar(4000);
+
+  const avisoVisible = await page.$eval('#saled-venta-aviso',
+    (e) => !e.classList.contains('hidden'));
+  check('al recalcular con otro peso, AVISA que el precio quedo viejo', avisoVisible);
+  const textoAviso = avisoVisible ? await page.textContent('#saled-venta-aviso') : '';
+  check('dice cuanto tiene cargado y cuanto deberia ser',
+    /120/.test(textoAviso) && /deberia|seria/i.test(textoAviso), textoAviso.slice(0, 180));
+  check('y dice cuanta plata es la diferencia', /US\$/.test(textoAviso), textoAviso.slice(0, 120));
+  check('y dice que hay que tocar Calcular venta', /Calcular venta/.test(textoAviso));
+
+  // Al aplicar el precio sugerido el aviso tiene que irse solo.
+  await page.click('#saled-calcular-venta');
+  await esperar(3500);
+  await page.click('#saled-venta-aplicar');
+  await esperar(1200);
+  check('al usar el precio sugerido, el aviso desaparece',
+    await page.$eval('#saled-venta-aviso', (e) => e.classList.contains('hidden')));
+  const totalNuevo = Number(await page.inputValue('#saled-total'));
+  check('y el precio quedo actualizado al peso nuevo', totalNuevo > 120, `total=${totalNuevo}`);
+
+  console.log('\n8. Sin errores de JavaScript\n');
   check('ningún error en la pantalla', errores.length === 0, errores.slice(0, 3).join(' | '));
 
   console.log('\n' + '─'.repeat(60));

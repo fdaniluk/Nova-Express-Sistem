@@ -2,6 +2,7 @@ const liquidacionModel = require('../models/liquidacion.model');
 const envioModel = require('../models/envio.model');
 const excelService = require('../services/excel.service');
 const profitService = require('../services/profit.service');
+const cotizacionService = require('../services/cotizacion.service');
 const {
   cotizarEnvio,
   buscarZona,
@@ -119,94 +120,63 @@ async function exportar(req, res, next) {
 // Endpoint para cotizar un envío puntual sin guardarlo
 async function cotizar(req, res, next) {
   try {
-    // `contenido` ('paquete' | 'documento') selecciona la tarifa de documento de DHL hasta
-    // 2 kg. El cotizador manual siempre lo mandó; Cargar envío no, y por eso las dos
-    // pantallas daban números distintos para el mismo documento. Si no viene se asume
-    // 'paquete', que es el comportamiento histórico (no rompe otros llamadores).
-    const { pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zona, bultos, ddp, proteccionDoc, remota, entrega, cliente_id, profitManual, contenido } = req.body;
-    if (!servicio || !pesoFacturable) {
+    // TODA la resolución de parámetros vive en cotizacion.service. Este handler ya no
+    // decide nada: recibe, normaliza y llama al motor.
+    //
+    // Antes armaba acá el fuel, la zona y el profit, y cada pantalla mandaba lo suyo por
+    // su cuenta. Así se desviaron cuatro veces (contenido, ddp, el fuel en 0 de "Calcular
+    // venta", y el profit resuelto sin país). Mientras la resolución esté en un solo
+    // lugar, una pantalla nueva no puede inventar su propia versión de la verdad.
+    //
+    // Acepta las dos formas:
+    //   · body plano, como siempre (el cotizador manual y las liquidaciones);
+    //   · { envio_id } y el servidor saca del envío todo lo que no venga en el body
+    //     (lo usa "Calcular venta" de Salidas). Lo que venga en el body PISA al envío,
+    //     porque la pantalla puede estar editando el peso o el país antes de guardar.
+    const entrada = await cotizacionService.normalizarEntrada(req.body || {});
+
+    if (!entrada.servicio || !entrada.pesoFacturable) {
       return res.status(400).json({ error: 'servicio y pesoFacturable son obligatorios' });
     }
 
-    const tipoEfectivo = tipo || 'export';
+    const resultado = cotizarEnvio({
+      pais: entrada.pais,
+      tipo: entrada.tipo,
+      servicio: entrada.servicio,
+      pesoFacturable: entrada.pesoFacturable,
+      fob: entrada.fob,
+      fuelPct: entrada.fuelPct,
+      profitPct: entrada.profitPct,
+      zonaOverride: entrada.zona,
+      bultos: entrada.bultos,
+      remota: false,
+      entrega: entrada.entrega,
+      ddp: entrada.ddp,
+      proteccionDoc: entrada.proteccionDoc,
+      contenido: entrada.contenido,
+      precioKgVenta: entrada.precioKgVenta,
+      seguroPropio: entrada.seguroPropio,
+    });
 
-    // Resolución de la tarifa de venta: manual del body > cliente > profitPct plano.
-    // El cliente puede estar en modo porcentaje (matriz de profit) o en modo precio por
-    // kilo (tarifa_kg_overrides); de eso se encarga resolverTarifaVenta, que es el único
-    // lugar donde se decide. Sin cliente_id (o con profitManual) el comportamiento es
-    // idéntico al histórico.
-    let profitEfectivo = profitPct || 0;
-    let profitOrigen = 'body';
-    let precioKgVenta = null;
-    let modoVenta = 'porcentaje';
-    let advertencia = null;
-    let fuelEfectivo = Number(fuelPct) || 0;
-    let fuelOrigen = 'body';
-
-    if (profitManual === true) {
-      profitOrigen = 'manual';
-    } else if (cliente_id) {
-      const servicioMatriz = normalizarServicioMatriz(servicio);
-      // Misma selección de tabla de zonas que el motor: DHL siempre ZONAS_DHL; UPS
-      // según tipo. buscarZona aplica precedencia país y luego la zona del body.
-      const zonasMap =
-        servicio === 'DHL' ? ZONAS_DHL : tipoEfectivo === 'import' ? ZONAS_UPS_I : ZONAS_UPS;
-      const zonaResuelta = buscarZona(zonasMap, pais, zona);
-      const resuelto = await profitService.resolverTarifaVenta({
-        clienteId: cliente_id,
-        servicio: servicioMatriz,
-        tipo: tipoEfectivo,
-        zona: zonaResuelta,
-        pesoFacturable,
-      });
-      if (resuelto) {
-        profitEfectivo = resuelto.profitPct;
-        profitOrigen = resuelto.origen;
-        precioKgVenta = resuelto.precioKg;
-        modoVenta = resuelto.modo;
-        advertencia = resuelto.advertencia;
-      } else {
-        // Cliente inexistente: no rompemos, caemos al profitPct del body y avisamos.
-        console.warn(
-          `[cotizar] resolverTarifaVenta devolvió null (cliente_id=${cliente_id} inexistente); se usa profitPct del body`
-        );
-        profitOrigen = 'body';
-      }
-    }
-
-    // Fuel propio del cliente: si lo tiene cargado, pisa al de Configuración que viene en
-    // el body. Es por cliente, no por envío: el envío igual congela el % que se le aplicó.
-    if (cliente_id) {
-      const fuelPropio = await profitService.resolverFuelPropio(cliente_id);
-      if (fuelPropio !== null) {
-        fuelEfectivo = fuelPropio;
-        fuelOrigen = 'cliente';
-      }
-    }
-
-    // Seguro negociado del cliente: reemplaza la escala del courier en los dos couriers.
-    // Mismo criterio que el fuel: es del cliente, no del envío.
-    const seguroPropio = cliente_id
-      ? await profitService.resolverSeguroPropio(cliente_id)
-      : null;
-
-    const resultado = cotizarEnvio({ pais, tipo: tipoEfectivo, servicio, pesoFacturable, fob: fob || 0, fuelPct: fuelEfectivo, profitPct: profitEfectivo, zonaOverride: zona, bultos: bultos || [], remota: remota || false, entrega, ddp: ddp || false, proteccionDoc: proteccionDoc || false, contenido: contenido === 'documento' ? 'documento' : 'paquete', precioKgVenta, seguroPropio });
     if (!resultado) {
-      const desc = pais ? `País "${pais}"` : `Zona ${zona}`;
-      return res.status(404).json({ error: `${desc} no encontrado para ${servicio}` });
+      const desc = entrada.pais ? `País "${entrada.pais}"` : `Zona ${entrada.zona}`;
+      return res.status(404).json({ error: `${desc} no encontrado para ${entrada.servicio}` });
     }
+
     res.json({
       ...resultado,
-      profit_aplicado: profitEfectivo,
-      profit_origen: profitOrigen,
-      modo_venta: modoVenta,
-      precio_kg_aplicado: precioKgVenta,
-      fuel_aplicado: fuelEfectivo,
-      fuel_origen: fuelOrigen,
-      seguro_propio: seguroPropio,
-      advertencia,
+      profit_aplicado: entrada.profitPct,
+      profit_origen: entrada.profit_origen,
+      modo_venta: entrada.modo_venta,
+      precio_kg_aplicado: entrada.precio_kg_aplicado,
+      fuel_aplicado: entrada.fuelPct,
+      fuel_origen: entrada.fuel_origen,
+      seguro_propio: entrada.seguroPropio,
+      zona_aplicada: entrada.zona,
+      advertencia: entrada.advertencia,
     });
   } catch (e) {
+    if (e.status === 404) return res.status(404).json({ error: e.message });
     next(e);
   }
 }

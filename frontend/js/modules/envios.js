@@ -788,7 +788,10 @@
     const tipo = document.getElementById('tipo_envio').value === 'exportacion' ? 'export' : 'import';
     const zona = parseInt(document.getElementById('zona')?.value, 10);
 
-    const params = { servicio: servicioResolve, tipo, pf };
+    // EL PAIS VA SIEMPRE. Sin pais el resolvedor no puede sacar la zona, y sin zona nunca
+    // encuentra la celda de la matriz: devolvia el porcentaje general del cliente. La
+    // pantalla mostraba 75% y el sistema cobraba el 70% de la celda (07/08/2026).
+    const params = { servicio: servicioResolve, tipo, pf, pais };
     if (!isNaN(zona)) params.zona = zona;
 
     try {
