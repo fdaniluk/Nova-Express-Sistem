@@ -8,11 +8,11 @@
  * el permiso no vea el botón.
  *
  * Lo que más importa acá: que la descarga NO dependa de internet. El botón viejo de
- * "Exportar Excel" arma la planilla en el navegador con una librería que se baja de un
- * CDN en cada uso; el día que la oficina se queda sin internet, ese botón no hace nada.
- * El de Cierre lo arma el servidor. Por eso el test corre con el CDN bloqueado a
- * propósito: si en algún momento alguien vuelve a atar el cierre a una librería externa,
- * este test se cae.
+ * "Exportar Excel" armaba la planilla en el navegador con una librería que se bajaba de
+ * un CDN en cada uso; el día que la oficina se queda sin internet, ese botón no hacía
+ * nada. Se sacó el 06/08/2026 y el de Cierre lo arma el servidor. Por eso el test corre
+ * con el CDN bloqueado a propósito: si alguien vuelve a atar el cierre a una librería
+ * externa, este test se cae.
  *
  *   cd backend && node scripts/test-pantalla-cierre.js
  */
@@ -31,7 +31,7 @@ const crypto = require('crypto');
 const { spawn } = require('child_process');
 const ExcelJS = require('exceljs');
 const sqlite3 = require('sqlite3');
-const { prepararDb, abrirSesion } = require('./_base-test');
+const { prepararDb, abrirSesion, esperarServidor } = require('./_base-test');
 
 const PORT = process.env.PORT_TEST || 3967;
 const BASE = `http://localhost:${PORT}`;
@@ -60,8 +60,15 @@ async function main() {
     env: { ...process.env, DB_PATH: DB, PORT: String(PORT), NODE_ENV: 'production' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  srv.stdout.on('data', () => {});
-  srv.stderr.on('data', (d) => process.stderr.write('[server] ' + d));
+  // La salida normal del servidor se guarda porque ahí está la línea que avisa que quedó
+  // listo. Es lo que espera esperarServidor(): preguntarle al puerto no distingue entre
+  // "arrancó el nuestro" y "hay otro viejo escuchando".
+  let logOut = '';
+  srv.stdout.on('data', (d) => { logOut += d; });
+  // Se guarda ADEMÁS de mostrarlo: si el servidor no arranca, este texto es el único
+  // lugar donde está el motivo (EADDRINUSE, permisos, ruta de la base, etc.).
+  let logErr = '';
+  srv.stderr.on('data', (d) => { logErr += d; process.stderr.write('[server] ' + d); });
   let srvMuerto = false;
   const matarSrv = () => { if (srvMuerto) return; srvMuerto = true; try { srv.kill(); } catch {} };
   process.on('exit', matarSrv);
@@ -71,10 +78,7 @@ async function main() {
     setTimeout(res, 2000);
   });
 
-  for (let i = 0; i < 40; i++) {
-    try { const r = await fetch(BASE + '/api/health'); if (r.ok) break; } catch {}
-    await esperar(300);
-  }
+  await esperarServidor(srv, BASE, () => logErr, () => logOut);
 
   const uid = await abrirSesion(DB, TOKEN);
   await sql("UPDATE usuarios SET rol='empleado', cerrar_mes=1, ver_dashboard=1, usuario='marcela' WHERE id=?", [uid]);
@@ -139,8 +143,17 @@ async function main() {
   check('se ve el bloque de Cierre', await page.isVisible('.cierre-box'));
   check('está el botón del mes', await page.isVisible('#btn-cierre-mes'));
   check('está el botón de la semana', await page.isVisible('#btn-cierre-semana'));
-  check('el botón viejo de Exportar Excel sigue estando',
-    await page.isVisible('#btn-exportar-excel'));
+  // El viejo "Exportar Excel" se sacó el 06/08/2026. Este check está al revés a
+  // propósito: si alguien lo vuelve a poner al lado del cierre, el test se cae. Dos
+  // botones parecidos ahí invitan al error caro — bajar una planilla FILTRADA creyendo
+  // que se archivó el mes entero, y un archivo incompleto se ve igual que uno completo.
+  check('el viejo "Exportar Excel" ya no está al lado del cierre',
+    (await page.$('#btn-exportar-excel')) === null);
+  // Y con él se fue la librería que se bajaba de un CDN: esta pantalla ya no le pide
+  // nada a internet.
+  check('Salidas no carga ningún script de un CDN',
+    (await page.$$('script[src^="http"]')).length === 0,
+    (await page.$$eval('script[src^="http"]', (e) => e.map((x) => x.src))).join(' | '));
 
   const mesPropuesto = await page.inputValue('#cierre-mes');
   const esperado = hoy.getDate() <= 5
@@ -211,8 +224,8 @@ async function main() {
   await esperar(3000);
   check('un empleado sin cerrar_mes NO ve el bloque',
     !(await page2.isVisible('.cierre-box')));
-  check('pero sí ve la pantalla de Salidas',
-    await page2.isVisible('#btn-exportar-excel'));
+  check('pero sí ve la pantalla de Salidas (la grilla y el buscador)',
+    await page2.isVisible('#buscador'));
 
   console.log('\n6. El permiso se puede dar desde Usuarios\n');
 

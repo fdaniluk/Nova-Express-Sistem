@@ -27,7 +27,7 @@ const path = require('path');
 const { execFileSync } = require('child_process');
 const { spawn } = require('child_process');
 const sqlite3 = require('sqlite3');
-const { prepararDb, abrirSesion } = require('./_base-test');
+const { prepararDb, abrirSesion, esperarServidor } = require('./_base-test');
 
 const PORT = process.env.PORT_TEST || 3969;
 const BASE = `http://localhost:${PORT}`;
@@ -144,8 +144,15 @@ async function main() {
     env: { ...process.env, DB_PATH: DB, PORT: String(PORT), NODE_ENV: 'production' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  srv.stdout.on('data', () => {});
-  srv.stderr.on('data', (d) => process.stderr.write('[server] ' + d));
+  // La salida normal del servidor se guarda porque ahí está la línea que avisa que quedó
+  // listo. Es lo que espera esperarServidor(): preguntarle al puerto no distingue entre
+  // "arrancó el nuestro" y "hay otro viejo escuchando".
+  let logOut = '';
+  srv.stdout.on('data', (d) => { logOut += d; });
+  // Se guarda ADEMÁS de mostrarlo: si el servidor no arranca, este texto es el único
+  // lugar donde está el motivo (EADDRINUSE, permisos, ruta de la base, etc.).
+  let logErr = '';
+  srv.stderr.on('data', (d) => { logErr += d; process.stderr.write('[server] ' + d); });
   let srvMuerto = false;
   const matarSrv = () => { if (srvMuerto) return; srvMuerto = true; try { srv.kill(); } catch {} };
   process.on('exit', matarSrv);
@@ -155,10 +162,7 @@ async function main() {
     setTimeout(res, 2000);
   });
 
-  for (let i = 0; i < 40; i++) {
-    try { const r = await fetch(BASE + '/api/health'); if (r.ok) break; } catch {}
-    await esperar(300);
-  }
+  await esperarServidor(srv, BASE, () => logErr, () => logOut);
   await abrirSesion(DB, TOKEN);
   // El panel pide permiso: se fuerza admin para que el test hable del chequeo y no del login.
   await new Promise((res) => {

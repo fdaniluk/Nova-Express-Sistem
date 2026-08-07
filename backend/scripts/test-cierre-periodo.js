@@ -28,7 +28,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 const ExcelJS = require('exceljs');
 const sqlite3 = require('sqlite3');
-const { prepararDb, abrirSesion } = require('./_base-test');
+const { prepararDb, abrirSesion, esperarServidor } = require('./_base-test');
 
 const PORT = process.env.PORT_TEST || 3968;
 const BASE = `http://localhost:${PORT}`;
@@ -88,9 +88,14 @@ async function main() {
 
   check('el del mes nombra año, mes y el mes en palabras',
     cierre.nombreArchivo(jul) === 'Nova-salidas-2026-07-julio.xlsx', cierre.nombreArchivo(jul));
+  // Se usa una semana YA TERMINADA, no la de `sem`. `sem` corta el "hasta" en la fecha de
+  // hoy cuando la semana está en curso, así que su nombre cambia según el día en que se
+  // corra el test: escrito a mano, pasaba el 06/08 y fallaba el 07/08. Un test que
+  // depende del día en que se ejecuta no prueba nada, solo hace ruido.
+  const semCerrada = cierre.rangoDeLaSemana('2026-07-15');
   check('el de la semana lleva las dos fechas',
-    cierre.nombreArchivo(sem) === 'Nova-salidas-semana-2026-08-03_al_2026-08-06.xlsx',
-    cierre.nombreArchivo(sem));
+    cierre.nombreArchivo(semCerrada) === 'Nova-salidas-semana-2026-07-13_al_2026-07-19.xlsx',
+    cierre.nombreArchivo(semCerrada));
   check('dos meses distintos NO se pisan',
     cierre.nombreArchivo(jul) !== cierre.nombreArchivo(cierre.rangoDelMes('2026-08')));
 
@@ -101,8 +106,15 @@ async function main() {
     env: { ...process.env, DB_PATH: DB, PORT: String(PORT), NODE_ENV: 'production' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  srv.stdout.on('data', () => {});
-  srv.stderr.on('data', (d) => process.stderr.write('[server] ' + d));
+  // La salida normal del servidor se guarda porque ahí está la línea que avisa que quedó
+  // listo. Es lo que espera esperarServidor(): preguntarle al puerto no distingue entre
+  // "arrancó el nuestro" y "hay otro viejo escuchando".
+  let logOut = '';
+  srv.stdout.on('data', (d) => { logOut += d; });
+  // Se guarda ADEMÁS de mostrarlo: si el servidor no arranca, este texto es el único
+  // lugar donde está el motivo (EADDRINUSE, permisos, ruta de la base, etc.).
+  let logErr = '';
+  srv.stderr.on('data', (d) => { logErr += d; process.stderr.write('[server] ' + d); });
   let srvMuerto = false;
   const matarSrv = () => { if (srvMuerto) return; srvMuerto = true; try { srv.kill(); } catch {} };
   process.on('exit', matarSrv);
@@ -112,10 +124,7 @@ async function main() {
     setTimeout(res, 2000);
   });
 
-  for (let i = 0; i < 40; i++) {
-    try { const r = await fetch(BASE + '/api/health'); if (r.ok) break; } catch {}
-    await esperar(300);
-  }
+  await esperarServidor(srv, BASE, () => logErr, () => logOut);
   const usuarioId = await abrirSesion(DB, TOKEN);
   await sql(DB, "UPDATE usuarios SET rol='empleado', cerrar_mes=1, usuario='marcela' WHERE id=?", [usuarioId]);
   // Un segundo usuario SIN el permiso, para probar que la puerta cierra.

@@ -1014,17 +1014,27 @@
     });
   }
 
-  // ── Auto 6: exportar a Excel ─────────────────────────────────────────────────
+  // ── Auto 6: bajar la planilla ────────────────────────────────────────────────
   function bindExport() {
-    document.getElementById('btn-exportar-excel').addEventListener('click', exportarExcel);
     bindCierre();
   }
 
   // ── Cierre de período ────────────────────────────────────────────────────────
-  // OJO con la diferencia, que es la que importa: "Exportar Excel" baja lo que quedó
-  // filtrado en pantalla y lo arma el navegador con una librería que se descarga de
-  // internet. "Cierre" baja el período COMPLETO, lo arma el servidor, y queda asentado
-  // que se hizo. El primero es una comodidad; el segundo es el respaldo que se archiva.
+  // Baja el período COMPLETO (mes o semana), lo arma el servidor y queda asentado que se
+  // hizo. Es el respaldo que administración archiva fuera del sistema.
+  //
+  // Acá había antes un botón "Exportar Excel" que bajaba lo que hubiera quedado filtrado
+  // en pantalla, armado en el navegador con una librería traída de un CDN. Se sacó el
+  // 06/08/2026 por pedido de Felipe ("nunca lo usamos"), y por una razón de fondo: dos
+  // botones parecidos al lado del respaldo del mes invitan al error caro, que es bajar
+  // una planilla FILTRADA creyendo que se archivó el mes entero. Un archivo incompleto se
+  // ve igual que uno completo hasta el día que hace falta.
+  //
+  // De paso, Salidas dejó de pedirle nada a internet: el <script> del CDN se fue con él.
+  //
+  // Si algún día hace falta bajar "lo que estoy viendo" (filtrado por cliente, o solo las
+  // filas con alerta), se agrega de nuevo pero adentro de la barra de filtros y con ese
+  // nombre — no al lado del cierre.
   function bindCierre() {
     const caja = document.querySelector('.cierre-box');
     if (!caja) return;
@@ -1127,65 +1137,6 @@
     } catch {
       span.textContent = '';
     }
-  }
-
-  // Desvío % para el Excel: número redondeado (facturado − base)/base×100, o '' si la base
-  // es inválida. Sin semáforo en la planilla, solo el valor crudo para poder filtrar/ordenar.
-  function difPctExcel(facturado, base) {
-    if (facturado == null || base == null || base === 0) return '';
-    return Math.round((facturado - base) / base * 10000) / 100;
-  }
-
-  function exportarExcel() {
-    // Una fila por ENVÍO, sobre la lista filtrada (mismas columnas/formato de siempre).
-    const rows = filteredData;
-
-    if (!rows.length) {
-      NovaUtils.showAlert(alertBox, 'No hay datos para exportar', 'error');
-      return;
-    }
-
-    const today = todayStr();
-    const sheetData = rows.map((e) => ({
-      '# Salida':     e.numero_salida ?? '',
-      Courier:        e.courier ?? '',
-      Fecha:          e.fecha ?? '',
-      Guía:           e.numero_guia ?? '',
-      Cobro:          e.tipo_cobro ?? '',
-      Cliente:        e.cliente_nombre ?? '',
-      Destino:        e.destino ?? '',
-      'Dest. original': e.destino_raw ?? '',
-      Dirección:      e.direccion ?? '',
-      Bulto:          e.bulto ?? '',
-      Tipo:           e.tipo_paquete ?? '',
-      'Peso (kg)':    e.peso ?? '',
-      'P. Fact (kg)': e.peso_facturable ?? '',
-      'Vol. (kg)':    e.peso_volumetrico ?? '',
-      'FOB (USD)':    e.valor_declarado ?? '',
-      Asegurado:      e.asegurado ? 'Sí' : 'No',
-      'Flete (USD)':  e.flete ?? '',
-      'Dscto (USD)':  e.descuento ?? '',
-      'Seguro (USD)': e.seguro ?? '',
-      'Fuel (USD)':   e.fuel ?? '',
-      'Derechos (USD)': e.derechos ?? '',
-      'Adic. (USD)':  e.adicionales ?? '',
-      'Otros (USD)':  e.otros ?? '',
-      'Total (USD)':  e.total ?? '',
-      'Profit (USD)': e.profit ?? '',
-      '% Profit':     e.porcentaje ?? '',
-      'Costo UPS (USD)': e.costo_facturado ?? '',
-      'Dif Costo %':  e.costo_facturado != null ? difPctExcel(e.costo_facturado, e.compra_total) : '',
-      'Peso UPS (kg)': e.costo_facturado != null ? (e.peso_facturado ?? '') : '',
-      'Dif Peso %':   e.costo_facturado != null ? difPctExcel(e.peso_facturado, e.peso_facturable) : '',
-      Estado:         estadoLabel(e, today),
-      Observaciones:  e.observaciones ?? '',
-    }));
-
-    const wb = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(sheetData);
-    XLSX.utils.book_append_sheet(wb, ws, 'Salidas');
-    const filename = `historial-envios-${today}.xlsx`;
-    XLSX.writeFile(wb, filename);
   }
 
   // ── Copiar guías seleccionadas ───────────────────────────────────────────────
