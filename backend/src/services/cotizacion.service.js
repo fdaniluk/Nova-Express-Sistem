@@ -63,9 +63,16 @@ function servicioMatriz(servicio) {
 }
 
 function normalizarServicio(servicio, courier) {
-  if (servicio && (servicio === 'DHL' || SERVICIOS_UPS.includes(servicio))) return servicio;
-  // Sin servicio explícito se deduce del courier: es lo que hacen las pantallas.
-  return courier === 'DHL' ? 'DHL' : 'UPS_EXP';
+  // EL COURIER MANDA. Si el modal pasó el envío a DHL, el servicio es DHL aunque el envío
+  // siga guardando su servicio_ups viejo; el servicio solo elige la variante de UPS.
+  // Al revés —quedarse con el servicio guardado— cotizaría por UPS un envío que el usuario
+  // acaba de pasar a DHL.
+  if (courier) {
+    if (String(courier).toUpperCase() === 'DHL') return 'DHL';
+    return SERVICIOS_UPS.includes(servicio) ? servicio : 'UPS_EXP';
+  }
+  if (servicio === 'DHL' || SERVICIOS_UPS.includes(servicio)) return servicio;
+  return 'UPS_EXP';
 }
 
 function normalizarTipo(tipo, tipoEnvio) {

@@ -2386,68 +2386,52 @@
     label.style.display = (aplica || chk.checked) ? 'flex' : 'none';
   }
 
-  // ── Calcular venta ──────────────────────────────────────────────────────────
+  // Arma el pedido de cotizacion del envio abierto. Lo usan DOS cosas: el boton "Calcular
+  // venta" y el chequeo silencioso que corre despues de Recalcular.
   //
-  // Para que se entienda por que existe: hay clientes cuyos envios NO pasan por el deposito
-  // (Kasdorf y parecidos). Se les manda la guia, la imprimen y despachan, y los pesos reales
-  // llegan dias despues. El envio se carga sin pesar el dia que sale, y cuando llegan los
-  // pesos se completan desde aca.
+  // REGLA: se manda SOLO lo que el usuario esta editando en el modal. Todo lo demas
+  // (fob, tipo de envio, servicio, zona, fuel) sale del envio, del lado del servidor.
   //
-  // "Recalcular" ya traia el COSTO con esos pesos. Lo que faltaba era lo otro: cuanto hay que
-  // COBRARLE. Ese calculo existia solo en la pantalla de Cargar envio; en Salidas habia que
-  // escribir el total a mano y el sistema recien ahi derivaba la utilidad restando.
+  // Por que la regla es esa y no "mandar todo lo que tengamos a mano": la fila que dibuja
+  // la grilla NO tiene los mismos nombres que la tabla de envios. `fob` viaja como
+  // `valor_declarado`, y `tipo_envio` directamente no viaja. Leerlos de ahi daba
+  // `undefined`, y `undefined || 0` es 0:
   //
-  // Usa el mismo endpoint y el mismo resolvedor de tarifa que Cargar envio
-  // (POST /liquidaciones/cotizar con profitManual:false), asi que respeta la matriz de profit
-  // del cliente, la tarifa por kilo si la tiene, y su fuel propio. Un solo lugar decide el
-  // precio de venta.
+  //   · fob 0        -> el motor no cobraba SEGURO. USD 15 de menos en cada envio.
+  //   · tipo_envio   -> toda importacion se cotizaba con la tarifa de EXPORTACION.
   //
-  // NUNCA pisa el total solo: si el envio ya tenia venta cargada, muestra las dos cifras y la
-  // diferencia, y hay que apretar "Reemplazar". Es la leccion del caso Asaplast: el cotizador
-  // automatico piso un precio que el cliente ya habia aceptado y pagado.
-  // Arma el pedido de cotizacion del envio abierto. Lo usan DOS cosas: el boton
-  // "Calcular venta" y el chequeo silencioso que corre despues de Recalcular. Esta
-  // afuera a proposito: si cada uno armara lo suyo, el aviso podria contradecir al
-  // boton, que es exactamente la clase de desvio que venimos de arreglar.
-  // Devuelve null si todavia no hay con que cotizar.
+  // Los dos salieron a la luz el 07/08/2026 con un caso de la oficina, y los dos son el
+  // mismo error de siempre: la pantalla opinando sobre datos que no tiene. Si hace falta
+  // un dato del envio que no se edita aca, NO se busca en la fila: se deja que lo ponga
+  // el servidor a partir del envio_id.
   function armarBodyCotizacion() {
     if (!editEnvio) return null;
     const pf = parseNum(document.getElementById('saled-peso-facturable').value);
     if (!(pf > 0)) return null;
     const clienteId = parseInt(document.getElementById('saled-cliente').value, 10);
     if (!clienteId) return null;
-    const courier = document.getElementById('saled-courier').value;
-    const servicio = courier === 'DHL' ? 'DHL'
-      : (editEnvio.servicio_ups === 'UPS_SAV' ? 'UPS_SAV' : 'UPS_EXP');
-    const tipo = String(editEnvio.tipo_envio || '').toLowerCase().includes('import')
-      ? 'import' : 'export';
+
+    const num = (id) => {
+      const v = document.getElementById(id).value;
+      return v !== '' ? Number(v) : null;
+    };
+
     const body = {
+      // Lo que el modal edita, y nada mas:
+      envio_id: editEnvio.id,
+      cliente_id: clienteId,
       pais: document.getElementById('saled-pais-destino').value || null,
-      tipo,
-      servicio,
+      courier: document.getElementById('saled-courier').value,
       pesoFacturable: pf,
-      fob: editEnvio.fob || 0,
-      // EL FUEL NO SE MANDA A PROPOSITO: lo resuelve el servidor con la cadena completa
-      // (fuel propio del cliente -> congelado del envio -> configuracion del courier).
-      // Aca antes iba un 0 cuando el envio no tenia fuel congelado, y los envios viejos
-      // lo tienen vacio: se sugeria el precio SIN combustible, USD 89 de menos en un
-      // envio de 30 kg. Lo encontro la oficina el 07/08/2026.
-      profitPct: 0,
-      zona: editEnvio.zona ? Number(editEnvio.zona) : undefined,
       ddp: document.getElementById('saled-ddp').checked,
       proteccionDoc: document.getElementById('saled-proteccion-doc').checked,
       entrega: document.getElementById('saled-entrega').value,
       contenido: document.getElementById('saled-tipo-paquete').value === 'd'
         ? 'documento' : 'paquete',
-      cliente_id: clienteId,
-      // Con el envio_id el servidor completa lo que no venga arriba.
-      envio_id: editEnvio.id,
+      // Que el backend resuelva el profit por la matriz del cliente.
       profitManual: false,
     };
-    const num = (id) => {
-      const v = document.getElementById(id).value;
-      return v !== '' ? Number(v) : null;
-    };
+
     body.bultos = editMulti
       ? readBultosFromModal().map((b) => ({
         peso_real: b.peso_real, largo: b.largo, ancho: b.ancho, alto: b.alto,

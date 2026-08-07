@@ -256,7 +256,78 @@ async function main() {
   const totalNuevo = Number(await page.inputValue('#saled-total'));
   check('y el precio quedo actualizado al peso nuevo', totalNuevo > 120, `total=${totalNuevo}`);
 
-  console.log('\n8. Sin errores de JavaScript\n');
+  console.log('\n8. El precio de la PANTALLA contra el del cotizador\n');
+
+  // ESTE ES EL CHEQUEO QUE FALTABA. Los tests de API comparaban pedidos armados A MANO, asi
+  // que probaban el servidor pero no lo que la pantalla realmente manda. Y lo que mandaba
+  // estaba mal: leia `editEnvio.fob` y `editEnvio.tipo_envio`, y la fila de la grilla no
+  // tiene esos nombres (el fob viaja como `valor_declarado` y el tipo_envio no viaja).
+  // `undefined || 0` es 0, asi que:
+  //   · fob 0      -> sin SEGURO: USD 15 de menos en cada envio con valor declarado.
+  //   · sin tipo   -> toda importacion cotizada con la tarifa de EXPORTACION.
+  // Los dos pasaron todos los tests de API. Solo se ven manejando la pantalla de verdad.
+  const casos = [
+    { nombre: 'con valor declarado (tiene que cobrar seguro)',
+      guia: '1Z000PANTFOB00001', tipo_envio: 'exportacion', fob: 500, pais: 'Estados Unidos' },
+    { nombre: 'importacion (no puede cotizar como exportacion)',
+      guia: '1Z000PANTIMP00001', tipo_envio: 'importacion', fob: 300, pais: 'China' },
+  ];
+
+  for (const caso of casos) {
+    const e = await (await fetch(BASE + '/api/envios', {
+      method: 'POST', headers: H,
+      body: JSON.stringify({
+        cliente_id: cli.id, fecha: hoy, courier: 'UPS', tipo_envio: caso.tipo_envio,
+        numero_guia: caso.guia, pais_destino: caso.pais, servicio_ups: 'UPS_EXP',
+        peso_real: 16, largo: 24, ancho: 24, alto: 24, fob: caso.fob,
+      }),
+    })).json();
+
+    // Lo que TIENE que dar, pedido al servidor con los datos del envio bien puestos.
+    const esperadoResp = await (await fetch(BASE + '/api/liquidaciones/cotizar', {
+      method: 'POST', headers: H,
+      body: JSON.stringify({
+        envio_id: e.id, pesoFacturable: 16, profitManual: false,
+      }),
+    })).json();
+    const esperado = Number(esperadoResp.precioFinal);
+
+    await page.goto(`${BASE}/pages/salidas.html`);
+    await esperar(3000);
+    await page.click(`text=${caso.guia}`);
+    await esperar(1000);
+    await page.click('#saled-calcular-venta');
+    await esperar(3500);
+    const panel = await page.textContent('#saled-venta-panel');
+    const m = /Precio de venta sugerido[^0-9]*([0-9.,]+)/.exec(panel.replace(/\s+/g, ' '));
+    const enPantalla = m ? Number(m[1].replace(/,/g, '')) : NaN;
+
+    check(`${caso.nombre}: la pantalla dice lo mismo que el cotizador`,
+      Math.abs(enPantalla - esperado) < 0.02,
+      `pantalla ${enPantalla} · cotizador ${esperado}`);
+    check(`${caso.nombre}: el seguro esta contemplado`,
+      /Costo con fuel/.test(panel) && enPantalla > 0, panel.slice(0, 120));
+  }
+
+  // Y que el envio con valor declarado efectivamente cobre seguro: si el fob se perdiera
+  // otra vez, el costo bajaria justo el importe del seguro y este check lo agarra.
+  const conFob = await (await fetch(`${BASE}/api/liquidaciones/cotizar`, {
+    method: 'POST', headers: H,
+    body: JSON.stringify({ pais: 'Estados Unidos', tipo: 'export', servicio: 'UPS_EXP',
+      pesoFacturable: 16, fob: 500, fuelPct: 36.5, profitPct: 0, profitManual: true,
+      bultos: [{ peso_real: 16, largo: 24, ancho: 24, alto: 24 }] }),
+  })).json();
+  const sinFob = await (await fetch(`${BASE}/api/liquidaciones/cotizar`, {
+    method: 'POST', headers: H,
+    body: JSON.stringify({ pais: 'Estados Unidos', tipo: 'export', servicio: 'UPS_EXP',
+      pesoFacturable: 16, fob: 0, fuelPct: 36.5, profitPct: 0, profitManual: true,
+      bultos: [{ peso_real: 16, largo: 24, ancho: 24, alto: 24 }] }),
+  })).json();
+  check('perder el valor declarado costaria exactamente el seguro (USD 15)',
+    Math.abs((conFob.precioFinal - sinFob.precioFinal) - 15) < 0.02,
+    `con fob ${conFob.precioFinal} · sin fob ${sinFob.precioFinal}`);
+
+  console.log('\n9. Sin errores de JavaScript\n');
   check('ningún error en la pantalla', errores.length === 0, errores.slice(0, 3).join(' | '));
 
   console.log('\n' + '─'.repeat(60));
