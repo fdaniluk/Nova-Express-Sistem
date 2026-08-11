@@ -71,18 +71,58 @@
     setFuelPctDefault();
   }
 
-  // Precarga el input Fuel % con el valor de config del courier seleccionado. El usuario
-  // puede editarlo; el valor del input es el que se usa al cotizar y se guarda por envío.
+  // Completa el % segun la FUENTE elegida en el desplegable. Desde el 07/08/2026 hay tres
+  // fuels —Nova, DHL y UPS— y el predeterminado es Nova, que es el que le cobramos al
+  // cliente; los otros dos son lo que nos cobran a nosotros.
+  //
+  // El campo del % queda de solo lectura salvo en "A mano": si se pudiera editar con
+  // "Fuel Nova" elegido, la etiqueta diria una cosa y el numero seria otro.
   function setFuelPctDefault() {
-    const courier = document.getElementById('courier').value;
-    document.getElementById('fuel_pct').value = fuelPctActual[courier] ?? '';
+    const sel = document.getElementById('fuel_origen');
+    const input = document.getElementById('fuel_pct');
+    if (!sel || !input) return;
+    const fuente = sel.value;
+    if (fuente === 'manual') {
+      input.readOnly = false;
+      input.focus();
+    } else {
+      input.readOnly = true;
+      const mapa = { nova: 'NOVA', dhl: 'DHL', ups: 'UPS' };
+      input.value = fuelPctActual[mapa[fuente]] ?? '';
+    }
+    avisarFuelDelCliente();
   }
 
-  // Fuel % vigente en el form: el input editable manda; si quedó vacío, el de config.
+  // Si el cliente tiene un fuel propio negociado y se le va a aplicar OTRO, se avisa.
+  // Felipe pidio que el predeterminado sea Nova siempre; esto hace que elegirlo sobre un
+  // cliente con acuerdo sea una decision visible y no un descuido.
+  function avisarFuelDelCliente() {
+    const aviso = document.getElementById('fuel-aviso-cliente');
+    if (!aviso) return;
+    const id = parseInt(document.getElementById('cliente_id').value, 10);
+    const cli = clientes.find((c) => c.id === id);
+    const propio = cli && cli.fuel_pct_propio;
+    const fuente = document.getElementById('fuel_origen').value;
+    if (propio === null || propio === undefined || propio === '' || fuente === 'cliente') {
+      aviso.classList.add('hidden');
+      aviso.textContent = '';
+      return;
+    }
+    aviso.classList.remove('hidden');
+    aviso.textContent = `Ojo: este cliente tiene ${propio}% de fuel negociado. `
+      + 'Si lo dejas asi, se le cobra el que elegiste arriba.';
+  }
+
+  // Fuel % vigente en el form: es el que quedo en el input, sea el de la fuente o el
+  // escrito a mano.
   function getFuelPctForm() {
     const v = parseFloat(document.getElementById('fuel_pct').value);
-    const courier = document.getElementById('courier').value;
-    return (!isNaN(v) && v >= 0) ? v : (fuelPctActual[courier] ?? 0);
+    return (!isNaN(v) && v >= 0) ? v : 0;
+  }
+
+  function getFuelOrigenForm() {
+    const sel = document.getElementById('fuel_origen');
+    return sel ? sel.value : 'nova';
   }
 
   async function loadClientes() {
@@ -271,6 +311,10 @@
     });
     document.getElementById('cot-profit').addEventListener('input', debounce(updateCotizacion, 400));
     document.getElementById('fuel_pct').addEventListener('input', debounce(updateCotizacion, 400));
+    document.getElementById('fuel_origen').addEventListener('change', () => {
+      setFuelPctDefault();
+      updateCotizacion();
+    });
 
     // Recalcular al tildar/destildar DDP (passthrough +24.05)
     document.getElementById('ddp').addEventListener('change', debounce(updateCotizacion, 400));
@@ -433,6 +477,7 @@
         pesoFacturable,
         fob,
         fuelPct,
+        fuenteFuel: getFuelOrigenForm(),
         profitPct,
         zona,
         bultos: bultosParaCotizar,
@@ -546,6 +591,7 @@
         alto: parseFloat(document.getElementById('alto').value) || null,
         fob: parseFloat(document.getElementById('fob').value) || 0,
         fuel_pct: getFuelPctForm(),
+        fuel_origen: getFuelOrigenForm(),
         asegurado: document.getElementById('asegurado').checked ? 1 : 0,
         ddp: document.getElementById('ddp').checked ? 1 : 0,
         proteccion_doc: document.getElementById('proteccion_doc').checked ? 1 : 0,
@@ -627,6 +673,11 @@
     document.getElementById('alto').value = envio.alto || '';
     document.getElementById('fob').value = envio.fob;
     // Fuel% guardado del envío; si es viejo (NULL) cae al de config del courier.
+    // Al abrir un envio guardado se repone SU fuente y SU porcentaje congelado: recotizar
+    // un envio viejo no le puede cambiar el fuel sin que nadie lo pida.
+    const selOrigen = document.getElementById('fuel_origen');
+    if (selOrigen) selOrigen.value = envio.fuel_origen || 'manual';
+    document.getElementById('fuel_pct').readOnly = (selOrigen && selOrigen.value !== 'manual');
     document.getElementById('fuel_pct').value =
       envio.fuel_pct != null ? envio.fuel_pct : (fuelPctActual[envio.courier] ?? '');
     document.getElementById('asegurado').checked = Boolean(envio.asegurado);
@@ -731,6 +782,8 @@
     // Cambiar de cliente re-precarga el profit desde la matriz del nuevo cliente.
     document.getElementById('cliente_id').addEventListener('change', () => {
       profitTocado = false;
+      // El aviso del fuel negociado depende del cliente: se re-evalua al cambiarlo.
+      avisarFuelDelCliente();
       precargarYCotizar();
     });
   }

@@ -123,8 +123,51 @@ async function actualizarTolerancias(courier, pesoPct, costoPct, costoUsd, pesoK
   return obtenerTolerancias(courier);
 }
 
+// ── FUEL NOVA ───────────────────────────────────────────────────────────────
+// El % de combustible que pone Nova, distinto del que nos cobra cada courier. Una sola
+// fila (id = 1). Se expone con la misma forma que los otros dos ({courier, fuel_pct, ...})
+// para que la pantalla de Configuracion los muestre juntos sin casos especiales.
+async function obtenerFuelNova() {
+  const fila = await getDb().prepare('SELECT * FROM configuracion_nova WHERE id = 1').get();
+  if (!fila) return { courier: 'NOVA', fuel_pct: 0, fecha_actualizacion: null };
+  return { courier: 'NOVA', fuel_pct: fila.fuel_pct, fecha_actualizacion: fila.fecha_actualizacion };
+}
+
+async function actualizarFuelNova(fuelPctNuevo) {
+  const db = getDb();
+  const actual = await obtenerFuelNova();
+  const anterior = Number(actual.fuel_pct) || 0;
+  await db.transaction(async () => {
+    await db.prepare(
+      `INSERT INTO configuracion_nova (id, fuel_pct, fecha_actualizacion)
+       VALUES (1, ?, datetime('now','localtime'))
+       ON CONFLICT(id) DO UPDATE SET fuel_pct = excluded.fuel_pct,
+                                     fecha_actualizacion = excluded.fecha_actualizacion`
+    ).run(fuelPctNuevo);
+    await db.prepare(
+      `INSERT INTO configuracion_nova_historial (fuel_pct_anterior, fuel_pct_nuevo)
+       VALUES (?, ?)`
+    ).run(anterior, fuelPctNuevo);
+  });
+  return obtenerFuelNova();
+}
+
+async function historialFuelNova() {
+  return getDb()
+    .prepare('SELECT * FROM configuracion_nova_historial ORDER BY fecha_cambio DESC')
+    .all();
+}
+
+// Los TRES fuels juntos, que es lo que consume la pantalla de Configuracion.
+async function listarFuelTodos() {
+  const porCourier = await listarFuel();
+  const nova = await obtenerFuelNova();
+  return [nova, ...porCourier];
+}
+
 module.exports = {
   obtenerFuel, listarFuel, actualizarFuel, historialFuel,
+  obtenerFuelNova, actualizarFuelNova, historialFuelNova, listarFuelTodos,
   obtenerUmbral, listarUmbrales, actualizarUmbral, historialUmbral,
   obtenerTolerancias, listarTolerancias, actualizarTolerancias,
 };

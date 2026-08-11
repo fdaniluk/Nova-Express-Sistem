@@ -14,7 +14,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 // Arranque común: base de test fresca (copia de producción) y sesión válida.
 // Ver scripts/_base-test.js para por qué hace falta.
-const { prepararDb, abrirSesion } = require('./_base-test');
+const { prepararDb, abrirSesion, esperarServidor } = require('./_base-test');
 
 const PORT = process.env.PORT_TEST || 3993;
 const BASE = `http://localhost:${PORT}`;
@@ -37,8 +37,11 @@ async function main() {
     env: { ...process.env, DB_PATH: DB, PORT: String(PORT), NODE_ENV: 'production' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  srv.stdout.on('data', () => {});
-  srv.stderr.on('data', (d) => process.stderr.write('[server] ' + d));
+  // Se guarda lo que el servidor escribe: es el unico lugar donde esta el motivo si no
+  // arranca. La linea de 'listo' sale por stdout y es lo que espera esperarServidor().
+  let logOut = '', logErr = '';
+  srv.stdout.on('data', (d) => { logOut += d; });
+  srv.stderr.on('data', (d) => { logErr += d; process.stderr.write('[server] ' + d); });
   // Si el test se corta por un error, el servidor tiene que morir igual: si queda vivo se
   // queda con el puerto y la corrida siguiente le habla al servidor VIEJO, con la base
   // vieja, y falla con 401 sin motivo aparente.
@@ -76,10 +79,12 @@ async function main() {
     setTimeout(() => process.exit(c), 3000).unref();
   };
 
-  for (let i = 0; i < 40; i++) {
-    try { const r = await fetch(BASE + '/api/health'); if (r.ok) break; } catch {}
-    await esperar(300);
-  }
+  // Antes habia un bucle de 40 intentos contra /api/health que seguia de largo pasara lo
+  // que pasara: si el servidor tardaba mas de 12 segundos en arrancar —en Windows, con la
+  // base creandose y el antivirus mirando, pasa— el test continuaba igual y reventaba mas
+  // adelante con un ECONNREFUSED o un 'no such table' que no tenian nada que ver.
+  // Ver scripts/_base-test.js.
+  await esperarServidor(srv, BASE, () => logErr, () => logOut);
 
   const sqlite3 = require('sqlite3');
   const db = new sqlite3.Database(DB);

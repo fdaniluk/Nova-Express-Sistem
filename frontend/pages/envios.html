@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Registro de envíos – Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260807b">
-  <link rel="stylesheet" href="../css/modules/envios.css?v=20260807b">
+  <link rel="stylesheet" href="../css/main.css?v=20260810a">
+  <link rel="stylesheet" href="../css/modules/envios.css?v=20260810a">
   <style>
     .cot-header {
       display: flex;
@@ -199,8 +199,21 @@
               <input type="number" id="fob" step="0.01" min="0" value="0">
             </div>
             <div class="form-group">
-              <label for="fuel_pct">Fuel %</label>
-              <input type="number" id="fuel_pct" step="0.1" min="0">
+              <label for="fuel_origen">Fuel</label>
+              <select id="fuel_origen">
+                <option value="nova" selected>Fuel Nova</option>
+                <option value="dhl">Fuel DHL</option>
+                <option value="ups">Fuel UPS</option>
+                <option value="manual">A mano</option>
+              </select>
+              <!-- El % queda de solo lectura salvo que se elija "A mano": si no, se podria
+                   editar el numero dejando la etiqueta diciendo otra cosa. -->
+              <input type="number" id="fuel_pct" step="0.1" min="0" readonly
+                     title="Se completa segun el fuel elegido. Para escribirlo, eleg&iacute; &quot;A mano&quot;.">
+              <!-- Aviso cuando el cliente tiene un fuel negociado y el elegido es otro.
+                   Felipe pidio que el predeterminado sea Nova SIEMPRE, pero que no pase en
+                   silencio: romper un acuerdo sin que nadie lo vea es lo que hay que evitar. -->
+              <p id="fuel-aviso-cliente" class="hint hidden" style="color:#b45309;font-weight:600"></p>
             </div>
             <div class="form-group">
               <label for="asegurado">Asegurado</label>
@@ -334,11 +347,11 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260807b"></script>
-<script src="../js/api.js?v=20260807b"></script>
-<script src="../js/main.js?v=20260807b"></script>
-<script src="/shared/cotizador/cotizador-core.js?v=20260807b"></script>
-<script src="/shared/guias/validar-guia.js?v=20260807b"></script>
-<script src="../js/modules/envios.js?v=20260807b"></script>
+<script src="/js/auth-guard.js?v=20260810a"></script>
+<script src="../js/api.js?v=20260810a"></script>
+<script src="../js/main.js?v=20260810a"></script>
+<script src="/shared/cotizador/cotizador-core.js?v=20260810a"></script>
+<script src="/shared/guias/validar-guia.js?v=20260810a"></script>
+<script src="../js/modules/envios.js?v=20260810a"></script>
 </body>
 </html>

@@ -1,8 +1,11 @@
 const configuracionModel = require('../models/configuracion.model');
 
+// Devuelve los TRES fuels: NOVA, DHL y UPS. NOVA va primero porque es el que se usa por
+// defecto al cargar un envio. La forma de cada fila es la misma para los tres, asi la
+// pantalla no necesita casos especiales.
 async function listarFuel(req, res, next) {
   try {
-    res.json(await configuracionModel.listarFuel());
+    res.json(await configuracionModel.listarFuelTodos());
   } catch (e) {
     next(e);
   }
@@ -11,14 +14,22 @@ async function listarFuel(req, res, next) {
 async function actualizarFuel(req, res, next) {
   try {
     const courier = req.params.courier?.toUpperCase();
-    if (!['DHL', 'UPS'].includes(courier)) {
-      return res.status(400).json({ error: 'Courier debe ser DHL o UPS' });
+    if (!['DHL', 'UPS', 'NOVA'].includes(courier)) {
+      return res.status(400).json({ error: 'Courier debe ser DHL, UPS o NOVA' });
     }
     const { fuel_pct } = req.body;
     if (fuel_pct === undefined || Number.isNaN(Number(fuel_pct))) {
       return res.status(400).json({ error: 'fuel_pct es obligatorio y numérico' });
     }
-    const cfg = await configuracionModel.actualizarFuel(courier, Number(fuel_pct));
+    // Un fuel negativo no existe, y uno de 500% es un dedazo. Se rechazan los dos: este
+    // numero multiplica el flete de TODOS los envios nuevos, no es lugar para adivinar.
+    const pct = Number(fuel_pct);
+    if (pct < 0 || pct > 200) {
+      return res.status(400).json({ error: 'El fuel debe estar entre 0 y 200%.' });
+    }
+    const cfg = courier === 'NOVA'
+      ? await configuracionModel.actualizarFuelNova(pct)
+      : await configuracionModel.actualizarFuel(courier, pct);
     res.json(cfg);
   } catch (e) {
     next(e);
@@ -28,6 +39,9 @@ async function actualizarFuel(req, res, next) {
 async function historialFuel(req, res, next) {
   try {
     const courier = req.query.courier?.toUpperCase();
+    if (courier === 'NOVA') {
+      return res.json(await configuracionModel.historialFuelNova());
+    }
     res.json(await configuracionModel.historialFuel(courier));
   } catch (e) {
     next(e);

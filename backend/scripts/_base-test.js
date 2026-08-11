@@ -107,17 +107,30 @@ function abrirSesion(dbPath, token) {
  */
 const LISTO = /Nova Express API en/;
 
-async function esperarServidor(srv, base, logErr = () => '', logOut = () => '', segundos = 30) {
+async function esperarServidor(srv, base, logErr = () => '', logOut = () => '', segundos = 60) {
   const hasta = Date.now() + segundos * 1000;
-  const morir = (motivo) => {
+  const morir = (motivo, extra = '') => {
     const err = (logErr() || '').trim();
+    const out = (logOut() || '').trim();
+    const ultimas = (t) => t.split('\n').slice(-15).join('\n');
     const pista = /EADDRINUSE|address already in use/i.test(err)
       ? '\nEl puerto ya está ocupado: quedó vivo un node de una corrida anterior. '
         + 'Cerrá esa ventana, o matá el proceso, y volvé a correr el test.'
       : '';
+    // Mostrar TAMBIÉN stdout, y no solo stderr. El 10/08/2026, en la máquina de Felipe,
+    // este mismo mensaje dijo "El servidor no dejó ningún mensaje" cuando en realidad el
+    // servidor venía imprimiendo su avance por stdout: el arranque escribe la migración de
+    // columnas y el backup antes de escuchar. Sin esas líneas es imposible saber en qué
+    // paso se trabó, y se pierde el viaje. Con ellas, el último renglón ES el diagnóstico.
     throw new Error(
       `${motivo}\nPuerto: ${base}\n`
-      + (err ? `Lo que dijo el servidor:\n${err}` : 'El servidor no dejó ningún mensaje.')
+      + (err ? `Lo que dijo el servidor (errores):\n${ultimas(err)}\n` : '')
+      + (out ? `Lo último que alcanzó a hacer:\n${ultimas(out)}\n` : '')
+      + (!err && !out
+        ? 'El servidor no llegó a escribir NADA: se trabó antes del primer paso '
+          + '(leyendo schema.sql o abriendo la base de datos).\n'
+        : '')
+      + extra
       + pista,
     );
   };
@@ -129,7 +142,22 @@ async function esperarServidor(srv, base, logErr = () => '', logOut = () => '', 
     }
     await new Promise((res) => setTimeout(res, 300));
   }
-  morir(`El servidor de prueba no llegó a arrancar en ${segundos} s.`);
+
+  // Último dato antes de rendirse: ¿hay ALGUIEN escuchando en ese puerto? Si contesta y no
+  // es el nuestro (el nuestro no imprimió nada), entonces quedó vivo un servidor de una
+  // corrida anterior o un `npm start` abierto en otra ventana, y el test le estaría
+  // hablando a otra base de datos. Distinguir esos dos casos a mano cuesta media hora.
+  let ajeno = '';
+  try {
+    const r = await fetch(base + '/api/health', { signal: AbortSignal.timeout(3000) });
+    if (r.ok) {
+      ajeno = '\nOJO: ese puerto SÍ contesta, pero no es este servidor. Hay otro node vivo '
+        + 'escuchando ahí (una corrida anterior, o un `npm start` en otra ventana). '
+        + 'Cerralo y volvé a correr el test.\n';
+    }
+  } catch { /* nadie escuchando: el motivo es otro */ }
+
+  morir(`El servidor de prueba no llegó a arrancar en ${segundos} s.`, ajeno);
 }
 
 module.exports = { DB_PROD, prepararDb, abrirSesion, esperarServidor };

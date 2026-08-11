@@ -139,14 +139,23 @@ async function calcularDesgloseAlCosto(data, pesoFacturable) {
       : 'UPS_EXP'; // fallback si no vino la variante
   const tipo = (data.tipo_envio || '').toLowerCase().includes('import') ? 'import' : 'export';
 
-  // Fuel% por envío: si el usuario lo editó en Cargar envío viene en data.fuel_pct y manda;
-  // si no, se precarga el autoritativo de config del courier. El valor usado se congela en
-  // la columna envios.fuel_pct (lo devuelve desglosarCosto como fuel_pct).
-  const fuelCfg = await configuracionModel.obtenerFuel(courier);
-  const fuelOverride = data.fuel_pct;
-  const fuelPct = (fuelOverride !== undefined && fuelOverride !== null && fuelOverride !== '')
-    ? Number(fuelOverride)
-    : (fuelCfg?.fuel_pct ?? 0);
+  // Fuel% por envío. Desde el 07/08/2026 quien carga elige la FUENTE en un desplegable
+  // ('nova' | 'dhl' | 'ups' | 'cliente' | 'manual'), y el predeterminado es Nova. La
+  // decisión de qué porcentaje corresponde NO se toma acá: la toma resolverFuel() en
+  // cotizacion.service.js, que es el único lugar del sistema que resuelve el fuel. Si se
+  // decidiera también acá, en dos meses las dos copias dirían cosas distintas — que es
+  // exactamente como nacieron los cuatro errores de cotización de esta semana.
+  //
+  // El porcentaje se congela en envios.fuel_pct y la fuente en envios.fuel_origen.
+  const { resolverFuel } = require('../services/cotizacion.service');
+  const fuelResuelto = await resolverFuel({
+    clienteId: data.cliente_id,
+    fuelBody: data.fuel_pct,
+    fuentePedida: data.fuel_origen,
+    servicio: courier === 'DHL' ? 'DHL' : (data.servicio_ups || 'UPS_EXP'),
+  });
+  const fuelPct = fuelResuelto.fuelPct;
+  const fuelOrigen = fuelResuelto.origen;
 
   // Mismo conjunto de bultos que usó buildPesos para el peso facturable:
   // si vienen bultos, son el set completo; si no, el bulto único de los campos primarios.
@@ -154,7 +163,7 @@ async function calcularDesgloseAlCosto(data, pesoFacturable) {
     ? data.bultos.map(b => ({ pesoReal: b.peso_real, largo: b.largo, ancho: b.ancho, alto: b.alto }))
     : [{ pesoReal: data.peso_real, largo: data.largo, ancho: data.ancho, alto: data.alto }];
 
-  return desglosarCosto({
+  const resultado = desglosarCosto({
     pais: data.pais_destino,
     tipo,
     servicio,
@@ -176,6 +185,12 @@ async function calcularDesgloseAlCosto(data, pesoFacturable) {
     // como documento, y la utilidad de esos envíos quedaba mal calculada.
     contenido: contenidoDe(data.tipo_paquete),
   });
+
+  // El desglose viaja con la FUENTE del fuel pegada, para que `crear` la persista sin
+  // tener que volver a resolverla. Si `desglosarCosto` no devolvió nada (país que el motor
+  // no reconoce) no hay costo que congelar y tampoco fuente que guardar.
+  if (resultado) resultado.fuel_origen = fuelOrigen;
+  return resultado;
 }
 
 async function crear(data) {
@@ -194,9 +209,9 @@ async function crear(data) {
           cantidad_bultos, peso_real, largo, ancho, alto,
           peso_volumetrico, peso_facturable, fob, total_cobrado, observaciones,
           numero_salida, bulto, tipo_paquete, asegurado, ddp, proteccion_doc, remota, entrega,
-          flete, descuento, seguro, fuel, fuel_pct, derechos, adicionales, otros, profit, porcentaje,
+          flete, descuento, seguro, fuel, fuel_pct, fuel_origen, derechos, adicionales, otros, profit, porcentaje,
           extras_json, servicio_ups
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         data.cliente_id,
@@ -231,6 +246,7 @@ async function crear(data) {
         desglose ? desglose.seguro : (data.seguro ?? null),
         desglose ? desglose.fuel : (data.fuel ?? null),
         desglose ? desglose.fuel_pct : (data.fuel_pct ?? null),
+        (desglose && desglose.fuel_origen) ?? data.fuel_origen ?? null,
         desglose ? desglose.derechos : (data.derechos ?? null),
         desglose ? desglose.adicionales : (data.adicionales ?? null),
         desglose ? desglose.otros : (data.otros ?? null),
@@ -291,7 +307,7 @@ async function actualizar(id, data) {
   const CAMPOS_QUE_MUEVEN_EL_COSTO = [
     'peso_real', 'largo', 'ancho', 'alto', 'bultos', 'cantidad_bultos',
     'pais_destino', 'zona', 'courier', 'tipo_envio', 'servicio_ups',
-    'fob', 'fuel_pct', 'tipo_paquete', 'asegurado', 'ddp', 'proteccion_doc', 'remota', 'entrega',
+    'fob', 'fuel_pct', 'fuel_origen', 'tipo_paquete', 'asegurado', 'ddp', 'proteccion_doc', 'remota', 'entrega',
   ];
   const cambioElCosto = CAMPOS_QUE_MUEVEN_EL_COSTO.some((c) => {
     if (data[c] === undefined) return false;
@@ -307,6 +323,7 @@ async function actualizar(id, data) {
       ...merged,
       bultos: bultos.length ? bultos : undefined,
       fuel_pct: data.fuel_pct !== undefined ? data.fuel_pct : actual.fuel_pct,
+      fuel_origen: data.fuel_origen !== undefined ? data.fuel_origen : actual.fuel_origen,
     }, pesoFacturable);
   }
 

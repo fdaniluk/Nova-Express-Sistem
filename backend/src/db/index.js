@@ -239,6 +239,10 @@ async function migrateEnvios() {
     // tarifario, se pide con una tilde. DEFAULT 0 = ningún envío que ya existe cambia
     // de precio al aplicar esta migración.
     ['proteccion_doc',   'INTEGER DEFAULT 0'],
+    // De DONDE salio el fuel de este envio: 'nova' | 'dhl' | 'ups' | 'cliente' | 'manual'.
+    // El porcentaje se sigue congelando en fuel_pct; esto guarda POR QUE es ese. Sin esto,
+    // dentro de un mes nadie puede explicar por que un envio tiene 27% si Nova estaba en 30%.
+    ['fuel_origen',      'TEXT'],
     ['remota',           'INTEGER DEFAULT 0'],
     // Zona de entrega: NULL/'' normal · 'extendida' · 'remota'. Son dos cargos distintos
     // de UPS. Los envíos viejos con remota=1 se leen como 'extendida', que es la tarifa
@@ -503,6 +507,37 @@ async function migrateCierres() {
   await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cierres_tipo  ON cierres(tipo, desde)');
 }
 
+// El FUEL NOVA: el porcentaje de combustible que pone Nova y que se le cobra al cliente,
+// distinto del que nos cobra cada courier. Va en su propia tabla y NO como una fila mas de
+// `configuracion` a proposito: esa tabla tiene la clave `courier` con un CHECK que solo
+// acepta DHL y UPS, y en SQLite cambiar un CHECK obliga a recrear la tabla entera y copiar
+// las filas. Recrear la tabla de configuracion de produccion para agregar un porcentaje es
+// un riesgo que no vale la pena. Ademas Nova no tiene tolerancias ni ganancia minima, asi
+// que la mitad de esa tabla quedaria vacia.
+//
+// Que viva aparte NO fragmenta la logica: el unico lugar que decide que fuel se aplica
+// sigue siendo resolverFuel() en cotizacion.service.js.
+async function migrateFuelNova() {
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS configuracion_nova (
+      id                   INTEGER PRIMARY KEY CHECK (id = 1),
+      fuel_pct             REAL NOT NULL DEFAULT 0,
+      fecha_actualizacion  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    )
+  `);
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS configuracion_nova_historial (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      fuel_pct_anterior REAL NOT NULL,
+      fuel_pct_nuevo    REAL NOT NULL,
+      fecha_cambio      TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    )
+  `);
+  // Arranca en 0 y NO se inventa un valor: un fuel inventado es plata mal cobrada. Con 0
+  // el sistema avisa (el panel de salud lo va a marcar) hasta que Felipe cargue el real.
+  await dbApi.exec('INSERT OR IGNORE INTO configuracion_nova (id, fuel_pct) VALUES (1, 0)');
+}
+
 // Índices que faltaban sobre las consultas que ya están en producción. Todos son
 // CREATE INDEX IF NOT EXISTS: correr esto de nuevo no hace nada y no cambia ningún
 // resultado, solo el plan de ejecución. Verificado con EXPLAIN QUERY PLAN contra la
@@ -552,6 +587,7 @@ async function initSchema() {
   await migrateFacturaGuias();
   await migrateCobranzas();
   await migrateCierres();
+  await migrateFuelNova();
   await migrateIndices();
   await seedIfEmpty();
 }

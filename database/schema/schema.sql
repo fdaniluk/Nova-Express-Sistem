@@ -61,6 +61,24 @@ CREATE TABLE IF NOT EXISTS configuracion (
   tolerancia_peso_kg   REAL DEFAULT 5
 );
 
+-- El FUEL NOVA: el porcentaje de combustible que pone Nova y que se le cobra al cliente,
+-- distinto del que nos cobra cada courier. Vive aparte de `configuracion` porque esa tabla
+-- tiene la clave `courier` con un CHECK que solo acepta DHL y UPS, y en SQLite cambiar un
+-- CHECK obliga a recrear la tabla y copiar las filas: no vale el riesgo por un porcentaje.
+-- Ademas Nova no tiene tolerancias ni ganancia minima. Una sola fila, id = 1.
+CREATE TABLE IF NOT EXISTS configuracion_nova (
+  id                   INTEGER PRIMARY KEY CHECK (id = 1),
+  fuel_pct             REAL NOT NULL DEFAULT 0,
+  fecha_actualizacion  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS configuracion_nova_historial (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  fuel_pct_anterior REAL NOT NULL,
+  fuel_pct_nuevo    REAL NOT NULL,
+  fecha_cambio      TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
 CREATE TABLE IF NOT EXISTS configuracion_historial (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,
   courier          TEXT NOT NULL CHECK (courier IN ('DHL', 'UPS')),
@@ -141,6 +159,10 @@ CREATE TABLE IF NOT EXISTS envios (
   seguro              REAL,
   fuel                REAL,
   fuel_pct            REAL,
+  -- De DONDE salio el fuel de este envio: 'nova' | 'dhl' | 'ups' | 'cliente' | 'manual'.
+  -- El porcentaje se congela en fuel_pct; esto guarda POR QUE es ese. Sin esto, dentro de
+  -- un mes nadie puede explicar por que un envio tiene 27% si Nova estaba en 30%.
+  fuel_origen         TEXT,
   derechos            REAL,
   adicionales         REAL,
   otros               REAL,

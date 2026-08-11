@@ -18,12 +18,23 @@
         : dias >= 7
         ? `Hace ${dias} días — verificar`
         : dias !== null ? `Hace ${dias} día${dias === 1 ? '' : 's'}` : '';
+      // El Fuel Nova es el nuestro y el que se aplica por defecto al cargar un envio, asi
+      // que se distingue de los otros dos: los del courier son lo que NOS cobran a nosotros.
+      const esNova = c.courier === 'NOVA';
+      const titulo = esNova ? 'Fuel Nova' : `Fuel ${c.courier}`;
+      const bajada = esNova
+        ? 'El que le cobramos al cliente. Es el que viene elegido por defecto al cargar un envio.'
+        : `Lo que nos cobra ${c.courier}.`;
+      // Sin cargar nunca, el fuel de Nova queda en 0 y eso NO puede pasar desapercibido:
+      // un envio cotizado sin combustible se ve razonable y sale mal cobrado.
+      const sinCargar = esNova && !Number(c.fuel_pct);
       return `
-      <div class="fuel-card ${alertClass}" data-courier="${c.courier}">
-        <h4>${c.courier}</h4>
+      <div class="fuel-card ${sinCargar ? 'fuel-card--danger' : alertClass}${esNova ? ' fuel-card--nova' : ''}" data-courier="${c.courier}">
+        <h4>${titulo}</h4>
         <div class="current">${c.fuel_pct}%</div>
-        <p class="fuel-age">${alertMsg}</p>
-        <p class="hint">Actualizado: ${NovaUtils.formatDate(c.fecha_actualizacion?.slice(0, 10))}</p>
+        <p class="fuel-age">${sinCargar ? 'SIN CARGAR — los envios nuevos se estan cotizando sin combustible' : alertMsg}</p>
+        <p class="hint">${bajada}</p>
+        <p class="hint">Actualizado: ${c.fecha_actualizacion ? NovaUtils.formatDate(c.fecha_actualizacion.slice(0, 10)) : 'nunca'}</p>
         <div class="form-group" style="margin-top:0.75rem">
           <label>Nuevo % fuel</label>
           <input type="number" class="fuel-input" step="0.1" min="0" value="${c.fuel_pct}">
@@ -39,7 +50,9 @@
         const fuel_pct = parseFloat(card.querySelector('.fuel-input').value);
         try {
           await NovaAPI.configuracion.actualizarFuel(courier, fuel_pct);
-          NovaUtils.showAlert(alertBox, `Fuel ${courier} actualizado a ${fuel_pct}%`, 'success');
+          NovaUtils.showAlert(alertBox,
+            `${courier === 'NOVA' ? 'Fuel Nova' : 'Fuel ' + courier} actualizado a ${fuel_pct}%`,
+            'success');
           loadFuel();
         } catch (err) {
           NovaUtils.showAlert(alertBox, err.message, 'error');

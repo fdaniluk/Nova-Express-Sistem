@@ -105,6 +105,9 @@ async function main() {
     document.getElementById('pais').value = 'China';
     document.getElementById('tipo').value = 'import';
     document.getElementById('ganancia').value = '0';
+    // Desde el 10/08/2026 el fuel sale de Configuración salvo que se elija "A mano". Este
+    // test reproduce el caso exacto de la oficina, con SU fuel, así que lo pone a mano.
+    document.getElementById('fuel_fuente').value = 'manual';
     document.getElementById('fuel').value = '35.25';
     document.getElementById('couriers').value = 'dhl';
     // con valor declarado > 0 entra el seguro DHL (mínimo 17.50) y el total queda

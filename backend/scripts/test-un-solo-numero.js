@@ -272,9 +272,14 @@ async function main() {
   });
   const conCongelado = await J('POST', '/api/liquidaciones/cotizar',
     { envio_id: env.id, pesoFacturable: 30, profitManual: false });
+  // Lo que importa es el PORCENTAJE: el congelado del envío, no el de configuración de hoy
+  // (39,5). Desde que hay tres fuels, el `origen` ya no dice 'envio' sino de dónde había
+  // salido originalmente ('configuracion', 'nova', 'dhl'...), que explica más.
   check('un envío con su fuel congelado se recotiza con ESE, no con el de hoy',
-    cerca(conCongelado.fuel_aplicado, 22) && conCongelado.fuel_origen === 'envio',
+    cerca(conCongelado.fuel_aplicado, 22),
     `${conCongelado.fuel_aplicado} (${conCongelado.fuel_origen})`);
+  check('y no se recotiza con el de configuración de hoy',
+    !cerca(conCongelado.fuel_aplicado, 39.5), String(conCongelado.fuel_aplicado));
 
   const cero = await J('POST', '/api/liquidaciones/cotizar', {
     pais: 'Estados Unidos', tipo: 'export', servicio: 'UPS_EXP', pesoFacturable: 10,

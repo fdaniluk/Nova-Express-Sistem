@@ -23,6 +23,7 @@ const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
+const { esperarServidor } = require('./_base-test');
 
 const PORT = process.env.PORT_TEST || 3987;
 const BASE = `http://localhost:${PORT}`;
@@ -74,8 +75,11 @@ async function main() {
     env: { ...process.env, DB_PATH: DB, PORT: String(PORT), NODE_ENV: 'production' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  srv.stdout.on('data', () => {});
-  srv.stderr.on('data', (d) => process.stderr.write('[server] ' + d));
+  // Se guarda lo que el servidor escribe: es el unico lugar donde esta el motivo si no
+  // arranca. La linea de 'listo' sale por stdout y es lo que espera esperarServidor().
+  let logOut = '', logErr = '';
+  srv.stdout.on('data', (d) => { logOut += d; });
+  srv.stderr.on('data', (d) => { logErr += d; process.stderr.write('[server] ' + d); });
   // Windows: llamar srv.kill() DOS VECES sobre el mismo handle revienta libuv con
   //   Assertion failed: !(handle->flags & UV_HANDLE_CLOSING), file src\win\async.c, line 94
   // Pasaba porque el cierre explícito mata el server y, acto seguido, process.exit() dispara
@@ -98,10 +102,12 @@ async function main() {
     setTimeout(res, 2000);
   });
 
-  for (let i = 0; i < 40; i++) {
-    try { const r = await fetch(BASE + '/api/health'); if (r.ok) break; } catch {}
-    await esperar(300);
-  }
+  // Antes habia un bucle de 40 intentos contra /api/health que seguia de largo pasara lo
+  // que pasara: si el servidor tardaba mas de 12 segundos en arrancar —en Windows, con la
+  // base creandose y el antivirus mirando, pasa— el test continuaba igual y reventaba mas
+  // adelante con un ECONNREFUSED o un 'no such table' que no tenian nada que ver.
+  // Ver scripts/_base-test.js.
+  await esperarServidor(srv, BASE, () => logErr, () => logOut);
 
   const { q, close } = abrir(DB);
 

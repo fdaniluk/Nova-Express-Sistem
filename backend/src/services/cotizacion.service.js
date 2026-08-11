@@ -25,7 +25,12 @@
  *
  * ═══ LAS CADENAS DE RESOLUCIÓN ═══
  *
- * FUEL (combustible), de mayor a menor precedencia:
+ * FUEL (combustible). Desde el 07/08/2026 hay TRES fuels configurables —Nova, DHL y UPS—
+ * y quien carga el envío elige cuál se aplica en un desplegable. Esa elección manda sobre
+ * todo lo demás y queda guardada en el envío (columna `fuel_origen`), para que dentro de un
+ * mes se pueda explicar por qué ese envío tiene ese porcentaje.
+ *
+ * Sin elección expresa, la cadena de siempre, de mayor a menor precedencia:
  *   1. El fuel propio del CLIENTE, si tiene uno negociado. Es lo que se le cobra a él,
  *      distinto de lo que nos cobra el courier.
  *   2. El fuel congelado del ENVÍO, si se cotiza sobre un envío existente. Un envío de mayo
@@ -98,7 +103,30 @@ function resolverZona({ servicio, tipo, pais, zona }) {
  * decisión de quien cotiza y se respeta; un vacío NO puede terminar en 0 por descuido,
  * que es justamente lo que pasaba.
  */
-async function resolverFuel({ clienteId, fuelEnvio, fuelBody, servicio }) {
+async function resolverFuel({ clienteId, fuelEnvio, fuelBody, fuentePedida, origenGuardado, servicio }) {
+  // 1. FUENTE PEDIDA EXPRESAMENTE. Si quien carga el envío eligió una del desplegable,
+  //    manda esa y no se discute. Es una decisión de una persona sobre un envío concreto.
+  const fuente = String(fuentePedida || '').toLowerCase();
+
+  if (fuente === 'manual') {
+    // "A mano": el número lo escribió alguien. Un 0 acá es deliberado y se respeta.
+    const n = Number(fuelBody);
+    return { fuelPct: Number.isFinite(n) ? n : 0, origen: 'manual' };
+  }
+  if (fuente === 'nova') {
+    const nova = await leerFuelNova();
+    return { fuelPct: nova, origen: 'nova' };
+  }
+  if (fuente === 'dhl' || fuente === 'ups') {
+    return { fuelPct: await leerFuelCourier(fuente.toUpperCase()), origen: fuente };
+  }
+  if (fuente === 'cliente') {
+    const propio = clienteId ? await profitService.resolverFuelPropio(clienteId) : null;
+    if (propio !== null && propio !== undefined) return { fuelPct: Number(propio), origen: 'cliente' };
+    // Pidieron el del cliente y el cliente no tiene: se sigue la cadena en vez de cobrar 0.
+  }
+
+  // 2. Sin fuente pedida, la cadena de siempre.
   if (clienteId) {
     const propio = await profitService.resolverFuelPropio(clienteId);
     if (propio !== null && propio !== undefined) {
@@ -106,22 +134,39 @@ async function resolverFuel({ clienteId, fuelEnvio, fuelBody, servicio }) {
     }
   }
   if (fuelEnvio !== null && fuelEnvio !== undefined && fuelEnvio !== '') {
-    return { fuelPct: Number(fuelEnvio), origen: 'envio' };
+    // Se usa el porcentaje CONGELADO del envio, pero se informa de donde habia salido
+    // ('nova', 'dhl', ...) en vez de un 'envio' que no explica nada.
+    return { fuelPct: Number(fuelEnvio), origen: origenGuardado || 'envio' };
   }
   if (fuelBody !== null && fuelBody !== undefined && fuelBody !== '') {
     return { fuelPct: Number(fuelBody), origen: 'body' };
   }
-  const courier = courierDe(servicio);
+  const pctCourier = await leerFuelCourier(courierDe(servicio));
+  if (pctCourier !== null) return { fuelPct: pctCourier, origen: 'configuracion' };
+  return { fuelPct: 0, origen: 'sin_fuel' };
+}
+
+/** El % de Nova. Devuelve 0 si nunca se cargó — y el panel de salud lo marca. */
+async function leerFuelNova() {
+  try {
+    const fila = await configuracionModel.obtenerFuelNova();
+    return Number(fila && fila.fuel_pct) || 0;
+  } catch (e) {
+    console.error('[cotizacion] no se pudo leer el Fuel Nova:', e.message);
+    return 0;
+  }
+}
+
+/** El % que nos cobra un courier, de Configuración. null si no hay fila. */
+async function leerFuelCourier(courier) {
   try {
     const filas = await configuracionModel.listarFuel();
     const cfg = (filas || []).find((f) => f.courier === courier);
-    if (cfg && cfg.fuel_pct !== null && cfg.fuel_pct !== undefined) {
-      return { fuelPct: Number(cfg.fuel_pct), origen: 'configuracion' };
-    }
+    if (cfg && cfg.fuel_pct !== null && cfg.fuel_pct !== undefined) return Number(cfg.fuel_pct);
   } catch (e) {
     console.error('[cotizacion] no se pudo leer el fuel de configuración:', e.message);
   }
-  return { fuelPct: 0, origen: 'sin_fuel' };
+  return null;
 }
 
 /**
@@ -132,7 +177,7 @@ async function leerEnvio(envioId) {
   const db = getDb();
   return db.prepare(`
     SELECT e.id, e.cliente_id, e.courier, e.servicio_ups, e.tipo_envio, e.pais_destino,
-           e.zona, e.fob, e.fuel_pct, e.tipo_paquete, e.ddp, e.proteccion_doc, e.entrega,
+           e.zona, e.fob, e.fuel_pct, e.fuel_origen, e.tipo_paquete, e.ddp, e.proteccion_doc, e.entrega,
            e.remota, e.peso_real, e.largo, e.ancho, e.alto, e.peso_facturable
     FROM envios e WHERE e.id = ?`).get(envioId);
 }
@@ -202,10 +247,22 @@ async function normalizarEntrada(crudo = {}) {
     : ((envio && envio.tipo_paquete === 'd') ? 'documento' : 'paquete');
 
   // ── Fuel ───────────────────────────────────────────────────────────────────────────
+  // `fuenteFuel` es lo que eligió la persona en el desplegable de Cargar envío
+  // ('nova' | 'dhl' | 'ups' | 'cliente' | 'manual'). Si el envío ya existe y no viene una
+  // nueva, se respeta la que quedó guardada: recotizar un envío no le puede cambiar de
+  // dónde sale el fuel sin que nadie lo pida.
+  // OJO: la fuente sale SOLO del body, nunca de la guardada en el envio. Si se
+  // re-resolviera la guardada, un envio de mayo con "Fuel Nova" se recotizaria con el Nova
+  // de HOY y cambiar ese porcentaje reescribiria el pasado. El envio conserva su
+  // porcentaje congelado; lo que se recupera de la columna es solo la ETIQUETA, para poder
+  // decir de donde habia salido.
+  const fuentePedida = c.fuenteFuel;
   const fuel = await resolverFuel({
     clienteId,
     fuelEnvio: envio ? envio.fuel_pct : undefined,
     fuelBody: c.fuelPct,
+    fuentePedida,
+    origenGuardado: envio ? envio.fuel_origen : null,
     servicio,
   });
 
