@@ -411,17 +411,31 @@
     return esPorKg() ? `USD ${Number(val).toFixed(2)}` : `${val}%`;
   }
 
-  // Filas de la grilla. En modo porcentaje son las bandas fijas; en modo por kilo son los
-  // rangos que el cliente tiene cargados (se deducen de los overrides, sin duplicar).
+  // Filas de la grilla: SIEMPRE las bandas fijas, cobre por porcentaje o por kilo.
+  //
+  // Hasta el 11/08/2026 el modo por kilo dejaba que cada cliente inventara sus rangos, y
+  // la grilla mostraba solo los que tuviera cargados. Eso hacía que la pantalla NO mostrara
+  // los huecos: si alguien cargaba 1 a 3 kg, la fila de 3 a 5 no existía —ni en la pantalla
+  // ni en la cabeza de nadie— y un envío de 4 kg terminaba cobrándose por porcentaje sin
+  // que se enterara nadie. Encima los rangos podían pisarse entre sí.
+  //
+  // Con las bandas fijas la grilla muestra los nueve tramos siempre, llenos o vacíos: un
+  // hueco pasa a ser una celda gris que se ve.
+  // ⚠️ Y las filas VIEJAS que no son una banda se siguen mostrando, marcadas.
+  // Si se mostraran solo las bandas, la tarifa de un cliente cargada con rangos libres
+  // —por ejemplo 20 a 29,5 kg— desaparecería de la pantalla y la grilla se vería vacía
+  // mientras el sistema le sigue cobrando esos precios. Un precio que se cobra y no se ve
+  // es exactamente lo que estamos tratando de que no pase.
   function filasDeGrilla() {
-    if (!esPorKg()) return TARIFAS_BANDAS;
-    const vistos = new Map();
-    (matrizActual ? matrizActual.overrides : [])
-      .filter((o) => o.peso_min !== null)
-      .forEach((o) => {
-        if (!vistos.has(o.peso_min)) vistos.set(o.peso_min, { min: o.peso_min, max: o.peso_max });
-      });
-    return [...vistos.values()].sort((a, b) => a.min - b.min);
+    const viejas = (matrizActual ? matrizActual.overrides : [])
+      .filter((o) => o.peso_min !== null && !TARIFAS_BANDAS.some((b) => b.min === o.peso_min && b.max === o.peso_max));
+    const vistas = new Map();
+    viejas.forEach((o) => {
+      const k = `${o.peso_min}|${o.peso_max}`;
+      if (!vistas.has(k)) vistas.set(k, { min: o.peso_min, max: o.peso_max, vieja: true });
+    });
+    if (vistas.size === 0) return TARIFAS_BANDAS;
+    return [...TARIFAS_BANDAS, ...vistas.values()].sort((a, b) => a.min - b.min || (a.vieja ? 1 : -1));
   }
 
   async function cargarMatriz() {
@@ -461,7 +475,9 @@
     const fuelPropio = clienteData ? clienteData.fuel_pct_propio : null;
     fuel.value = fuelPropio === null || fuelPropio === undefined ? '' : fuelPropio;
     btnBorrarFuel.classList.toggle('hidden', fuelPropio === null || fuelPropio === undefined);
-    rangos.classList.toggle('hidden', !esPorKg());
+    // La barra de "agregar rango" ya no va: los tramos son las nueve bandas fijas y están
+    // todos en la grilla. Se deja el elemento en el HTML para no romper nada, oculto.
+    if (rangos) rangos.classList.add('hidden');
     hint.textContent = esPorKg()
       ? 'Precio fijo por kilo: reemplaza el flete. El fuel, el seguro y los recargos del courier se cobran igual.'
       : 'Porcentaje de ganancia sobre el flete del courier. Es el modo normal.';
@@ -472,7 +488,7 @@
     const ayuda = document.getElementById('tarifas-grid-ayuda');
     if (ayuda) {
       ayuda.textContent = esPorKg()
-        ? 'Hacé clic en cualquier celda para ponerle otro precio a esa zona. La ✕ de la celda quita ese precio; la ✕ del rango borra la fila entera. Las celdas en gris se cobran con el porcentaje de ganancia.'
+        ? 'Hacé clic en cualquier celda para ponerle el precio por kilo de esa zona y ese tramo de peso. Los tramos son los mismos nueve de siempre. La ✕ de la celda quita ese precio; la ✕ de la fila borra el tramo entero. Las celdas en gris NO tienen precio por kilo: se cobran con el porcentaje de ganancia.'
         : '';
     }
 
@@ -534,13 +550,7 @@
       return;
     }
     const filas = filasDeGrilla();
-    if (esPorKg() && filas.length === 0) {
-      wrap.innerHTML =
-        '<div class="empty">Este cliente todavia no tiene rangos de peso en esta tabla. ' +
-        'Agregá el primero arriba (ej: desde 1 hasta 10 kg, USD 5,00 el kilo).</div>';
-      return;
-    }
-    let html = '<table class="tarifas-grid"><thead><tr><th></th>';
+    let html = '<table class="tarifas-grid"><thead><tr><th></th><th class="col-todas">Todas</th>';
     TARIFAS_ZONAS.forEach((z) => {
       html += `<th>Zona ${z}</th>`;
     });
@@ -550,7 +560,25 @@
       const borrarFila = esPorKg()
         ? `<span class="rango-del" title="Borrar todo el rango" data-min="${banda.min}" data-max="${maxAttr}">✕</span>`
         : '';
-      html += `<tr><td class="banda-label">${bandaLabel(banda)}${borrarFila}</td>`;
+      const etiqueta = banda.vieja
+        ? `${bandaLabel(banda)} <span class="tramo-viejo" title="Este tramo se cargó cuando los rangos eran libres. Sigue cobrando igual que siempre, pero no se puede editar: borralo y volvé a cargarlo sobre los tramos de arriba.">tramo viejo</span>`
+        : bandaLabel(banda);
+      html += `<tr class="${banda.vieja ? 'fila-vieja' : ''}"><td class="banda-label">${etiqueta}${borrarFila}</td>`;
+
+      // Columna "Todas": el precio de ese tramo para las seis zonas de una. Reemplaza a la
+      // barra de "agregar rango" que había cuando los rangos se inventaban a mano. Poner
+      // el precio zona por zona seguiría siendo posible, pero serían seis clics por fila.
+      {
+        const ob = overrideBanda(banda.min);
+        const propio = !!ob;
+        const texto = ob ? formatoValor(valorDe(ob)) : '—';
+        html += `<td class="${banda.vieja ? 'celda-vieja' : 'tarifa-cell'} col-todas ${propio ? 'propio' : 'heredado'}"`
+          + ` data-zona="" data-min="${banda.min}" data-max="${maxAttr}"`
+          + ` title="Precio de este tramo para las seis zonas. Hacé clic para ponerlo.">`
+          + `${propio ? '<span class="cell-del" title="Quitar el precio de todas las zonas">✕</span>' : ''}`
+          + `<span class="cell-val">${texto}</span></td>`;
+      }
+
       TARIFAS_ZONAS.forEach((zona) => {
         const { val, propio, porPct } = valorEfectivo(zona, banda);
         let cls = propio ? 'tarifa-cell propio' : 'tarifa-cell heredado';
@@ -560,7 +588,8 @@
         const title = porPct
           ? 'Esta zona no tiene precio por kilo: se cobra con el porcentaje de ganancia. Hacé clic para ponerle un precio por kilo.'
           : 'Hacé clic para cambiar el precio de esta zona';
-        html += `<td class="${cls}" data-zona="${zona}" data-min="${banda.min}" data-max="${maxAttr}" title="${title}">${del}<span class="cell-val">${texto}</span></td>`;
+        if (banda.vieja) cls = cls.replace('tarifa-cell', 'celda-vieja');
+        html += `<td class="${cls}" data-zona="${zona}" data-min="${banda.min}" data-max="${maxAttr}" title="${banda.vieja ? 'Tramo viejo: se cobra igual que siempre, pero no se puede editar desde acá. Borrá la fila y volvé a cargarla sobre los tramos fijos.' : title}">${banda.vieja ? '' : del}<span class="cell-val">${texto}</span></td>`;
       });
       html += '</tr>';
     });
@@ -592,9 +621,12 @@
     });
   }
 
+  // zona vacía = la columna "Todas", que es el nivel BANDA: un solo precio para las seis
+  // zonas de ese tramo de peso. Es lo que antes hacía la barra de "agregar rango", ahora
+  // en un clic y en el mismo lugar donde se mira todo lo demás.
   function coordsDeCelda(td) {
     return {
-      zona: Number(td.dataset.zona),
+      zona: td.dataset.zona === '' ? null : Number(td.dataset.zona),
       peso_min: Number(td.dataset.min),
       peso_max: td.dataset.max === '' ? null : Number(td.dataset.max),
     };
@@ -855,6 +887,12 @@
     });
     document.getElementById('btn-borrar-seguro').addEventListener('click', () => guardarSeguro(null, null));
 
+    // ⚠️ DESDE EL 11/08/2026 ESTA BARRA ESTÁ OCULTA. Los tramos de peso pasaron a ser las
+    // nueve bandas fijas, iguales que en el modo porcentaje, y ya están todas en la grilla:
+    // no hay ningún rango que agregar, se hace clic en la celda y listo. El código queda
+    // por si hiciera falta volver atrás; si alguien vuelve a mostrar la barra, el servidor
+    // igual rechaza cualquier rango que no sea una banda.
+    //
     // Alta de un rango de peso (solo modo por kilo). Por defecto se guarda para "todas las
     // zonas" y después se puede pisar zona por zona haciendo clic en la celda.
     //

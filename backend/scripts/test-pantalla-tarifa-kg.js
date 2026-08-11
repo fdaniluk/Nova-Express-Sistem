@@ -122,8 +122,9 @@ async function main() {
   const bandasPct = await page.evaluate(() =>
     [...document.querySelectorAll('td.banda-label')].map((t) => t.textContent.trim()));
   check('se ven las 9 bandas fijas de siempre', bandasPct.length === 9, bandasPct.join(' | '));
+  // Se saltea la columna "Todas": esa muestra "—" mientras no tenga un valor propio.
   const celdaPct = await page.evaluate(() => {
-    const td = document.querySelector('td.tarifa-cell .cell-val');
+    const td = document.querySelector('td.tarifa-cell:not(.col-todas) .cell-val');
     return td ? td.textContent.trim() : null;
   });
   check('las celdas muestran porcentajes', /%$/.test(celdaPct || ''), String(celdaPct));
@@ -133,49 +134,57 @@ async function main() {
   await page.selectOption('#tarifas-modo-select', 'por_kg');
   await esperar(1500);
 
-  check('el control de rangos aparece',
-    await page.evaluate(() => !document.getElementById('tarifas-rangos').classList.contains('hidden')));
+  // Desde el 11/08/2026 no hay barra de "agregar rango": los tramos son las nueve bandas
+  // fijas y están todas en la grilla, llenas o vacías. Un hueco es una celda que se ve.
+  check('la barra de agregar rango ya no se usa',
+    await page.evaluate(() => document.getElementById('tarifas-rangos').classList.contains('hidden')));
   check('la etiqueta del general pasa a USD por kilo',
     /kilo/i.test(await page.textContent('#tarifas-general-label')),
     await page.textContent('#tarifas-general-label'));
-  check('avisa que todavía no hay rangos cargados',
-    /rangos de peso/i.test(await page.textContent('#tarifas-grid')),
-    (await page.textContent('#tarifas-grid')).slice(0, 80));
+  const bandasKg = await page.evaluate(() =>
+    [...document.querySelectorAll('td.banda-label')].map((t) => t.textContent.trim()));
+  check('en modo por kilo se ven las MISMAS 9 bandas', bandasKg.length === 9, bandasKg.join(' | '));
+  check('sin nada cargado, los tramos se ven vacíos y no desaparecen',
+    (await page.textContent('#tarifas-grid')).includes('—'));
 
   // ── 3. Cargar el rango del ejemplo real: 1 a 10 kg a USD 5 ──────────────────
   // Cada tabla (servicio + tipo) tiene sus propios rangos, igual que la matriz de profit.
   // Se carga en UPS Expedited Expo, que es la que después cotiza el cotizador.
-  console.log('\n3. Cargar un rango (1 a 10 kg, USD 5 el kilo) en UPS Expedited Expo\n');
+  console.log('\n3. Cargar el tramo 5-10 kg a USD 5 el kilo en UPS Expedited Expo\n');
   await page.click('#tarifas-tabs .tab[data-serv="UPS_EXP"][data-tipo="export"]');
   await esperar(1200);
   check('se puede cambiar de tabla estando en modo por kilo',
-    await page.evaluate(() => !document.getElementById('tarifas-rangos').classList.contains('hidden')));
+    (await page.$$('td.banda-label')).length === 9);
 
-  await page.fill('#rango-desde', '1');
-  await page.fill('#rango-hasta', '10');
-  await page.fill('#rango-precio', '5');
-  await page.click('#btn-agregar-rango');
+  // La columna "Todas" pone el precio del tramo para las seis zonas de un clic. Es lo que
+  // antes hacía la barra de rangos, sin poder inventar un tramo que no existe.
+  check('existe la columna "Todas"', !!(await page.$('td.tarifa-cell.col-todas[data-min="5"]')));
+  await page.click('td.tarifa-cell.col-todas[data-min="5"]');
+  await esperar(400);
+  await page.fill('td.tarifa-cell.col-todas[data-min="5"] input', '5');
+  await page.press('td.tarifa-cell.col-todas[data-min="5"] input', 'Enter');
   await esperar(1500);
 
-  const filas = await page.evaluate(() =>
-    [...document.querySelectorAll('td.banda-label')].map((t) => t.textContent.trim()));
-  check('aparece la fila del rango', filas.some((f) => f.startsWith('1-10 kg')), filas.join(' | '));
-
-  const valores = await page.evaluate(() =>
-    [...document.querySelectorAll('td.tarifa-cell .cell-val')].map((v) => v.textContent.trim()));
-  check('las seis zonas muestran USD 5.00',
+  const valores = await page.$$eval('td.tarifa-cell[data-min="5"]:not(.col-todas) .cell-val',
+    (v) => v.map((x) => x.textContent.trim()));
+  check('las seis zonas de 5-10 kg muestran USD 5.00',
     valores.length === 6 && valores.every((v) => v === 'USD 5.00'), valores.join(' | '));
+
+  const otroTramo = await page.$$eval('td.tarifa-cell[data-min="20"]:not(.col-todas) .cell-val',
+    (v) => v.map((x) => x.textContent.trim()));
+  check('y los demás tramos siguen sin precio por kilo',
+    otroTramo.every((v) => /ganancia|—/.test(v)), otroTramo.join(' | '));
 
   // ── 4. Pisar una zona puntual ───────────────────────────────────────────────
   console.log('\n4. Pisar el precio de una zona\n');
-  await page.evaluate(() => document.querySelector('td.tarifa-cell[data-zona="3"]').click());
+  await page.click('td.tarifa-cell[data-zona="3"][data-min="5"]');
   await esperar(400);
-  await page.fill('td.tarifa-cell[data-zona="3"] input', '7.5');
-  await page.press('td.tarifa-cell[data-zona="3"] input', 'Enter');
+  await page.fill('td.tarifa-cell[data-zona="3"][data-min="5"] input', '7.5');
+  await page.press('td.tarifa-cell[data-zona="3"][data-min="5"] input', 'Enter');
   await esperar(1500);
 
   const trasEditar = await page.evaluate(() =>
-    [...document.querySelectorAll('td.tarifa-cell')].map((td) => ({
+    [...document.querySelectorAll('td.tarifa-cell[data-min="5"]:not(.col-todas)')].map((td) => ({
       zona: td.dataset.zona,
       val: td.querySelector('.cell-val').textContent.trim(),
       propio: td.classList.contains('propio'),
@@ -197,23 +206,24 @@ async function main() {
   check('la pantalla explica que se hace clic en la celda',
     /clic en cualquier celda/i.test(ayuda), ayuda);
   check('y explica qué hace cada ✕',
-    /✕ de la celda/.test(ayuda) && /✕ del rango/.test(ayuda));
-  check('existe el selector de zona en el alta', !!(await page.$('#rango-zona')));
+    /✕ de la celda/.test(ayuda) && /✕ de la fila/.test(ayuda));
 
-  await page.fill('#rango-desde', '40');
-  await page.fill('#rango-hasta', '50');
-  await page.fill('#rango-precio', '8');
-  await page.selectOption('#rango-zona', '1');
-  await page.click('#btn-agregar-rango');
+  // Una sola zona con precio por kilo y las otras cinco por porcentaje, en el tramo 40-50.
+  await page.click('td.tarifa-cell[data-zona="1"][data-min="40"]');
+  await esperar(400);
+  await page.fill('td.tarifa-cell[data-zona="1"][data-min="40"] input', '8');
+  await page.press('td.tarifa-cell[data-zona="1"][data-min="40"] input', 'Enter');
   await esperar(2000);
 
-  const grillaMixta = await page.textContent('#tarifas-grid');
-  check('la zona elegida queda con precio por kilo', /USD 8\.00/.test(grillaMixta),
-    grillaMixta.slice(0, 200));
-  check('las otras zonas dicen que van por porcentaje',
-    /% de ganancia/.test(grillaMixta), grillaMixta.slice(0, 260));
-  const grises = await page.$$eval('td.tarifa-cell.por-pct', (els) => els.length);
-  check('quedan 5 celdas en gris en ese rango (zonas 2 a 6)', grises === 5, `grises=${grises}`);
+  const fila40 = await page.$$eval('td.tarifa-cell[data-min="40"]:not(.col-todas)',
+    (els) => els.map((td) => ({ zona: td.dataset.zona,
+      val: td.querySelector('.cell-val').textContent.trim(),
+      porPct: td.classList.contains('por-pct') })));
+  check('la zona elegida queda con precio por kilo',
+    (fila40.find((c) => c.zona === '1') || {}).val === 'USD 8.00',
+    JSON.stringify(fila40.find((c) => c.zona === '1')));
+  const grises = fila40.filter((c) => c.porPct).length;
+  check('las otras cinco zonas de ese tramo van por porcentaje', grises === 5, `grises=${grises}`);
 
   console.log('\n5. Fuel propio del cliente\n');
   await page.fill('#tarifas-fuel-input', '25');
@@ -273,6 +283,46 @@ async function main() {
   const texto2 = await page.textContent('#results');
   check('igual cotiza (con el porcentaje), no queda en cero',
     /Total/.test(texto2 || '') && !/USD 0\.00\s*$/.test(texto2 || ''), (texto2 || '').slice(0, 80));
+
+  // ── 7-bis. Un tramo viejo se sigue VIENDO ──────────────────────────────────
+  //
+  // Es el control más importante de este test. En producción hay clientes con tramos
+  // cargados de cuando los rangos eran libres —20 a 29,5 kg, 32,5 en adelante— que no
+  // coinciden con ninguna banda. Si la grilla mostrara solo las bandas, esos precios
+  // desaparecerían de la pantalla mientras el sistema los sigue cobrando. Un precio que
+  // se cobra y no se ve es justamente lo que hay que evitar.
+  console.log('\n7-bis. Un tramo viejo, de los que no son una banda, se sigue viendo\n');
+
+  // Base propia: la de arriba ya se cerró. Se escribe la fila directo porque el servidor
+  // ya NO acepta un rango que no sea una banda: es justamente el caso viejo que hay que
+  // poder seguir viendo.
+  await new Promise((res, rej) => {
+    const d2 = new (require('sqlite3').Database)(DB);
+    d2.run(
+      `INSERT INTO tarifa_kg_overrides (cliente_id, servicio, tipo, zona, peso_min, peso_max, precio_kg)
+       VALUES (?, 'UPS_EXP', 'export', NULL, 20, 29.5, 4.32)`,
+      [cliente.id],
+      (e) => d2.close(() => (e ? rej(e) : res()))
+    );
+  });
+
+  await page.goto(BASE + '/pages/clientes-perfil.html?id=' + cliente.id, { waitUntil: 'networkidle' });
+  await esperar(1200);
+  await page.click('#btn-editar-tarifas');
+  await esperar(1200);
+  await page.click('#tarifas-tabs .tab[data-serv="UPS_EXP"][data-tipo="export"]');
+  await esperar(1500);
+
+  const filaVieja = await page.$('tr.fila-vieja');
+  check('el tramo viejo aparece en la grilla', !!filaVieja);
+  const textoVieja = filaVieja ? await filaVieja.textContent() : '';
+  check('y dice el rango que tiene de verdad (20-29.5)', /29\.5/.test(textoVieja), textoVieja.slice(0, 60));
+  check('está marcado como tramo viejo', /tramo viejo/i.test(textoVieja), textoVieja.slice(0, 60));
+  check('y muestra el precio que cobra', /4\.32/.test(textoVieja), textoVieja.slice(0, 80));
+  check('no se puede editar desde la grilla',
+    (await page.$$('tr.fila-vieja td.tarifa-cell')).length === 0);
+  check('las nueve bandas siguen estando además del tramo viejo',
+    (await page.$$('tr:not(.fila-vieja) td.banda-label')).length === 9);
 
   console.log('\n8. Sin errores de JavaScript\n');
   const rel = errores.filter((x) => !/favicon|net::ERR|Failed to load resource/i.test(x));

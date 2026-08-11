@@ -151,7 +151,10 @@ async function main() {
   await put(`/api/clientes/${cli2.id}`, { ...cli2, modo_tarifa: 'por_kg', fuel_pct_propio: 20 });
   await fetch(`${BASE}/api/clientes/${cli2.id}/tarifa-kg`, {
     method: 'PUT', headers: H(),
-    body: JSON.stringify({ servicio: 'UPS_EXP', tipo: 'export', zona: null, peso_min: 0, peso_max: null, precio_kg: 9 }),
+    // Un precio para TODO el servicio: sin zona y sin banda. Antes esto se escribía como
+    // "desde 0 sin tope"; desde que los tramos son las nueve bandas fijas, "todo" es el
+    // nivel tabla (peso_min null), que es lo que siempre quiso decir.
+    body: JSON.stringify({ servicio: 'UPS_EXP', tipo: 'export', zona: null, peso_min: null, peso_max: null, precio_kg: 9 }),
   });
   const cotKg = (await post('/api/liquidaciones/cotizar', {
     pais: 'Estados Unidos', tipo: 'export', servicio: 'UPS_EXP',

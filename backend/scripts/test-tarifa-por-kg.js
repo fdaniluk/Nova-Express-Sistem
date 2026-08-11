@@ -187,28 +187,30 @@ const core = require('../../shared/cotizador/cotizador-core.js');
   check('la zona le gana al general', (await resolver(1, 6)).precioKg === 8);
   check('y no afecta a las otras zonas', (await resolver(2, 6)).precioKg === 9);
 
-  await guardar(null, 1, 10, 5);
-  check('el rango de peso le gana a la zona', (await resolver(1, 6)).precioKg === 5);
-  check('fuera del rango sigue mandando la zona', (await resolver(1, 30)).precioKg === 8);
+  await guardar(null, 5, 10, 5);
+  check('la banda de peso le gana a la zona', (await resolver(1, 6)).precioKg === 5);
+  check('fuera de la banda sigue mandando la zona', (await resolver(1, 30)).precioKg === 8);
 
-  await guardar(1, 1, 10, 4);
-  check('la celda (zona + rango) le gana a todo', (await resolver(1, 6)).precioKg === 4);
-  check('otra zona en el mismo rango usa el rango general', (await resolver(3, 6)).precioKg === 5);
+  await guardar(1, 5, 10, 4);
+  check('la celda (zona + banda) le gana a todo', (await resolver(1, 6)).precioKg === 4);
+  check('otra zona en la misma banda usa la banda general', (await resolver(3, 6)).precioKg === 5);
 
-  // Bordes del rango: los dos límites son inclusivos.
-  check('el límite de abajo entra en el rango', (await resolver(1, 1)).precioKg === 4);
-  check('el límite de arriba entra en el rango', (await resolver(1, 10)).precioKg === 4);
-  check('un kilo más ya sale del rango', (await resolver(1, 10.5)).precioKg === 8);
+  // Bordes de la banda 5-10: son los MISMOS que usa la matriz de porcentaje, así que un
+  // envío de 5,0 kg cae en la banda de abajo y uno de 10,0 en la de 5-10. Antes esto
+  // dependía de cómo hubiera cargado los rangos cada uno; ahora es igual para todos.
+  check('5 kg justos caen en la banda de abajo, no en la de 5-10', (await resolver(1, 5)).precioKg === 8);
+  check('10 kg justos entran en la banda 5-10', (await resolver(1, 10)).precioKg === 4);
+  check('10,5 kg ya salieron de la banda', (await resolver(1, 10.5)).precioKg === 8);
 
-  // Rango sin tope.
-  await guardar(null, 100, null, 2);
-  check('un rango sin tope aplica de ahí en adelante', (await resolver(4, 5000)).precioKg === 2);
+  // Banda sin tope.
+  await guardar(null, 50, null, 2);
+  check('la banda de 50+ aplica de ahí en adelante', (await resolver(4, 5000)).precioKg === 2);
 
   // ── 5. Si falta el rango NO cotiza cero ────────────────────────────────────
   console.log('\n5. Un agujero en la tabla no puede cotizar cero\n');
 
   await db.prepare('DELETE FROM tarifa_kg_overrides WHERE cliente_id = ?').run(cli);
-  await guardar(null, 1, 10, 5);   // solo de 1 a 10 kg
+  await guardar(null, 5, 10, 5);   // solo la banda de 5 a 10 kg
 
   const dentro = await profitService.resolverTarifaVenta({
     clienteId: cli, servicio: 'UPS_EXP', tipo: 'export', zona: 1, pesoFacturable: 6,
@@ -268,25 +270,27 @@ const core = require('../../shared/cotizador/cotizador-core.js');
     try { await profitService.upsertOverrideKg(cli, body); return false; }
     catch (e) { return e.status === 400; }
   };
-  check('no acepta un "hasta" menor que el "desde"',
-    await rechaza({ servicio: 'UPS_EXP', tipo: 'export', zona: null, peso_min: 10, peso_max: 5, precio_kg: 3 }));
+  check('no acepta una banda inventada (1-3 kg)',
+    await rechaza({ servicio: 'UPS_EXP', tipo: 'export', zona: null, peso_min: 1, peso_max: 3, precio_kg: 3 }));
+  check('no acepta un "hasta" que no sea el de la banda',
+    await rechaza({ servicio: 'UPS_EXP', tipo: 'export', zona: null, peso_min: 5, peso_max: 7, precio_kg: 3 }));
   check('no acepta un "hasta" sin "desde"',
     await rechaza({ servicio: 'UPS_EXP', tipo: 'export', zona: null, peso_min: null, peso_max: 10, precio_kg: 3 }));
   check('no acepta un precio por kilo vacío',
-    await rechaza({ servicio: 'UPS_EXP', tipo: 'export', zona: null, peso_min: 1, peso_max: 10, precio_kg: '' }));
+    await rechaza({ servicio: 'UPS_EXP', tipo: 'export', zona: null, peso_min: 5, peso_max: 10, precio_kg: '' }));
   check('no acepta un servicio inventado',
-    await rechaza({ servicio: 'FEDEX', tipo: 'export', zona: null, peso_min: 1, peso_max: 10, precio_kg: 3 }));
+    await rechaza({ servicio: 'FEDEX', tipo: 'export', zona: null, peso_min: 5, peso_max: 10, precio_kg: 3 }));
   check('no acepta una zona fuera de 1..6',
-    await rechaza({ servicio: 'UPS_EXP', tipo: 'export', zona: 9, peso_min: 1, peso_max: 10, precio_kg: 3 }));
+    await rechaza({ servicio: 'UPS_EXP', tipo: 'export', zona: 9, peso_min: 5, peso_max: 10, precio_kg: 3 }));
 
   // Volver a guardar las mismas coordenadas PISA, no duplica.
   await profitService.upsertOverrideKg(cli, {
-    servicio: 'UPS_EXP', tipo: 'export', zona: null, peso_min: 1, peso_max: 10, precio_kg: 7,
+    servicio: 'UPS_EXP', tipo: 'export', zona: null, peso_min: 5, peso_max: 10, precio_kg: 7,
   });
   const filas = await db
-    .prepare('SELECT COUNT(*) AS n FROM tarifa_kg_overrides WHERE cliente_id = ? AND peso_min = 1')
+    .prepare('SELECT COUNT(*) AS n FROM tarifa_kg_overrides WHERE cliente_id = ? AND peso_min = 5')
     .get(cli);
-  check('volver a guardar el mismo rango lo pisa en vez de duplicarlo', filas.n === 1, `${filas.n}`);
+  check('volver a guardar la misma banda la pisa en vez de duplicarla', filas.n === 1, `${filas.n}`);
   check('y queda el valor nuevo',
     (await profitService.resolverTarifaKg({ clienteId: cli, servicio: 'UPS_EXP', tipo: 'export', zona: 5, pesoFacturable: 6 })).precioKg === 7);
 
@@ -300,12 +304,12 @@ const core = require('../../shared/cotizador/cotizador-core.js');
     matriz.overrides.every((o) => o.precio_kg !== undefined && o.profit_pct === undefined));
 
   const borro = await profitService.eliminarOverrideKg(cli, {
-    servicio: 'UPS_EXP', tipo: 'export', zona: null, peso_min: 1, peso_max: 10,
+    servicio: 'UPS_EXP', tipo: 'export', zona: null, peso_min: 5, peso_max: 10,
   });
-  check('se puede borrar un rango', borro === true);
+  check('se puede borrar una banda', borro === true);
   check('y después ya no está',
     (await profitService.obtenerMatrizKg(cli, 'UPS_EXP', 'export')).overrides
-      .filter((o) => o.peso_min === 1).length === 0);
+      .filter((o) => o.peso_min === 5).length === 0);
 
   // ── 9. La matriz de profit no se tocó ──────────────────────────────────────
   console.log('\n9. La matriz de profit de siempre sigue intacta\n');
@@ -313,7 +317,7 @@ const core = require('../../shared/cotizador/cotizador-core.js');
   // Se deja una tarifa por kilo cargada y se vuelve el cliente a porcentaje: cambiar de
   // modo no puede borrar lo cargado (la oficina tiene que poder ir y volver).
   await profitService.upsertOverrideKg(cli, {
-    servicio: 'UPS_EXP', tipo: 'export', zona: null, peso_min: 1, peso_max: 10, precio_kg: 6,
+    servicio: 'UPS_EXP', tipo: 'export', zona: null, peso_min: 5, peso_max: 10, precio_kg: 6,
   });
   await db.prepare("UPDATE clientes SET modo_tarifa = 'porcentaje' WHERE id = ?").run(cli);
   const despues = await profitService.resolverTarifaVenta({

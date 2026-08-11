@@ -325,27 +325,51 @@ function validarCoordenadasKg({ servicio, tipo, zona, peso_min, peso_max }) {
     }
   }
 
+  // ── Bandas fijas, iguales que en la matriz de porcentaje (decidido el 11/08/2026) ──
+  //
+  // Antes el rango era libre: cada cliente podía tener 1-3 kg, 2-7 kg, lo que fuera. Eso
+  // abría tres agujeros que solo se veían al cobrar:
+  //
+  //   · HUECOS. Cargar 1-3 kg dejaba a un envío de 4 kg sin precio por kilo. Caía al
+  //     porcentaje y salía otro número, sin avisar nada.
+  //   · SUPERPUESTOS. Nada impedía cargar 1-10 y después 5-15. El sistema elegía el de
+  //     "desde" más alto y dejaba un aviso en la consola del servidor, que no lee nadie.
+  //   · LOS BORDES. Los límites eran inclusivos de los dos lados, así que 1-3 y 3-5 —dos
+  //     rangos pegados, que parecen perfectos— ya se pisaban en los 3 kg exactos.
+  //
+  // Con las bandas fijas los tres desaparecen de raíz: no se pueden expresar. Y el sistema
+  // pasa a tener UNA sola forma de pensar el peso, la misma para el porcentaje y para el
+  // precio por kilo.
+  //
+  // Las filas viejas con rangos libres, si las hubiera, NO se tocan: siguen resolviendo
+  // como antes y el panel de salud las marca. Reescribirle el precio a un cliente sin que
+  // nadie lo mire sería peor que el problema que se arregla.
   const vacio = (v) => v === null || v === undefined || v === '';
+
+  const minProvisto = !vacio(peso_min);
+  const maxProvisto = !vacio(peso_max);
 
   let minNorm = null;
   let maxNorm = null;
-  if (!vacio(peso_min)) {
+
+  if (minProvisto) {
     minNorm = Number(peso_min);
-    if (!Number.isFinite(minNorm) || minNorm < 0) {
-      throw err(`peso desde inválido: ${peso_min}`);
+    const banda = BANDAS.find((b) => b.min === minNorm);
+    if (!banda) {
+      throw err(
+        `banda inválida: peso_min ${peso_min} no coincide con ninguna banda. Válidas: ` +
+          BANDAS.map((b) => (b.max === null ? `${b.min}+` : `${b.min}-${b.max}`)).join(', ')
+      );
     }
-  }
-  if (!vacio(peso_max)) {
-    maxNorm = Number(peso_max);
-    if (!Number.isFinite(maxNorm) || maxNorm <= 0) {
-      throw err(`peso hasta inválido: ${peso_max}`);
+    maxNorm = banda.max;
+    if (maxProvisto && Number(peso_max) !== banda.max) {
+      throw err(
+        `banda inválida: para peso_min ${minNorm} el peso_max debe ser ` +
+          (banda.max === null ? 'vacío' : banda.max)
+      );
     }
-  }
-  if (minNorm === null && maxNorm !== null) {
+  } else if (maxProvisto) {
     throw err('rango inválido: hay "peso hasta" sin "peso desde"');
-  }
-  if (minNorm !== null && maxNorm !== null && maxNorm <= minNorm) {
-    throw err(`rango inválido: "hasta" (${maxNorm}) tiene que ser mayor que "desde" (${minNorm})`);
   }
 
   return { servicio, tipo, zona: zonaNorm, peso_min: minNorm, peso_max: maxNorm };
@@ -400,18 +424,38 @@ async function resolverTarifaKg({ clienteId, servicio, tipo, zona, pesoFacturabl
   // El rango es libre, así que puede haber más de una fila que contenga al peso si la
   // oficina cargó rangos superpuestos. Se toma la de "desde" más alto (la más específica)
   // y se avisa por consola, que es un error de carga, no de cálculo.
+  // Desde el 11/08/2026 los rangos SON las bandas fijas, así que la banda del peso es la
+  // única fila que puede aplicar: no hay dos candidatas posibles y el resultado no depende
+  // del orden en que estén cargadas. Se busca por banda exacta.
+  //
+  // El camino de abajo queda solo para filas viejas con rangos libres, de antes del
+  // cambio. Se resuelven como siempre se resolvieron —no se le cambia el precio a nadie
+  // por atrás— pero avisan.
+  const bandaDelPeso = derivarBanda(pf);
+  const esBanda = (r) => BANDAS.some((b) => b.min === r.peso_min);
   const enRango = (rows) => {
-    const candidatos = rows.filter(
-      (r) => Number.isFinite(pf) && pf >= r.peso_min && (r.peso_max === null || pf <= r.peso_max)
-    );
-    if (candidatos.length > 1) {
-      console.warn(
-        `[resolverTarifaKg] rangos superpuestos (cliente_id=${clienteId}, ${servicio}/${tipo}, ` +
-          `zona=${zonaNum}, pf=${pf}): ${candidatos.map((c) => `${c.peso_min}-${c.peso_max}`).join(', ')}. ` +
-          'Se usa el de "desde" más alto.'
-      );
+    // Las filas que SON bandas se resuelven por la banda del peso, y solo por ahí. Buscar
+    // "la fila que contenga al peso" entre ellas volvería a traer la ambigüedad de los
+    // bordes: un envío de 5,00 kg está adentro de la banda 0-5 y también toca el borde de
+    // la 5-10. La banda del peso es una sola, y es la misma que usa el porcentaje.
+    if (bandaDelPeso) {
+      const exacta = rows.find((r) => esBanda(r) && r.peso_min === bandaDelPeso.min);
+      if (exacta) return exacta;
     }
-    return candidatos.sort((a, b) => b.peso_min - a.peso_min)[0] || null;
+
+    // Solo las filas viejas, de cuando el rango era libre, se resuelven por contención.
+    const candidatos = rows.filter(
+      (r) => !esBanda(r) && Number.isFinite(pf) && pf >= r.peso_min
+        && (r.peso_max === null || pf <= r.peso_max)
+    );
+    if (candidatos.length === 0) return null;
+    console.warn(
+      `[resolverTarifaKg] rango que no es una banda fija (cliente_id=${clienteId}, ` +
+        `${servicio}/${tipo}, zona=${zonaNum}, pf=${pf}): ` +
+        `${candidatos.map((c) => `${c.peso_min}-${c.peso_max}`).join(', ')}. ` +
+        'Es una carga vieja: conviene rehacerla sobre las bandas.'
+    );
+    return candidatos.sort((a, b) => b.peso_min - a.peso_min)[0];
   };
 
   // 1. celda: zona + rango.
