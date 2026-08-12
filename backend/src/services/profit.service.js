@@ -11,48 +11,168 @@ const ZONAS = [1, 2, 3, 4, 5, 6];
 // Cómo se arma el precio de venta del flete de un cliente (clientes.modo_tarifa).
 const MODOS_TARIFA = ['porcentaje', 'por_kg'];
 
-// Bandas de peso fijas, en kg sobre peso facturable.
-// Límite inferior exclusivo, superior inclusivo, salvo la primera que incluye 0.
-// La banda 50+ no tiene tope (max = null).
-const BANDAS = [
+// ── Tramos de peso ───────────────────────────────────────────────────────────
+//
+// Un TRAMO es un intervalo de peso facturable. Toda la tarifa de un cliente —la de
+// porcentaje y la de precio por kilo— se apoya en el mismo juego de tramos, así hay una
+// sola forma de pensar el peso en todo el sistema.
+//
+// Límite inferior EXCLUSIVO, superior INCLUSIVO, salvo el primero que incluye el 0.
+// El último no tiene tope (max = null).
+//
+// ⚠️ EL JUEGO NO ES GLOBAL: cada cliente puede tener el suyo (tabla `cliente_tramos`).
+//
+// Se decidió el 12/08/2026, cuando la oficina confirmó que la tarifa de PIO ALVAREZ corta
+// en los 32 kg y no se puede cambiar. Forzarlo a los tramos de 5 en 5 habría significado
+// cobrarle otro precio, y meter el 32 como tramo global le habría ensuciado la tabla a los
+// otros 90 clientes. Lo que hay que garantizar no es que todos usen los mismos tramos,
+// sino que el juego de CADA cliente no tenga huecos, ni tramos pisados, ni bordes
+// ambiguos. De eso se ocupa `validarJuegoDeTramos()`.
+//
+// El cliente que no tiene tramos propios hereda estos.
+const TRAMOS_POR_DEFECTO = [
   { min: 0, max: 5 },
   { min: 5, max: 10 },
   { min: 10, max: 15 },
   { min: 15, max: 20 },
   { min: 20, max: 25 },
   { min: 25, max: 30 },
-  { min: 30, max: 40 },
-  { min: 40, max: 50 },
+  { min: 30, max: 35 },
+  { min: 35, max: 40 },
+  { min: 40, max: 45 },
+  { min: 45, max: 50 },
   { min: 50, max: null },
 ];
 
+// Nombre viejo. Se mantiene para no romper lo que ya lo importaba.
+const BANDAS = TRAMOS_POR_DEFECTO;
+
 /**
- * Deriva la banda de peso desde el peso facturable.
- * @returns {{min:number, max:number|null}|null} banda o null si el peso no es un número válido.
+ * Deriva el tramo que le corresponde a un peso dentro de un juego dado.
+ * @param {Array<{min:number,max:number|null}>} tramos juego del cliente.
+ * @returns {{min:number, max:number|null}|null} tramo, o null si el peso no es válido.
  */
-function derivarBanda(pesoFacturable) {
+function derivarTramo(tramos, pesoFacturable) {
   const pf = Number(pesoFacturable);
   if (!Number.isFinite(pf) || pf < 0) return null;
-  for (const banda of BANDAS) {
-    if (banda.max === null) {
-      if (pf > banda.min) return banda;
-    } else if (banda.min === 0) {
-      if (pf >= 0 && pf <= banda.max) return banda;
-    } else if (pf > banda.min && pf <= banda.max) {
-      return banda;
+  for (const tramo of tramos) {
+    if (tramo.max === null) {
+      if (pf > tramo.min) return tramo;
+    } else if (tramo.min === 0) {
+      if (pf >= 0 && pf <= tramo.max) return tramo;
+    } else if (pf > tramo.min && pf <= tramo.max) {
+      return tramo;
     }
   }
   return null;
 }
 
 /**
+ * Deriva el tramo usando el juego POR DEFECTO. Solo para llamadores que no tienen un
+ * cliente a mano; los que sí lo tienen usan `derivarTramo` con el juego del cliente.
+ * @returns {{min:number, max:number|null}|null} tramo o null si el peso no es válido.
+ */
+function derivarBanda(pesoFacturable) {
+  return derivarTramo(TRAMOS_POR_DEFECTO, pesoFacturable);
+}
+
+/**
+ * Valida un juego completo de tramos. Esta es la función que sostiene toda la garantía:
+ * mientras el juego pase por acá, es imposible que un peso caiga en un hueco, que dos
+ * tramos se pisen, o que un borde sea ambiguo.
+ *
+ * Reglas:
+ *   · al menos un tramo
+ *   · el primero arranca en 0
+ *   · cada tramo empieza EXACTAMENTE donde termina el anterior (sin huecos ni solapes)
+ *   · el último es abierto (max = null) y ninguno de los otros lo es
+ *   · todos los cortes son números finitos y crecientes
+ *
+ * @param {Array<{min:number,max:number|null}>} lista
+ * @returns {Array<{min:number,max:number|null}>} el juego normalizado y ordenado.
+ * @throws {Error} con .status = 400 y un mensaje que dice qué está mal.
+ */
+function validarJuegoDeTramos(lista) {
+  const err = (msg) => {
+    const e = new Error(msg);
+    e.status = 400;
+    return e;
+  };
+
+  if (!Array.isArray(lista) || lista.length === 0) {
+    throw err('el juego de tramos no puede estar vacío');
+  }
+
+  const norm = lista.map((t, i) => {
+    const min = Number(t.min ?? t.peso_min);
+    const maxCrudo = t.max ?? t.peso_max;
+    const max =
+      maxCrudo === null || maxCrudo === undefined || maxCrudo === '' ? null : Number(maxCrudo);
+    if (!Number.isFinite(min) || min < 0) {
+      throw err(`tramo ${i + 1}: "desde" inválido (${t.min ?? t.peso_min})`);
+    }
+    if (max !== null && (!Number.isFinite(max) || max <= min)) {
+      throw err(`tramo ${i + 1}: "hasta" (${max}) tiene que ser mayor que "desde" (${min})`);
+    }
+    return { min, max };
+  });
+
+  norm.sort((a, b) => a.min - b.min);
+
+  if (norm[0].min !== 0) {
+    throw err(`el primer tramo tiene que arrancar en 0, arranca en ${norm[0].min}`);
+  }
+
+  for (let i = 0; i < norm.length - 1; i += 1) {
+    if (norm[i].max === null) {
+      throw err(
+        `el tramo desde ${norm[i].min} está abierto pero no es el último. ` +
+          'Solo el último tramo puede no tener tope.'
+      );
+    }
+    if (norm[i].max !== norm[i + 1].min) {
+      const hueco = norm[i].max < norm[i + 1].min;
+      throw err(
+        hueco
+          ? `queda un hueco entre ${norm[i].max} y ${norm[i + 1].min} kg: ningún tramo cubre ese peso`
+          : `los tramos se pisan: uno termina en ${norm[i].max} y el siguiente arranca en ${norm[i + 1].min}`
+      );
+    }
+  }
+
+  if (norm[norm.length - 1].max !== null) {
+    throw err(
+      `el último tramo tiene que quedar abierto (de ${norm[norm.length - 1].min} kg en adelante), ` +
+        `si no los envíos de más de ${norm[norm.length - 1].max} kg se quedan sin precio`
+    );
+  }
+
+  return norm;
+}
+
+/**
+ * Devuelve el juego de tramos de un cliente: el suyo si lo tiene cargado, el por defecto
+ * si no. Es la única puerta de entrada; nadie debe leer `cliente_tramos` por su cuenta.
+ * @returns {Promise<Array<{min:number,max:number|null}>>}
+ */
+async function obtenerTramos(clienteId) {
+  const rows = await getDb()
+    .prepare('SELECT peso_min, peso_max FROM cliente_tramos WHERE cliente_id = ? ORDER BY peso_min')
+    .all(clienteId);
+  if (!rows || rows.length === 0) return TRAMOS_POR_DEFECTO;
+  return rows.map((r) => ({ min: r.peso_min, max: r.peso_max }));
+}
+
+/**
  * Valida y normaliza las coordenadas de un override.
- * Acepta zona (null | 1..6) y una banda expresada como par peso_min/peso_max, que debe
- * ser (null, null) o coincidir exactamente con una banda definida.
+ * Acepta zona (null | 1..6) y un tramo expresado como par peso_min/peso_max, que debe ser
+ * (null, null) o coincidir exactamente con un tramo DEL CLIENTE.
+ * @param {object} body coordenadas crudas.
+ * @param {Array<{min,max}>} [tramos] juego del cliente. Si no se pasa, el por defecto.
  * @returns {{servicio, tipo, zona, peso_min, peso_max}} coordenadas normalizadas.
  * @throws {Error} con .status = 400 ante cualquier coordenada inválida.
  */
-function validarCoordenadas({ servicio, tipo, zona, peso_min, peso_max }) {
+function validarCoordenadas({ servicio, tipo, zona, peso_min, peso_max }, tramos = TRAMOS_POR_DEFECTO) {
   const err = (msg) => {
     const e = new Error(msg);
     e.status = 400;
@@ -82,20 +202,20 @@ function validarCoordenadas({ servicio, tipo, zona, peso_min, peso_max }) {
   if (minProvisto) {
     pesoMinNorm = Number(peso_min);
     pesoMaxNorm = maxProvisto ? Number(peso_max) : null;
-    const banda = BANDAS.find((b) => b.min === pesoMinNorm);
-    if (!banda) {
+    const tramo = tramos.find((b) => b.min === pesoMinNorm);
+    if (!tramo) {
       throw err(
-        `banda inválida: peso_min ${peso_min} no coincide con ninguna banda definida ` +
-          `(${BANDAS.map((b) => b.min).join(', ')})`
+        `tramo inválido: peso_min ${peso_min} no coincide con ningún tramo de este cliente ` +
+          `(${tramos.map((b) => b.min).join(', ')})`
       );
     }
-    if (banda.max !== pesoMaxNorm) {
+    if (tramo.max !== pesoMaxNorm) {
       throw err(
-        `banda inválida: para peso_min ${pesoMinNorm} el peso_max debe ser ${banda.max}`
+        `tramo inválido: para peso_min ${pesoMinNorm} el peso_max debe ser ${tramo.max === null ? 'vacío' : tramo.max}`
       );
     }
   } else if (maxProvisto) {
-    throw err('banda inválida: peso_max provisto sin peso_min');
+    throw err('tramo inválido: peso_max provisto sin peso_min');
   }
 
   return { servicio, tipo, zona: zonaNorm, peso_min: pesoMinNorm, peso_max: pesoMaxNorm };
@@ -123,7 +243,7 @@ async function resolverProfit({ clienteId, servicio, tipo, zona, pesoFacturable 
     .get(clienteId);
   if (!cliente) return null;
 
-  const banda = derivarBanda(pesoFacturable);
+  const banda = derivarTramo(await obtenerTramos(clienteId), pesoFacturable);
   const zonaNum =
     zona === null || zona === undefined || zona === '' ? null : Number(zona);
 
@@ -216,7 +336,10 @@ async function obtenerMatriz(clienteId, servicio, tipo) {
  */
 async function upsertOverride(clienteId, body) {
   const db = getDb();
-  const { servicio, tipo, zona, peso_min, peso_max } = validarCoordenadas(body);
+  const { servicio, tipo, zona, peso_min, peso_max } = validarCoordenadas(
+    body,
+    await obtenerTramos(clienteId)
+  );
 
   if (body.profit_pct === null || body.profit_pct === undefined || body.profit_pct === '') {
     const e = new Error('profit_pct es obligatorio');
@@ -269,7 +392,10 @@ async function upsertOverride(clienteId, body) {
  */
 async function eliminarOverride(clienteId, body) {
   const db = getDb();
-  const { servicio, tipo, zona, peso_min } = validarCoordenadas(body);
+  const { servicio, tipo, zona, peso_min } = validarCoordenadas(
+    body,
+    await obtenerTramos(clienteId)
+  );
 
   const result = await db
     .prepare(
@@ -303,7 +429,7 @@ async function eliminarOverride(clienteId, body) {
  * que sea coherente (min >= 0, max > min).
  * @throws {Error} con .status = 400 ante cualquier coordenada inválida.
  */
-function validarCoordenadasKg({ servicio, tipo, zona, peso_min, peso_max }) {
+function validarCoordenadasKg({ servicio, tipo, zona, peso_min, peso_max }, tramos = TRAMOS_POR_DEFECTO) {
   const err = (msg) => {
     const e = new Error(msg);
     e.status = 400;
@@ -325,7 +451,7 @@ function validarCoordenadasKg({ servicio, tipo, zona, peso_min, peso_max }) {
     }
   }
 
-  // ── Bandas fijas, iguales que en la matriz de porcentaje (decidido el 11/08/2026) ──
+  // ── El rango tiene que ser un tramo DEL CLIENTE (11/08/2026, ampliado el 12/08) ──
   //
   // Antes el rango era libre: cada cliente podía tener 1-3 kg, 2-7 kg, lo que fuera. Eso
   // abría tres agujeros que solo se veían al cobrar:
@@ -337,13 +463,9 @@ function validarCoordenadasKg({ servicio, tipo, zona, peso_min, peso_max }) {
   //   · LOS BORDES. Los límites eran inclusivos de los dos lados, así que 1-3 y 3-5 —dos
   //     rangos pegados, que parecen perfectos— ya se pisaban en los 3 kg exactos.
   //
-  // Con las bandas fijas los tres desaparecen de raíz: no se pueden expresar. Y el sistema
-  // pasa a tener UNA sola forma de pensar el peso, la misma para el porcentaje y para el
-  // precio por kilo.
-  //
-  // Las filas viejas con rangos libres, si las hubiera, NO se tocan: siguen resolviendo
-  // como antes y el panel de salud las marca. Reescribirle el precio a un cliente sin que
-  // nadie lo mire sería peor que el problema que se arregla.
+  // Exigiendo que el rango sea un tramo del juego del cliente los tres desaparecen de raíz:
+  // no se pueden expresar, porque `validarJuegoDeTramos()` ya garantizó que el juego es
+  // continuo y sin solapes. Y el peso se piensa igual para el porcentaje y para el kilo.
   const vacio = (v) => v === null || v === undefined || v === '';
 
   const minProvisto = !vacio(peso_min);
@@ -354,18 +476,19 @@ function validarCoordenadasKg({ servicio, tipo, zona, peso_min, peso_max }) {
 
   if (minProvisto) {
     minNorm = Number(peso_min);
-    const banda = BANDAS.find((b) => b.min === minNorm);
-    if (!banda) {
+    const tramo = tramos.find((b) => b.min === minNorm);
+    if (!tramo) {
       throw err(
-        `banda inválida: peso_min ${peso_min} no coincide con ninguna banda. Válidas: ` +
-          BANDAS.map((b) => (b.max === null ? `${b.min}+` : `${b.min}-${b.max}`)).join(', ')
+        `tramo inválido: peso_min ${peso_min} no coincide con ningún tramo de este cliente. ` +
+          'Válidos: ' +
+          tramos.map((b) => (b.max === null ? `${b.min}+` : `${b.min}-${b.max}`)).join(', ')
       );
     }
-    maxNorm = banda.max;
-    if (maxProvisto && Number(peso_max) !== banda.max) {
+    maxNorm = tramo.max;
+    if (maxProvisto && Number(peso_max) !== tramo.max) {
       throw err(
-        `banda inválida: para peso_min ${minNorm} el peso_max debe ser ` +
-          (banda.max === null ? 'vacío' : banda.max)
+        `tramo inválido: para peso_min ${minNorm} el peso_max debe ser ` +
+          (tramo.max === null ? 'vacío' : tramo.max)
       );
     }
   } else if (maxProvisto) {
@@ -421,39 +544,34 @@ async function resolverTarifaKg({ clienteId, servicio, tipo, zona, pesoFacturabl
   const pf = Number(pesoFacturable);
   const zonaNum = zona === null || zona === undefined || zona === '' ? null : Number(zona);
 
-  // El rango es libre, así que puede haber más de una fila que contenga al peso si la
-  // oficina cargó rangos superpuestos. Se toma la de "desde" más alto (la más específica)
-  // y se avisa por consola, que es un error de carga, no de cálculo.
-  // Desde el 11/08/2026 los rangos SON las bandas fijas, así que la banda del peso es la
-  // única fila que puede aplicar: no hay dos candidatas posibles y el resultado no depende
-  // del orden en que estén cargadas. Se busca por banda exacta.
+  // El tramo del peso es UNO SOLO dentro del juego del cliente, así que la fila que aplica
+  // se busca por tramo exacto. No hay dos candidatas posibles y el resultado no depende del
+  // orden en que estén cargadas. Buscar "la fila que contenga al peso" traería de vuelta la
+  // ambigüedad de los bordes: un envío de 5,00 kg está adentro del tramo 0-5 y también toca
+  // el borde del 5-10.
   //
-  // El camino de abajo queda solo para filas viejas con rangos libres, de antes del
-  // cambio. Se resuelven como siempre se resolvieron —no se le cambia el precio a nadie
-  // por atrás— pero avisan.
-  const bandaDelPeso = derivarBanda(pf);
-  const esBanda = (r) => BANDAS.some((b) => b.min === r.peso_min);
+  // El camino por contención queda solo para filas viejas, cargadas cuando el rango era
+  // libre y que todavía no se migraron. Se resuelven como siempre se resolvieron —no se le
+  // cambia el precio a nadie por atrás— pero avisan por consola.
+  const tramos = await obtenerTramos(clienteId);
+  const tramoDelPeso = derivarTramo(tramos, pf);
+  const esTramo = (r) => tramos.some((b) => b.min === r.peso_min);
   const enRango = (rows) => {
-    // Las filas que SON bandas se resuelven por la banda del peso, y solo por ahí. Buscar
-    // "la fila que contenga al peso" entre ellas volvería a traer la ambigüedad de los
-    // bordes: un envío de 5,00 kg está adentro de la banda 0-5 y también toca el borde de
-    // la 5-10. La banda del peso es una sola, y es la misma que usa el porcentaje.
-    if (bandaDelPeso) {
-      const exacta = rows.find((r) => esBanda(r) && r.peso_min === bandaDelPeso.min);
+    if (tramoDelPeso) {
+      const exacta = rows.find((r) => esTramo(r) && r.peso_min === tramoDelPeso.min);
       if (exacta) return exacta;
     }
 
-    // Solo las filas viejas, de cuando el rango era libre, se resuelven por contención.
     const candidatos = rows.filter(
-      (r) => !esBanda(r) && Number.isFinite(pf) && pf >= r.peso_min
+      (r) => !esTramo(r) && Number.isFinite(pf) && pf >= r.peso_min
         && (r.peso_max === null || pf <= r.peso_max)
     );
     if (candidatos.length === 0) return null;
     console.warn(
-      `[resolverTarifaKg] rango que no es una banda fija (cliente_id=${clienteId}, ` +
+      `[resolverTarifaKg] rango que no es un tramo del cliente (cliente_id=${clienteId}, ` +
         `${servicio}/${tipo}, zona=${zonaNum}, pf=${pf}): ` +
         `${candidatos.map((c) => `${c.peso_min}-${c.peso_max}`).join(', ')}. ` +
-        'Es una carga vieja: conviene rehacerla sobre las bandas.'
+        'Es una carga vieja: conviene rehacerla sobre los tramos del cliente.'
     );
     return candidatos.sort((a, b) => b.peso_min - a.peso_min)[0];
   };
@@ -632,7 +750,10 @@ async function obtenerMatrizKg(clienteId, servicio, tipo) {
  */
 async function upsertOverrideKg(clienteId, body) {
   const db = getDb();
-  const { servicio, tipo, zona, peso_min, peso_max } = validarCoordenadasKg(body);
+  const { servicio, tipo, zona, peso_min, peso_max } = validarCoordenadasKg(
+    body,
+    await obtenerTramos(clienteId)
+  );
 
   if (body.precio_kg === null || body.precio_kg === undefined || body.precio_kg === '') {
     const e = new Error('precio_kg es obligatorio');
@@ -681,7 +802,10 @@ async function upsertOverrideKg(clienteId, body) {
 
 /** Borra una tarifa por kilo puntual. @returns {Promise<boolean>} true si borró. */
 async function eliminarOverrideKg(clienteId, body) {
-  const { servicio, tipo, zona, peso_min } = validarCoordenadasKg(body);
+  const { servicio, tipo, zona, peso_min } = validarCoordenadasKg(
+    body,
+    await obtenerTramos(clienteId)
+  );
   const result = await getDb()
     .prepare(
       `DELETE FROM tarifa_kg_overrides
@@ -692,13 +816,90 @@ async function eliminarOverrideKg(clienteId, body) {
   return result.changes > 0;
 }
 
+/**
+ * Devuelve el juego de tramos de un cliente y si es propio o heredado. Es lo que consume
+ * la pantalla del perfil para dibujar las filas de la grilla.
+ * @returns {Promise<{propios:boolean, tramos:Array<{min,max}>}>}
+ */
+async function obtenerTramosCliente(clienteId) {
+  const rows = await getDb()
+    .prepare('SELECT peso_min, peso_max FROM cliente_tramos WHERE cliente_id = ? ORDER BY peso_min')
+    .all(clienteId);
+  if (!rows || rows.length === 0) {
+    return { propios: false, tramos: TRAMOS_POR_DEFECTO.map((t) => ({ ...t })) };
+  }
+  return { propios: true, tramos: rows.map((r) => ({ min: r.peso_min, max: r.peso_max })) };
+}
+
+/**
+ * Reemplaza el juego de tramos de un cliente.
+ *
+ * ⚠️ No es un guardado inocente: las filas de tarifa ya cargadas se apoyan en el juego
+ * viejo. Si el juego nuevo no contiene alguno de los "desde" que hoy están en uso, esas
+ * filas quedarían colgadas — cobrando un precio que la pantalla no muestra. Por eso se
+ * rechaza el cambio y se dice exactamente qué tramos hay que resolver primero. Preferimos
+ * que la oficina borre o rehaga esas filas a mano antes que perderlas en silencio.
+ *
+ * @param {Array<{min,max}>} lista juego nuevo. Vacío o null = volver al por defecto.
+ * @returns {Promise<{propios:boolean, tramos:Array<{min,max}>}>}
+ */
+async function guardarTramosCliente(clienteId, lista) {
+  const db = getDb();
+
+  const volverAlDefecto = !lista || (Array.isArray(lista) && lista.length === 0);
+  const nuevos = volverAlDefecto ? TRAMOS_POR_DEFECTO : validarJuegoDeTramos(lista);
+
+  const enUso = await db
+    .prepare(
+      `SELECT DISTINCT peso_min FROM (
+         SELECT peso_min FROM profit_overrides    WHERE cliente_id = ? AND peso_min IS NOT NULL
+         UNION
+         SELECT peso_min FROM tarifa_kg_overrides WHERE cliente_id = ? AND peso_min IS NOT NULL
+       ) ORDER BY peso_min`
+    )
+    .all(clienteId, clienteId);
+
+  const huerfanos = (enUso || [])
+    .map((r) => r.peso_min)
+    .filter((min) => !nuevos.some((t) => t.min === min));
+
+  if (huerfanos.length > 0) {
+    const e = new Error(
+      `no se puede cambiar los tramos: hay precios cargados en ${huerfanos.join(', ')} kg ` +
+        'que el juego nuevo no contempla. Borrá o rehacé esas filas primero, ' +
+        'así ningún precio queda cobrándose sin verse.'
+    );
+    e.status = 409;
+    e.huerfanos = huerfanos;
+    throw e;
+  }
+
+  await db.prepare('DELETE FROM cliente_tramos WHERE cliente_id = ?').run(clienteId);
+
+  if (!volverAlDefecto) {
+    for (const t of nuevos) {
+      await db
+        .prepare('INSERT INTO cliente_tramos (cliente_id, peso_min, peso_max) VALUES (?, ?, ?)')
+        .run(clienteId, t.min, t.max);
+    }
+  }
+
+  return obtenerTramosCliente(clienteId);
+}
+
 module.exports = {
   SERVICIOS,
   TIPOS,
   ZONAS,
   BANDAS,
+  TRAMOS_POR_DEFECTO,
   MODOS_TARIFA,
   derivarBanda,
+  derivarTramo,
+  validarJuegoDeTramos,
+  obtenerTramos,
+  obtenerTramosCliente,
+  guardarTramosCliente,
   validarCoordenadas,
   validarCoordenadasKg,
   clienteExiste,

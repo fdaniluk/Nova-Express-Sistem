@@ -384,6 +384,34 @@ async function migrateTarifaKg() {
   );
 }
 
+// Tramos de peso PROPIOS de un cliente (12/08/2026).
+//
+// Toda la tarifa —la de porcentaje y la de precio por kilo— se apoya en un juego de tramos
+// de peso. Por defecto son los de 5 en 5 hasta 50 y después 50+, definidos en
+// services/profit.service.js. Un cliente SIN filas acá hereda ese juego.
+//
+// Existe porque hay tarifas negociadas que no cortan donde cortan las nuestras: la de PIO
+// ALVAREZ corta en los 32 kg y la oficina confirmó que no se puede cambiar. La alternativa
+// —meter el 32 como tramo global— le habría ensuciado la tabla a los otros 90 clientes.
+//
+// La garantía no la da esta tabla sino `validarJuegoDeTramos()`: el juego tiene que ser
+// continuo desde 0, sin solapes, con el último abierto. Así ningún peso queda sin tramo y
+// ningún peso cae en dos.
+async function migrateClienteTramos() {
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS cliente_tramos (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      cliente_id INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+      peso_min   REAL NOT NULL,
+      peso_max   REAL,
+      UNIQUE (cliente_id, peso_min)
+    )
+  `);
+  await dbApi.exec(
+    'CREATE INDEX IF NOT EXISTS idx_cliente_tramos_cliente ON cliente_tramos(cliente_id)'
+  );
+}
+
 // Detalle por guía de cada factura UPS cargada (módulo Control de Facturas).
 // Idempotente para bases existentes en el VPS; ver schema.sql para la definición
 // canónica y la explicación de cada columna.
@@ -584,6 +612,7 @@ async function initSchema() {
   await migrateUsuarios();
   await migrateProfitOverrides();
   await migrateTarifaKg();
+  await migrateClienteTramos();
   await migrateFacturaGuias();
   await migrateCobranzas();
   await migrateCierres();

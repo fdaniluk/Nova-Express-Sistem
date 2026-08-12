@@ -429,10 +429,12 @@ CREATE TABLE IF NOT EXISTS tarifa_kg_overrides (
   servicio   TEXT NOT NULL CHECK (servicio IN ('DHL', 'UPS_EXP', 'UPS_SAVER')),
   tipo       TEXT NOT NULL CHECK (tipo IN ('export', 'import')),
   zona       INTEGER CHECK (zona IS NULL OR (zona BETWEEN 1 AND 6)),
-  -- Rango de peso facturable, definido libremente por cliente (no hay bandas fijas).
-  -- Límite inferior INCLUSIVO, superior INCLUSIVO. peso_max NULL = "de peso_min en
-  -- adelante". peso_min NULL = vale para cualquier peso (el nivel menos específico,
-  -- igual que en profit_overrides).
+  -- Tramo de peso facturable. Tiene que coincidir exactamente con un tramo del juego DEL
+  -- CLIENTE (tabla cliente_tramos, o el juego por defecto si no tiene propios).
+  -- Límite inferior EXCLUSIVO, superior INCLUSIVO, salvo el primero que incluye el 0.
+  -- peso_max NULL = "de peso_min en adelante" (solo el último tramo).
+  -- peso_min NULL = vale para cualquier peso (el nivel menos específico, igual que en
+  -- profit_overrides).
   peso_min   REAL,
   peso_max   REAL,
   precio_kg  REAL NOT NULL,
@@ -440,6 +442,26 @@ CREATE TABLE IF NOT EXISTS tarifa_kg_overrides (
 );
 
 CREATE INDEX IF NOT EXISTS idx_tarifa_kg_cliente ON tarifa_kg_overrides(cliente_id);
+
+-- Tramos de peso PROPIOS de un cliente. Un cliente SIN filas acá hereda el juego por
+-- defecto definido en services/profit.service.js (de 5 en 5 hasta 50, y después 50+).
+--
+-- Existe porque hay tarifas negociadas que no cortan donde cortan las nuestras: la de PIO
+-- ALVAREZ corta en los 32 kg y la oficina confirmó que no se puede cambiar. Meter el 32
+-- como tramo global le habría ensuciado la tabla a los otros 90 clientes.
+--
+-- La garantía no la da esta tabla sino validarJuegoDeTramos(): el juego tiene que ser
+-- continuo desde 0, sin solapes, con el último abierto. Así ningún peso queda sin tramo y
+-- ningún peso cae en dos.
+CREATE TABLE IF NOT EXISTS cliente_tramos (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  cliente_id INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+  peso_min   REAL NOT NULL,
+  peso_max   REAL,
+  UNIQUE (cliente_id, peso_min)
+);
+
+CREATE INDEX IF NOT EXISTS idx_cliente_tramos_cliente ON cliente_tramos(cliente_id);
 
 -- Fuel inicial DHL y UPS al 39.5%
 INSERT OR IGNORE INTO configuracion (courier, fuel_pct) VALUES ('DHL', 39.5);

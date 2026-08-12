@@ -30,6 +30,13 @@ const BASE = `http://localhost:${PORT}`;
 const DB = process.env.DB_PATH_TEST || '/tmp/test_pantalla_tarifa_kg.db';
 const TOKEN = 'token-test-tarifa-kg';
 
+// Cuántos tramos tiene un cliente que NO tiene tramos propios, o sea el juego por defecto:
+// de 5 en 5 hasta 50 kg, y después 50+. Hasta el 12/08/2026 eran nueve, con 30-40 y 40-50
+// de a diez. Se declara acá una sola vez en vez de repetir el número por la pantalla, y en
+// el punto 7-bis se contrasta contra lo que dice el backend: si mañana el juego cambia, el
+// test falla en un lugar solo y con un mensaje que se entiende.
+const TRAMOS_HEREDADOS = 11;
+
 let ok = 0, fail = 0;
 function check(nombre, cond, detalle = '') {
   if (cond) { ok++; console.log(`  ✓ ${nombre}`); }
@@ -121,7 +128,7 @@ async function main() {
 
   const bandasPct = await page.evaluate(() =>
     [...document.querySelectorAll('td.banda-label')].map((t) => t.textContent.trim()));
-  check('se ven las 9 bandas fijas de siempre', bandasPct.length === 9, bandasPct.join(' | '));
+  check('se ven los tramos heredados', bandasPct.length === TRAMOS_HEREDADOS, bandasPct.join(' | '));
   // Se saltea la columna "Todas": esa muestra "—" mientras no tenga un valor propio.
   const celdaPct = await page.evaluate(() => {
     const td = document.querySelector('td.tarifa-cell:not(.col-todas) .cell-val');
@@ -134,8 +141,8 @@ async function main() {
   await page.selectOption('#tarifas-modo-select', 'por_kg');
   await esperar(1500);
 
-  // Desde el 11/08/2026 no hay barra de "agregar rango": los tramos son las nueve bandas
-  // fijas y están todas en la grilla, llenas o vacías. Un hueco es una celda que se ve.
+  // Desde el 11/08/2026 no hay barra de "agregar rango": los tramos del cliente están todos
+  // en la grilla, llenos o vacíos. Un hueco es una celda que se ve.
   check('la barra de agregar rango ya no se usa',
     await page.evaluate(() => document.getElementById('tarifas-rangos').classList.contains('hidden')));
   check('la etiqueta del general pasa a USD por kilo',
@@ -143,7 +150,7 @@ async function main() {
     await page.textContent('#tarifas-general-label'));
   const bandasKg = await page.evaluate(() =>
     [...document.querySelectorAll('td.banda-label')].map((t) => t.textContent.trim()));
-  check('en modo por kilo se ven las MISMAS 9 bandas', bandasKg.length === 9, bandasKg.join(' | '));
+  check('en modo por kilo se ven LOS MISMOS tramos', bandasKg.length === TRAMOS_HEREDADOS, bandasKg.join(' | '));
   check('sin nada cargado, los tramos se ven vacíos y no desaparecen',
     (await page.textContent('#tarifas-grid')).includes('—'));
 
@@ -154,7 +161,7 @@ async function main() {
   await page.click('#tarifas-tabs .tab[data-serv="UPS_EXP"][data-tipo="export"]');
   await esperar(1200);
   check('se puede cambiar de tabla estando en modo por kilo',
-    (await page.$$('td.banda-label')).length === 9);
+    (await page.$$('td.banda-label')).length === TRAMOS_HEREDADOS);
 
   // La columna "Todas" pone el precio del tramo para las seis zonas de un clic. Es lo que
   // antes hacía la barra de rangos, sin poder inventar un tramo que no existe.
@@ -226,18 +233,37 @@ async function main() {
   check('las otras cinco zonas de ese tramo van por porcentaje', grises === 5, `grises=${grises}`);
 
   console.log('\n5. Fuel propio del cliente\n');
+
+  // Guardar el fuel dispara un PUT y DESPUÉS una recarga del perfil entero. Esperar un
+  // número fijo de milisegundos es apostar a que la máquina llegue: el 12/08/2026 esta tanda
+  // falló en la máquina de Felipe —2 o 3 veces más lenta que la del contenedor— con la
+  // pantalla todavía sin recargar. No había nada roto, el test iba apurado.
+  //
+  // ⚠️ Y OJO CON QUÉ SE ESPERA. El primer intento de arreglo esperaba a que el campo dijera
+  // "25"… pero el campo YA decía 25, porque lo acababa de escribir el propio test. La espera
+  // terminaba al instante y la carrera se mudaba al control siguiente. La señal que sirve es
+  // la que SOLO puede venir del servidor: el botón de quitar el fuel, que `renderModo()`
+  // muestra u oculta según lo que devolvió la recarga. Si el guardado no llegó, no aparece.
+  const esperarBotonQuitar = (visible) => page.waitForFunction(
+    (v) => {
+      const b = document.getElementById('btn-borrar-fuel');
+      return !!b && b.classList.contains('hidden') !== v;
+    },
+    visible, { timeout: 15000 }
+  ).then(() => true).catch(() => false);
+
   await page.fill('#tarifas-fuel-input', '25');
   await page.click('#btn-guardar-fuel');
-  await esperar(1200);
+  check('aparece el botón para quitarlo', await esperarBotonQuitar(true));
   check('se guarda y queda escrito en el campo',
-    (await page.inputValue('#tarifas-fuel-input')) === '25');
-  check('aparece el botón para quitarlo',
-    await page.evaluate(() => !document.getElementById('btn-borrar-fuel').classList.contains('hidden')));
+    (await page.inputValue('#tarifas-fuel-input')) === '25',
+    `quedó "${await page.inputValue('#tarifas-fuel-input')}"`);
 
   await page.click('#btn-borrar-fuel');
-  await esperar(1200);
-  check('al quitarlo el campo queda vacío',
-    (await page.inputValue('#tarifas-fuel-input')) === '');
+  check('al quitarlo desaparece el botón', await esperarBotonQuitar(false));
+  check('y el campo queda vacío',
+    (await page.inputValue('#tarifas-fuel-input')) === '',
+    `quedó "${await page.inputValue('#tarifas-fuel-input')}"`);
 
   // ── 6. El cotizador aplica la tarifa por kilo ───────────────────────────────
   console.log('\n6. El cotizador cobra el precio por kilo\n');
@@ -317,12 +343,24 @@ async function main() {
   check('el tramo viejo aparece en la grilla', !!filaVieja);
   const textoVieja = filaVieja ? await filaVieja.textContent() : '';
   check('y dice el rango que tiene de verdad (20-29.5)', /29\.5/.test(textoVieja), textoVieja.slice(0, 60));
-  check('está marcado como tramo viejo', /tramo viejo/i.test(textoVieja), textoVieja.slice(0, 60));
+  check('está marcado como fuera de los tramos', /fuera de los tramos/i.test(textoVieja),
+    textoVieja.slice(0, 60));
   check('y muestra el precio que cobra', /4\.32/.test(textoVieja), textoVieja.slice(0, 80));
   check('no se puede editar desde la grilla',
     (await page.$$('tr.fila-vieja td.tarifa-cell')).length === 0);
-  check('las nueve bandas siguen estando además del tramo viejo',
-    (await page.$$('tr:not(.fila-vieja) td.banda-label')).length === 9);
+  // Los tramos ya no son nueve fijos: son los del cliente, y los dice el backend. El número
+  // se le pregunta a él en vez de escribirlo acá, así el día que cambie el juego por
+  // defecto este test no miente: compara la grilla contra la verdad, no contra un 9 viejo.
+  const tramosDelBackend = await page.evaluate(async (id) => {
+    const r = await fetch(`/api/clientes/${id}/tramos`, { credentials: 'same-origin' });
+    const j = await r.json();
+    return j.tramos.length;
+  }, cliente.id);
+  check('el backend dice cuántos tramos tiene este cliente', tramosDelBackend === TRAMOS_HEREDADOS,
+    `son ${tramosDelBackend}, esperaba ${TRAMOS_HEREDADOS}`);
+  check('y todos están en la grilla, además de la fila de afuera',
+    (await page.$$('tr:not(.fila-vieja) td.banda-label')).length === tramosDelBackend,
+    `grilla=${(await page.$$('tr:not(.fila-vieja) td.banda-label')).length} backend=${tramosDelBackend}`);
 
   console.log('\n8. Sin errores de JavaScript\n');
   const rel = errores.filter((x) => !/favicon|net::ERR|Failed to load resource/i.test(x));

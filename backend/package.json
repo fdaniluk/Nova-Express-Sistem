@@ -17,7 +17,7 @@
     "test-recargos": "node scripts/test-recargos.js",
     "test-tarifas-dhl": "node scripts/test-tarifas-dhl.js",
     "test-motor-unico": "node scripts/test-motor-unico.js",
-    "test": "node scripts/test-motor-unico.js && node scripts/test-tarifas-dhl.js && node scripts/test-recargos.js && node scripts/test-cotizador-documento.js && node scripts/test-parser-factura.js && node scripts/test-api-documentos-dhl.js && node scripts/test-ddp-salidas.js && node scripts/test-zona-entrega.js && node scripts/test-editar-envio.js && node scripts/test-validar-guia.js && node scripts/test-guias-sin-envio.js && node scripts/test-salud.js && node scripts/test-seguro-cliente.js && node scripts/test-envio-sin-pesar.js && node scripts/test-proteccion-doc.js && node scripts/test-copia-externa.js && node scripts/test-cierre-periodo.js && node scripts/test-un-solo-numero.js && node scripts/test-fuel-nova.js",
+    "test": "node scripts/test-motor-unico.js && node scripts/test-tarifas-dhl.js && node scripts/test-recargos.js && node scripts/test-cotizador-documento.js && node scripts/test-parser-factura.js && node scripts/test-api-documentos-dhl.js && node scripts/test-ddp-salidas.js && node scripts/test-zona-entrega.js && node scripts/test-editar-envio.js && node scripts/test-validar-guia.js && node scripts/test-guias-sin-envio.js && node scripts/test-salud.js && node scripts/test-seguro-cliente.js && node scripts/test-envio-sin-pesar.js && node scripts/test-proteccion-doc.js && node scripts/test-copia-externa.js && node scripts/test-cierre-periodo.js && node scripts/test-un-solo-numero.js && node scripts/test-fuel-nova.js && node scripts/test-tramos-cliente.js",
     "test-ddp-salidas": "node scripts/test-ddp-salidas.js",
     "test-zona-entrega": "node scripts/test-zona-entrega.js",
     "test-editar-envio": "node scripts/test-editar-envio.js",
@@ -45,7 +45,8 @@
     "test-pantalla-fuel-cotizador": "node scripts/test-pantalla-fuel-cotizador.js",
     "test-pantallas": "node scripts/test-pantalla-tarifa-kg.js && node scripts/test-pantalla-salud.js && node scripts/test-pantalla-sin-envio.js && node scripts/test-cartel-peso.js && node scripts/test-aviso-guia.js && node scripts/test-liquidacion-sin-cotizador.js && node scripts/test-pantalla-seguro-cliente.js && node scripts/test-pantalla-proteccion-doc.js && node scripts/test-pantalla-venta-salidas.js && node scripts/test-pantalla-cierre.js && node scripts/test-pantalla-fuel-cotizador.js",
     "test-salud": "node scripts/test-salud.js",
-    "test-pantalla-salud": "node scripts/test-pantalla-salud.js"
+    "test-pantalla-salud": "node scripts/test-pantalla-salud.js",
+    "test-tramos": "node scripts/test-tramos-cliente.js"
   },
   "keywords": [
     "nova-express",

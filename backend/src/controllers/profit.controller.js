@@ -161,6 +161,40 @@ async function deleteOverrideKg(req, res, next) {
   }
 }
 
+// GET /api/clientes/:id/tramos
+// Devuelve el juego de tramos del cliente y si es propio o heredado del por defecto.
+async function getTramos(req, res, next) {
+  try {
+    const { id } = req.params;
+    if (!(await profitService.clienteExiste(id))) {
+      return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
+    const propio = await profitService.obtenerTramosCliente(id);
+    res.json({ ...propio, por_defecto: profitService.TRAMOS_POR_DEFECTO });
+  } catch (e) {
+    next(e);
+  }
+}
+
+// PUT /api/clientes/:id/tramos
+// Body: { tramos: [{min, max}, ...] } · lista vacía o ausente = volver al juego por defecto.
+// Responde 409 si hay precios cargados en tramos que el juego nuevo no contempla: se
+// rechaza el cambio antes que dejar un precio cobrándose sin que la pantalla lo muestre.
+async function putTramos(req, res, next) {
+  try {
+    const { id } = req.params;
+    if (!(await profitService.clienteExiste(id))) {
+      return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
+    const guardado = await profitService.guardarTramosCliente(id, req.body ? req.body.tramos : null);
+    res.json({ ...guardado, por_defecto: profitService.TRAMOS_POR_DEFECTO });
+  } catch (e) {
+    if (e.status === 400) return res.status(400).json({ error: e.message });
+    if (e.status === 409) return res.status(409).json({ error: e.message, huerfanos: e.huerfanos });
+    next(e);
+  }
+}
+
 module.exports = {
   getMatrix,
   putOverride,
@@ -169,4 +203,6 @@ module.exports = {
   getMatrixKg,
   putOverrideKg,
   deleteOverrideKg,
+  getTramos,
+  putTramos,
 };

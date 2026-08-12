@@ -337,19 +337,39 @@
 
   const esPorKg = () => (clienteData && clienteData.modo_tarifa) === 'por_kg';
 
-  // Bandas fijas (kg sobre peso facturable). Deben coincidir con backend profit.service.js.
-  const TARIFAS_BANDAS = [
+  // Tramos de peso del cliente (kg sobre peso facturable). NO son fijos: cada cliente puede
+  // tener el suyo. Se traen del backend, que es el que manda; acá solo se dibujan. El juego
+  // por defecto que hereda quien no tiene propios también viene en la respuesta, para poder
+  // decirle a la persona si está viendo lo heredado o algo negociado.
+  //
+  // Arrancan en el por defecto por si la grilla se dibuja antes de que conteste el servidor.
+  let TARIFAS_BANDAS = [
     { min: 0, max: 5 },
     { min: 5, max: 10 },
     { min: 10, max: 15 },
     { min: 15, max: 20 },
     { min: 20, max: 25 },
     { min: 25, max: 30 },
-    { min: 30, max: 40 },
-    { min: 40, max: 50 },
+    { min: 30, max: 35 },
+    { min: 35, max: 40 },
+    { min: 40, max: 45 },
+    { min: 45, max: 50 },
     { min: 50, max: null },
   ];
+  let tramosPropios = false;
   const TARIFAS_ZONAS = [1, 2, 3, 4, 5, 6];
+
+  // Trae los tramos del cliente. Si falla, se sigue con los que haya: es preferible una
+  // grilla dibujada con el juego por defecto a una pantalla en blanco.
+  async function cargarTramos() {
+    try {
+      const r = await NovaAPI.clientes.tramos.obtener(clienteId);
+      if (r && Array.isArray(r.tramos) && r.tramos.length > 0) {
+        TARIFAS_BANDAS = r.tramos;
+        tramosPropios = Boolean(r.propios);
+      }
+    } catch { /* se dibuja con los por defecto */ }
+  }
 
   // En modo porcentaje la última banda es la de 50+; en modo por kilo el rango sin tope lo
   // define el cliente, así que la etiqueta sale del propio "desde" y no de un 50 fijo.
@@ -411,21 +431,22 @@
     return esPorKg() ? `USD ${Number(val).toFixed(2)}` : `${val}%`;
   }
 
-  // Filas de la grilla: SIEMPRE las bandas fijas, cobre por porcentaje o por kilo.
+  // Filas de la grilla: SIEMPRE los tramos del cliente, cobre por porcentaje o por kilo.
   //
-  // Hasta el 11/08/2026 el modo por kilo dejaba que cada cliente inventara sus rangos, y
-  // la grilla mostraba solo los que tuviera cargados. Eso hacía que la pantalla NO mostrara
-  // los huecos: si alguien cargaba 1 a 3 kg, la fila de 3 a 5 no existía —ni en la pantalla
-  // ni en la cabeza de nadie— y un envío de 4 kg terminaba cobrándose por porcentaje sin
-  // que se enterara nadie. Encima los rangos podían pisarse entre sí.
+  // Hasta el 11/08/2026 el modo por kilo dejaba que cada cliente inventara sus rangos, y la
+  // grilla mostraba solo los que tuviera cargados. Eso hacía que la pantalla NO mostrara los
+  // huecos: si alguien cargaba 1 a 3 kg, la fila de 3 a 5 no existía —ni en la pantalla ni
+  // en la cabeza de nadie— y un envío de 4 kg terminaba cobrándose por porcentaje sin que se
+  // enterara nadie. Encima los rangos podían pisarse entre sí.
   //
-  // Con las bandas fijas la grilla muestra los nueve tramos siempre, llenos o vacíos: un
-  // hueco pasa a ser una celda gris que se ve.
-  // ⚠️ Y las filas VIEJAS que no son una banda se siguen mostrando, marcadas.
-  // Si se mostraran solo las bandas, la tarifa de un cliente cargada con rangos libres
-  // —por ejemplo 20 a 29,5 kg— desaparecería de la pantalla y la grilla se vería vacía
-  // mientras el sistema le sigue cobrando esos precios. Un precio que se cobra y no se ve
-  // es exactamente lo que estamos tratando de que no pase.
+  // Ahora los tramos del cliente se muestran siempre, llenos o vacíos: un hueco pasa a ser
+  // una celda gris que se ve. Y el juego está validado de punta a punta en el backend, así
+  // que no puede tener agujeros ni solapes.
+  //
+  // ⚠️ Las filas que NO caen en ningún tramo del cliente se siguen mostrando, marcadas.
+  // Son cargas viejas que todavía no se migraron. Si se mostraran solo los tramos, esas
+  // filas desaparecerían de la pantalla mientras el sistema les sigue cobrando esos
+  // precios. Un precio que se cobra y no se ve es exactamente lo que estamos evitando.
   function filasDeGrilla() {
     const viejas = (matrizActual ? matrizActual.overrides : [])
       .filter((o) => o.peso_min !== null && !TARIFAS_BANDAS.some((b) => b.min === o.peso_min && b.max === o.peso_max));
@@ -440,6 +461,7 @@
 
   async function cargarMatriz() {
     try {
+      await cargarTramos();
       matrizActual = esPorKg()
         ? await NovaAPI.clientes.tarifaKg.matriz(clienteId, tabActivo.servicio, tabActivo.tipo)
         : await NovaAPI.clientes.profit.matriz(clienteId, tabActivo.servicio, tabActivo.tipo);
@@ -487,9 +509,12 @@
     // por zona existía desde el principio y nadie sabía que estaba.
     const ayuda = document.getElementById('tarifas-grid-ayuda');
     if (ayuda) {
+      const deQuienSonLosTramos = tramosPropios
+        ? 'Este cliente tiene tramos de peso propios, negociados con él: no son los que usa el resto.'
+        : 'Los tramos de peso son los generales: de 5 en 5 hasta 50 kg, y de ahí en adelante uno solo.';
       ayuda.textContent = esPorKg()
-        ? 'Hacé clic en cualquier celda para ponerle el precio por kilo de esa zona y ese tramo de peso. Los tramos son los mismos nueve de siempre. La ✕ de la celda quita ese precio; la ✕ de la fila borra el tramo entero. Las celdas en gris NO tienen precio por kilo: se cobran con el porcentaje de ganancia.'
-        : '';
+        ? `Hacé clic en cualquier celda para ponerle el precio por kilo de esa zona y ese tramo de peso. ${deQuienSonLosTramos} La ✕ de la celda quita ese precio; la ✕ de la fila borra el tramo entero. Las celdas en gris NO tienen precio por kilo: se cobran con el porcentaje de ganancia.`
+        : deQuienSonLosTramos;
     }
 
     renderSeguro();
@@ -561,7 +586,7 @@
         ? `<span class="rango-del" title="Borrar todo el rango" data-min="${banda.min}" data-max="${maxAttr}">✕</span>`
         : '';
       const etiqueta = banda.vieja
-        ? `${bandaLabel(banda)} <span class="tramo-viejo" title="Este tramo se cargó cuando los rangos eran libres. Sigue cobrando igual que siempre, pero no se puede editar: borralo y volvé a cargarlo sobre los tramos de arriba.">tramo viejo</span>`
+        ? `${bandaLabel(banda)} <span class="tramo-viejo" title="Este tramo no está en el juego de tramos de este cliente: quedó de una carga vieja. Sigue cobrando igual que siempre, pero no se puede editar desde acá. Borralo y volvé a cargarlo sobre los tramos de arriba, o pedile a quien corresponda que ajuste los tramos del cliente.">fuera de los tramos</span>`
         : bandaLabel(banda);
       html += `<tr class="${banda.vieja ? 'fila-vieja' : ''}"><td class="banda-label">${etiqueta}${borrarFila}</td>`;
 

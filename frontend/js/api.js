@@ -146,6 +146,13 @@ api.clientes.tarifaKg = {
   borrar: (id, body) => request(`/clientes/${id}/tarifa-kg`, { method: 'DELETE', body }),
 };
 
+// Tramos de peso del cliente. Los usan las DOS matrices: la de porcentaje y la de kilo.
+// Un cliente sin tramos propios hereda los por defecto; la respuesta dice cual es el caso.
+api.clientes.tramos = {
+  obtener: (id) => api.get(`/clientes/${id}/tramos`),
+  guardar: (id, tramos) => api.put(`/clientes/${id}/tramos`, { tramos }),
+};
+
 api.dashboard = {
   metricas: (params) => {
     const p = typeof params === 'string' ? { periodo: params } : params || {};

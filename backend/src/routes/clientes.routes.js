@@ -18,6 +18,10 @@ router.get('/:id/tarifa-kg', profitCtrl.getMatrixKg);
 router.put('/:id/tarifa-kg', profitCtrl.putOverrideKg);
 router.delete('/:id/tarifa-kg', profitCtrl.deleteOverrideKg);
 
+// Tramos de peso del cliente. Los usan las DOS matrices, la de porcentaje y la de kilo.
+router.get('/:id/tramos', profitCtrl.getTramos);
+router.put('/:id/tramos', profitCtrl.putTramos);
+
 router.get('/:id', ctrl.buscarPorId);
 router.put('/:id', ctrl.actualizar);
 router.delete('/:id', ctrl.eliminar);
