@@ -1020,8 +1020,8 @@
       aplicar: (o) => { o.nombrar = true; },
     },
     unico: {
-      ayuda: 'Un solo tarifario sin decir de qué servicio es, para después despachar por donde '
-        + 'convenga. Las notas tampoco nombran couriers.',
+      ayuda: 'Elegí un servicio y el tarifario sale sin decir cuál es, para después despachar '
+        + 'por donde convenga. Las notas tampoco nombran couriers.',
       aplicar: (o) => { o.nombrar = false; },
     },
     libre: { ayuda: 'Todo a mano.', aplicar: () => {} },
@@ -1053,7 +1053,8 @@
         hasta: $('t-hasta').value || '50',
         paso: $('t-paso').value,
         combinar: combinar ? '1' : '0',
-        base: $('t-base').value,
+        // Fijo en el más caro, sin selector: ver el comentario del HTML donde estaba.
+        base: 'alto',
         documentos: $('t-documentos').checked ? '1' : '0',
         marca: $('t-marca').value,
         logo: $('t-logo').checked ? '1' : '0',
@@ -1071,9 +1072,10 @@
       const servicios = serviciosElegidos();
       const avisos = [];
       if (!servicios.length) avisos.push('Elegí al menos un servicio.');
-      if (escenario === 'unico' && servicios.length === 1) {
-        avisos.push('Con un solo servicio, el tarifario único sale con esos precios: la base '
-          + 'alto/medio/bajo recién hace diferencia con dos o más.');
+      if (escenario === 'unico' && servicios.length > 1) {
+        avisos.push('Tildaste más de un servicio y el tarifario no los va a nombrar: en cada '
+          + 'casilla se imprime <b>el precio más caro</b> de los tildados, para que no quede '
+          + 'corto si después despachás por el otro.');
       }
       // Avisos, no frenos. Felipe pidió expresamente que no bloquee: la oficina se asegura
       // de que el cliente tenga las tarifas completas antes de mandarlo.
@@ -1094,7 +1096,6 @@
       const o = {};
       ESCENARIOS[nombre].aplicar(o);
       if (o.nombrar !== undefined) $('t-nombrar').checked = o.nombrar;
-      $('t-fila-base').style.display = (nombre === 'unico' || nombre === 'libre') ? '' : 'none';
       refrescar();
     }
 

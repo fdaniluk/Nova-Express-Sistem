@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Perfil de cliente — Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260813e">
+  <link rel="stylesheet" href="../css/main.css?v=20260813f">
   <style>
     .info-grid {
       display: grid;
@@ -432,14 +432,14 @@
           <label class="t-check"><input type="checkbox" id="t-dhl" checked> DHL</label>
           <label class="t-check"><input type="checkbox" id="t-ups-exp"> UPS Worldwide Expedited</label>
           <label class="t-check"><input type="checkbox" id="t-ups-sav"> UPS Worldwide Saver</label>
-          <div class="t-fila" id="t-fila-base">
-            <label for="t-base">Base de precios</label>
-            <select id="t-base">
-              <option value="alto">El más caro de los elegidos</option>
-              <option value="medio">El del medio</option>
-              <option value="bajo">El más barato</option>
-            </select>
-          </div>
+          <!-- Acá había un selector de "base de precios" (el más caro / el del medio / el
+               más barato) para cuando el tarifario no nombra el servicio. Felipe lo sacó el
+               13/08: "si quiero que cobre un precio en específico voy a seleccionar el
+               servicio directamente". Tenía razón — era un botón para elegir algo que ya se
+               elige tildando el servicio.
+               La regla quedó fija en el más caro (ver el `base: 'alto'` del query string):
+               si alguien tilda dos servicios y no los nombra, el tarifario nunca puede
+               quedar por debajo del courier por el que después se despache. -->
           <div class="t-fila">
             <label for="t-tipo">Sentido</label>
             <select id="t-tipo">
@@ -508,9 +508,9 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260813e"></script>
-<script src="../js/api.js?v=20260813e"></script>
-<script src="../js/main.js?v=20260813e"></script>
-<script src="../js/modules/clientes-perfil.js?v=20260813e"></script>
+<script src="/js/auth-guard.js?v=20260813f"></script>
+<script src="../js/api.js?v=20260813f"></script>
+<script src="../js/main.js?v=20260813f"></script>
+<script src="../js/modules/clientes-perfil.js?v=20260813f"></script>
 </body>
 </html>
