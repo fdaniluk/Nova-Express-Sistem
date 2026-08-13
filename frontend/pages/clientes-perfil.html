@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Perfil de cliente — Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260813d">
+  <link rel="stylesheet" href="../css/main.css?v=20260813e">
   <style>
     .info-grid {
       display: grid;
@@ -152,6 +152,45 @@
     td.tarifa-cell.heredado.sin-valor { background: none; }
     td.tarifa-cell.cero { background: #fdf2f2; }
     td.tarifa-cell.cero .cell-val { color: #d03b3b; font-weight: 650; }
+
+    /* ── Panel del tarifario para el cliente ───────────────────────────────── */
+    .tarifario-modal { position: fixed; inset: 0; background: rgba(20,26,36,.55);
+      z-index: 900; display: flex; align-items: center; justify-content: center; padding: 2vh 2vw; }
+    .tarifario-modal.hidden { display: none; }
+    .tarifario-caja { background: #fff; border-radius: 12px; width: 100%; height: 96vh;
+      display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,.3); }
+    .tarifario-caja > header { display: flex; align-items: center; justify-content: space-between;
+      padding: 0.8rem 1.1rem; border-bottom: 1px solid #e5e8ee; }
+    .tarifario-caja > header h2 { margin: 0; font-size: 1.05rem; }
+    .tarifario-cuerpo { display: flex; flex: 1; min-height: 0; }
+    .tarifario-opciones { width: 330px; flex: 0 0 330px; overflow-y: auto;
+      padding: 0.9rem 1rem 0; border-right: 1px solid #e5e8ee; background: #fafbfc; }
+    .tarifario-preview { flex: 1; min-width: 0; background: #eceaf0; }
+    .tarifario-preview iframe { width: 100%; height: 100%; border: 0; }
+    .t-grupo { margin-bottom: 1.1rem; }
+    .t-grupo h3 { margin: 0 0 0.45rem; font-size: 0.78rem; text-transform: uppercase;
+      letter-spacing: .06em; color: #6b7688; }
+    .t-escenarios { display: flex; flex-direction: column; gap: 0.3rem; }
+    .t-esc, .t-rango { text-align: left; background: #fff; border: 1px solid #d7dce4;
+      border-radius: 8px; padding: 0.4rem 0.6rem; font-size: 0.8rem; cursor: pointer; }
+    .t-esc.active, .t-rango.active { background: #1a3a5c; border-color: #1a3a5c; color: #fff; font-weight: 600; }
+    .t-ayuda { margin: 0.4rem 0 0; font-size: 0.72rem; color: #6b7688; line-height: 1.4; }
+    /* main.css pone los label en mayúsculas y en negrita para los formularios de carga;
+       acá son quince opciones seguidas y así gritan. */
+    .t-check { display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem;
+      padding: 0.15rem 0; cursor: pointer; text-transform: none; font-weight: 400;
+      letter-spacing: 0; color: #2c3542; }
+    .t-check input { margin: 0; }
+    .t-fila { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; margin-top: 0.45rem; }
+    .t-fila label { font-size: 0.75rem; color: #55606f; text-transform: none;
+      font-weight: 500; letter-spacing: 0; }
+    .t-fila input, .t-fila select { border: 1px solid #d7dce4; border-radius: 6px;
+      padding: 0.25rem 0.4rem; font-size: 0.8rem; max-width: 150px; }
+    .t-fila input[type="number"] { width: 70px; }
+    .t-alerta { background: #fdf3c7; border-left: 4px solid #e6b800; padding: 0.5rem 0.65rem;
+      font-size: 0.76rem; border-radius: 0 6px 6px 0; margin-bottom: 0.8rem; line-height: 1.45; }
+    .t-acciones { display: flex; gap: 0.5rem; position: sticky; bottom: 0;
+      background: #fafbfc; padding: 0.6rem 0 0.9rem; border-top: 1px solid #e5e8ee; }
   </style>
 </head>
 <body>
@@ -252,6 +291,7 @@
       <div class="card" id="card-tarifas">
         <div class="tarifas-header">
           <h2 style="margin:0">Matriz de tarifas</h2>
+          <button class="btn btn-primary btn-sm" id="btn-armar-tarifario">Armar tarifario</button>
           <button class="btn btn-secondary btn-sm" id="btn-editar-tarifas">Editar tarifas</button>
         </div>
         <div id="tarifas-panel" class="hidden">
@@ -355,9 +395,122 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260813d"></script>
-<script src="../js/api.js?v=20260813d"></script>
-<script src="../js/main.js?v=20260813d"></script>
-<script src="../js/modules/clientes-perfil.js?v=20260813d"></script>
+<!--
+  PANEL DEL TARIFARIO PARA EL CLIENTE.
+
+  Felipe, 13/08: "que no sea solo tocar un botón y que me den un tarifario, sino tocar un
+  botón y yo seleccionar qué opciones quiero que tenga". De ahí que sea un panel y no una
+  descarga directa.
+
+  Arriba van los CUATRO ESCENARIOS, que dejan todo configurado de una. Es lo que baja el
+  margen de error del empleado: el que no sabe elige el escenario y no toca nada más.
+  Abajo quedan los interruptores sueltos para el que sí sabe.
+
+  La vista previa es un iframe con la MISMA página que después se imprime.
+-->
+<div class="tarifario-modal hidden" id="tarifario-modal">
+  <div class="tarifario-caja">
+    <header>
+      <h2>Armar tarifario</h2>
+      <button class="btn btn-secondary btn-sm" id="tarifario-cerrar">Cerrar</button>
+    </header>
+    <div class="tarifario-cuerpo">
+      <aside class="tarifario-opciones">
+        <div class="t-grupo">
+          <h3>1 · Escenario</h3>
+          <div class="t-escenarios">
+            <button class="t-esc active" data-esc="uno">Un servicio, con nombre</button>
+            <button class="t-esc" data-esc="varios">Varios servicios, comparativa</button>
+            <button class="t-esc" data-esc="unico">Tarifario único sin nombrar</button>
+            <button class="t-esc" data-esc="libre">Personalizado</button>
+          </div>
+          <p class="t-ayuda" id="t-esc-ayuda"></p>
+        </div>
+
+        <div class="t-grupo">
+          <h3>2 · Precios</h3>
+          <label class="t-check"><input type="checkbox" id="t-dhl" checked> DHL</label>
+          <label class="t-check"><input type="checkbox" id="t-ups-exp"> UPS Worldwide Expedited</label>
+          <label class="t-check"><input type="checkbox" id="t-ups-sav"> UPS Worldwide Saver</label>
+          <div class="t-fila" id="t-fila-base">
+            <label for="t-base">Base de precios</label>
+            <select id="t-base">
+              <option value="alto">El más caro de los elegidos</option>
+              <option value="medio">El del medio</option>
+              <option value="bajo">El más barato</option>
+            </select>
+          </div>
+          <div class="t-fila">
+            <label for="t-tipo">Sentido</label>
+            <select id="t-tipo">
+              <option value="export">Exportación</option>
+              <option value="import">Importación</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="t-grupo">
+          <h3>3 · Pesos</h3>
+          <div class="t-escenarios">
+            <button class="t-rango active" data-desde="0.5" data-hasta="50" data-paso="auto">0 a 50 kg</button>
+            <button class="t-rango" data-desde="50" data-hasta="200" data-paso="1">50 a 200 kg</button>
+            <button class="t-rango" data-desde="200" data-hasta="300" data-paso="5">+200 kg</button>
+          </div>
+          <div class="t-fila">
+            <label for="t-desde">Desde</label>
+            <input type="number" id="t-desde" min="0.5" step="0.5" value="0.5">
+            <label for="t-hasta">Hasta</label>
+            <input type="number" id="t-hasta" min="1" step="0.5" value="50">
+            <label for="t-paso">Cada</label>
+            <select id="t-paso">
+              <option value="auto">como la tabla (0,5 y 1)</option>
+              <option value="0.5">0,5 kg</option>
+              <option value="1">1 kg</option>
+              <option value="5">5 kg</option>
+              <option value="10">10 kg</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="t-grupo">
+          <h3>4 · Presentación</h3>
+          <div class="t-fila">
+            <label for="t-marca">Marca</label>
+            <select id="t-marca">
+              <option value="nova">Nova Express</option>
+              <option value="exportalo">Exportalo</option>
+            </select>
+          </div>
+          <label class="t-check"><input type="checkbox" id="t-logo" checked> Con logo</label>
+          <label class="t-check"><input type="checkbox" id="t-nombrar" checked> Decir qué servicio es</label>
+          <label class="t-check"><input type="checkbox" id="t-nombre-cliente" checked> Nombre del cliente</label>
+          <label class="t-check"><input type="checkbox" id="t-documentos" checked> Tabla de documentos</label>
+          <label class="t-check"><input type="checkbox" id="t-notas" checked> Cuadro de notas</label>
+          <label class="t-check"><input type="checkbox" id="t-destinos" checked> Detalle de destinos</label>
+          <label class="t-check"><input type="checkbox" id="t-fuel"> Aclarar que no incluye combustible</label>
+          <div class="t-fila">
+            <label for="t-vence">Validez (días)</label>
+            <input type="number" id="t-vence" min="0" step="1" value="30">
+          </div>
+        </div>
+
+        <div class="t-alerta hidden" id="t-alerta"></div>
+
+        <div class="t-acciones">
+          <button class="btn btn-primary btn-sm" id="t-imprimir">Imprimir / PDF</button>
+          <button class="btn btn-secondary btn-sm" id="t-excel">Descargar Excel</button>
+        </div>
+      </aside>
+      <section class="tarifario-preview">
+        <iframe id="t-preview" title="Vista previa del tarifario"></iframe>
+      </section>
+    </div>
+  </div>
+</div>
+
+<script src="/js/auth-guard.js?v=20260813e"></script>
+<script src="../js/api.js?v=20260813e"></script>
+<script src="../js/main.js?v=20260813e"></script>
+<script src="../js/modules/clientes-perfil.js?v=20260813e"></script>
 </body>
 </html>

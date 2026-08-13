@@ -671,7 +671,12 @@ async function resolverTarifaKg({ clienteId, servicio, tipo, zona, pesoFacturabl
  * @returns {Promise<{modo, profitPct, precioKg, origen, advertencia}|null>} null si el
  *          cliente no existe.
  */
-async function resolverTarifaVenta({ clienteId, servicio, tipo, zona, pesoFacturable }) {
+// `avisar` solo apaga el console.warn, NUNCA la advertencia que se devuelve. El tarifario
+// (services/tarifario.service.js) pide cientos de celdas de una sola vez y llenaba el log
+// del VPS con una línea por celda; quien consume la respuesta sigue recibiendo `advertencia`.
+async function resolverTarifaVenta({
+  clienteId, servicio, tipo, zona, pesoFacturable, avisar = true,
+}) {
   const info = await obtenerModoCliente(clienteId);
   if (!info) return null;
 
@@ -709,7 +714,7 @@ async function resolverTarifaVenta({ clienteId, servicio, tipo, zona, pesoFactur
       `${zona ? `La zona ${zona}` : 'Este envío'} no tiene precio por kilo cargado en ` +
       `${servicio} ${tipo} para ${pesoFacturable} kg: se cotizó con el porcentaje de ` +
       `ganancia (${porcentaje.profitPct}%).`;
-    console.warn(`[resolverTarifaVenta] cliente_id=${clienteId}: ${aviso}`);
+    if (avisar) console.warn(`[resolverTarifaVenta] cliente_id=${clienteId}: ${aviso}`);
     return {
       modo: 'porcentaje',
       profitPct: porcentaje.profitPct,

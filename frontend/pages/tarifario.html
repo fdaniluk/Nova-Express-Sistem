@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tarifario — Nova Express</title>
+  <!--
+    LA HOJA QUE VE EL CLIENTE.
+
+    Esta página es el tarifario y nada más. No tiene barra lateral, ni menú, ni un solo dato
+    de la pantalla de trabajo: se abre dentro de un iframe en el perfil del cliente para la
+    vista previa, y esa MISMA página es la que se imprime. Que la vista previa y el PDF sean
+    el mismo HTML es a propósito — es la única forma de que lo que se ve sea lo que se manda.
+
+    El formato copia el tarifario que la oficina ya usa (el de Exportalo): hoja apaisada, la
+    tabla partida en columnas que siguen una a la otra, y el cuadro de notas al costado.
+
+    NUNCA puede aparecer acá un costo, un porcentaje de ganancia ni un precio por kilo
+    rotulado como tal. El servidor manda solo precios de venta; esta página no calcula nada.
+  -->
+  <style>
+    @page { size: A4 landscape; margin: 9mm 8mm; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: "Segoe UI", Arial, sans-serif;
+      font-size: 6.5pt;
+      color: var(--txt, #2b2540);
+      background: #eceaf0;
+    }
+    .hoja {
+      background: #fff;
+      width: 297mm;
+      min-height: 210mm;
+      padding: 9mm 8mm;
+      margin: 0 auto 10px;
+      box-shadow: 0 1px 6px rgba(0,0,0,.15);
+    }
+    .tapa { display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px; }
+    .tapa img { height: 44px; }
+    .tapa .marca-texto { font-size: 15pt; font-weight: 700; color: var(--osc); }
+    .tit { font-size: 16pt; font-weight: 600; font-style: italic; color: var(--ac); letter-spacing: .5px; }
+    .cli { text-align: right; font-size: 7.2pt; color: var(--osc); line-height: 1.5; }
+    .cli b { font-size: 8.2pt; }
+    .cols { display: flex; gap: 7px; align-items: flex-start; }
+    .cols .col { display: flex; flex-direction: column; gap: 6px; }
+    table { border-collapse: collapse; }
+    caption {
+      background: var(--ac); color: #fff; font-weight: 700; font-size: 7.2pt;
+      padding: 2px; letter-spacing: .4px; white-space: nowrap;
+    }
+    thead th {
+      background: var(--osc); color: #fff; font-weight: 600; font-size: 6.2pt;
+      padding: 3px; border: 1px solid var(--osc); line-height: 1.15;
+    }
+    thead th.kg { background: var(--txt); width: 44px; }
+    tbody th {
+      background: var(--osc); color: #fff; font-weight: 700; text-align: center;
+      padding: .6px 4px; border: 1px solid #fff; width: 44px; font-size: 6.3pt;
+    }
+    tbody tr:nth-child(even) th { background: var(--ac); }
+    tbody td {
+      text-align: right; padding: .6px 5px; border: 1px solid var(--borde);
+      font-variant-numeric: tabular-nums; width: 60px;
+    }
+    tbody tr:nth-child(odd) td { background: var(--impar); }
+    tbody tr.hito td { background: var(--suave); font-weight: 600; }
+    .notas { flex: 1; min-width: 190px; border: 1px solid var(--osc); padding: 8px 10px; }
+    .notas h3 {
+      margin: 0 0 6px; font-size: 8.5pt; color: var(--osc);
+      text-transform: uppercase; letter-spacing: 1px;
+    }
+    .notas ul { margin: 0; padding-left: 13px; line-height: 1.5; font-size: 6.9pt; }
+    .notas li { margin-bottom: 4px; }
+    .zonas { margin-top: 10px; border-top: 2px solid var(--ac); padding-top: 6px; }
+    .zonas h3 {
+      margin: 0 0 4px; font-size: 8pt; color: var(--osc);
+      text-transform: uppercase; letter-spacing: 1px;
+    }
+    .zonas div { font-size: 6.6pt; line-height: 1.55; }
+    .zonas b { color: var(--ac); }
+    .pie {
+      margin-top: 7px; font-size: 6.4pt; opacity: .7; display: flex;
+      justify-content: space-between; border-top: 1px solid var(--borde); padding-top: 4px;
+    }
+    .cargando { padding: 30px; font-family: system-ui, sans-serif; font-size: 13px; color: #555; }
+    .error { padding: 20px; font-family: system-ui, sans-serif; color: #a11; font-size: 13px; }
+
+    @media print {
+      body { background: #fff; }
+      .hoja {
+        width: auto; min-height: 0; padding: 0; margin: 0;
+        box-shadow: none; page-break-after: always;
+      }
+      .hoja:last-child { page-break-after: auto; }
+    }
+  </style>
+</head>
+<body>
+  <div id="tarifario" class="cargando">Armando el tarifario…</div>
+  <script src="../js/api.js?v=20260813e"></script>
+  <script src="../js/modules/tarifario.js?v=20260813e"></script>
+</body>
+</html>

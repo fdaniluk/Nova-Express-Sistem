@@ -24,6 +24,7 @@
       await cargarDirecciones();
       bindDirecciones();
       bindTarifas();
+      bindTarifario();
     } catch (err) {
       NovaUtils.showAlert(alertBox, 'Error al cargar perfil: ' + err.message);
     }
@@ -998,6 +999,140 @@
     });
     document.getElementById('btn-borrar-seguro').addEventListener('click', () => guardarSeguro(null, null));
 
+  }
+
+  // ── El tarifario que se le manda AL CLIENTE ───────────────────────────────
+  //
+  // El panel NO calcula nada: junta las opciones, arma el query string y se lo pasa a
+  // pages/tarifario.html, que es la hoja de verdad. La vista previa y el PDF son la MISMA
+  // página; por eso "Imprimir" es literalmente imprimir el iframe que se está viendo.
+  //
+  // Los cuatro escenarios de arriba existen para que el empleado que no conoce el detalle
+  // no tenga que entender quince casillas: elige uno y ya queda bien.
+
+  const ESCENARIOS = {
+    uno: {
+      ayuda: 'El cliente pidió un servicio concreto. Sale ese, con su nombre y sus notas.',
+      aplicar: (o) => { o.nombrar = true; },
+    },
+    varios: {
+      ayuda: 'Comparativa: una tabla por servicio, cada una con su nombre. Para cuando el cliente elige.',
+      aplicar: (o) => { o.nombrar = true; },
+    },
+    unico: {
+      ayuda: 'Un solo tarifario sin decir de qué servicio es, para después despachar por donde '
+        + 'convenga. Las notas tampoco nombran couriers.',
+      aplicar: (o) => { o.nombrar = false; },
+    },
+    libre: { ayuda: 'Todo a mano.', aplicar: () => {} },
+  };
+
+  function bindTarifario() {
+    const modal = document.getElementById('tarifario-modal');
+    if (!modal) return;
+    const $ = (id) => document.getElementById(id);
+    const preview = $('t-preview');
+    const alerta = $('t-alerta');
+    let escenario = 'uno';
+
+    const serviciosElegidos = () => {
+      const s = [];
+      if ($('t-dhl').checked) s.push('DHL');
+      if ($('t-ups-exp').checked) s.push('UPS_EXP');
+      if ($('t-ups-sav').checked) s.push('UPS_SAVER');
+      return s;
+    };
+
+    function queryString() {
+      const combinar = escenario === 'unico' || (escenario === 'libre' && !$('t-nombrar').checked);
+      return new URLSearchParams({
+        cliente: clienteId,
+        servicios: serviciosElegidos().join(','),
+        tipo: $('t-tipo').value,
+        desde: $('t-desde').value || '0.5',
+        hasta: $('t-hasta').value || '50',
+        paso: $('t-paso').value,
+        combinar: combinar ? '1' : '0',
+        base: $('t-base').value,
+        documentos: $('t-documentos').checked ? '1' : '0',
+        marca: $('t-marca').value,
+        logo: $('t-logo').checked ? '1' : '0',
+        nombrar: $('t-nombrar').checked ? '1' : '0',
+        nombre_cliente: $('t-nombre-cliente').checked ? '1' : '0',
+        notas: $('t-notas').checked ? '1' : '0',
+        destinos: $('t-destinos').checked ? '1' : '0',
+        fuel: $('t-fuel').checked ? '1' : '0',
+        vence: $('t-vence').value || '0',
+      }).toString();
+    }
+
+    let pedido = null;
+    function refrescar() {
+      const servicios = serviciosElegidos();
+      const avisos = [];
+      if (!servicios.length) avisos.push('Elegí al menos un servicio.');
+      if (escenario === 'unico' && servicios.length === 1) {
+        avisos.push('Con un solo servicio, el tarifario único sale con esos precios: la base '
+          + 'alto/medio/bajo recién hace diferencia con dos o más.');
+      }
+      // Avisos, no frenos. Felipe pidió expresamente que no bloquee: la oficina se asegura
+      // de que el cliente tenga las tarifas completas antes de mandarlo.
+      if (avisos.length) { alerta.innerHTML = avisos.join('<br>'); alerta.classList.remove('hidden'); } else {
+        alerta.classList.add('hidden');
+      }
+      if (!servicios.length) return;
+
+      // Un respiro antes de pedir: cada tecleo en "hasta" dispararía cientos de celdas.
+      clearTimeout(pedido);
+      pedido = setTimeout(() => { preview.src = `tarifario.html?${queryString()}`; }, 350);
+    }
+
+    function aplicarEscenario(nombre) {
+      escenario = nombre;
+      modal.querySelectorAll('.t-esc').forEach((b) => b.classList.toggle('active', b.dataset.esc === nombre));
+      $('t-esc-ayuda').textContent = ESCENARIOS[nombre].ayuda;
+      const o = {};
+      ESCENARIOS[nombre].aplicar(o);
+      if (o.nombrar !== undefined) $('t-nombrar').checked = o.nombrar;
+      $('t-fila-base').style.display = (nombre === 'unico' || nombre === 'libre') ? '' : 'none';
+      refrescar();
+    }
+
+    modal.querySelectorAll('.t-esc').forEach((b) => {
+      b.addEventListener('click', () => aplicarEscenario(b.dataset.esc));
+    });
+    modal.querySelectorAll('.t-rango').forEach((b) => {
+      b.addEventListener('click', () => {
+        modal.querySelectorAll('.t-rango').forEach((x) => x.classList.toggle('active', x === b));
+        $('t-desde').value = b.dataset.desde;
+        $('t-hasta').value = b.dataset.hasta;
+        $('t-paso').value = b.dataset.paso;
+        refrescar();
+      });
+    });
+    modal.querySelectorAll('input, select').forEach((el) => {
+      el.addEventListener('change', refrescar);
+      if (el.type === 'number') el.addEventListener('input', refrescar);
+    });
+
+    document.getElementById('btn-armar-tarifario').addEventListener('click', () => {
+      modal.classList.remove('hidden');
+      aplicarEscenario(escenario);
+    });
+    $('tarifario-cerrar').addEventListener('click', () => modal.classList.add('hidden'));
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.add('hidden'); });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !modal.classList.contains('hidden')) modal.classList.add('hidden');
+    });
+
+    $('t-imprimir').addEventListener('click', () => {
+      // Se imprime el iframe: exactamente lo que se está viendo, sin nada de la pantalla.
+      preview.contentWindow.focus();
+      preview.contentWindow.print();
+    });
+    $('t-excel').addEventListener('click', () => {
+      window.location.href = NovaAPI.clientes.tarifarioExcelUrl(clienteId, queryString());
+    });
   }
 
   init();

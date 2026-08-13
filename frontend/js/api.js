@@ -146,6 +146,11 @@ api.clientes.tarifaKg = {
   borrar: (id, body) => request(`/clientes/${id}/tarifa-kg`, { method: 'DELETE', body }),
 };
 
+// El tarifario que se le manda AL CLIENTE. Solo lectura; el servidor devuelve precios de
+// venta ya resueltos (nunca costos ni margenes). `qs` son las opciones del panel.
+api.clientes.tarifario = (id, qs) => api.get(`/clientes/${id}/tarifario?${qs}`);
+api.clientes.tarifarioExcelUrl = (id, qs) => `${API_BASE}/clientes/${id}/tarifario.xlsx?${qs}`;
+
 // Tramos de peso del cliente. Los usan las DOS matrices: la de porcentaje y la de kilo.
 // Un cliente sin tramos propios hereda los por defecto; la respuesta dice cual es el caso.
 api.clientes.tramos = {
