@@ -327,13 +327,26 @@
   //                  de peso los define cada cliente.
   // El modo lo guarda clientes.modo_tarifa y vale para las seis tablas del cliente.
 
-  let matrizActual = null;
-  // General de la matriz de PROFIT de la tabla activa. En modo por kilo hace falta para
-  // poder decir en la grilla con qué porcentaje se cobra una zona que no tiene precio por
-  // kilo, sin ir al servidor celda por celda.
-  let matrizProfitGeneral = null;
-  let tabActivo = { servicio: 'DHL', tipo: 'export' };
+  // ── Matriz unificada (13/08/2026) ──────────────────────────────────────────
+  // TODA la matriz del cliente se ve de una: los tres servicios uno debajo del otro,
+  // exportación e importación, con el precio por kilo y el porcentaje en la misma celda.
+  // Los botones de arriba LLEVAN a cada servicio, no ocultan nada. Fue un pedido directo
+  // de Felipe: "que se pueda ver la matriz de las tarifas todo de una, no en distintas
+  // cosas". Antes había seis pestañas y un selector que obligaba a elegir qué mirar.
+  //
+  // Se guardan las DOCE matrices (3 servicios × expo/impo × kg/pct), clave "SERV|tipo".
+  let matrices = {};
+  // Impo sin datos arranca plegada en una línea; este set recuerda cuáles abrió la persona.
+  const impoAbierta = { DHL: false, UPS_EXP: false, UPS_SAVER: false };
   let tarifasCargado = false;
+
+  const SERVICIOS_MATRIZ = [
+    { serv: 'DHL', nombre: 'DHL', chip: 'dhl', chipTxt: 'DHL' },
+    { serv: 'UPS_EXP', nombre: 'UPS Express', chip: 'ups', chipTxt: 'UPS' },
+    { serv: 'UPS_SAVER', nombre: 'UPS Saver', chip: 'ups', chipTxt: 'UPS' },
+  ];
+  const TIPOS_MATRIZ = ['export', 'import'];
+  const claveM = (serv, tipo) => `${serv}|${tipo}`;
 
   const esPorKg = () => (clienteData && clienteData.modo_tarifa) === 'por_kg';
 
@@ -383,55 +396,52 @@
     return b.max === null ? `${b.min}+ kg` : `${b.min}-${b.max} kg`;
   }
 
-  // Overrides de la matriz actual por nivel.
-  function overrideCelda(zona, min) {
-    return matrizActual.overrides.find((o) => o.zona === zona && o.peso_min === min) || null;
+  // Overrides de UNA matriz por nivel. La matriz llega por parámetro porque ahora hay doce
+  // a la vez, no una "activa".
+  function overrideCelda(m, zona, min) {
+    return m ? m.overrides.find((o) => o.zona === zona && o.peso_min === min) || null : null;
   }
-  function overrideBanda(min) {
-    return matrizActual.overrides.find((o) => o.zona === null && o.peso_min === min) || null;
+  function overrideBanda(m, min) {
+    return m ? m.overrides.find((o) => o.zona === null && o.peso_min === min) || null : null;
   }
-  function overrideZona(zona) {
-    return matrizActual.overrides.find((o) => o.zona === zona && o.peso_min === null) || null;
-  }
-
-  // El valor guardado se llama distinto en cada tabla (profit_pct vs precio_kg); el resto
-  // de la grilla es idéntico, así que se lee siempre por acá.
-  function valorDe(o) {
-    if (!o) return null;
-    return esPorKg() ? o.precio_kg : o.profit_pct;
+  function overrideZona(m, zona) {
+    return m ? m.overrides.find((o) => o.zona === zona && o.peso_min === null) || null : null;
   }
 
-  // Valor efectivo con precedencia: celda → banda/rango → zona → general de tabla →
-  // general del cliente (solo en modo porcentaje; en modo por kilo no hay fallback y la
-  // celda queda vacía, que es justo lo que hay que ver para saber que falta cargarla).
-  // Sólo el override de nivel celda cuenta como "propio" (resaltado + crucecita).
-  function valorEfectivo(zona, banda) {
-    const celda = overrideCelda(zona, banda.min);
-    if (celda) return { val: valorDe(celda), propio: true };
-    const ob = overrideBanda(banda.min);
-    if (ob) return { val: valorDe(ob), propio: false };
-    const oz = overrideZona(zona);
-    if (oz) return { val: valorDe(oz), propio: false };
-    if (matrizActual.general_tabla) return { val: valorDe(matrizActual.general_tabla), propio: false };
-    // Modo por kilo sin ningun precio que aplique: ese peso y esa zona se cobran con el
-    // PORCENTAJE de ganancia del cliente. El motor ya lo hace asi (resolverTarifaVenta cae
-    // al porcentaje); antes la grilla mostraba un guion, que se leia como un agujero de
-    // carga. Es justamente el caso MIXTO: una zona por kilo y las otras por porcentaje.
-    if (esPorKg()) return { val: null, propio: false, porPct: true };
-    const cli = clienteData && clienteData.tarifa_pct != null ? clienteData.tarifa_pct : 0;
-    return { val: cli, propio: false };
+  // Valor efectivo dentro de una matriz, con la precedencia del backend:
+  // celda → banda → zona → general de tabla. Sólo la celda cuenta como "propio".
+  function efectivoEn(m, campo, zona, banda) {
+    const c = overrideCelda(m, zona, banda.min);
+    if (c) return { val: c[campo], propio: true };
+    const b = overrideBanda(m, banda.min);
+    if (b) return { val: b[campo], propio: false };
+    const z = overrideZona(m, zona);
+    if (z) return { val: z[campo], propio: false };
+    if (m && m.general_tabla) return { val: m.general_tabla[campo], propio: false, general: true };
+    return { val: null, propio: false };
   }
 
-  // Porcentaje que le queda a una celda que NO tiene precio por kilo. Es el mismo orden de
-  // precedencia que resuelve el backend, pero leido de la matriz de profit del cliente para
-  // poder mostrarlo sin ir al servidor. Si no hay nada, el porcentaje general del cliente.
-  function pctDeRespaldo() {
-    const g = matrizProfitGeneral;
-    if (g !== null && g !== undefined) return g;
-    return clienteData && clienteData.tarifa_pct != null ? clienteData.tarifa_pct : 0;
+  // Lo que la celda muestra GRANDE (lo que manda según el modo del cliente) y CHICO (el
+  // otro valor, de respaldo). En modo por kilo sin precio, el peso se cobra con el
+  // porcentaje: no es un agujero, es el caso mixto, y la celda lo dice.
+  function valorEfectivo(serv, tipo, zona, banda) {
+    const m = matrices[claveM(serv, tipo)] || {};
+    const kg = efectivoEn(m.kg, 'precio_kg', zona, banda);
+    const pct = efectivoEn(m.pct, 'profit_pct', zona, banda);
+    const pctConCliente = pct.val !== null ? pct.val
+      : (clienteData && clienteData.tarifa_pct != null ? clienteData.tarifa_pct : 0);
+    if (esPorKg()) {
+      if (kg.val === null) return { val: null, propio: false, porPct: true, sub: `${pctConCliente}%` };
+      return { val: kg.val, propio: kg.propio, cero: kg.val === 0, sub: `${pctConCliente}%` };
+    }
+    return {
+      val: pct.val !== null ? pct.val : pctConCliente,
+      propio: pct.propio,
+      sub: kg.val !== null ? `USD ${Number(kg.val).toFixed(2)}/kg` : null,
+    };
   }
 
-  // Cómo se muestra un valor en la grilla: "12%" o "USD 5.00".
+  // Cómo se muestra el valor grande: "12%" o "USD 5.00".
   function formatoValor(val) {
     if (val === null || val === undefined) return '—';
     return esPorKg() ? `USD ${Number(val).toFixed(2)}` : `${val}%`;
@@ -453,8 +463,10 @@
   // Son cargas viejas que todavía no se migraron. Si se mostraran solo los tramos, esas
   // filas desaparecerían de la pantalla mientras el sistema les sigue cobrando esos
   // precios. Un precio que se cobra y no se ve es exactamente lo que estamos evitando.
-  function filasDeGrilla() {
-    const viejas = (matrizActual ? matrizActual.overrides : [])
+  function filasDeGrilla(serv, tipo) {
+    const m = matrices[claveM(serv, tipo)] || {};
+    const todas = [...(m.kg ? m.kg.overrides : []), ...(m.pct ? m.pct.overrides : [])];
+    const viejas = todas
       .filter((o) => o.peso_min !== null && !TARIFAS_BANDAS.some((b) => b.min === o.peso_min && b.max === o.peso_max));
     const vistas = new Map();
     viejas.forEach((o) => {
@@ -465,25 +477,26 @@
     return [...TARIFAS_BANDAS, ...vistas.values()].sort((a, b) => a.min - b.min || (a.vieja ? 1 : -1));
   }
 
+  // Trae TODO de una: los tramos y las doce matrices (3 servicios × expo/impo × kg/pct).
+  // Son pedidos chicos y en paralelo; así cada celda puede mostrar el precio por kilo y el
+  // porcentaje juntos sin volver al servidor.
   async function cargarMatriz() {
     try {
       await cargarTramos();
-      matrizActual = esPorKg()
-        ? await NovaAPI.clientes.tarifaKg.matriz(clienteId, tabActivo.servicio, tabActivo.tipo)
-        : await NovaAPI.clientes.profit.matriz(clienteId, tabActivo.servicio, tabActivo.tipo);
-
-      // En modo por kilo se trae además el general de profit: es el porcentaje con el que
-      // se cobra una zona sin precio por kilo, y hay que poder mostrarlo en la grilla.
-      // Si falla, no se rompe la pantalla: se cae al porcentaje general del cliente.
-      matrizProfitGeneral = null;
-      if (esPorKg()) {
-        try {
-          const mp = await NovaAPI.clientes.profit.matriz(clienteId, tabActivo.servicio, tabActivo.tipo);
-          matrizProfitGeneral = mp && mp.general_tabla ? mp.general_tabla.profit_pct : null;
-        } catch { /* se usa el general del cliente */ }
+      const pedidos = [];
+      for (const s of SERVICIOS_MATRIZ) {
+        for (const tipo of TIPOS_MATRIZ) {
+          pedidos.push((async () => {
+            const [kg, pct] = await Promise.all([
+              NovaAPI.clientes.tarifaKg.matriz(clienteId, s.serv, tipo),
+              NovaAPI.clientes.profit.matriz(clienteId, s.serv, tipo),
+            ]);
+            matrices[claveM(s.serv, tipo)] = { kg, pct };
+          })());
+        }
       }
+      await Promise.all(pedidos);
       renderModo();
-      renderGeneral();
       renderGrid();
     } catch (err) {
       NovaUtils.showAlert(alertBox, 'Error al cargar tarifas: ' + err.message);
@@ -496,16 +509,12 @@
     const fuel = document.getElementById('tarifas-fuel-input');
     const btnBorrarFuel = document.getElementById('btn-borrar-fuel');
     const hint = document.getElementById('tarifas-modo-hint');
-    const rangos = document.getElementById('tarifas-rangos');
     if (!sel) return;
 
     sel.value = esPorKg() ? 'por_kg' : 'porcentaje';
     const fuelPropio = clienteData ? clienteData.fuel_pct_propio : null;
     fuel.value = fuelPropio === null || fuelPropio === undefined ? '' : fuelPropio;
     btnBorrarFuel.classList.toggle('hidden', fuelPropio === null || fuelPropio === undefined);
-    // La barra de "agregar rango" ya no va: los tramos son las nueve bandas fijas y están
-    // todos en la grilla. Se deja el elemento en el HTML para no romper nada, oculto.
-    if (rangos) rangos.classList.add('hidden');
     hint.textContent = esPorKg()
       ? 'Precio fijo por kilo: reemplaza el flete. El fuel, el seguro y los recargos del courier se cobran igual.'
       : 'Porcentaje de ganancia sobre el flete del courier. Es el modo normal.';
@@ -517,10 +526,10 @@
     if (ayuda) {
       const deQuienSonLosTramos = tramosPropios
         ? 'Este cliente tiene tramos de peso propios, negociados con él: no son los que usa el resto.'
-        : 'Los tramos de peso son los generales: de 5 en 5 hasta 50 kg, y de ahí en adelante uno solo.';
+        : 'Los tramos de peso son los generales.';
       ayuda.textContent = esPorKg()
-        ? `Hacé clic en cualquier celda para ponerle el precio por kilo de esa zona y ese tramo de peso. ${deQuienSonLosTramos} La ✕ de la celda quita ese precio; la ✕ de la fila borra el tramo entero. Las celdas en gris NO tienen precio por kilo: se cobran con el porcentaje de ganancia.`
-        : deQuienSonLosTramos;
+        ? `Toda la matriz del cliente está abajo, un servicio debajo del otro. El número grande es el precio por kilo (manda); el chico, el porcentaje de respaldo. ${deQuienSonLosTramos} Clic en una celda para editarla; la ✕ quita ese precio.`
+        : `Toda la matriz del cliente está abajo, un servicio debajo del otro. El número grande es el porcentaje de ganancia (manda); si hay precio por kilo cargado se muestra chiquito. ${deQuienSonLosTramos} Clic en una celda para editarla.`;
     }
 
     renderSeguro();
@@ -554,79 +563,129 @@
       'Reemplaza la escala del courier: no se le cobra el escalon de USD 15 ni el minimo de 17,50.';
   }
 
-  function renderGeneral() {
-    const input = document.getElementById('tarifas-general-input');
-    const label = document.getElementById('tarifas-general-label');
-    const btnBorrar = document.getElementById('btn-borrar-general');
-    const generalCliente = clienteData && clienteData.tarifa_pct != null ? clienteData.tarifa_pct : 0;
-    if (label) {
-      label.textContent = esPorKg()
-        ? 'General de esta tabla (USD por kilo)'
-        : 'General de esta tabla (%)';
-    }
-    if (matrizActual && matrizActual.general_tabla) {
-      input.value = valorDe(matrizActual.general_tabla);
-      btnBorrar.classList.remove('hidden');
-    } else {
-      input.value = '';
-      btnBorrar.classList.add('hidden');
-    }
-    input.placeholder = esPorKg() ? 'sin general' : `General del cliente: ${generalCliente}%`;
+  // El general de cada tabla vive en el encabezado de su sección: con las seis tablas a la
+  // vista ya no hay "tabla activa" a la que pueda referirse un input global.
+  function generalHtml(serv, tipo) {
+    const m = matrices[claveM(serv, tipo)] || {};
+    const g = esPorKg()
+      ? (m.kg && m.kg.general_tabla ? m.kg.general_tabla.precio_kg : null)
+      : (m.pct && m.pct.general_tabla ? m.pct.general_tabla.profit_pct : null);
+    const unidad = esPorKg() ? 'USD/kg' : '%';
+    const cero = esPorKg() && g === 0
+      ? ' style="color:#d03b3b;font-weight:600" title="General en USD 0: todo peso sin precio especifico se cobra flete CERO en esta tabla."'
+      : '';
+    return `<span class="tarifa-general-linea"${cero}>General (${unidad})
+      <input type="number" min="0" step="0.5" class="gen-input" value="${g === null ? '' : g}"
+        data-serv="${serv}" data-tipo="${tipo}" placeholder="sin general">
+      <button class="btn btn-primary btn-sm gen-guardar" data-serv="${serv}" data-tipo="${tipo}">Guardar</button>
+      <button class="btn btn-secondary btn-sm gen-quitar ${g === null ? 'hidden' : ''}" data-serv="${serv}" data-tipo="${tipo}">Quitar</button>
+    </span>`;
+  }
+
+  function tablaHtml(serv, tipo) {
+    const filas = filasDeGrilla(serv, tipo);
+    let html = '<div class="tarifas-grid-wrap"><table class="tarifas-grid"><thead><tr><th></th><th class="col-todas">Todas</th>';
+    TARIFAS_ZONAS.forEach((z) => { html += `<th>Zona ${z}</th>`; });
+    html += '</tr></thead><tbody>';
+    const m = matrices[claveM(serv, tipo)] || {};
+    filas.forEach((banda) => {
+      const maxAttr = banda.max === null ? '' : banda.max;
+      const dataST = `data-serv="${serv}" data-tipo="${tipo}"`;
+      const borrarFila = banda.vieja && esPorKg()
+        ? `<span class="rango-del" title="Borrar todo el rango" ${dataST} data-min="${banda.min}" data-max="${maxAttr}">✕</span>`
+        : '';
+      const etiqueta = banda.vieja
+        ? `${bandaLabel(banda)} <span class="tramo-viejo" title="Este tramo no está en el juego de tramos de este cliente: quedó de una carga vieja. Sigue cobrando igual que siempre, pero no se puede editar desde acá. Borralo y volvé a cargarlo sobre los tramos del cliente.">fuera de los tramos</span>`
+        : bandaLabel(banda);
+      html += `<tr class="${banda.vieja ? 'fila-vieja' : ''}"><td class="banda-label">${etiqueta}${borrarFila}</td>`;
+
+      // Columna "Todas": el precio de ese tramo para las seis zonas de una.
+      {
+        const ob = esPorKg() ? overrideBanda(m.kg, banda.min) : overrideBanda(m.pct, banda.min);
+        const propio = !!ob;
+        const val = ob ? (esPorKg() ? ob.precio_kg : ob.profit_pct) : null;
+        const cero = esPorKg() && propio && val === 0 ? ' cero' : '';
+        html += `<td class="${banda.vieja ? 'celda-vieja' : 'tarifa-cell'} col-todas ${propio ? 'propio' : 'heredado sin-valor'}${cero}"`
+          + ` ${dataST} data-zona="" data-min="${banda.min}" data-max="${maxAttr}"`
+          + ` title="Precio de este tramo para las seis zonas. Hacé clic para ponerlo.">`
+          + `${propio ? '<span class="cell-del" title="Quitar el precio de todas las zonas">✕</span>' : ''}`
+          + `<span class="cell-val">${propio ? formatoValor(val) : '—'}</span></td>`;
+      }
+
+      TARIFAS_ZONAS.forEach((zona) => {
+        const ef = valorEfectivo(serv, tipo, zona, banda);
+        let cls = ef.propio ? 'tarifa-cell propio' : 'tarifa-cell heredado';
+        if (ef.porPct) cls += ' por-pct';
+        if (ef.cero) cls += ' cero';
+        if (!ef.propio && ef.val === null) cls += ' sin-valor';
+        const del = ef.propio ? '<span class="cell-del" title="Quitar override">✕</span>' : '';
+        const sub = ef.sub && !banda.vieja ? `<span class="cell-sub">${ef.sub}</span>` : '';
+        const title = ef.porPct
+          ? 'Esta zona no tiene precio por kilo: se cobra con el porcentaje que muestra la celda. Hacé clic para ponerle un precio por kilo.'
+          : (ef.cero ? 'PRECIO CERO: esta zona vende el flete a USD 0,00. Hacé clic para cambiarlo.'
+            : 'Hacé clic para cambiar el valor de esta zona');
+        if (banda.vieja) cls = cls.replace('tarifa-cell', 'celda-vieja');
+        html += `<td class="${cls}" ${dataST} data-zona="${zona}" data-min="${banda.min}" data-max="${maxAttr}"`
+          + ` title="${banda.vieja ? 'Tramo viejo: se cobra igual que siempre, pero no se puede editar desde acá.' : title}">`
+          + `${banda.vieja ? '' : del}<span class="cell-val">${banda.vieja ? '' : formatoValor(ef.val)}</span>${sub}</td>`;
+      });
+      html += '</tr>';
+    });
+    html += '</tbody></table></div>';
+    return html;
   }
 
   function renderGrid() {
     const wrap = document.getElementById('tarifas-grid');
-    if (!matrizActual) {
+    if (Object.keys(matrices).length === 0) {
       wrap.innerHTML = '';
       return;
     }
-    const filas = filasDeGrilla();
-    let html = '<table class="tarifas-grid"><thead><tr><th></th><th class="col-todas">Todas</th>';
-    TARIFAS_ZONAS.forEach((z) => {
-      html += `<th>Zona ${z}</th>`;
-    });
-    html += '</tr></thead><tbody>';
-    filas.forEach((banda) => {
-      const maxAttr = banda.max === null ? '' : banda.max;
-      const borrarFila = esPorKg()
-        ? `<span class="rango-del" title="Borrar todo el rango" data-min="${banda.min}" data-max="${maxAttr}">✕</span>`
-        : '';
-      const etiqueta = banda.vieja
-        ? `${bandaLabel(banda)} <span class="tramo-viejo" title="Este tramo no está en el juego de tramos de este cliente: quedó de una carga vieja. Sigue cobrando igual que siempre, pero no se puede editar desde acá. Borralo y volvé a cargarlo sobre los tramos de arriba, o pedile a quien corresponda que ajuste los tramos del cliente.">fuera de los tramos</span>`
-        : bandaLabel(banda);
-      html += `<tr class="${banda.vieja ? 'fila-vieja' : ''}"><td class="banda-label">${etiqueta}${borrarFila}</td>`;
-
-      // Columna "Todas": el precio de ese tramo para las seis zonas de una. Reemplaza a la
-      // barra de "agregar rango" que había cuando los rangos se inventaban a mano. Poner
-      // el precio zona por zona seguiría siendo posible, pero serían seis clics por fila.
-      {
-        const ob = overrideBanda(banda.min);
-        const propio = !!ob;
-        const texto = ob ? formatoValor(valorDe(ob)) : '—';
-        html += `<td class="${banda.vieja ? 'celda-vieja' : 'tarifa-cell'} col-todas ${propio ? 'propio' : 'heredado'}"`
-          + ` data-zona="" data-min="${banda.min}" data-max="${maxAttr}"`
-          + ` title="Precio de este tramo para las seis zonas. Hacé clic para ponerlo.">`
-          + `${propio ? '<span class="cell-del" title="Quitar el precio de todas las zonas">✕</span>' : ''}`
-          + `<span class="cell-val">${texto}</span></td>`;
+    let html = '';
+    for (const s of SERVICIOS_MATRIZ) {
+      html += `<div class="tarifa-seccion" id="sec-${s.serv}">`;
+      for (const tipo of TIPOS_MATRIZ) {
+        const m = matrices[claveM(s.serv, tipo)] || {};
+        const hayDatos = (m.kg && m.kg.overrides.length > 0) || (m.pct && m.pct.overrides.length > 0)
+          || (m.kg && m.kg.general_tabla) || (m.pct && m.pct.general_tabla);
+        const esImpo = tipo === 'import';
+        if (esImpo && !hayDatos && !impoAbierta[s.serv]) {
+          // Impo sin nada cargado: una línea, no una tabla vacía de cien celdas. El link la
+          // abre para poder cargar; los envíos de impo mientras tanto usan el porcentaje.
+          html += `<div class="tarifa-impo-vacia">Importación: sin tarifas propias → se cobra con el porcentaje general del cliente.
+            <a class="impo-abrir" data-serv="${s.serv}">Cargar tarifas de impo</a></div>`;
+          continue;
+        }
+        html += `<div class="tarifa-sec-head">
+          <span class="serv-chip ${s.chip}">${s.chipTxt}</span><h3>${s.nombre}</h3>
+          <span class="tipo-tag">${esImpo ? 'Importación' : 'Exportación'}</span>
+          ${generalHtml(s.serv, tipo)}</div>`;
+        html += tablaHtml(s.serv, tipo);
       }
-
-      TARIFAS_ZONAS.forEach((zona) => {
-        const { val, propio, porPct } = valorEfectivo(zona, banda);
-        let cls = propio ? 'tarifa-cell propio' : 'tarifa-cell heredado';
-        if (porPct) cls += ' por-pct';
-        const del = propio ? '<span class="cell-del" title="Quitar override">✕</span>' : '';
-        const texto = porPct ? `${pctDeRespaldo()}% de ganancia` : formatoValor(val);
-        const title = porPct
-          ? 'Esta zona no tiene precio por kilo: se cobra con el porcentaje de ganancia. Hacé clic para ponerle un precio por kilo.'
-          : 'Hacé clic para cambiar el precio de esta zona';
-        if (banda.vieja) cls = cls.replace('tarifa-cell', 'celda-vieja');
-        html += `<td class="${cls}" data-zona="${zona}" data-min="${banda.min}" data-max="${maxAttr}" title="${banda.vieja ? 'Tramo viejo: se cobra igual que siempre, pero no se puede editar desde acá. Borrá la fila y volvé a cargarla sobre los tramos fijos.' : title}">${banda.vieja ? '' : del}<span class="cell-val">${texto}</span></td>`;
-      });
-      html += '</tr>';
-    });
-    html += '</tbody></table>';
+      html += '</div>';
+    }
     wrap.innerHTML = html;
     bindGridEvents();
+    renderAlertaCeros();
+  }
+
+  // Cuenta las celdas de tarifa por kilo en USD 0 de TODO el cliente y lo dice arriba,
+  // en rojo. Un 0 no es "sin precio": vende el flete a cero (pasó con PIO ALVAREZ).
+  function renderAlertaCeros() {
+    const alerta = document.getElementById('tarifas-alerta');
+    if (!alerta) return;
+    let ceros = 0;
+    for (const k of Object.keys(matrices)) {
+      const kg = matrices[k].kg;
+      if (kg) ceros += kg.overrides.filter((o) => o.precio_kg === 0).length;
+      if (kg && kg.general_tabla && kg.general_tabla.precio_kg === 0) ceros += 1;
+    }
+    if (ceros > 0) {
+      alerta.innerHTML = `● <b>${ceros} precio(s) por kilo en USD 0,00:</b> esas celdas venden el flete GRATIS — un 0 no es "sin precio". Están en rojo en la grilla. Si no es a propósito, cambialas o quitalas.`;
+      alerta.style.display = 'block';
+    } else {
+      alerta.style.display = 'none';
+    }
   }
 
   function bindGridEvents() {
@@ -643,15 +702,55 @@
         borrarCelda(x.closest('td'));
       });
     });
-    // Borrar un rango entero (solo modo por kilo): saca la fila completa de la tabla.
+    // Borrar un rango viejo entero (solo quedan en cargas anteriores a los tramos).
     wrap.querySelectorAll('.rango-del').forEach((x) => {
       x.addEventListener('click', (e) => {
         e.stopPropagation();
-        borrarRango(Number(x.dataset.min), x.dataset.max === '' ? null : Number(x.dataset.max));
+        borrarRango(x.dataset.serv, x.dataset.tipo, Number(x.dataset.min), x.dataset.max === '' ? null : Number(x.dataset.max));
       });
+    });
+    // Abrir la tabla de impo de un servicio que no tiene nada cargado.
+    wrap.querySelectorAll('.impo-abrir').forEach((a) => {
+      a.addEventListener('click', () => {
+        impoAbierta[a.dataset.serv] = true;
+        renderGrid();
+      });
+    });
+    // General por tabla: guardar y quitar, con el servicio y el tipo en el botón.
+    wrap.querySelectorAll('.gen-guardar').forEach((b) => {
+      b.addEventListener('click', () => guardarGeneral(b.dataset.serv, b.dataset.tipo));
+    });
+    wrap.querySelectorAll('.gen-quitar').forEach((b) => {
+      b.addEventListener('click', () => borrarGeneral(b.dataset.serv, b.dataset.tipo));
     });
   }
 
+  async function guardarGeneral(serv, tipo) {
+    const input = document.querySelector(`.gen-input[data-serv="${serv}"][data-tipo="${tipo}"]`);
+    const val = input ? input.value.trim() : '';
+    const n = parseFloat(val);
+    if (val === '' || !Number.isFinite(n)) return;
+    const cuerpo = { servicio: serv, tipo, zona: null, peso_min: null, peso_max: null };
+    try {
+      if (esPorKg()) await NovaAPI.clientes.tarifaKg.guardar(clienteId, { ...cuerpo, precio_kg: n });
+      else await NovaAPI.clientes.profit.guardar(clienteId, { ...cuerpo, profit_pct: n });
+      await cargarMatriz();
+      NovaUtils.showAlert(alertBox, 'General de tabla guardado', 'success');
+    } catch (err) {
+      NovaUtils.showAlert(alertBox, err.message);
+    }
+  }
+
+  async function borrarGeneral(serv, tipo) {
+    const cuerpo = { servicio: serv, tipo, zona: null, peso_min: null, peso_max: null };
+    try {
+      if (esPorKg()) await NovaAPI.clientes.tarifaKg.borrar(clienteId, cuerpo);
+      else await NovaAPI.clientes.profit.borrar(clienteId, cuerpo);
+      await cargarMatriz();
+    } catch (err) {
+      NovaUtils.showAlert(alertBox, err.message);
+    }
+  }
   // zona vacía = la columna "Todas", que es el nivel BANDA: un solo precio para las seis
   // zonas de ese tramo de peso. Es lo que antes hacía la barra de "agregar rango", ahora
   // en un clic y en el mismo lugar donde se mira todo lo demás.
@@ -690,8 +789,8 @@
         return;
       }
       const cuerpo = {
-        servicio: tabActivo.servicio,
-        tipo: tabActivo.tipo,
+        servicio: td.dataset.serv,
+        tipo: td.dataset.tipo,
         zona: coords.zona,
         peso_min: coords.peso_min,
         peso_max: coords.peso_max,
@@ -719,8 +818,8 @@
   async function borrarCelda(td) {
     const coords = coordsDeCelda(td);
     const cuerpo = {
-      servicio: tabActivo.servicio,
-      tipo: tabActivo.tipo,
+      servicio: td.dataset.serv,
+      tipo: td.dataset.tipo,
       zona: coords.zona,
       peso_min: coords.peso_min,
       peso_max: coords.peso_max,
@@ -737,14 +836,14 @@
   // Borra un rango de peso completo: la fila de todas las zonas más la de "todas las
   // zonas". Se hace de a una porque cada fila es un registro propio; los 404 de las celdas
   // que no existían se ignoran a propósito (no son un error, simplemente no estaban).
-  async function borrarRango(min, max) {
+  async function borrarRango(serv, tipo, min, max) {
     const zonas = [...TARIFAS_ZONAS, null];
     let falla = null;
     for (const zona of zonas) {
       try {
         await NovaAPI.clientes.tarifaKg.borrar(clienteId, {
-          servicio: tabActivo.servicio,
-          tipo: tabActivo.tipo,
+          servicio: serv,
+          tipo,
           zona,
           peso_min: min,
           peso_max: max,
@@ -761,9 +860,6 @@
     const btnEditar = document.getElementById('btn-editar-tarifas');
     const panel = document.getElementById('tarifas-panel');
     const tabs = document.getElementById('tarifas-tabs');
-    const inputGeneral = document.getElementById('tarifas-general-input');
-    const btnGuardarGeneral = document.getElementById('btn-guardar-general');
-    const btnBorrarGeneral = document.getElementById('btn-borrar-general');
 
     btnEditar.addEventListener('click', () => {
       const abrir = panel.classList.contains('hidden');
@@ -775,56 +871,25 @@
       }
     });
 
-    // Switching de tab acotado al contenedor (no querySelector global).
+    // Los botones de servicio LLEVAN a su sección, no cargan nada: toda la matriz ya está
+    // en la página. Se marca el activo al hacer clic y también al scrollear (scrollspy).
     tabs.querySelectorAll('.tab').forEach((tab) => {
       tab.addEventListener('click', () => {
         tabs.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
         tab.classList.add('active');
-        tabActivo = { servicio: tab.dataset.serv, tipo: tab.dataset.tipo };
-        cargarMatriz();
+        const sec = document.getElementById('sec-' + tab.dataset.serv);
+        if (sec) sec.scrollIntoView({ behavior: 'smooth', block: 'start' });
       });
     });
-
-    btnGuardarGeneral.addEventListener('click', async () => {
-      const val = inputGeneral.value.trim();
-      const pct = parseFloat(val);
-      if (val === '' || !Number.isFinite(pct)) return;
-      const cuerpo = {
-        servicio: tabActivo.servicio,
-        tipo: tabActivo.tipo,
-        zona: null,
-        peso_min: null,
-        peso_max: null,
-      };
-      try {
-        if (esPorKg()) {
-          await NovaAPI.clientes.tarifaKg.guardar(clienteId, { ...cuerpo, precio_kg: pct });
-        } else {
-          await NovaAPI.clientes.profit.guardar(clienteId, { ...cuerpo, profit_pct: pct });
-        }
-        await cargarMatriz();
-        NovaUtils.showAlert(alertBox, 'General de tabla guardado', 'success');
-      } catch (err) {
-        NovaUtils.showAlert(alertBox, err.message);
-      }
-    });
-
-    btnBorrarGeneral.addEventListener('click', async () => {
-      const cuerpo = {
-        servicio: tabActivo.servicio,
-        tipo: tabActivo.tipo,
-        zona: null,
-        peso_min: null,
-        peso_max: null,
-      };
-      try {
-        if (esPorKg()) await NovaAPI.clientes.tarifaKg.borrar(clienteId, cuerpo);
-        else await NovaAPI.clientes.profit.borrar(clienteId, cuerpo);
-        await cargarMatriz();
-      } catch (err) {
-        NovaUtils.showAlert(alertBox, err.message);
-      }
-    });
+    window.addEventListener('scroll', () => {
+      const pills = [...tabs.querySelectorAll('.tab')];
+      let activo = 0;
+      pills.forEach((p, i) => {
+        const sec = document.getElementById('sec-' + p.dataset.serv);
+        if (sec && sec.getBoundingClientRect().top < 130) activo = i;
+      });
+      pills.forEach((p, i) => p.classList.toggle('active', i === activo));
+    }, { passive: true });
 
     // ── Modo de tarifa y fuel propio ────────────────────────────────────────
     // Cambiar de modo NO borra nada: las dos tablas quedan guardadas y se puede volver.
@@ -918,68 +983,6 @@
     });
     document.getElementById('btn-borrar-seguro').addEventListener('click', () => guardarSeguro(null, null));
 
-    // ⚠️ DESDE EL 11/08/2026 ESTA BARRA ESTÁ OCULTA. Los tramos de peso pasaron a ser las
-    // nueve bandas fijas, iguales que en el modo porcentaje, y ya están todas en la grilla:
-    // no hay ningún rango que agregar, se hace clic en la celda y listo. El código queda
-    // por si hiciera falta volver atrás; si alguien vuelve a mostrar la barra, el servidor
-    // igual rechaza cualquier rango que no sea una banda.
-    //
-    // Alta de un rango de peso (solo modo por kilo). Por defecto se guarda para "todas las
-    // zonas" y después se puede pisar zona por zona haciendo clic en la celda.
-    //
-    // Eligiendo UNA zona en el selector se guarda SOLO esa: el rango queda sin precio
-    // general, y las demás zonas de ese peso se cobran con el porcentaje de ganancia. Ese
-    // es el caso MIXTO —una zona por kilo y el resto por porcentaje—, que el motor soporta
-    // desde siempre (resolverTarifaKg devuelve null y resolverTarifaVenta cae al
-    // porcentaje) pero que desde la pantalla no se podía armar, porque el alta creaba
-    // siempre la fila de "todas las zonas".
-    document.getElementById('btn-agregar-rango').addEventListener('click', async () => {
-      const desdeEl = document.getElementById('rango-desde');
-      const hastaEl = document.getElementById('rango-hasta');
-      const precioEl = document.getElementById('rango-precio');
-      const zonaEl = document.getElementById('rango-zona');
-      const zonaSel = zonaEl && zonaEl.value !== '' ? Number(zonaEl.value) : null;
-      const desde = parseFloat(desdeEl.value);
-      const hasta = hastaEl.value.trim() === '' ? null : parseFloat(hastaEl.value);
-      const precio = parseFloat(precioEl.value);
-      if (!Number.isFinite(desde) || desde < 0) {
-        NovaUtils.showAlert(alertBox, 'Poné desde cuántos kilos vale el rango');
-        return;
-      }
-      if (hasta !== null && (!Number.isFinite(hasta) || hasta <= desde)) {
-        NovaUtils.showAlert(alertBox, 'El "hasta" tiene que ser mayor que el "desde"');
-        return;
-      }
-      if (!Number.isFinite(precio) || precio < 0) {
-        NovaUtils.showAlert(alertBox, 'Poné el precio por kilo del rango');
-        return;
-      }
-      try {
-        await NovaAPI.clientes.tarifaKg.guardar(clienteId, {
-          servicio: tabActivo.servicio,
-          tipo: tabActivo.tipo,
-          zona: zonaSel,
-          peso_min: desde,
-          peso_max: hasta,
-          precio_kg: precio,
-        });
-        desdeEl.value = '';
-        hastaEl.value = '';
-        precioEl.value = '';
-        if (zonaEl) zonaEl.value = '';
-        await cargarMatriz();
-        if (zonaSel !== null) {
-          NovaUtils.showAlert(
-            alertBox,
-            `Rango cargado solo para la zona ${zonaSel}. Las otras zonas de ese peso se cobran ` +
-              'con el porcentaje de ganancia; se ven en gris en la grilla.',
-            'success'
-          );
-        }
-      } catch (err) {
-        NovaUtils.showAlert(alertBox, err.message);
-      }
-    });
   }
 
   init();

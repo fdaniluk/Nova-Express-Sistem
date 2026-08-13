@@ -130,15 +130,24 @@ async function main() {
     await page.evaluate(() => !!document.getElementById('tarifas-modo-select')));
   check('arranca en "Porcentaje de ganancia"',
     (await page.inputValue('#tarifas-modo-select')) === 'porcentaje');
-  check('el control de rangos está oculto en modo porcentaje',
-    await page.evaluate(() => document.getElementById('tarifas-rangos').classList.contains('hidden')));
+
+  // LO CENTRAL DEL 13/08: la matriz entera está de una. Los tres servicios son secciones
+  // apiladas en la misma página; los botones de arriba solo llevan, no ocultan.
+  check('las TRES secciones de servicio están en la página a la vez',
+    await page.evaluate(() => !!document.getElementById('sec-DHL')
+      && !!document.getElementById('sec-UPS_EXP') && !!document.getElementById('sec-UPS_SAVER')));
+  check('la exportación se ve rotulada en cada sección',
+    (await page.$$eval('.tipo-tag', (t) => t.filter((x) => /exportaci/i.test(x.textContent)).length)) === 3);
+  check('la impo sin datos es una línea, no una tabla vacía',
+    (await page.$$('.tarifa-impo-vacia')).length === 3);
+  check('hay una leyenda de colores en la barra',
+    (await page.$$('#tarifas-tabs .tarifas-key')).length >= 3);
 
   const bandasPct = await page.evaluate(() =>
-    [...document.querySelectorAll('td.banda-label')].map((t) => t.textContent.trim()));
-  check('se ven los tramos heredados', bandasPct.length === TRAMOS_HEREDADOS, bandasPct.join(' | '));
-  // Se saltea la columna "Todas": esa muestra "—" mientras no tenga un valor propio.
+    [...document.querySelectorAll('#sec-DHL td.banda-label')].map((t) => t.textContent.trim()));
+  check('se ven los tramos heredados en DHL', bandasPct.length === TRAMOS_HEREDADOS, bandasPct.join(' | '));
   const celdaPct = await page.evaluate(() => {
-    const td = document.querySelector('td.tarifa-cell:not(.col-todas) .cell-val');
+    const td = document.querySelector('#sec-DHL td.tarifa-cell:not(.col-todas) .cell-val');
     return td ? td.textContent.trim() : null;
   });
   check('las celdas muestran porcentajes', /%$/.test(celdaPct || ''), String(celdaPct));
@@ -148,57 +157,57 @@ async function main() {
   await page.selectOption('#tarifas-modo-select', 'por_kg');
   await esperar(1500);
 
-  // Desde el 11/08/2026 no hay barra de "agregar rango": los tramos del cliente están todos
-  // en la grilla, llenos o vacíos. Un hueco es una celda que se ve.
-  check('la barra de agregar rango ya no se usa',
-    await page.evaluate(() => document.getElementById('tarifas-rangos').classList.contains('hidden')));
-  check('la etiqueta del general pasa a USD por kilo',
-    /kilo/i.test(await page.textContent('#tarifas-general-label')),
-    await page.textContent('#tarifas-general-label'));
+  check('el general de cada tabla pasa a USD por kilo',
+    /USD\/kg/.test(await page.textContent('#sec-DHL .tarifa-general-linea')),
+    await page.textContent('#sec-DHL .tarifa-general-linea'));
   const bandasKg = await page.evaluate(() =>
-    [...document.querySelectorAll('td.banda-label')].map((t) => t.textContent.trim()));
+    [...document.querySelectorAll('#sec-DHL td.banda-label')].map((t) => t.textContent.trim()));
   check('en modo por kilo se ven LOS MISMOS tramos', bandasKg.length === TRAMOS_HEREDADOS, bandasKg.join(' | '));
   check('sin nada cargado, los tramos se ven vacíos y no desaparecen',
-    (await page.textContent('#tarifas-grid')).includes('—'));
+    (await page.textContent('#sec-DHL')).includes('—'));
+  // El respaldo se ve en la MISMA celda: precio por kilo grande, porcentaje chico abajo.
+  check('la celda muestra el porcentaje de respaldo debajo del precio',
+    (await page.$$('#sec-DHL td.tarifa-cell .cell-sub')).length > 0);
 
   // ── 3. Cargar el rango del ejemplo real: 1 a 10 kg a USD 5 ──────────────────
   // Cada tabla (servicio + tipo) tiene sus propios rangos, igual que la matriz de profit.
   // Se carga en UPS Expedited Expo, que es la que después cotiza el cotizador.
   console.log('\n3. Cargar el tramo 5-10 kg a USD 5 el kilo en UPS Expedited Expo\n');
-  await page.click('#tarifas-tabs .tab[data-serv="UPS_EXP"][data-tipo="export"]');
-  await esperar(1200);
-  check('se puede cambiar de tabla estando en modo por kilo',
-    (await page.$$('td.banda-label')).length === TRAMOS_HEREDADOS);
+  await page.click('#tarifas-tabs .tab[data-serv="UPS_EXP"]');
+  await esperar(600);
+  check('el botón de UPS Express lleva a su sección (nada se recarga ni se oculta)',
+    await page.evaluate(() => document.getElementById('sec-UPS_EXP').getBoundingClientRect().top < 300
+      && !!document.getElementById('sec-DHL')));
 
   // La columna "Todas" pone el precio del tramo para las seis zonas de un clic. Es lo que
   // antes hacía la barra de rangos, sin poder inventar un tramo que no existe.
-  check('existe la columna "Todas"', !!(await page.$('td.tarifa-cell.col-todas[data-min="5"]')));
-  await page.click('td.tarifa-cell.col-todas[data-min="5"]');
+  check('existe la columna "Todas"', !!(await page.$('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"].col-todas[data-min="5"]')));
+  await page.click('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"].col-todas[data-min="5"]');
   await esperar(400);
-  await page.fill('td.tarifa-cell.col-todas[data-min="5"] input', '5');
-  await page.press('td.tarifa-cell.col-todas[data-min="5"] input', 'Enter');
+  await page.fill('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"].col-todas[data-min="5"] input', '5');
+  await page.press('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"].col-todas[data-min="5"] input', 'Enter');
   await esperar(1500);
 
-  const valores = await page.$$eval('td.tarifa-cell[data-min="5"]:not(.col-todas) .cell-val',
+  const valores = await page.$$eval('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-min="5"]:not(.col-todas) .cell-val',
     (v) => v.map((x) => x.textContent.trim()));
   check('las seis zonas de 5-10 kg muestran USD 5.00',
     valores.length === 6 && valores.every((v) => v === 'USD 5.00'), valores.join(' | '));
 
-  const otroTramo = await page.$$eval('td.tarifa-cell[data-min="20"]:not(.col-todas) .cell-val',
+  const otroTramo = await page.$$eval('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-min="20"]:not(.col-todas) .cell-val',
     (v) => v.map((x) => x.textContent.trim()));
   check('y los demás tramos siguen sin precio por kilo',
-    otroTramo.every((v) => /ganancia|—/.test(v)), otroTramo.join(' | '));
+    otroTramo.every((v) => /—/.test(v)), otroTramo.join(' | '));
 
   // ── 4. Pisar una zona puntual ───────────────────────────────────────────────
   console.log('\n4. Pisar el precio de una zona\n');
-  await page.click('td.tarifa-cell[data-zona="3"][data-min="5"]');
+  await page.click('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="3"][data-min="5"]');
   await esperar(400);
-  await page.fill('td.tarifa-cell[data-zona="3"][data-min="5"] input', '7.5');
-  await page.press('td.tarifa-cell[data-zona="3"][data-min="5"] input', 'Enter');
+  await page.fill('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="3"][data-min="5"] input', '7.5');
+  await page.press('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="3"][data-min="5"] input', 'Enter');
   await esperar(1500);
 
   const trasEditar = await page.evaluate(() =>
-    [...document.querySelectorAll('td.tarifa-cell[data-min="5"]:not(.col-todas)')].map((td) => ({
+    [...document.querySelectorAll('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-min="5"]:not(.col-todas)')].map((td) => ({
       zona: td.dataset.zona,
       val: td.querySelector('.cell-val').textContent.trim(),
       propio: td.classList.contains('propio'),
@@ -218,18 +227,18 @@ async function main() {
   // fila de "todas las zonas". Con el selector nuevo se carga un rango para UNA zona sola.
   const ayuda = await page.textContent('#tarifas-grid-ayuda');
   check('la pantalla explica que se hace clic en la celda',
-    /clic en cualquier celda/i.test(ayuda), ayuda);
-  check('y explica qué hace cada ✕',
-    /✕ de la celda/.test(ayuda) && /✕ de la fila/.test(ayuda));
+    /clic en una celda/i.test(ayuda), ayuda);
+  check('y explica que el número grande manda y el chico es el respaldo',
+    /grande/.test(ayuda) && /respaldo|chico/.test(ayuda), ayuda);
 
   // Una sola zona con precio por kilo y las otras cinco por porcentaje, en el tramo 40-50.
-  await page.click('td.tarifa-cell[data-zona="1"][data-min="40"]');
+  await page.click('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="1"][data-min="40"]');
   await esperar(400);
-  await page.fill('td.tarifa-cell[data-zona="1"][data-min="40"] input', '8');
-  await page.press('td.tarifa-cell[data-zona="1"][data-min="40"] input', 'Enter');
+  await page.fill('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="1"][data-min="40"] input', '8');
+  await page.press('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="1"][data-min="40"] input', 'Enter');
   await esperar(2000);
 
-  const fila40 = await page.$$eval('td.tarifa-cell[data-min="40"]:not(.col-todas)',
+  const fila40 = await page.$$eval('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-min="40"]:not(.col-todas)',
     (els) => els.map((td) => ({ zona: td.dataset.zona,
       val: td.querySelector('.cell-val').textContent.trim(),
       porPct: td.classList.contains('por-pct') })));
@@ -238,6 +247,33 @@ async function main() {
     JSON.stringify(fila40.find((c) => c.zona === '1')));
   const grises = fila40.filter((c) => c.porPct).length;
   check('las otras cinco zonas de ese tramo van por porcentaje', grises === 5, `grises=${grises}`);
+
+  console.log('\n4-ter. Un precio en USD 0 se marca y se avisa: vende el flete gratis\n');
+
+  // Pasó con PIO ALVAREZ: 21 celdas en 0 que nadie veía. Ahora la pantalla las cuenta
+  // arriba en rojo y pinta la celda. Un 0 no es "sin precio".
+  await page.click('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="5"][data-min="10"]');
+  await esperar(400);
+  await page.fill('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="5"][data-min="10"] input', '0');
+  await page.press('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="5"][data-min="10"] input', 'Enter');
+  await esperar(1500);
+
+  check('la celda en 0 queda marcada en rojo',
+    await page.evaluate(() => {
+      const td = document.querySelector('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="5"][data-min="10"]');
+      return td && td.classList.contains('cero');
+    }));
+  const alerta0 = await page.evaluate(() => {
+    const a = document.getElementById('tarifas-alerta');
+    return a && a.style.display !== 'none' ? a.textContent : null;
+  });
+  check('y arriba aparece el aviso de flete gratis',
+    /USD 0/.test(alerta0 || '') && /GRATIS/i.test(alerta0 || ''), String(alerta0).slice(0, 90));
+
+  await page.click('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="5"][data-min="10"] .cell-del');
+  await esperar(1500);
+  check('al quitar el 0 el aviso se va',
+    await page.evaluate(() => document.getElementById('tarifas-alerta').style.display === 'none'));
 
   console.log('\n5. Fuel propio del cliente\n');
 
@@ -343,10 +379,10 @@ async function main() {
   await esperar(1200);
   await page.click('#btn-editar-tarifas');
   await esperar(1200);
-  await page.click('#tarifas-tabs .tab[data-serv="UPS_EXP"][data-tipo="export"]');
-  await esperar(1500);
+  await page.click('#tarifas-tabs .tab[data-serv="UPS_EXP"]');
+  await esperar(800);
 
-  const filaVieja = await page.$('tr.fila-vieja');
+  const filaVieja = await page.$('#sec-UPS_EXP tr.fila-vieja');
   check('el tramo viejo aparece en la grilla', !!filaVieja);
   const textoVieja = filaVieja ? await filaVieja.textContent() : '';
   check('y dice el rango que tiene de verdad (20-29.5)', /29\.5/.test(textoVieja), textoVieja.slice(0, 60));
@@ -354,7 +390,7 @@ async function main() {
     textoVieja.slice(0, 60));
   check('y muestra el precio que cobra', /4\.32/.test(textoVieja), textoVieja.slice(0, 80));
   check('no se puede editar desde la grilla',
-    (await page.$$('tr.fila-vieja td.tarifa-cell')).length === 0);
+    (await page.$$('#sec-UPS_EXP tr.fila-vieja td.tarifa-cell')).length === 0);
   // Los tramos ya no son nueve fijos: son los del cliente, y los dice el backend. El número
   // se le pregunta a él en vez de escribirlo acá, así el día que cambie el juego por
   // defecto este test no miente: compara la grilla contra la verdad, no contra un 9 viejo.
@@ -365,9 +401,9 @@ async function main() {
   }, cliente.id);
   check('el backend dice cuántos tramos tiene este cliente', tramosDelBackend === TRAMOS_HEREDADOS,
     `son ${tramosDelBackend}, esperaba ${TRAMOS_HEREDADOS}`);
-  check('y todos están en la grilla, además de la fila de afuera',
-    (await page.$$('tr:not(.fila-vieja) td.banda-label')).length === tramosDelBackend,
-    `grilla=${(await page.$$('tr:not(.fila-vieja) td.banda-label')).length} backend=${tramosDelBackend}`);
+  check('y todos están en la grilla de UPS Express, además de la fila de afuera',
+    (await page.$$('#sec-UPS_EXP tr:not(.fila-vieja) td.banda-label')).length === tramosDelBackend,
+    `grilla=${(await page.$$('#sec-UPS_EXP tr:not(.fila-vieja) td.banda-label')).length} backend=${tramosDelBackend}`);
 
   console.log('\n8. Sin errores de JavaScript\n');
   const rel = errores.filter((x) => !/favicon|net::ERR|Failed to load resource/i.test(x));
