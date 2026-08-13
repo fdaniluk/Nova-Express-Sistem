@@ -157,17 +157,22 @@
         return;
       }
 
-      tbody.innerHTML = enviosPendientesCliente.map((e) => `
-        <tr data-envio-id="${e.id}">
-          <td><input type="checkbox" class="liq-envio-check" value="${e.id}" checked></td>
+      // ⚠️ Un envío SIN precio de venta (total 0) viene DESTILDADO y marcado: confirmarlo
+      // lo dejaría liquidado en cero para siempre (defecto 3 de AUDITORIA-NUMEROS.md).
+      // El backend además lo rechaza al confirmar; esto es para que ni siquiera moleste.
+      tbody.innerHTML = enviosPendientesCliente.map((e) => {
+        const sinPrecio = !(Number(e.total_cobrado) > 0);
+        return `
+        <tr data-envio-id="${e.id}" ${sinPrecio ? 'style="background:#fffbeb" title="Sin precio de venta: si se liquidara, quedaría cobrado en CERO. Cargale el precio primero."' : ''}>
+          <td><input type="checkbox" class="liq-envio-check" value="${e.id}" ${sinPrecio ? '' : 'checked'}></td>
           <td>${NovaUtils.formatDate(e.fecha)}</td>
-          <td>${e.numero_guia}</td>
+          <td>${e.numero_guia}${sinPrecio ? ' <span style="font-size:0.7rem;font-weight:700;color:#b45309">SIN PRECIO</span>' : ''}</td>
           <td>${e.courier}</td>
           <td>${NovaUtils.formatMoney(e.fob)}</td>
           <td>${NovaUtils.formatMoney(e.total_cobrado)}</td>
           <td><input type="number" class="liq-adicional" step="0.01" min="0" value="0" style="width:80px"></td>
         </tr>
-      `).join('');
+      `; }).join('');
 
       document.getElementById('liq-envios-wrap').classList.remove('hidden');
       document.getElementById('liq-preview').classList.add('hidden');

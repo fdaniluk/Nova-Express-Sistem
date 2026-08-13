@@ -231,15 +231,23 @@
       const largo = parseFloat(document.querySelector(`[data-bulto="${i}"][data-field="largo"]`)?.value);
       const ancho = parseFloat(document.querySelector(`[data-bulto="${i}"][data-field="ancho"]`)?.value);
       const alto = parseFloat(document.querySelector(`[data-bulto="${i}"][data-field="alto"]`)?.value);
-      if (largo && ancho && alto) {
+      const pesoReal = parseFloat(
+        document.querySelector(`[data-bulto="${i}"][data-field="peso_real"]`)?.value
+      ) || null;
+      // ⚠️ Defecto 4 de AUDITORIA-NUMEROS.md: antes solo se agregaba el bulto
+      // `if (largo && ancho && alto)`. Un bulto PESADO pero sin medir pasaba la
+      // validación (que solo exige peso) y desaparecía CON SU PESO ADENTRO: 20 kg
+      // sin medidas facturaban como 0 kg, y el "peso balanza" de la pantalla sí los
+      // mostraba, así que el faltante era invisible (USD 64 de menos reproducidos).
+      // Un bulto entra si tiene medidas O peso: sin medidas su volumétrico es 0 y
+      // factura por peso real, que es lo correcto.
+      if ((largo && ancho && alto) || pesoReal) {
         bultos.push({
           numero_bulto: i,
-          largo,
-          ancho,
-          alto,
-          peso_real: parseFloat(
-            document.querySelector(`[data-bulto="${i}"][data-field="peso_real"]`)?.value
-          ) || null,
+          largo: largo || null,
+          ancho: ancho || null,
+          alto: alto || null,
+          peso_real: pesoReal,
         });
       }
     }

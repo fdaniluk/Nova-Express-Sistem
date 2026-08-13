@@ -26,13 +26,16 @@ async function saveBultos(envioId, bultos) {
   for (let i = 0; i < bultos.length; i++) {
     const b = bultos[i];
     const pv = pesoVolumetricoBulto(b.largo, b.ancho, b.alto);
+    // Un bulto pesado pero sin medir guarda las medidas en 0 (la tabla las exige NOT
+    // NULL): volumétrico 0, factura por su peso real. Antes el frontend directamente lo
+    // descartaba con el peso adentro (defecto 4 de AUDITORIA-NUMEROS.md).
     await insert.run(
       envioId,
       b.numero_bulto ?? i + 1,
       b.peso_real ?? null,
-      b.largo,
-      b.ancho,
-      b.alto,
+      Number(b.largo) || 0,
+      Number(b.ancho) || 0,
+      Number(b.alto) || 0,
       Math.round(pv * 1000) / 1000
     );
   }

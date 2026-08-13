@@ -102,10 +102,19 @@ function normPais(s) {
 
 function canonizarPais(pais) {
   if (!pais) return pais;
+  // ⚠️ MISMA REGLA QUE buscarZona: también SIN ACENTOS. Hasta el 13/08/2026 esta función
+  // comparaba solo en minúsculas mientras buscarZona además sacaba los acentos. Un país
+  // escrito "Espana" o "Mexico" pasaba buscarZona pero fallaba acá, el motor no lo
+  // reconocía y el envío se cargaba SIN COSTO (USD 0,00), con pinta de estar bien.
+  // Defecto 1 de AUDITORIA-NUMEROS.md, reproducido el 07/08. Las dos funciones tienen
+  // que normalizar igual: match exacto en minúsculas primero, sin acentos después.
   const norm = pais.trim().toLowerCase();
+  const sinAcentos = normPais(pais);
   return (
     Object.keys(ZONAS_DHL).find(k => k.toLowerCase() === norm) ||
     Object.keys(ZONAS_UPS).find(k => k.toLowerCase() === norm) ||
+    Object.keys(ZONAS_DHL).find(k => normPais(k) === sinAcentos) ||
+    Object.keys(ZONAS_UPS).find(k => normPais(k) === sinAcentos) ||
     pais
   );
 }
@@ -297,6 +306,7 @@ function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zo
 }
 
 module.exports = {
+  canonizarPais,
   pesoVolumetricoBulto,
   calcularPesos,
   calcularSeguro,

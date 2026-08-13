@@ -151,6 +151,12 @@ async function preview({ cliente_id, envio_ids, cargos = [], cotizaciones = [] }
 async function crear({ cliente_id, periodo_desde, periodo_hasta, envio_ids, cargos = [], cotizaciones = [], confirmar = false }) {
   await migrarColumnas();
   const previewData = await preview({ cliente_id, envio_ids, cargos, cotizaciones });
+  // ⚠️ Defecto 3 de AUDITORIA-NUMEROS.md: un envío sin precio entraba a la liquidación,
+  // se confirmaba en CERO y quedaba liquidado para siempre — esa plata no se facturaba
+  // nunca más. Choca de lleno con los envíos sin pesar (total_cobrado = 0 por diseño):
+  // liquidar el mes antes de que lleguen los pesos los daba por cobrados en cero.
+  // El borrador se permite (sirve para ir armando); CONFIRMAR con ítems en cero, no.
+  if (confirmar) validarSinCeros(previewData.items);
   const db = getDb();
 
   const id = await db.transaction(async () => {
@@ -222,6 +228,22 @@ async function crear({ cliente_id, periodo_desde, periodo_hasta, envio_ids, carg
   return buscarPorId(id);
 }
 
+// Rechaza con 409 una lista de ítems donde alguno quedó en cero. El mensaje nombra las
+// guías: la oficina tiene que poder ver cuáles destildar o cargarles el precio.
+function validarSinCeros(items) {
+  const enCero = items.filter((i) => !(Number(i.total_usd) > 0));
+  if (enCero.length > 0) {
+    const guias = enCero.map((i) => i.numero_guia || `envío ${i.envio_id}`).join(', ');
+    const err = new Error(
+      `No se puede confirmar: ${enCero.length} envío(s) sin precio de venta (total USD 0): ${guias}. ` +
+      'Cargales el precio o sacalos de la liquidación. Si se confirmara así, quedarían ' +
+      'liquidados en cero y no se facturarían nunca.'
+    );
+    err.status = 409;
+    throw err;
+  }
+}
+
 async function confirmar(id) {
   const db = getDb();
   const liq = await buscarPorId(id);
@@ -233,6 +255,32 @@ async function confirmar(id) {
   }
 
   const envioIds = liq.items.map((i) => i.envio_id);
+
+  // ⚠️ Defecto 2 de AUDITORIA-NUMEROS.md — EL MISMO ENVÍO FACTURADO DOS VECES. Crear un
+  // borrador no marca nada; el envío queda libre y puede entrar en OTRO borrador. Al
+  // confirmar el segundo, marcarLiquidados no pisaba nada (tiene WHERE liquidado = 0)
+  // pero la liquidación entera se confirmaba igual, con sus ítems, y el cliente recibía
+  // la misma guía cobrada dos veces. Reproducido el 07/08: dos confirmadas de USD 500
+  // con los mismos envíos. Acá se vuelve a chequear ANTES de confirmar.
+  const yaLiquidados = await db
+    .prepare(
+      `SELECT e.id, e.numero_guia, e.liquidacion_id FROM envios e
+       WHERE e.id IN (${envioIds.map(() => '?').join(',')}) AND e.liquidado = 1`
+    )
+    .all(...envioIds);
+  if (yaLiquidados.length > 0) {
+    const guias = yaLiquidados.map((e) => `${e.numero_guia} (liquidación #${e.liquidacion_id})`).join(', ');
+    const err = new Error(
+      `No se puede confirmar: ${yaLiquidados.length} envío(s) ya están liquidados en otra ` +
+      `liquidación: ${guias}. Borrá este borrador o sacá esos envíos.`
+    );
+    err.status = 409;
+    throw err;
+  }
+
+  // Defecto 3: confirmar un borrador con ítems en cero también se frena acá.
+  validarSinCeros(liq.items);
+
   const fecha = hoyLocal();
 
   await db.transaction(async () => {

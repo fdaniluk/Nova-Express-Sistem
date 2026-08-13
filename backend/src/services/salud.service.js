@@ -82,8 +82,13 @@ function acotar(filas) {
 
 // ── 1. Un envío en más de una liquidación ───────────────────────────────────
 // El limitador L1. Envíos 31 y 147 en producción: cada uno en un borrador y en una
-// confirmada. Confirmar el borrador refactura el envío entero. Hoy no se duplica plata
-// porque todo filtra por `estado = 'confirmada'`, pero está cargado y esperando.
+// confirmada. Confirmar el borrador refactura el envío entero.
+//
+// ⚠️ La versión anterior de este comentario decía "hoy no se duplica plata": ERA FALSO.
+// La auditoría del 07/08 reprodujo dos liquidaciones confirmadas con los mismos envíos,
+// USD 500 cada una. Desde el 13/08 `confirmar()` rechaza envíos ya liquidados (409), así
+// que los borradores duplicados que existan dejaron de poder confirmarse — pero este
+// chequeo sigue haciendo falta para verlos y limpiarlos.
 //
 // Se reporta ROJO siempre que haya más de un item, incluso si solo uno está confirmado:
 // el riesgo es justamente el borrador que todavía nadie confirmó.

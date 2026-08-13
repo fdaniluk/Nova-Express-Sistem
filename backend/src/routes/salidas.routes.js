@@ -614,6 +614,25 @@ router.patch('/:id', async (req, res, next) => {
           error: 'El envío está liquidado: no se puede cambiar la fecha (podría sacarlo del período liquidado).',
         });
       }
+
+      // ⚠️ Defecto 5 de AUDITORIA-NUMEROS.md: este freno cubría SOLO cliente y fecha,
+      // mientras el PUT de /api/envios congela también la plata. Dos rutas, dos reglas
+      // para el mismo dato: por acá se pudo cambiar un envío liquidado de USD 200 a 999
+      // — el Excel que recibió el cliente decía 200 y el sistema 999. Ahora los campos
+      // monetarios quedan congelados igual que en el PUT. Solo se rechaza si CAMBIA.
+      const CAMPOS_PLATA = ['total_cobrado', 'flete', 'seguro', 'fuel', 'fuel_pct',
+        'adicionales', 'otros', 'derechos', 'descuento', 'profit', 'porcentaje',
+        'peso_facturable'];
+      const cambiaPlata = CAMPOS_PLATA.filter((c) =>
+        Object.prototype.hasOwnProperty.call(picked, c)
+        && Number(picked[c]) !== Number(existing[c]));
+      if (cambiaPlata.length > 0) {
+        return res.status(409).json({
+          error: `El envío está liquidado: no se puede cambiar ${cambiaPlata.join(', ')}. ` +
+            'La liquidación confirmada quedó con los valores congelados; si hay que ' +
+            'corregir plata, primero hay que anular esa liquidación.',
+        });
+      }
     }
 
     // Validación de los campos recién destrabados. Sin esto, un valor inválido rompe
