@@ -51,6 +51,34 @@ function check(nombre, cond, detalle = '') {
 }
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * Espera A QUE PASE ALGO en la pantalla, en vez de esperar una cantidad de milisegundos.
+ *
+ * POR QUÉ (13/08/2026)
+ * Esta tanda se cortó una vez en la máquina de Felipe justo después de escribir el precio
+ * general: el `esperar(1500)` fijo se le acabó antes de que la grilla terminara de
+ * redibujarse, y las seis celdas todavía decían "—". Al repetirla pasó 49 de 49. Una espera
+ * fija es una apuesta a que la máquina de hoy es tan rápida como la de ayer.
+ *
+ * **Se traga el vencimiento a propósito.** Si esperara y explotara, el test se cortaría sin
+ * decir qué control falló, que es exactamente lo que pasó. Así el `check()` de abajo se
+ * evalúa igual y, si de verdad está mal, lo dice con su nombre y su detalle.
+ */
+async function esperarQue(page, fn, arg, ms = 8000) {
+  try {
+    await page.waitForFunction(fn, arg, { timeout: ms });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+/** El editor de una celda aparece después del clic; esperar al input, no al reloj. */
+async function abrirCelda(page, sel) {
+  await page.click(sel);
+  await page.waitForSelector(`${sel} input`, { timeout: 8000 });
+}
+
 async function main() {
   // Base de test: copia FRESCA de la de producción en cada corrida.
   prepararDb(DB);
@@ -213,11 +241,15 @@ async function main() {
   // La columna "Todas" pone el precio del tramo para las seis zonas de un clic. Es lo que
   // antes hacía la barra de rangos, sin poder inventar un tramo que no existe.
   check('existe la columna "Todas"', !!(await page.$('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"].col-todas[data-min="5"]')));
-  await page.click('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"].col-todas[data-min="5"]');
-  await esperar(400);
-  await page.fill('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"].col-todas[data-min="5"] input', '5');
-  await page.press('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"].col-todas[data-min="5"] input', 'Enter');
-  await esperar(1500);
+  const CELDA_TODAS = 'td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"].col-todas[data-min="5"]';
+  await abrirCelda(page, CELDA_TODAS);
+  await page.fill(`${CELDA_TODAS} input`, '5');
+  await page.press(`${CELDA_TODAS} input`, 'Enter');
+  // Guardar el general recarga la grilla entera: se espera a que las seis zonas muestren el
+  // precio, no a que pasen 1,5 segundos.
+  await esperarQue(page, () => [...document.querySelectorAll(
+    'td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-min="5"]:not(.col-todas) .cell-val',
+  )].every((x) => x.textContent.trim() === 'USD 5.00'));
 
   const valores = await page.$$eval('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-min="5"]:not(.col-todas) .cell-val',
     (v) => v.map((x) => x.textContent.trim()));
@@ -231,11 +263,15 @@ async function main() {
 
   // ── 4. Pisar una zona puntual ───────────────────────────────────────────────
   console.log('\n4. Pisar el precio de una zona\n');
-  await page.click('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="3"][data-min="5"]');
-  await esperar(400);
-  await page.fill('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="3"][data-min="5"] input', '7.5');
-  await page.press('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="3"][data-min="5"] input', 'Enter');
-  await esperar(1500);
+  const CELDA_Z3 = 'td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="3"][data-min="5"]';
+  await abrirCelda(page, CELDA_Z3);
+  await page.fill(`${CELDA_Z3} input`, '7.5');
+  await page.press(`${CELDA_Z3} input`, 'Enter');
+  await esperarQue(page, (sel) => {
+    const td = document.querySelector(sel);
+    return td && td.querySelector('.cell-val')
+      && td.querySelector('.cell-val').textContent.includes('7.50');
+  }, CELDA_Z3);
 
   const trasEditar = await page.evaluate(() =>
     [...document.querySelectorAll('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-min="5"]:not(.col-todas)')].map((td) => ({
@@ -263,11 +299,14 @@ async function main() {
     /Editar/i.test(ayuda), ayuda);
 
   // Una sola zona con precio por kilo y las otras cinco por porcentaje, en el tramo 40-50.
-  await page.click('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="1"][data-min="40"]');
-  await esperar(400);
-  await page.fill('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="1"][data-min="40"] input', '8');
-  await page.press('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="1"][data-min="40"] input', 'Enter');
-  await esperar(2000);
+  const CELDA_Z1_40 = 'td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="1"][data-min="40"]';
+  await abrirCelda(page, CELDA_Z1_40);
+  await page.fill(`${CELDA_Z1_40} input`, '8');
+  await page.press(`${CELDA_Z1_40} input`, 'Enter');
+  await esperarQue(page, (sel) => {
+    const td = document.querySelector(sel);
+    return td && !td.querySelector('input') && /8\.00/.test(td.textContent);
+  }, CELDA_Z1_40);
 
   // La VISTA del caso mixto: una zona con su precio por kilo, las otras cinco en gris con
   // el porcentaje que cobran de verdad. Un solo número por celda.
@@ -289,11 +328,14 @@ async function main() {
 
   // Pasó con PIO ALVAREZ: 21 celdas en 0 que nadie veía. Ahora la pantalla las cuenta
   // arriba en rojo y pinta la celda. Un 0 no es "sin precio".
-  await page.click('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="5"][data-min="10"]');
-  await esperar(400);
-  await page.fill('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="5"][data-min="10"] input', '0');
-  await page.press('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="5"][data-min="10"] input', 'Enter');
-  await esperar(1500);
+  const CELDA_Z5_10 = 'td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="5"][data-min="10"]';
+  await abrirCelda(page, CELDA_Z5_10);
+  await page.fill(`${CELDA_Z5_10} input`, '0');
+  await page.press(`${CELDA_Z5_10} input`, 'Enter');
+  await esperarQue(page, (sel) => {
+    const td = document.querySelector(sel);
+    return td && td.classList.contains('cero');
+  }, CELDA_Z5_10);
 
   check('la celda en 0 queda marcada en rojo',
     await page.evaluate(() => {
@@ -307,8 +349,8 @@ async function main() {
   check('y arriba aparece el aviso de flete gratis',
     /USD 0/.test(alerta0 || '') && /GRATIS/i.test(alerta0 || ''), String(alerta0).slice(0, 90));
 
-  await page.click('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="5"][data-min="10"] .cell-del');
-  await esperar(1500);
+  await page.click(`${CELDA_Z5_10} .cell-del`);
+  await esperarQue(page, () => document.getElementById('tarifas-alerta').style.display === 'none');
   check('al quitar el 0 el aviso se va',
     await page.evaluate(() => document.getElementById('tarifas-alerta').style.display === 'none'));
 

@@ -45,6 +45,54 @@ function check(nombre, cond, detalle = '') {
   else { fail++; console.log(`  ✗ ${nombre}${detalle ? '  → ' + detalle : ''}`); }
 }
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * Espera A QUE PASE ALGO, preguntando cada 200 ms, en vez de dormir una cantidad fija.
+ * Se traga el vencimiento a propósito: si esperara y explotara, el test se cortaría sin
+ * decir qué control falló — que es justo lo que pasó el 13/08 en la máquina de Felipe.
+ * Devolviendo, el `check()` de abajo se evalúa igual y, si está mal, lo dice con su nombre.
+ */
+async function esperarQue(fn, ms = 8000) {
+  const hasta = Date.now() + ms;
+  while (Date.now() < hasta) {
+    // eslint-disable-next-line no-await-in-loop
+    if (await fn()) return true;
+    // eslint-disable-next-line no-await-in-loop
+    await esperar(200);
+  }
+  return false;
+}
+
+/**
+ * Tildar una casilla que puede estar redibujándose.
+ *
+ * POR QUÉ (13/08/2026): esta tanda se cortó acá en la máquina de Felipe. El clic salió bien
+ * —el log de Playwright dice "click action done"— pero la fila de la tabla se rehizo justo
+ * después y la casilla volvió a quedar sin tildar, así que `check()` explotó y el test murió
+ * sin llegar a contar un solo control. Al repetirlo pasó 30 de 30.
+ *
+ * Se vuelve a buscar el elemento en cada vuelta, porque el de la vuelta anterior puede haber
+ * quedado huérfano si la tabla se redibujó.
+ */
+async function tildar(page, sel, intentos = 3) {
+  for (let i = 0; i < intentos; i += 1) {
+    // eslint-disable-next-line no-await-in-loop
+    const el = await page.$(sel);
+    // eslint-disable-next-line no-await-in-loop
+    if (el && await el.isChecked()) return true;
+    if (el) {
+      try {
+        // eslint-disable-next-line no-await-in-loop
+        await el.check({ timeout: 5000 });
+        // eslint-disable-next-line no-await-in-loop
+        if (await el.isChecked().catch(() => false)) return true;
+      } catch { /* se redibujó abajo del clic: se reintenta con el elemento nuevo */ }
+    }
+    // eslint-disable-next-line no-await-in-loop
+    await esperar(600);
+  }
+  return false;
+}
 const H = { 'Content-Type': 'application/json', Cookie: `nova_session=${TOKEN}` };
 
 function sql(query, params = []) {
@@ -240,17 +288,25 @@ async function main() {
   // para el cierre sin darle nada más. Para esta parte se la asciende.
   await sql("UPDATE usuarios SET rol='admin' WHERE id=?", [uid]);
   await page.goto(`${BASE}/pages/usuarios.html`);
-  await esperar(2500);
+  // Esperar a que la TABLA esté dibujada, no a que pasen 2,5 segundos. La lista de usuarios
+  // se pide por fetch después de cargar la página: si se hace clic mientras se está
+  // redibujando, la fila se reemplaza abajo del clic. Ver el comentario de `tildar()`.
+  await page.waitForSelector('input.cierre-check', { timeout: 10000 }).catch(() => {});
   check('la pantalla de Usuarios cargó', page.url().includes('usuarios.html'), page.url());
   check('la tabla tiene la columna Cierre',
     /Cierre/.test(await page.textContent('thead')), await page.textContent('thead'));
   check('está la tilde en el alta de usuario', !!(await page.$('#u-cerrar-mes')));
 
-  const tildePepe = await page.$(`input.cierre-check[data-id="${pepe.id}"]`);
+  const SEL_PEPE = `input.cierre-check[data-id="${pepe.id}"]`;
+  const tildePepe = await page.$(SEL_PEPE);
   check('cada usuario tiene su tilde de cierre', !!tildePepe);
   check('pepe arranca sin el permiso', !(await tildePepe.isChecked()));
-  await tildePepe.check();
-  await esperar(1800);
+  await tildar(page, SEL_PEPE);
+  // Se espera a que el permiso esté GUARDADO, no a que pasen 1,8 segundos.
+  await esperarQue(async () => {
+    const [u] = await sql('SELECT cerrar_mes FROM usuarios WHERE id=?', [pepe.id]);
+    return Number(u.cerrar_mes) === 1;
+  });
   const [pepeDespues] = await sql('SELECT cerrar_mes FROM usuarios WHERE id=?', [pepe.id]);
   check('darle el permiso lo guarda en la base', Number(pepeDespues.cerrar_mes) === 1,
     String(pepeDespues.cerrar_mes));
