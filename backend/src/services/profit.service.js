@@ -658,13 +658,15 @@ async function resolverTarifaKg({ clienteId, servicio, tipo, zona, pesoFacturabl
 
 /**
  * Resolvedor ÚNICO del precio de venta del flete. Es el que deben usar todos los
- * llamadores (cotizador, alta de envío, endpoint de cotizar): decide solo, según el modo
- * del cliente, si el flete se arma con un % de ganancia o con un precio por kilo.
+ * llamadores (cotizador, alta de envío, endpoint de cotizar).
  *
- * Si el cliente está en modo por_kg pero NINGUNA tarifa por kilo cubre ese peso/zona, NO
- * se cobra cero ni se rompe: se cae al modo porcentaje y se devuelve el aviso en
- * `advertencia` para que la pantalla lo muestre. Un agujero en la matriz es un error de
- * carga que hay que ver, no un envío gratis.
+ * LA REGLA (Felipe, 13/08/2026): el precio por kilo cargado SE COBRA SIEMPRE. Si una
+ * fila de tarifa por kilo cubre este peso/zona, ese es el precio, sin importar el modo
+ * del cliente; el porcentaje cubre todo lo que no tenga precio por kilo.
+ *
+ * Si NINGUNA tarifa por kilo cubre ese peso/zona, NO se cobra cero ni se rompe: se cae
+ * al porcentaje. En un cliente en modo por_kg eso además devuelve un aviso en
+ * `advertencia` (probable agujero de carga); en uno en porcentaje es lo normal.
  *
  * @returns {Promise<{modo, profitPct, precioKg, origen, advertencia}|null>} null si el
  *          cliente no existe.
@@ -673,19 +675,29 @@ async function resolverTarifaVenta({ clienteId, servicio, tipo, zona, pesoFactur
   const info = await obtenerModoCliente(clienteId);
   if (!info) return null;
 
+  // ⚠️ EL PRECIO POR KILO CARGADO SE COBRA SIEMPRE (Felipe, 13/08): "si tiene precio por
+  // kilo, paga precio por kilo, independientemente de las otras columnas". El modo del
+  // cliente ya NO decide qué tabla gana: si una fila de tarifa por kilo cubre este
+  // peso/zona, ese es el precio; el porcentaje cubre todo lo demás. El caso mixto
+  // (5-10 kg al 50%, 10-15 kg a precio fijo) queda así de natural.
+  //
+  // `modo_tarifa` sigue existiendo para una sola cosa: el AVISO. Un cliente en por_kg
+  // que cae al porcentaje probablemente tiene un agujero de carga y hay que decirlo; en
+  // un cliente en porcentaje, caer al porcentaje es lo normal y no se avisa.
+  const kg = await resolverTarifaKg({ clienteId, servicio, tipo, zona, pesoFacturable });
+  if (kg) {
+    return {
+      modo: 'por_kg',
+      profitPct: 0,
+      precioKg: kg.precioKg,
+      origen: kg.origen,
+      peso_min: kg.peso_min,
+      peso_max: kg.peso_max,
+      advertencia: null,
+    };
+  }
+
   if (info.modo === 'por_kg') {
-    const kg = await resolverTarifaKg({ clienteId, servicio, tipo, zona, pesoFacturable });
-    if (kg) {
-      return {
-        modo: 'por_kg',
-        profitPct: 0,
-        precioKg: kg.precioKg,
-        origen: kg.origen,
-        peso_min: kg.peso_min,
-        peso_max: kg.peso_max,
-        advertencia: null,
-      };
-    }
     const porcentaje = await resolverProfit({ clienteId, servicio, tipo, zona, pesoFacturable });
     // Redacción neutra a propósito. Antes decía "el cliente está en modo precio por kilo
     // PERO no hay tarifa cargada", que sonaba a error de carga. Desde que la pantalla deja

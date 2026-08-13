@@ -323,10 +323,17 @@ const core = require('../../shared/cotizador/cotizador-core.js');
   const despues = await profitService.resolverTarifaVenta({
     clienteId: cli, servicio: 'UPS_EXP', tipo: 'export', zona: 1, pesoFacturable: 6,
   });
-  check('al volver a modo porcentaje cotiza igual que al principio',
-    despues.profitPct === viejo.profitPct && despues.origen === viejo.origen,
-    `${JSON.stringify(despues)} vs ${JSON.stringify(viejo)}`);
-  check('las tarifas por kilo quedaron guardadas por si vuelve al otro modo',
+  // LA REGLA DEL 13/08: el precio por kilo cargado se cobra SIEMPRE, sin importar el modo.
+  // "Si yo pongo que de 5 a 10 paga 5, va a pagar 5, no tiene nada que ver el porcentaje"
+  // (Felipe). El modo solo decide si el sistema avisa cuando un peso cae al porcentaje.
+  check('el precio por kilo se cobra AUNQUE el cliente este en modo porcentaje',
+    despues.modo === 'por_kg' && despues.precioKg === 6, JSON.stringify(despues));
+  const sinKg = await profitService.resolverTarifaVenta({
+    clienteId: cli, servicio: 'UPS_EXP', tipo: 'export', zona: 1, pesoFacturable: 20,
+  });
+  check('y un peso sin precio por kilo cae al porcentaje sin aviso (es lo normal en este modo)',
+    sinKg.modo === 'porcentaje' && sinKg.advertencia === null, JSON.stringify(sinKg));
+  check('las tarifas por kilo quedaron guardadas',
     (await db.prepare('SELECT COUNT(*) AS n FROM tarifa_kg_overrides WHERE cliente_id = ?').get(cli)).n > 0);
 
   console.log('\n' + '─'.repeat(60));

@@ -126,10 +126,22 @@ async function main() {
   await page.click('#btn-editar-tarifas');
   await esperar(1200);
 
-  check('el selector de modo está en la pantalla',
-    await page.evaluate(() => !!document.getElementById('tarifas-modo-select')));
-  check('arranca en "Porcentaje de ganancia"',
-    (await page.inputValue('#tarifas-modo-select')) === 'porcentaje');
+  check('ya NO hay selector de modo: lo que se carga es lo que se cobra',
+    await page.evaluate(() => !document.getElementById('tarifas-modo-select')));
+
+  // El selector de modo ya no existe: el modo del cliente solo decide si el cotizador
+  // avisa al caer al porcentaje. Para los flujos que lo necesitan se cambia por base.
+  const cambiarModo = async (modo) => {
+    await new Promise((res, rej) => {
+      const d2 = new (require('sqlite3').Database)(DB);
+      d2.run('UPDATE clientes SET modo_tarifa = ? WHERE id = ?', [modo, cliente.id],
+        (e) => d2.close(() => (e ? rej(e) : res())));
+    });
+    await page.reload({ waitUntil: 'networkidle' });
+    await esperar(800);
+    await page.click('#btn-editar-tarifas');
+    await esperar(1200);
+  };
 
   // LO CENTRAL DEL 13/08: la matriz entera está de una. Los tres servicios son secciones
   // apiladas en la misma página; los botones de arriba solo llevan, no ocultan.
@@ -165,8 +177,7 @@ async function main() {
 
   // ── 2. Cambiar a precio por kilo ────────────────────────────────────────────
   console.log('\n2. Pasarlo a precio por kilo\n');
-  await page.selectOption('#tarifas-modo-select', 'por_kg');
-  await esperar(1500);
+  await cambiarModo('por_kg');
 
   const bandasKg = await page.evaluate(() =>
     [...document.querySelectorAll('#sec-DHL td.banda-label')].map((t) => t.textContent.trim()));
@@ -431,19 +442,23 @@ async function main() {
     (await page.$$('#sec-UPS_EXP tr:not(.fila-vieja) td.banda-label')).length === tramosDelBackend,
     `grilla=${(await page.$$('#sec-UPS_EXP tr:not(.fila-vieja) td.banda-label')).length} backend=${tramosDelBackend}`);
 
-  console.log('\n7-ter. Un precio por kilo que NO se cobra se marca en amarillo\n');
+  console.log('\n7-ter. El precio por kilo cargado se ve y SE COBRA, este el cliente en el modo que este\n');
 
-  // Cliente en porcentaje con precios por kilo cargados: esos precios NO se cobran (el
-  // motor los ignora). La vista muestra el porcentaje y pinta la celda de amarillo para
-  // que se vea que hay algo cargado que no está actuando.
-  await page.selectOption('#tarifas-modo-select', 'porcentaje');
-  await esperar(2000);
-  const muerta = await page.evaluate(() => {
+  // La regla del 13/08: "si tiene precio por kilo, paga precio por kilo, independientemente".
+  await cambiarModo('porcentaje');
+  const enPct = await page.evaluate(() => {
     const td = document.querySelector('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="3"][data-min="5"]');
-    return td ? { muerto: td.classList.contains('kg-muerto'), val: td.querySelector('.cell-val').textContent.trim() } : null;
+    return td ? { val: td.querySelector('.cell-val').textContent.trim(), clases: td.className } : null;
   });
-  check('la celda muestra el porcentaje que se cobra', muerta && /%$/.test(muerta.val), JSON.stringify(muerta));
-  check('y queda marcada en amarillo por el precio por kilo muerto', muerta && muerta.muerto, JSON.stringify(muerta));
+  check('la celda MUESTRA el precio por kilo cargado', enPct && enPct.val === 'USD 7.50', JSON.stringify(enPct));
+  check('sin ninguna marca rara: es un precio que se cobra', enPct && !/kg-muerto/.test(enPct.clases), JSON.stringify(enPct));
+  // Y el backend cobra ese precio aunque el cliente este en porcentaje.
+  const cotizado = await page.evaluate(async (id) => {
+    const r = await fetch('/api/clientes/' + id + '/tarifas/venta?servicio=UPS_EXP&tipo=export&zona=3&peso=6', { credentials: 'same-origin' })
+      .catch(() => null);
+    return null; // el endpoint directo no existe: el control real es la celda + test-tarifa-por-kg
+  }, cliente.id);
+  void cotizado;
 
   console.log('\n8. Sin errores de JavaScript\n');
   const rel = errores.filter((x) => !/favicon|net::ERR|Failed to load resource/i.test(x));

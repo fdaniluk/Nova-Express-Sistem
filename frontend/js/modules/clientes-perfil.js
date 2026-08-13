@@ -442,12 +442,13 @@
     if (editando === 'pct') {
       return { val: pct.val !== null ? pct.val : pctConCliente, propio: pct.propio, unidad: 'pct' };
     }
-    // Vista: lo que se cobra de verdad (la misma decisión que resolverTarifaVenta).
-    if (esPorKg()) {
-      if (kg.val === null) return { val: pctConCliente, propio: false, porPct: true, unidad: 'pct' };
+    // Vista: EL PRECIO POR KILO DONDE HAY, EL PORCENTAJE DONDE NO. Es exactamente lo que
+    // cobra el motor desde el 13/08: el precio por kilo cargado se cobra siempre, sin
+    // importar el modo del cliente (pedido de Felipe).
+    if (kg.val !== null) {
       return { val: kg.val, propio: false, cero: kg.val === 0, unidad: 'kg' };
     }
-    return { val: pct.val !== null ? pct.val : pctConCliente, propio: false, unidad: 'pct', kgMuerto: kg.val !== null };
+    return { val: pctConCliente, propio: false, unidad: 'pct', porPct: esPorKg() };
   }
 
   // Cómo se muestra un valor según su unidad.
@@ -514,29 +515,20 @@
 
   // Encabezado del panel: modo, fuel propio y la explicación de qué se está editando.
   function renderModo() {
-    const sel = document.getElementById('tarifas-modo-select');
     const fuel = document.getElementById('tarifas-fuel-input');
     const btnBorrarFuel = document.getElementById('btn-borrar-fuel');
-    const hint = document.getElementById('tarifas-modo-hint');
-    if (!sel) return;
+    if (!fuel) return;
 
-    sel.value = esPorKg() ? 'por_kg' : 'porcentaje';
     const fuelPropio = clienteData ? clienteData.fuel_pct_propio : null;
     fuel.value = fuelPropio === null || fuelPropio === undefined ? '' : fuelPropio;
     btnBorrarFuel.classList.toggle('hidden', fuelPropio === null || fuelPropio === undefined);
-    hint.textContent = esPorKg()
-      ? 'Precio fijo por kilo: reemplaza el flete. El fuel, el seguro y los recargos del courier se cobran igual.'
-      : 'Porcentaje de ganancia sobre el flete del courier. Es el modo normal.';
 
-    // Explicación de cómo se usa la grilla. Antes no había ninguna, y la única pista de que
-    // las celdas eran clickeables era el cursorcito: la función de poner un precio distinto
-    // por zona existía desde el principio y nadie sabía que estaba.
     const ayuda = document.getElementById('tarifas-grid-ayuda');
     if (ayuda) {
       const deQuienSonLosTramos = tramosPropios
         ? 'Este cliente tiene tramos de peso propios, negociados con él: no son los que usa el resto.'
         : 'Los tramos de peso son los generales.';
-      ayuda.textContent = `Toda la matriz está abajo, un servicio debajo del otro, con lo que se cobra en cada celda. ${deQuienSonLosTramos} Para cambiar precios: botón Editar porcentaje o Editar precio por kilo.`;
+      ayuda.textContent = `Lo que se carga es lo que se cobra: el precio por kilo gana en su cuadrante, el porcentaje cubre el resto. ${deQuienSonLosTramos} Para cambiar precios: Editar porcentaje o Editar precio por kilo.`;
     }
 
     renderSeguro();
@@ -617,13 +609,15 @@
       // Columna "Todas": el precio de ese tramo para las seis zonas de una. Solo se toca
       // en edición; en la vista muestra el de la tabla que manda.
       {
-        const tablaTodas = editando === 'pct' ? m.pct : (editando === 'kg' ? m.kg : (esPorKg() ? m.kg : m.pct));
-        const unidadTodas = editando === 'pct' ? 'pct' : (editando === 'kg' ? 'kg' : (esPorKg() ? 'kg' : 'pct'));
+        let tablaTodas; let unidadTodas;
+        if (editando === 'pct') { tablaTodas = m.pct; unidadTodas = 'pct'; }
+        else if (editando === 'kg') { tablaTodas = m.kg; unidadTodas = 'kg'; }
+        else if (overrideBanda(m.kg, banda.min)) { tablaTodas = m.kg; unidadTodas = 'kg'; }
+        else { tablaTodas = m.pct; unidadTodas = 'pct'; }
         const ob = overrideBanda(tablaTodas, banda.min);
         const propio = !!ob;
         const val = ob ? (unidadTodas === 'kg' ? ob.precio_kg : ob.profit_pct) : null;
         let extra = unidadTodas === 'kg' && propio && val === 0 ? ' cero' : '';
-        if (editando === null && !esPorKg() && overrideBanda(m.kg, banda.min)) extra += ' kg-muerto';
         html += `<td class="${banda.vieja ? 'celda-vieja' : 'tarifa-cell'} col-todas ${propio ? 'propio' : 'heredado sin-valor'}${extra}"`
           + ` ${dataST} data-zona="" data-min="${banda.min}" data-max="${maxAttr}"`
           + ` title="${editando === null ? 'Precio de este tramo para las seis zonas.' : 'Precio de este tramo para las seis zonas. Hacé clic para ponerlo.'}">`
@@ -636,14 +630,12 @@
         let cls = ef.propio ? 'tarifa-cell propio' : 'tarifa-cell heredado';
         if (ef.porPct) cls += ' por-pct';
         if (ef.cero) cls += ' cero';
-        if (ef.kgMuerto) cls += ' kg-muerto';
         if (!ef.propio && ef.val === null) cls += ' sin-valor';
         const del = ef.propio && editando !== null ? '<span class="cell-del" title="Quitar override">✕</span>' : '';
         const title = editando === null
           ? (ef.porPct ? 'Sin precio por kilo: este peso se cobra con este porcentaje.'
             : (ef.cero ? 'PRECIO CERO: esta zona vende el flete a USD 0,00.'
-              : (ef.kgMuerto ? 'Tiene un precio por kilo cargado que NO se cobra (el cliente está en porcentaje).'
-                : 'Lo que se cobra en esta zona y este tramo. Para cambiarlo, botón Editar.')))
+              : 'Lo que se cobra en esta zona y este tramo. Para cambiarlo, botón Editar.'))
           : 'Hacé clic para cambiar el valor de esta zona';
         if (banda.vieja) cls = cls.replace('tarifa-cell', 'celda-vieja');
         html += `<td class="${cls}" ${dataST} data-zona="${zona}" data-min="${banda.min}" data-max="${maxAttr}"`
@@ -705,9 +697,6 @@
   function renderAlertaCeros() {
     const alerta = document.getElementById('tarifas-alerta');
     if (!alerta) return;
-    // En modo porcentaje los precios por kilo no se cobran: un 0 ahí es fila muerta
-    // (marcada en amarillo en la grilla), no flete gratis.
-    if (!esPorKg()) { alerta.style.display = 'none'; return; }
     let ceros = 0;
     for (const k of Object.keys(matrices)) {
       const kg = matrices[k].kg;
@@ -938,28 +927,7 @@
       pills.forEach((p, i) => p.classList.toggle('active', i === activo));
     }, { passive: true });
 
-    // ── Modo de tarifa y fuel propio ────────────────────────────────────────
-    // Cambiar de modo NO borra nada: las dos tablas quedan guardadas y se puede volver.
-
-    const selModo = document.getElementById('tarifas-modo-select');
-    selModo.addEventListener('change', async () => {
-      const modo = selModo.value;
-      try {
-        const actualizado = await NovaAPI.clientes.actualizar(clienteId, { modo_tarifa: modo });
-        clienteData = actualizado;
-        await cargarMatriz();
-        NovaUtils.showAlert(
-          alertBox,
-          modo === 'por_kg'
-            ? 'Cliente pasado a precio por kilo. Cargá los rangos de cada tabla.'
-            : 'Cliente pasado a porcentaje de ganancia.',
-          'success'
-        );
-      } catch (err) {
-        NovaUtils.showAlert(alertBox, err.message);
-        selModo.value = esPorKg() ? 'por_kg' : 'porcentaje';
-      }
-    });
+    // ── Fuel propio ─────────────────────────────────────────────────────────
 
     const inputFuel = document.getElementById('tarifas-fuel-input');
     async function guardarFuel(valor) {

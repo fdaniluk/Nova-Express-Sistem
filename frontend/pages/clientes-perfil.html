@@ -142,8 +142,6 @@
     .tarifa-impo-vacia { padding: 0.4rem 1rem 0.8rem; color: var(--color-muted); font-size: 0.78rem; }
     .tarifa-impo-vacia a { cursor: pointer; color: #2a78d6; text-decoration: underline; }
     .tarifa-seccion .tarifas-grid-wrap { padding: 0 0.6rem 0.6rem; }
-    /* Precio por kilo cargado que NO se cobra (cliente en porcentaje): amarillo + tooltip. */
-    td.tarifa-cell.kg-muerto { background: #fffbeb; box-shadow: inset 3px 0 0 #f59e0b; }
     /* Conmutador: vista de lo que se cobra / edición de una tabla concreta. */
     .tarifas-vista { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin: 0.2rem 0 0.2rem; }
     .tarifas-vista .vista-btn { border: 1px solid var(--color-border); background: #fff; color: var(--color-muted);
@@ -258,17 +256,14 @@
         </div>
         <div id="tarifas-panel" class="hidden">
           <!-- Modo de tarifa y fuel propio: valen para TODAS las tablas del cliente -->
+          <!-- Sin selector de "modo de tarifa" desde el 13/08: lo que se carga es lo que
+               se cobra, cuadrante por cuadrante. El precio por kilo gana donde esta; el
+               porcentaje cubre el resto. No hay nada que elegir a nivel cliente. -->
           <div class="tarifas-modo">
-            <label for="tarifas-modo-select">Modo de tarifa</label>
-            <select id="tarifas-modo-select">
-              <option value="porcentaje">Porcentaje de ganancia</option>
-              <option value="por_kg">Precio fijo por kilo</option>
-            </select>
             <label for="tarifas-fuel-input">Fuel propio (%)</label>
             <input type="number" id="tarifas-fuel-input" min="0" step="0.5" placeholder="usa Configuracion">
             <button class="btn btn-primary btn-sm" id="btn-guardar-fuel">Guardar fuel</button>
             <button class="btn btn-secondary btn-sm hidden" id="btn-borrar-fuel">Quitar fuel propio</button>
-            <span class="tarifas-hint" id="tarifas-modo-hint"></span>
           </div>
           <!-- Seguro negociado del cliente. Vale para DHL y para UPS por igual. -->
           <div class="tarifas-modo">
