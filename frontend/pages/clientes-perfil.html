@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Perfil de cliente — Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260813b">
+  <link rel="stylesheet" href="../css/main.css?v=20260813c">
   <style>
     .info-grid {
       display: grid;
@@ -142,7 +142,14 @@
     .tarifa-impo-vacia { padding: 0.4rem 1rem 0.8rem; color: var(--color-muted); font-size: 0.78rem; }
     .tarifa-impo-vacia a { cursor: pointer; color: #2a78d6; text-decoration: underline; }
     .tarifa-seccion .tarifas-grid-wrap { padding: 0 0.6rem 0.6rem; }
-    table.tarifas-grid td .cell-sub { display: block; font-size: 0.68rem; color: var(--color-muted); font-weight: 400; margin-top: 1px; }
+    /* Precio por kilo cargado que NO se cobra (cliente en porcentaje): amarillo + tooltip. */
+    td.tarifa-cell.kg-muerto { background: #fffbeb; box-shadow: inset 3px 0 0 #f59e0b; }
+    /* Conmutador: vista de lo que se cobra / edición de una tabla concreta. */
+    .tarifas-vista { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin: 0.2rem 0 0.2rem; }
+    .tarifas-vista .vista-btn { border: 1px solid var(--color-border); background: #fff; color: var(--color-muted);
+      border-radius: 8px; padding: 0.35rem 0.8rem; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
+    .tarifas-vista .vista-btn.on { background: #1a3a5c; border-color: #1a3a5c; color: #fff; }
+    .tarifas-vista .vista-btn:hover:not(.on) { border-color: #2a78d6; }
     td.tarifa-cell.heredado { background: repeating-linear-gradient(45deg,#f7f6f2 0 5px,transparent 5px 10px); }
     td.tarifa-cell.heredado.sin-valor { background: none; }
     td.tarifa-cell.cero { background: #fdf2f2; }
@@ -353,9 +360,9 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260813b"></script>
-<script src="../js/api.js?v=20260813b"></script>
-<script src="../js/main.js?v=20260813b"></script>
-<script src="../js/modules/clientes-perfil.js?v=20260813b"></script>
+<script src="/js/auth-guard.js?v=20260813c"></script>
+<script src="../js/api.js?v=20260813c"></script>
+<script src="../js/main.js?v=20260813c"></script>
+<script src="../js/modules/clientes-perfil.js?v=20260813c"></script>
 </body>
 </html>

@@ -152,22 +152,42 @@ async function main() {
   });
   check('las celdas muestran porcentajes', /%$/.test(celdaPct || ''), String(celdaPct));
 
+  // La pantalla abre en VISTA: se mira lo que se cobra, no se edita nada.
+  check('está el conmutador con sus tres botones',
+    (await page.$$('#tarifas-vista .vista-btn')).length === 3);
+  check('arranca en "Lo que se cobra"',
+    await page.evaluate(() => document.querySelector('#tarifas-vista .vista-btn.on').dataset.vista === 'cobra'));
+  check('en la vista no hay cruces de borrar', (await page.$$('.cell-del')).length === 0);
+  await page.click('#sec-DHL td.tarifa-cell:not(.col-todas)');
+  await esperar(300);
+  check('y el clic en una celda NO abre un editor',
+    (await page.$$('#sec-DHL td.tarifa-cell input')).length === 0);
+
   // ── 2. Cambiar a precio por kilo ────────────────────────────────────────────
   console.log('\n2. Pasarlo a precio por kilo\n');
   await page.selectOption('#tarifas-modo-select', 'por_kg');
   await esperar(1500);
 
-  check('el general de cada tabla pasa a USD por kilo',
-    /USD\/kg/.test(await page.textContent('#sec-DHL .tarifa-general-linea')),
-    await page.textContent('#sec-DHL .tarifa-general-linea'));
   const bandasKg = await page.evaluate(() =>
     [...document.querySelectorAll('#sec-DHL td.banda-label')].map((t) => t.textContent.trim()));
   check('en modo por kilo se ven LOS MISMOS tramos', bandasKg.length === TRAMOS_HEREDADOS, bandasKg.join(' | '));
-  check('sin nada cargado, los tramos se ven vacíos y no desaparecen',
+  // La celda muestra UN número: lo que se cobra. Sin precio por kilo, el porcentaje con
+  // el que cae, en gris (por-pct). Nada de dos valores juntos.
+  check('sin precio por kilo, la celda muestra el porcentaje que cobra, en gris',
+    await page.evaluate(() => {
+      const td = document.querySelector('#sec-DHL td.tarifa-cell.por-pct .cell-val');
+      return td && /%$/.test(td.textContent.trim());
+    }));
+  check('y ninguna celda muestra dos valores', (await page.$$('.cell-sub')).length === 0);
+
+  // El general editable está en la edición, no en la vista.
+  await page.click('#tarifas-vista .vista-btn[data-vista="kg"]');
+  await esperar(400);
+  check('en "Editar precio por kilo" el general de cada tabla es USD/kg',
+    /USD\/kg/.test(await page.textContent('#sec-DHL .tarifa-general-linea')),
+    await page.textContent('#sec-DHL .tarifa-general-linea'));
+  check('y los tramos sin precio quedan vacíos, no desaparecen',
     (await page.textContent('#sec-DHL')).includes('—'));
-  // El respaldo se ve en la MISMA celda: precio por kilo grande, porcentaje chico abajo.
-  check('la celda muestra el porcentaje de respaldo debajo del precio',
-    (await page.$$('#sec-DHL td.tarifa-cell .cell-sub')).length > 0);
 
   // ── 3. Cargar el rango del ejemplo real: 1 a 10 kg a USD 5 ──────────────────
   // Cada tabla (servicio + tipo) tiene sus propios rangos, igual que la matriz de profit.
@@ -226,10 +246,10 @@ async function main() {
   // cae al porcentaje), pero desde la pantalla no se podía armar: el alta creaba siempre la
   // fila de "todas las zonas". Con el selector nuevo se carga un rango para UNA zona sola.
   const ayuda = await page.textContent('#tarifas-grid-ayuda');
-  check('la pantalla explica que se hace clic en la celda',
-    /clic en una celda/i.test(ayuda), ayuda);
-  check('y explica que el número grande manda y el chico es el respaldo',
-    /grande/.test(ayuda) && /respaldo|chico/.test(ayuda), ayuda);
+  check('la ayuda dice que la celda muestra lo que se cobra',
+    /lo que se cobra/i.test(ayuda), ayuda);
+  check('y que se edita con el botón Editar',
+    /Editar/i.test(ayuda), ayuda);
 
   // Una sola zona con precio por kilo y las otras cinco por porcentaje, en el tramo 40-50.
   await page.click('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="1"][data-min="40"]');
@@ -238,15 +258,21 @@ async function main() {
   await page.press('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="1"][data-min="40"] input', 'Enter');
   await esperar(2000);
 
+  // La VISTA del caso mixto: una zona con su precio por kilo, las otras cinco en gris con
+  // el porcentaje que cobran de verdad. Un solo número por celda.
+  await page.click('#tarifas-vista .vista-btn[data-vista="cobra"]');
+  await esperar(400);
   const fila40 = await page.$$eval('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-min="40"]:not(.col-todas)',
     (els) => els.map((td) => ({ zona: td.dataset.zona,
       val: td.querySelector('.cell-val').textContent.trim(),
       porPct: td.classList.contains('por-pct') })));
-  check('la zona elegida queda con precio por kilo',
+  check('la zona elegida muestra su precio por kilo',
     (fila40.find((c) => c.zona === '1') || {}).val === 'USD 8.00',
     JSON.stringify(fila40.find((c) => c.zona === '1')));
-  const grises = fila40.filter((c) => c.porPct).length;
-  check('las otras cinco zonas de ese tramo van por porcentaje', grises === 5, `grises=${grises}`);
+  const grises = fila40.filter((c) => c.porPct && /%$/.test(c.val)).length;
+  check('las otras cinco zonas muestran el porcentaje que cobran, en gris', grises === 5, `grises=${grises}`);
+  await page.click('#tarifas-vista .vista-btn[data-vista="kg"]');
+  await esperar(400);
 
   console.log('\n4-ter. Un precio en USD 0 se marca y se avisa: vende el flete gratis\n');
 
@@ -404,6 +430,20 @@ async function main() {
   check('y todos están en la grilla de UPS Express, además de la fila de afuera',
     (await page.$$('#sec-UPS_EXP tr:not(.fila-vieja) td.banda-label')).length === tramosDelBackend,
     `grilla=${(await page.$$('#sec-UPS_EXP tr:not(.fila-vieja) td.banda-label')).length} backend=${tramosDelBackend}`);
+
+  console.log('\n7-ter. Un precio por kilo que NO se cobra se marca en amarillo\n');
+
+  // Cliente en porcentaje con precios por kilo cargados: esos precios NO se cobran (el
+  // motor los ignora). La vista muestra el porcentaje y pinta la celda de amarillo para
+  // que se vea que hay algo cargado que no está actuando.
+  await page.selectOption('#tarifas-modo-select', 'porcentaje');
+  await esperar(2000);
+  const muerta = await page.evaluate(() => {
+    const td = document.querySelector('td.tarifa-cell[data-serv="UPS_EXP"][data-tipo="export"][data-zona="3"][data-min="5"]');
+    return td ? { muerto: td.classList.contains('kg-muerto'), val: td.querySelector('.cell-val').textContent.trim() } : null;
+  });
+  check('la celda muestra el porcentaje que se cobra', muerta && /%$/.test(muerta.val), JSON.stringify(muerta));
+  check('y queda marcada en amarillo por el precio por kilo muerto', muerta && muerta.muerto, JSON.stringify(muerta));
 
   console.log('\n8. Sin errores de JavaScript\n');
   const rel = errores.filter((x) => !/favicon|net::ERR|Failed to load resource/i.test(x));

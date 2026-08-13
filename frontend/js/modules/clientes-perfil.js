@@ -339,6 +339,10 @@
   // Impo sin datos arranca plegada en una línea; este set recuerda cuáles abrió la persona.
   const impoAbierta = { DHL: false, UPS_EXP: false, UPS_SAVER: false };
   let tarifasCargado = false;
+  // La pantalla tiene DOS estados, pedido de Felipe (13/08): la VISTA, que muestra lo que
+  // se cobra (un solo número por celda, sin edición), y la EDICIÓN, donde se elige qué
+  // tabla se está tocando: 'pct' (porcentaje) o 'kg' (precio por kilo). null = vista.
+  let editando = null;
 
   const SERVICIOS_MATRIZ = [
     { serv: 'DHL', nombre: 'DHL', chip: 'dhl', chipTxt: 'DHL' },
@@ -421,30 +425,35 @@
     return { val: null, propio: false };
   }
 
-  // Lo que la celda muestra GRANDE (lo que manda según el modo del cliente) y CHICO (el
-  // otro valor, de respaldo). En modo por kilo sin precio, el peso se cobra con el
-  // porcentaje: no es un agujero, es el caso mixto, y la celda lo dice.
+  // LA CELDA MUESTRA UN SOLO NÚMERO. En la VISTA es lo que se cobra: el precio por kilo
+  // si el cliente cobra por kilo y hay precio; si no, el porcentaje. En EDICIÓN es el
+  // valor crudo de la tabla que se está editando ('—' si no hay nada). Pedido de Felipe
+  // (13/08): "o dice 70 o dice 5,50", nada de dos números en la misma celda.
   function valorEfectivo(serv, tipo, zona, banda) {
     const m = matrices[claveM(serv, tipo)] || {};
     const kg = efectivoEn(m.kg, 'precio_kg', zona, banda);
     const pct = efectivoEn(m.pct, 'profit_pct', zona, banda);
     const pctConCliente = pct.val !== null ? pct.val
       : (clienteData && clienteData.tarifa_pct != null ? clienteData.tarifa_pct : 0);
-    if (esPorKg()) {
-      if (kg.val === null) return { val: null, propio: false, porPct: true, sub: `${pctConCliente}%` };
-      return { val: kg.val, propio: kg.propio, cero: kg.val === 0, sub: `${pctConCliente}%` };
+
+    if (editando === 'kg') {
+      return { val: kg.val, propio: kg.propio, cero: kg.val === 0, unidad: 'kg' };
     }
-    return {
-      val: pct.val !== null ? pct.val : pctConCliente,
-      propio: pct.propio,
-      sub: kg.val !== null ? `USD ${Number(kg.val).toFixed(2)}/kg` : null,
-    };
+    if (editando === 'pct') {
+      return { val: pct.val !== null ? pct.val : pctConCliente, propio: pct.propio, unidad: 'pct' };
+    }
+    // Vista: lo que se cobra de verdad (la misma decisión que resolverTarifaVenta).
+    if (esPorKg()) {
+      if (kg.val === null) return { val: pctConCliente, propio: false, porPct: true, unidad: 'pct' };
+      return { val: kg.val, propio: false, cero: kg.val === 0, unidad: 'kg' };
+    }
+    return { val: pct.val !== null ? pct.val : pctConCliente, propio: false, unidad: 'pct', kgMuerto: kg.val !== null };
   }
 
-  // Cómo se muestra el valor grande: "12%" o "USD 5.00".
-  function formatoValor(val) {
+  // Cómo se muestra un valor según su unidad.
+  function formatoValor(val, unidad) {
     if (val === null || val === undefined) return '—';
-    return esPorKg() ? `USD ${Number(val).toFixed(2)}` : `${val}%`;
+    return unidad === 'kg' ? `USD ${Number(val).toFixed(2)}` : `${val}%`;
   }
 
   // Filas de la grilla: SIEMPRE los tramos del cliente, cobre por porcentaje o por kilo.
@@ -527,9 +536,7 @@
       const deQuienSonLosTramos = tramosPropios
         ? 'Este cliente tiene tramos de peso propios, negociados con él: no son los que usa el resto.'
         : 'Los tramos de peso son los generales.';
-      ayuda.textContent = esPorKg()
-        ? `Toda la matriz del cliente está abajo, un servicio debajo del otro. El número grande es el precio por kilo (manda); el chico, el porcentaje de respaldo. ${deQuienSonLosTramos} Clic en una celda para editarla; la ✕ quita ese precio.`
-        : `Toda la matriz del cliente está abajo, un servicio debajo del otro. El número grande es el porcentaje de ganancia (manda); si hay precio por kilo cargado se muestra chiquito. ${deQuienSonLosTramos} Clic en una celda para editarla.`;
+      ayuda.textContent = `Toda la matriz está abajo, un servicio debajo del otro, con lo que se cobra en cada celda. ${deQuienSonLosTramos} Para cambiar precios: botón Editar porcentaje o Editar precio por kilo.`;
     }
 
     renderSeguro();
@@ -567,14 +574,22 @@
   // vista ya no hay "tabla activa" a la que pueda referirse un input global.
   function generalHtml(serv, tipo) {
     const m = matrices[claveM(serv, tipo)] || {};
-    const g = esPorKg()
-      ? (m.kg && m.kg.general_tabla ? m.kg.general_tabla.precio_kg : null)
-      : (m.pct && m.pct.general_tabla ? m.pct.general_tabla.profit_pct : null);
-    const unidad = esPorKg() ? 'USD/kg' : '%';
-    const cero = esPorKg() && g === 0
-      ? ' style="color:#d03b3b;font-weight:600" title="General en USD 0: todo peso sin precio especifico se cobra flete CERO en esta tabla."'
-      : '';
-    return `<span class="tarifa-general-linea"${cero}>General (${unidad})
+    const gKg = m.kg && m.kg.general_tabla ? m.kg.general_tabla.precio_kg : null;
+    const gPct = m.pct && m.pct.general_tabla ? m.pct.general_tabla.profit_pct : null;
+
+    if (editando === null) {
+      // Vista: el general se informa, no se edita.
+      const partes = [];
+      if (gPct !== null) partes.push(`General ${gPct}%`);
+      if (gKg !== null) partes.push(gKg === 0
+        ? `<span style="color:#d03b3b;font-weight:600" title="General por kilo en USD 0: todo peso sin precio específico vende el flete GRATIS en esta tabla.">General USD ${Number(gKg).toFixed(2)}/kg</span>`
+        : `General USD ${Number(gKg).toFixed(2)}/kg`);
+      return `<span class="tarifa-general-linea">${partes.join(' · ') || ''}</span>`;
+    }
+
+    const esKg = editando === 'kg';
+    const g = esKg ? gKg : gPct;
+    return `<span class="tarifa-general-linea">General (${esKg ? 'USD/kg' : '%'})
       <input type="number" min="0" step="0.5" class="gen-input" value="${g === null ? '' : g}"
         data-serv="${serv}" data-tipo="${tipo}" placeholder="sin general">
       <button class="btn btn-primary btn-sm gen-guardar" data-serv="${serv}" data-tipo="${tipo}">Guardar</button>
@@ -599,17 +614,21 @@
         : bandaLabel(banda);
       html += `<tr class="${banda.vieja ? 'fila-vieja' : ''}"><td class="banda-label">${etiqueta}${borrarFila}</td>`;
 
-      // Columna "Todas": el precio de ese tramo para las seis zonas de una.
+      // Columna "Todas": el precio de ese tramo para las seis zonas de una. Solo se toca
+      // en edición; en la vista muestra el de la tabla que manda.
       {
-        const ob = esPorKg() ? overrideBanda(m.kg, banda.min) : overrideBanda(m.pct, banda.min);
+        const tablaTodas = editando === 'pct' ? m.pct : (editando === 'kg' ? m.kg : (esPorKg() ? m.kg : m.pct));
+        const unidadTodas = editando === 'pct' ? 'pct' : (editando === 'kg' ? 'kg' : (esPorKg() ? 'kg' : 'pct'));
+        const ob = overrideBanda(tablaTodas, banda.min);
         const propio = !!ob;
-        const val = ob ? (esPorKg() ? ob.precio_kg : ob.profit_pct) : null;
-        const cero = esPorKg() && propio && val === 0 ? ' cero' : '';
-        html += `<td class="${banda.vieja ? 'celda-vieja' : 'tarifa-cell'} col-todas ${propio ? 'propio' : 'heredado sin-valor'}${cero}"`
+        const val = ob ? (unidadTodas === 'kg' ? ob.precio_kg : ob.profit_pct) : null;
+        let extra = unidadTodas === 'kg' && propio && val === 0 ? ' cero' : '';
+        if (editando === null && !esPorKg() && overrideBanda(m.kg, banda.min)) extra += ' kg-muerto';
+        html += `<td class="${banda.vieja ? 'celda-vieja' : 'tarifa-cell'} col-todas ${propio ? 'propio' : 'heredado sin-valor'}${extra}"`
           + ` ${dataST} data-zona="" data-min="${banda.min}" data-max="${maxAttr}"`
-          + ` title="Precio de este tramo para las seis zonas. Hacé clic para ponerlo.">`
-          + `${propio ? '<span class="cell-del" title="Quitar el precio de todas las zonas">✕</span>' : ''}`
-          + `<span class="cell-val">${propio ? formatoValor(val) : '—'}</span></td>`;
+          + ` title="${editando === null ? 'Precio de este tramo para las seis zonas.' : 'Precio de este tramo para las seis zonas. Hacé clic para ponerlo.'}">`
+          + `${propio && editando !== null ? '<span class="cell-del" title="Quitar el precio de todas las zonas">✕</span>' : ''}`
+          + `<span class="cell-val">${propio ? formatoValor(val, unidadTodas) : '—'}</span></td>`;
       }
 
       TARIFAS_ZONAS.forEach((zona) => {
@@ -617,17 +636,19 @@
         let cls = ef.propio ? 'tarifa-cell propio' : 'tarifa-cell heredado';
         if (ef.porPct) cls += ' por-pct';
         if (ef.cero) cls += ' cero';
+        if (ef.kgMuerto) cls += ' kg-muerto';
         if (!ef.propio && ef.val === null) cls += ' sin-valor';
-        const del = ef.propio ? '<span class="cell-del" title="Quitar override">✕</span>' : '';
-        const sub = ef.sub && !banda.vieja ? `<span class="cell-sub">${ef.sub}</span>` : '';
-        const title = ef.porPct
-          ? 'Esta zona no tiene precio por kilo: se cobra con el porcentaje que muestra la celda. Hacé clic para ponerle un precio por kilo.'
-          : (ef.cero ? 'PRECIO CERO: esta zona vende el flete a USD 0,00. Hacé clic para cambiarlo.'
-            : 'Hacé clic para cambiar el valor de esta zona');
+        const del = ef.propio && editando !== null ? '<span class="cell-del" title="Quitar override">✕</span>' : '';
+        const title = editando === null
+          ? (ef.porPct ? 'Sin precio por kilo: este peso se cobra con este porcentaje.'
+            : (ef.cero ? 'PRECIO CERO: esta zona vende el flete a USD 0,00.'
+              : (ef.kgMuerto ? 'Tiene un precio por kilo cargado que NO se cobra (el cliente está en porcentaje).'
+                : 'Lo que se cobra en esta zona y este tramo. Para cambiarlo, botón Editar.')))
+          : 'Hacé clic para cambiar el valor de esta zona';
         if (banda.vieja) cls = cls.replace('tarifa-cell', 'celda-vieja');
         html += `<td class="${cls}" ${dataST} data-zona="${zona}" data-min="${banda.min}" data-max="${maxAttr}"`
           + ` title="${banda.vieja ? 'Tramo viejo: se cobra igual que siempre, pero no se puede editar desde acá.' : title}">`
-          + `${banda.vieja ? '' : del}<span class="cell-val">${banda.vieja ? '' : formatoValor(ef.val)}</span>${sub}</td>`;
+          + `${banda.vieja ? '' : del}<span class="cell-val">${banda.vieja ? '' : formatoValor(ef.val, ef.unidad)}</span></td>`;
       });
       html += '</tr>';
     });
@@ -641,7 +662,17 @@
       wrap.innerHTML = '';
       return;
     }
-    let html = '';
+    // El conmutador vista/edición. La vista es la tabla general de lo que se cobra;
+    // Editar abre la tabla elegida (porcentaje o precio por kilo) con las celdas vivas.
+    let html = `<div class="tarifas-vista" id="tarifas-vista">
+      <button class="vista-btn ${editando === null ? 'on' : ''}" data-vista="cobra">Lo que se cobra</button>
+      <button class="vista-btn ${editando === 'pct' ? 'on' : ''}" data-vista="pct">Editar porcentaje</button>
+      <button class="vista-btn ${editando === 'kg' ? 'on' : ''}" data-vista="kg">Editar precio por kilo</button>
+      <span class="tarifas-hint" style="flex-basis:auto">${editando === null
+        ? 'Cada celda muestra lo que se cobra. Para cambiar algo, Editar.'
+        : (editando === 'kg' ? 'Editando los PRECIOS POR KILO. Clic en una celda; la ✕ quita ese precio.'
+          : 'Editando los PORCENTAJES. Clic en una celda; la ✕ quita ese valor.')}</span>
+    </div>`;
     for (const s of SERVICIOS_MATRIZ) {
       html += `<div class="tarifa-seccion" id="sec-${s.serv}">`;
       for (const tipo of TIPOS_MATRIZ) {
@@ -674,6 +705,9 @@
   function renderAlertaCeros() {
     const alerta = document.getElementById('tarifas-alerta');
     if (!alerta) return;
+    // En modo porcentaje los precios por kilo no se cobran: un 0 ahí es fila muerta
+    // (marcada en amarillo en la grilla), no flete gratis.
+    if (!esPorKg()) { alerta.style.display = 'none'; return; }
     let ceros = 0;
     for (const k of Object.keys(matrices)) {
       const kg = matrices[k].kg;
@@ -690,12 +724,15 @@
 
   function bindGridEvents() {
     const wrap = document.getElementById('tarifas-grid');
-    wrap.querySelectorAll('td.tarifa-cell').forEach((td) => {
-      td.addEventListener('click', (e) => {
-        if (e.target.classList.contains('cell-del')) return;
-        abrirEditorCelda(td);
+    // En la VISTA no se edita nada: para eso está el botón Editar. Pedido de Felipe (13/08).
+    if (editando !== null) {
+      wrap.querySelectorAll('td.tarifa-cell').forEach((td) => {
+        td.addEventListener('click', (e) => {
+          if (e.target.classList.contains('cell-del')) return;
+          abrirEditorCelda(td);
+        });
       });
-    });
+    }
     wrap.querySelectorAll('.cell-del').forEach((x) => {
       x.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -707,6 +744,13 @@
       x.addEventListener('click', (e) => {
         e.stopPropagation();
         borrarRango(x.dataset.serv, x.dataset.tipo, Number(x.dataset.min), x.dataset.max === '' ? null : Number(x.dataset.max));
+      });
+    });
+    // Conmutador vista/edición.
+    wrap.querySelectorAll('.vista-btn').forEach((b) => {
+      b.addEventListener('click', () => {
+        editando = b.dataset.vista === 'cobra' ? null : b.dataset.vista;
+        renderGrid();
       });
     });
     // Abrir la tabla de impo de un servicio que no tiene nada cargado.
@@ -732,7 +776,7 @@
     if (val === '' || !Number.isFinite(n)) return;
     const cuerpo = { servicio: serv, tipo, zona: null, peso_min: null, peso_max: null };
     try {
-      if (esPorKg()) await NovaAPI.clientes.tarifaKg.guardar(clienteId, { ...cuerpo, precio_kg: n });
+      if (editando === 'kg') await NovaAPI.clientes.tarifaKg.guardar(clienteId, { ...cuerpo, precio_kg: n });
       else await NovaAPI.clientes.profit.guardar(clienteId, { ...cuerpo, profit_pct: n });
       await cargarMatriz();
       NovaUtils.showAlert(alertBox, 'General de tabla guardado', 'success');
@@ -744,7 +788,7 @@
   async function borrarGeneral(serv, tipo) {
     const cuerpo = { servicio: serv, tipo, zona: null, peso_min: null, peso_max: null };
     try {
-      if (esPorKg()) await NovaAPI.clientes.tarifaKg.borrar(clienteId, cuerpo);
+      if (editando === 'kg') await NovaAPI.clientes.tarifaKg.borrar(clienteId, cuerpo);
       else await NovaAPI.clientes.profit.borrar(clienteId, cuerpo);
       await cargarMatriz();
     } catch (err) {
@@ -767,8 +811,11 @@
     const coords = coordsDeCelda(td);
     // El texto de la celda trae el formato ("12%" o "USD 5.00"); acá se necesita el número.
     const crudo = td.querySelector('.cell-val').textContent;
-    const actual = crudo === '—' ? '' : crudo.replace('%', '').replace('USD', '').trim();
-    td.innerHTML = `<input type="number" min="0" step="${esPorKg() ? '0.1' : '0.5'}" value="${actual}">`;
+    // Una celda por-pct muestra el porcentaje con el que CAE, no un precio por kilo: el
+    // editor arranca vacío para no ofrecer "70" como precio.
+    const actual = (crudo === '—' || td.classList.contains('por-pct'))
+      ? '' : crudo.replace('%', '').replace('USD', '').trim();
+    td.innerHTML = `<input type="number" min="0" step="${editando === 'kg' ? '0.1' : '0.5'}" value="${actual}">`;
     const input = td.querySelector('input');
     input.focus();
     input.select();
@@ -796,7 +843,7 @@
         peso_max: coords.peso_max,
       };
       try {
-        if (esPorKg()) {
+        if (editando === 'kg') {
           await NovaAPI.clientes.tarifaKg.guardar(clienteId, { ...cuerpo, precio_kg: pct });
         } else {
           await NovaAPI.clientes.profit.guardar(clienteId, { ...cuerpo, profit_pct: pct });
@@ -825,7 +872,7 @@
       peso_max: coords.peso_max,
     };
     try {
-      if (esPorKg()) await NovaAPI.clientes.tarifaKg.borrar(clienteId, cuerpo);
+      if (editando === 'kg') await NovaAPI.clientes.tarifaKg.borrar(clienteId, cuerpo);
       else await NovaAPI.clientes.profit.borrar(clienteId, cuerpo);
       await cargarMatriz();
     } catch (err) {
