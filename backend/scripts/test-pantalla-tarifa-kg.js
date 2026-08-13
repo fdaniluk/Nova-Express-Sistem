@@ -31,11 +31,18 @@ const DB = process.env.DB_PATH_TEST || '/tmp/test_pantalla_tarifa_kg.db';
 const TOKEN = 'token-test-tarifa-kg';
 
 // Cuántos tramos tiene un cliente que NO tiene tramos propios, o sea el juego por defecto:
-// de 5 en 5 hasta 50 kg, y después 50+. Hasta el 12/08/2026 eran nueve, con 30-40 y 40-50
-// de a diez. Se declara acá una sola vez en vez de repetir el número por la pantalla, y en
-// el punto 7-bis se contrasta contra lo que dice el backend: si mañana el juego cambia, el
-// test falla en un lugar solo y con un mensaje que se entiende.
-const TRAMOS_HEREDADOS = 11;
+// de 5 en 5 hasta 30 kg, después 30-40 y 40-50 de a diez, y al final 50+. Son NUEVE.
+//
+// El 12/08/2026 esto decía 11 durante unas horas, porque el juego por defecto se había
+// movido a los tramos finos. Los datos cargados siguen apoyados en los nueve cortes de
+// siempre, así que mover el default deja sin precio a los envíos de 35-40 y 45-50 kg —uno
+// de cada diez— sin que falle ningún test. Los finos se le ponen a cada cliente con
+// `scripts/migrar-tramos.js`. Ver `test-datos-viejos.js`.
+//
+// Se declara acá una sola vez en vez de repetir el número por la pantalla, y en el punto
+// 7-bis se contrasta contra lo que dice el backend: si mañana el juego cambia, el test
+// falla en un lugar solo y con un mensaje que se entiende.
+const TRAMOS_HEREDADOS = 9;
 
 let ok = 0, fail = 0;
 function check(nombre, cond, detalle = '') {

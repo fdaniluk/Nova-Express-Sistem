@@ -112,7 +112,13 @@ async function main() {
   }
 
   const descargas = fs.mkdtempSync(path.join(os.tmpdir(), 'nova-cierre-'));
-  const browser = await chromium.launch();
+  // Igual que en el resto de las tandas de pantalla: si el chromium de Playwright no
+  // esta donde el paquete lo espera, se usa el que haya. Sin esto la tanda no corre en
+  // el contenedor, que es justamente donde se verifica antes de entregar.
+  const cand = [process.env.CHROME_PATH, '/opt/pw-browsers/chromium/chrome-linux/chrome',
+    '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'].filter(Boolean);
+  const exe = cand.find((p) => fs.existsSync(p));
+  const browser = await chromium.launch(exe ? { executablePath: exe } : {});
 
   const nuevaPagina = async (token) => {
     const ctx = await browser.newContext({

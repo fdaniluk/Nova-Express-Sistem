@@ -170,7 +170,7 @@ async function getTramos(req, res, next) {
       return res.status(404).json({ error: 'Cliente no encontrado' });
     }
     const propio = await profitService.obtenerTramosCliente(id);
-    res.json({ ...propio, por_defecto: profitService.TRAMOS_POR_DEFECTO });
+    res.json({ ...propio, por_defecto: profitService.TRAMOS_POR_DEFECTO, sugeridos: profitService.TRAMOS_SUGERIDOS });
   } catch (e) {
     next(e);
   }
@@ -187,7 +187,7 @@ async function putTramos(req, res, next) {
       return res.status(404).json({ error: 'Cliente no encontrado' });
     }
     const guardado = await profitService.guardarTramosCliente(id, req.body ? req.body.tramos : null);
-    res.json({ ...guardado, por_defecto: profitService.TRAMOS_POR_DEFECTO });
+    res.json({ ...guardado, por_defecto: profitService.TRAMOS_POR_DEFECTO, sugeridos: profitService.TRAMOS_SUGERIDOS });
   } catch (e) {
     if (e.status === 400) return res.status(400).json({ error: e.message });
     if (e.status === 409) return res.status(409).json({ error: e.message, huerfanos: e.huerfanos });

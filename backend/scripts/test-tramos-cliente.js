@@ -72,18 +72,32 @@ async function elError(fn) {
   const cli = (await db.prepare('SELECT id FROM clientes ORDER BY id LIMIT 1').get()).id;
   const heredados = await P.obtenerTramosCliente(cli);
   check('un cliente sin tramos propios los hereda', heredados.propios === false);
-  check('hereda los once tramos de 5 en 5 hasta 50', heredados.tramos.length === 11,
+  // ⚠️ Hereda los NUEVE de siempre, no los finos. El 12/08/2026 este bloque decía "once" y
+  // pasaba en verde mientras el despliegue le cambiaba el precio a uno de cada diez envíos:
+  // las filas cargadas están apoyadas en los nueve cortes viejos, y mover el juego heredado
+  // las deja sin encontrar. Los finos se aplican por cliente, con `migrar-tramos.js`.
+  // Ver `test-datos-viejos.js`.
+  check('hereda los nueve tramos de siempre', heredados.tramos.length === 9,
     `son ${heredados.tramos.length}`);
-  check('el último tramo queda abierto', heredados.tramos[10].max === null);
-  check('el juego por defecto arranca en 0 y corta cada 5',
+  check('el último tramo queda abierto', heredados.tramos[8].max === null);
+  check('el juego por defecto arranca en 0 y corta cada 5 hasta 30',
     heredados.tramos[0].min === 0 && heredados.tramos[1].min === 5 && heredados.tramos[6].min === 30);
+  check('y arriba de 30 va de a diez, como están cargados los datos',
+    heredados.tramos[6].max === 40 && heredados.tramos[7].min === 40 && heredados.tramos[7].max === 50);
 
-  // El corte de 5 en 5 arriba de 30 es lo nuevo: antes iba 30-40 y 40-50 de a diez.
-  check('35 kg cae en el tramo 35-40, no en uno de 30 a 40',
-    P.derivarBanda(35).min === 30 && P.derivarBanda(35).max === 35);
-  check('36 kg cae en 35-40', P.derivarBanda(36).min === 35 && P.derivarBanda(36).max === 40);
-  check('50 kg todavía es el último cerrado', P.derivarBanda(50).min === 45 && P.derivarBanda(50).max === 50);
+  check('35 kg cae en el tramo 30-40 heredado',
+    P.derivarBanda(35).min === 30 && P.derivarBanda(35).max === 40);
+  check('37 kg también, que es el peso que rompió el 12/08',
+    P.derivarBanda(37).min === 30 && P.derivarBanda(37).max === 40);
+  check('50 kg todavía es el último cerrado', P.derivarBanda(50).min === 40 && P.derivarBanda(50).max === 50);
   check('50,01 kg cae en el abierto', P.derivarBanda(50.01).max === null);
+
+  // Los finos existen como sugerencia: es lo que ofrece la pantalla y lo que arma la
+  // migración, pero no se hereda solo.
+  check('los tramos sugeridos son once, de 5 en 5 hasta 50', P.TRAMOS_SUGERIDOS.length === 11,
+    `son ${P.TRAMOS_SUGERIDOS.length}`);
+  check('en los sugeridos 37 kg sí cae en 35-40',
+    P.derivarTramo(P.TRAMOS_SUGERIDOS, 37).min === 35 && P.derivarTramo(P.TRAMOS_SUGERIDOS, 37).max === 40);
 
   // ── 2. La garantía: qué juegos se rechazan ─────────────────────────────────
   console.log('\n2. Un juego que rompe la garantía se rechaza\n');
@@ -185,8 +199,11 @@ async function elError(fn) {
   ]));
   check('rechaza el cambio si deja precios sin tramo', huerfano !== null && huerfano.status === 409,
     huerfano && huerfano.message);
-  check('y dice exactamente en qué "desde" están esos precios',
-    huerfano && Array.isArray(huerfano.huerfanos) && huerfano.huerfanos.includes(20),
+  // Nombra el TRAMO ENTERO, no solo el "desde". Mirar únicamente el "desde" es lo que dejó
+  // pasar el 12/08 una fila de 30 a 40 hacia un juego que solo llegaba hasta 35: el 30
+  // coincidía, y los envíos de 35 a 40 kg se quedaban sin precio en silencio.
+  check('y dice exactamente qué tramos quedan sin lugar, con sus dos puntas',
+    huerfano && Array.isArray(huerfano.huerfanos) && huerfano.huerfanos.includes('20-32'),
     huerfano && JSON.stringify(huerfano.huerfanos));
 
   const siguenLosDeAntes = await P.obtenerTramosCliente(pio);
@@ -206,7 +223,7 @@ async function elError(fn) {
 
   const vuelta = await P.guardarTramosCliente(pio, []);
   check('mandar una lista vacía devuelve al cliente a los tramos generales',
-    vuelta.propios === false && vuelta.tramos.length === 11);
+    vuelta.propios === false && vuelta.tramos.length === 9);
   const quedan = await db.prepare('SELECT COUNT(*) AS n FROM cliente_tramos WHERE cliente_id = ?').get(pio);
   check('y no deja filas colgadas en la tabla', quedan.n === 0, `quedan ${quedan.n}`);
 

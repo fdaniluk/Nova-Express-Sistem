@@ -23,6 +23,7 @@ catch {
   process.exit(0);
 }
 
+const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
 const { prepararDb, abrirSesion } = require('./_base-test');
@@ -82,7 +83,13 @@ async function main() {
   check('el alta sin peso lo acepta', !!env.id, JSON.stringify(env).slice(0, 100));
   check('no le inventa costo', env.flete === null, `flete=${env.flete}`);
 
-  const browser = await chromium.launch();
+  // Igual que en el resto de las tandas de pantalla: si el chromium de Playwright no
+  // esta donde el paquete lo espera, se usa el que haya. Sin esto la tanda no corre en
+  // el contenedor, que es justamente donde se verifica antes de entregar.
+  const cand = [process.env.CHROME_PATH, '/opt/pw-browsers/chromium/chrome-linux/chrome',
+    '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'].filter(Boolean);
+  const exe = cand.find((p) => fs.existsSync(p));
+  const browser = await chromium.launch(exe ? { executablePath: exe } : {});
   const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 } });
   await ctx.addCookies([{ name: 'nova_session', value: TOKEN, url: BASE }]);
   const page = await ctx.newPage();

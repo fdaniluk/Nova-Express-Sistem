@@ -343,6 +343,12 @@
   // decirle a la persona si está viendo lo heredado o algo negociado.
   //
   // Arrancan en el por defecto por si la grilla se dibuja antes de que conteste el servidor.
+  //
+  // ⚠️ Estos NUEVE tienen que ser los mismos que `TRAMOS_POR_DEFECTO` de
+  // `backend/src/services/profit.service.js`. Están duplicados a mano: al tocar una lista,
+  // tocar la otra. Y no son los de 5 en 5 hasta 50 — esos son los SUGERIDOS, y llegan por
+  // `r.sugeridos`. Poner los finos acá dibujaría una grilla con tramos que el motor no
+  // resuelve, y la pantalla mostraría precios que el sistema no cobra.
   let TARIFAS_BANDAS = [
     { min: 0, max: 5 },
     { min: 5, max: 10 },
@@ -350,12 +356,11 @@
     { min: 15, max: 20 },
     { min: 20, max: 25 },
     { min: 25, max: 30 },
-    { min: 30, max: 35 },
-    { min: 35, max: 40 },
-    { min: 40, max: 45 },
-    { min: 45, max: 50 },
+    { min: 30, max: 40 },
+    { min: 40, max: 50 },
     { min: 50, max: null },
   ];
+  let TARIFAS_SUGERIDOS = [];
   let tramosPropios = false;
   const TARIFAS_ZONAS = [1, 2, 3, 4, 5, 6];
 
@@ -368,6 +373,7 @@
         TARIFAS_BANDAS = r.tramos;
         tramosPropios = Boolean(r.propios);
       }
+      if (r && Array.isArray(r.sugeridos)) TARIFAS_SUGERIDOS = r.sugeridos;
     } catch { /* se dibuja con los por defecto */ }
   }
 

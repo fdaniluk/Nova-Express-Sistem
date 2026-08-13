@@ -29,8 +29,41 @@ const MODOS_TARIFA = ['porcentaje', 'por_kg'];
 // sino que el juego de CADA cliente no tenga huecos, ni tramos pisados, ni bordes
 // ambiguos. De eso se ocupa `validarJuegoDeTramos()`.
 //
+// ⚠️ EL JUEGO POR DEFECTO SON LOS NUEVE DE SIEMPRE, Y NO ES UN DESCUIDO.
+//
+// El 12/08/2026 esto se desplegó con los tramos de 5 en 5 acá adentro, y cambió precios sin
+// que se hubiera migrado un solo dato. El motivo: las 317 filas cargadas están apoyadas en
+// los cortes viejos —hay filas con peso_min 30 y 40, ninguna con 35 ni 45— y la resolución
+// busca la fila cuyo peso_min sea el del tramo del peso. Un envío de 37 kg pasó a derivar
+// el tramo 35-40, no encontró fila, y se cayó al porcentaje general del cliente: 70% se
+// convirtió en 50%. Uno de cada diez envíos históricos cae en 35-40 o 45-50 kg.
+//
+// La regla que sale de eso: EL JUEGO POR DEFECTO TIENE QUE SER EL QUE USAN LOS DATOS.
+// Los tramos finos no llegan por acá: llegan por `cliente_tramos`, que es lo que escribe
+// `scripts/migrar-tramos.js` cliente por cliente, con un informe de antes/después delante.
+// Así desplegar el código nunca cambia un precio — el precio cambia cuando se migra.
+//
+// `test-datos-viejos.js` es el que sostiene esta regla: carga la matriz sobre los cortes
+// viejos, la resuelve con el código de hoy, y falla si algún peso cambia de valor.
+//
 // El cliente que no tiene tramos propios hereda estos.
 const TRAMOS_POR_DEFECTO = [
+  { min: 0, max: 5 },
+  { min: 5, max: 10 },
+  { min: 10, max: 15 },
+  { min: 15, max: 20 },
+  { min: 20, max: 25 },
+  { min: 25, max: 30 },
+  { min: 30, max: 40 },
+  { min: 40, max: 50 },
+  { min: 50, max: null },
+];
+
+// Los tramos de 5 en 5 hasta 50 que pidió Felipe el 12/08/2026. NO se aplican solos: son
+// los que ofrece la pantalla del cliente y los que la migración usa como base para armar
+// el juego de cada uno. Un cliente los tiene recién cuando quedaron escritos en
+// `cliente_tramos`.
+const TRAMOS_SUGERIDOS = [
   { min: 0, max: 5 },
   { min: 5, max: 10 },
   { min: 10, max: 15 },
@@ -849,19 +882,30 @@ async function guardarTramosCliente(clienteId, lista) {
   const volverAlDefecto = !lista || (Array.isArray(lista) && lista.length === 0);
   const nuevos = volverAlDefecto ? TRAMOS_POR_DEFECTO : validarJuegoDeTramos(lista);
 
+  // ⚠️ SE COMPARA EL TRAMO ENTERO, "desde" Y "hasta".
+  //
+  // Mirar solo el "desde" no alcanza y el 12/08/2026 costó caro. Una fila cargada de 30 a
+  // 40 kg sobrevive a un juego que tiene 30-35, porque el 30 coincide — y en silencio pasa
+  // a valer solo hasta 35. Los envíos de entre 35 y 40 kg quedan sin precio y se caen al
+  // porcentaje general del cliente, con un número que se ve perfectamente razonable.
+  // Un tramo es un par: si cualquiera de las dos puntas se mueve, la fila ya no dice lo
+  // que decía.
   const enUso = await db
     .prepare(
-      `SELECT DISTINCT peso_min FROM (
-         SELECT peso_min FROM profit_overrides    WHERE cliente_id = ? AND peso_min IS NOT NULL
+      `SELECT DISTINCT peso_min, peso_max FROM (
+         SELECT peso_min, peso_max FROM profit_overrides    WHERE cliente_id = ? AND peso_min IS NOT NULL
          UNION
-         SELECT peso_min FROM tarifa_kg_overrides WHERE cliente_id = ? AND peso_min IS NOT NULL
+         SELECT peso_min, peso_max FROM tarifa_kg_overrides WHERE cliente_id = ? AND peso_min IS NOT NULL
        ) ORDER BY peso_min`
     )
     .all(clienteId, clienteId);
 
+  const mismoTramo = (fila, t) => t.min === fila.peso_min
+    && ((t.max === null && fila.peso_max === null) || t.max === fila.peso_max);
+
   const huerfanos = (enUso || [])
-    .map((r) => r.peso_min)
-    .filter((min) => !nuevos.some((t) => t.min === min));
+    .filter((fila) => !nuevos.some((t) => mismoTramo(fila, t)))
+    .map((fila) => (fila.peso_max === null ? `${fila.peso_min}+` : `${fila.peso_min}-${fila.peso_max}`));
 
   if (huerfanos.length > 0) {
     const e = new Error(
@@ -893,6 +937,7 @@ module.exports = {
   ZONAS,
   BANDAS,
   TRAMOS_POR_DEFECTO,
+  TRAMOS_SUGERIDOS,
   MODOS_TARIFA,
   derivarBanda,
   derivarTramo,

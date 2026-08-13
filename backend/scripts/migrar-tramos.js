@@ -16,14 +16,25 @@
  *
  *   PIO ALVAREZ, 20 a 32 kg a USD 7,02  →  20-25, 25-30 y 30-32, los tres a USD 7,02
  *
- * Por eso la migración es NEUTRA: no le cambia el precio a nadie. La tarifa de 32 kg que la
- * oficina dijo que no se puede tocar queda intacta, expresada de otra forma.
+ * La intención es que sea NEUTRA: la tarifa de 32 kg que la oficina dijo que no se puede
+ * tocar queda intacta, expresada de otra forma. Pero neutra es lo que se busca, NO lo que
+ * se afirma: el informe mide precio contra precio y dice lo que encuentra. Si aparece un
+ * cambio, se mira antes de aplicar.
+ *
+ * ⚠️ ESTE SCRIPT ES EL ÚNICO QUE PUEDE CAMBIAR TRAMOS
+ * El juego por defecto del motor son los nueve cortes sobre los que están cargados los
+ * datos, y no se mueve. Los tramos finos de 5 en 5 se le ponen a cada cliente acá, con el
+ * informe delante. El 12/08/2026 se intentó al revés —los finos como default, desplegados
+ * sin migrar— y le cambió el precio a uno de cada diez envíos sin que nadie lo pidiera.
+ * Ver `test-datos-viejos.js`.
  *
  * LO ÚNICO QUE SE MUEVE SON LOS BORDES
- * Antes los límites eran inclusivos de los dos lados (un envío de exactamente 20,00 kg
- * entraba en el rango "20 a 32"). Ahora el límite de abajo es exclusivo: 20,00 kg cae en el
- * tramo que termina en 20. Afecta únicamente a los envíos que pesan EXACTAMENTE un corte.
- * El informe los cuenta contra los envíos reales, así que no hay que suponerlo.
+ * Los rangos libres de la tarifa por kilo eran inclusivos de los dos lados (un envío de
+ * exactamente 20,00 kg entraba en el rango "20 a 32"). Los tramos tienen el límite de abajo
+ * exclusivo: 20,00 kg cae en el tramo que termina en 20. Afecta únicamente a los envíos que
+ * pesan EXACTAMENTE un corte, y solo a las filas con rango libre — las que ya están
+ * apoyadas en un corte se resuelven igual antes y después. El informe cuenta esos envíos
+ * contra la base real, así que no hay que suponerlo.
  *
  *   cd backend && node scripts/migrar-tramos.js            → solo informa, no toca nada
  *   cd backend && node scripts/migrar-tramos.js --aplicar  → aplica
@@ -37,9 +48,12 @@ const APLICAR = process.argv.includes('--aplicar');
   const { initDb, getDb, closeDb } = require('../src/db');
   await initDb();
   const db = getDb();
-  const { TRAMOS_POR_DEFECTO } = require('../src/services/profit.service');
+  const { TRAMOS_POR_DEFECTO, TRAMOS_SUGERIDOS, derivarTramo } = require('../src/services/profit.service');
 
-  const CORTES_POR_DEFECTO = TRAMOS_POR_DEFECTO.map((t) => t.min);
+  // El juego que arma la migración se apoya en los tramos SUGERIDOS (de 5 en 5 hasta 50):
+  // ese es justamente el detalle que la migración viene a traer. Los POR DEFECTO son los
+  // nueve de siempre y son con los que se resuelve HOY, así que son el "antes".
+  const CORTES_POR_DEFECTO = TRAMOS_SUGERIDOS.map((t) => t.min);
   const fmt = (t) => (t.max === null ? `${t.min}+` : `${t.min}-${t.max}`);
   const usd = (v) => `USD ${Number(v).toFixed(2)}`;
 
@@ -98,24 +112,60 @@ const APLICAR = process.argv.includes('--aplicar');
   }
 
   // ── Resolución vieja y nueva, para comparar precio contra precio ───────────
-  const resolverViejo = (filas, zona, pf) => {
+  //
+  // ⚠️ EL "ANTES" TIENE QUE SER EXACTAMENTE LO QUE COBRA EL SISTEMA HOY, no una idea de
+  // cómo funcionaba. La primera versión de este script resolvía el precio viejo buscando
+  // "qué fila contiene al peso", con el rango inclusivo de los dos lados. Producción no
+  // hace eso desde el 11/08/2026: deriva el tramo del peso y busca la fila cuyo peso_min
+  // sea el del tramo. Con el "antes" mal medido, el informe del 12/08 reportó 122 cambios
+  // de precio que en su mayoría no existían — y un informe que grita cuando no pasa nada
+  // es peor que no tenerlo, porque la próxima vez nadie lo lee.
+  //
+  // Por eso el "antes" se calcula con las MISMAS funciones que usa el motor, contra el
+  // juego POR DEFECTO (los nueve), que es lo que hereda hoy cualquier cliente sin tramos
+  // propios. `test-datos-viejos.js` verifica que sigan coincidiendo.
+  //
+  // La única diferencia real entre los dos grupos: la tarifa por kilo admite filas con
+  // rangos libres, de antes del 11/08 (el 32,5 de PIO, el 29,5 de Cueros). Esas no caen
+  // sobre ningún corte y el motor las resuelve por contención, avisando por consola. Se
+  // reproduce igual acá.
+  const esCorteDe = (tramos, r) => tramos.some((t) => t.min === r.peso_min);
+
+  const resolverEn = (filas, tramos, zona, pf, admiteRangosLibres) => {
+    const t = derivarTramo(tramos, pf);
     const nivel = (z, conRango) =>
       filas.filter((f) => (z === null ? f.zona === null : f.zona === z)
         && (conRango ? f.peso_min !== null : f.peso_min === null));
-    const contiene = (rows) => {
-      const c = rows.filter((r) => pf >= r.peso_min && (r.peso_max === null || pf <= r.peso_max));
-      return c.sort((a, b) => b.peso_min - a.peso_min)[0] || null;
+
+    const enNivel = (rows) => {
+      // Primero la fila que ES el tramo del peso. Es el único camino para las filas
+      // apoyadas en cortes: buscar "la que contenga al peso" traería de vuelta la
+      // ambigüedad de los bordes (5,00 kg está adentro de 0-5 y toca el borde de 5-10).
+      if (t) {
+        const exacta = rows.find((r) => esCorteDe(tramos, r) && r.peso_min === t.min);
+        if (exacta) return exacta;
+      }
+      if (!admiteRangosLibres) return null;
+      const libres = rows.filter((r) => !esCorteDe(tramos, r)
+        && Number.isFinite(pf) && pf >= r.peso_min && (r.peso_max === null || pf <= r.peso_max));
+      return libres.sort((a, b) => b.peso_min - a.peso_min)[0] || null;
     };
-    return contiene(nivel(zona, true)) || contiene(nivel(null, true))
+
+    // La misma cascada del motor: celda → tramo entero → zona entera → tabla.
+    return enNivel(nivel(zona, true)) || enNivel(nivel(null, true))
       || nivel(zona, false)[0] || nivel(null, false)[0] || null;
   };
-  const resolverNuevo = (filas, tramos, zona, pf) => {
-    const t = tramos.find((x) => (x.max === null ? pf > x.min : (x.min === 0 ? pf <= x.max : pf > x.min && pf <= x.max)));
-    const exacta = (z) => filas.find((f) => (z === null ? f.zona === null : f.zona === z)
-      && t && f.peso_min === t.min);
-    const general = (z) => filas.find((f) => (z === null ? f.zona === null : f.zona === z) && f.peso_min === null);
-    return exacta(zona) || exacta(null) || general(zona) || general(null) || null;
-  };
+
+  // "Antes": el juego por defecto de hoy (los nueve). El porcentaje nunca tuvo rangos
+  // libres; la tarifa por kilo sí, y hay filas viejas todavía cargadas.
+  const resolverViejo = (filas, zona, pf, grupo) =>
+    resolverEn(filas, TRAMOS_POR_DEFECTO, zona, pf, grupo === 'kg');
+  // "Después": el mismo motor, contra el juego que le quedaría al cliente. Se le permiten
+  // rangos libres en kg por la misma razón que arriba: si una fila quedó huérfana, el motor
+  // la va a seguir resolviendo por contención, y el informe tiene que decir la verdad sobre
+  // lo que va a pasar, no sobre lo que nos gustaría que pasara.
+  const resolverNuevo = (filas, tramos, zona, pf, grupo) =>
+    resolverEn(filas, tramos, zona, pf, grupo === 'kg');
 
   // ── Informe ───────────────────────────────────────────────────────────────
   console.log('\n' + '═'.repeat(72));
@@ -160,8 +210,8 @@ const APLICAR = process.argv.includes('--aplicar');
         for (const zona of [1, 2, 3, 4, 5, 6]) {
           for (let kg = 0.1; kg <= 60.05; kg += 0.1) {
             const pf = Number(kg.toFixed(1));
-            const a = resolverViejo(vs, zona, pf);
-            const b = resolverNuevo(ns, tramos, zona, pf);
+            const a = resolverViejo(vs, zona, pf, grupo);
+            const b = resolverNuevo(ns, tramos, zona, pf, grupo);
             const va = a ? a[campo] : null;
             const vb = b ? b[campo] : null;
             if (va !== vb) difs.push({ grupo, servicio, tipo, zona, pf, antes: va, despues: vb });
