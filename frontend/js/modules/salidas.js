@@ -830,6 +830,12 @@
   function sortData() {
     const today = todayStr();
     allData.sort((a, b) => {
+      // Los "sin numerar" (salida 0) van SIEMPRE arriba de todo, se ordene por la columna
+      // que se ordene. Pedido de administración del 14/08: son los envíos que están a
+      // medio resolver, y abajo de 200 filas no los ve nadie.
+      const ca = a.num_sal_cero ? 0 : 1;
+      const cb = b.num_sal_cero ? 0 : 1;
+      if (ca !== cb) return ca - cb;
       let va = getSortVal(a, sortCol, today);
       let vb = getSortVal(b, sortCol, today);
       if (va == null) va = sortDir === 'asc' ? Infinity : -Infinity;
@@ -1736,6 +1742,12 @@
                   <option value="impo">impo</option>
                 </select>
               </div>
+              <!-- Valor declarado (fob): editable desde el 14/08 a pedido de administración.
+                   El seguro sale de él, así que después de cambiarlo hay que Recalcular. -->
+              <div class="form-group">
+                <label>Valor declarado (USD)</label>
+                <input type="number" id="saled-fob" step="0.01" min="0">
+              </div>
               <div class="form-group" style="justify-content:flex-end;padding-bottom:2px">
                 <label>&nbsp;</label>
                 <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px">
@@ -1930,6 +1942,8 @@
     toggleProtDocVisible(false);
     fillPaisSelect(envio.destino);
     document.getElementById('saled-sin-numerar').checked = Boolean(envio.num_sal_cero);
+    // El fob viaja en la grilla como `valor_declarado` (el SELECT lo renombra).
+    document.getElementById('saled-fob').value = envio.valor_declarado ?? '';
 
     // Envío liquidado: el backend congela fecha y cliente (responde 409 si cambian).
     // Deshabilitamos ambos campos y explicamos por qué, en vez de dejar que el usuario
@@ -2263,6 +2277,11 @@
       proteccion_doc: document.getElementById('saled-proteccion-doc').checked ? 1 : 0,
       pais_destino: document.getElementById('saled-pais-destino').value || null,
       courier: document.getElementById('saled-courier').value,
+      // Valor declarado tal como está AHORA en el modal: el seguro del recálculo sale de él.
+      fob: (() => {
+        const v = document.getElementById('saled-fob').value;
+        return v !== '' ? Number(v) : 0;
+      })(),
     };
     if (editMulti) {
       recalcEditPesoBalanza();
@@ -2423,6 +2442,9 @@
       pais: document.getElementById('saled-pais-destino').value || null,
       courier: document.getElementById('saled-courier').value,
       pesoFacturable: pf,
+      // El valor declarado tal como está AHORA en el modal: el seguro de la venta sale de
+      // él. Sin esto, "Calcular venta" usaría el fob guardado aunque recién lo hayan editado.
+      fob: num('saled-fob') ?? 0,
       ddp: document.getElementById('saled-ddp').checked,
       proteccionDoc: document.getElementById('saled-proteccion-doc').checked,
       entrega: document.getElementById('saled-entrega').value,
@@ -2641,6 +2663,11 @@
     payload.courier      = document.getElementById('saled-courier').value;
     payload.pais_destino = document.getElementById('saled-pais-destino').value || null;
     payload.num_sal_cero = document.getElementById('saled-sin-numerar').checked ? 1 : 0;
+    // Valor declarado: vacío = 0 (sin valor declarado), igual que en el alta.
+    payload.fob = (() => {
+      const v = document.getElementById('saled-fob').value;
+      return v !== '' ? Number(v) : 0;
+    })();
 
     // Peso y medidas (nombres de columna del backend). En multi-bulto las medidas viajan en
     // el array de bultos; el peso balanza de arriba es la suma. peso_facturable/volumétrico
@@ -2699,6 +2726,7 @@
         // la lista cargada (mismo criterio que el GET: nombre_nova con fallback a nombre).
         d.destino = payload.pais_destino;
         d.num_sal_cero = Boolean(payload.num_sal_cero);
+        d.valor_declarado = payload.fob;
         const cliSel = clientes.find((c) => c.id === payload.cliente_id);
         if (cliSel) d.cliente_nombre = cliSel.nombre_nova || cliSel.nombre;
         d.compra_total = (payload.flete || 0) - (payload.descuento || 0) + (payload.seguro || 0)

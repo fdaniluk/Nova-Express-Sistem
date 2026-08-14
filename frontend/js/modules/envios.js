@@ -603,6 +603,8 @@
         asegurado: document.getElementById('asegurado').checked ? 1 : 0,
         ddp: document.getElementById('ddp').checked ? 1 : 0,
         proteccion_doc: document.getElementById('proteccion_doc').checked ? 1 : 0,
+        // "Sin numerar" (salida 0): marcable ya en el alta, pedido de administración (14/08).
+        num_sal_cero: document.getElementById('sin_numerar').checked ? 1 : 0,
         entrega: document.getElementById('entrega').value,
         // `remota` se sigue guardando por compatibilidad: hay pantallas y consultas que
         // lo leen, y los envíos viejos solo tienen ese flag.
@@ -691,6 +693,7 @@
     document.getElementById('asegurado').checked = Boolean(envio.asegurado);
     document.getElementById('ddp').checked = Boolean(envio.ddp);
     document.getElementById('proteccion_doc').checked = Boolean(envio.proteccion_doc);
+    document.getElementById('sin_numerar').checked = Boolean(envio.num_sal_cero);
     // Sin destildar: si el envio ya tiene el cargo, se muestra aunque hoy no califique.
     aplicarVisibilidadProteccionDoc(false);
     // Envío viejo: solo tiene el flag `remota`, que equivalía a la tarifa de extendida.

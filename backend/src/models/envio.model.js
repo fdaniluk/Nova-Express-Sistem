@@ -213,8 +213,8 @@ async function crear(data) {
           peso_volumetrico, peso_facturable, fob, total_cobrado, observaciones,
           numero_salida, bulto, tipo_paquete, asegurado, ddp, proteccion_doc, remota, entrega,
           flete, descuento, seguro, fuel, fuel_pct, fuel_origen, derechos, adicionales, otros, profit, porcentaje,
-          extras_json, servicio_ups
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          extras_json, servicio_ups, num_sal_cero
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         data.cliente_id,
@@ -256,7 +256,10 @@ async function crear(data) {
         data.profit ?? null,
         data.porcentaje ?? null,
         desglose && desglose.extras && desglose.extras.length ? JSON.stringify(desglose.extras) : null,
-        data.courier === 'UPS' ? (data.servicio_ups ?? null) : null
+        data.courier === 'UPS' ? (data.servicio_ups ?? null) : null,
+        // "Sin numerar" (salida 0): desde el 14/08 se puede marcar ya en el alta, en vez
+        // de cargar el envío y después entrar a Salidas a corregirlo.
+        data.num_sal_cero ? 1 : 0
       );
     const envioId = result.lastInsertRowid;
     if (hasBultos) await saveBultos(envioId, data.bultos);
@@ -352,6 +355,7 @@ async function actualizar(id, data) {
         fob = ?, total_cobrado = ?, observaciones = ?,
         servicio_ups = ?, fuel_pct = ?,
         tipo_paquete = ?, asegurado = ?, ddp = ?, proteccion_doc = ?, remota = ?, entrega = ?,
+        num_sal_cero = ?,
         ${costoSet},
         updated_at = datetime('now', 'localtime')
        WHERE id = ?`
@@ -381,6 +385,7 @@ async function actualizar(id, data) {
       data.proteccion_doc !== undefined ? (data.proteccion_doc ? 1 : 0) : actual.proteccion_doc,
       data.remota !== undefined ? (data.remota ? 1 : 0) : actual.remota,
       data.entrega !== undefined ? data.entrega : actual.entrega,
+      data.num_sal_cero !== undefined ? (data.num_sal_cero ? 1 : 0) : actual.num_sal_cero,
       // Los ocho de abajo son siempre los mismos parámetros; lo que cambia es el SQL de
       // arriba. Sin recálculo van todos NULL y el COALESCE deja la columna como estaba;
       // con el envío sin pesar, esos mismos NULL la vacían.

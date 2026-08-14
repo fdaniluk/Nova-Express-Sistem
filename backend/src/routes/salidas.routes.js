@@ -439,13 +439,22 @@ router.post('/:id/recalcular', async (req, res, next) => {
     // país no cambió, se respeta la zona guardada (pudo ser un override manual válido).
     const paisCambio = String(paisEfectivo ?? '').trim() !== String(envio.pais_destino ?? '').trim();
 
-    // Inputs editados (peso/medidas/bultos, país, courier) + inputs no editables del envío.
+    // El valor declarado (fob) es editable en el modal desde el 14/08 (pedido de
+    // administración): el seguro sale de él, así que el recálculo tiene que usar lo que el
+    // usuario tiene en pantalla. Mismo criterio que el peso: `undefined` = no lo mandaron,
+    // se usa el guardado. Se valida acá porque un fob negativo revienta el motor.
+    if (body.fob !== undefined && body.fob !== null
+        && (!Number.isFinite(Number(body.fob)) || Number(body.fob) < 0)) {
+      return res.status(400).json({ error: 'El valor declarado debe ser un número mayor o igual a 0.' });
+    }
+
+    // Inputs editados (peso/medidas/bultos, país, courier, fob) + inputs no editables del envío.
     const data = {
       courier: courierEfectivo,
       servicio_ups: envio.servicio_ups,
       tipo_envio: envio.tipo_envio,
       pais_destino: paisEfectivo,
-      fob: envio.fob,
+      fob: body.fob !== undefined ? (body.fob ?? 0) : envio.fob,
       zona: paisCambio ? null : envio.zona,
       // Área remota: recargo que ya vive en el desglose guardado. Si NO se re-aplica acá,
       // el primer recálculo lo borra en silencio (mismo bug que país/courier). Viene del
@@ -524,6 +533,9 @@ router.post('/:id/recalcular', async (req, res, next) => {
 // persistir; además, en envíos liquidados fecha y cliente_id quedan congelados (409).
 const SALIDAS_EDITABLE = [
   'fecha', 'cliente_id', 'courier', 'pais_destino', 'num_sal_cero',
+  // fob (valor declarado): editable desde el 14/08 a pedido de administración. El seguro
+  // sale de él, así que en envíos liquidados queda congelado (está en CAMPOS_PLATA).
+  'fob',
   'numero_guia', 'numero_salida', 'bulto', 'tipo_paquete', 'asegurado', 'remota', 'entrega', 'ddp', 'proteccion_doc', 'direccion',
   'peso_real', 'largo', 'ancho', 'alto', 'peso_facturable', 'peso_volumetrico',
   'flete', 'descuento', 'seguro', 'fuel', 'fuel_pct', 'derechos', 'adicionales', 'otros',
@@ -620,9 +632,11 @@ router.patch('/:id', async (req, res, next) => {
       // para el mismo dato: por acá se pudo cambiar un envío liquidado de USD 200 a 999
       // — el Excel que recibió el cliente decía 200 y el sistema 999. Ahora los campos
       // monetarios quedan congelados igual que en el PUT. Solo se rechaza si CAMBIA.
+      // fob está acá aunque no sea un cargo: el seguro sale de él, así que cambiarlo en un
+      // envío liquidado movería la plata de una liquidación confirmada por la puerta de atrás.
       const CAMPOS_PLATA = ['total_cobrado', 'flete', 'seguro', 'fuel', 'fuel_pct',
         'adicionales', 'otros', 'derechos', 'descuento', 'profit', 'porcentaje',
-        'peso_facturable'];
+        'peso_facturable', 'fob'];
       const cambiaPlata = CAMPOS_PLATA.filter((c) =>
         Object.prototype.hasOwnProperty.call(picked, c)
         && Number(picked[c]) !== Number(existing[c]));
@@ -643,6 +657,14 @@ router.patch('/:id', async (req, res, next) => {
     if (Object.prototype.hasOwnProperty.call(picked, 'courier')
         && picked.courier !== 'DHL' && picked.courier !== 'UPS') {
       return res.status(400).json({ error: "El courier debe ser exactamente 'DHL' o 'UPS'." });
+    }
+    // Valor declarado: número >= 0. null se acepta y se guarda 0 (envío sin valor declarado).
+    if (Object.prototype.hasOwnProperty.call(picked, 'fob')) {
+      if (picked.fob === null || picked.fob === '') picked.fob = 0;
+      if (!Number.isFinite(Number(picked.fob)) || Number(picked.fob) < 0) {
+        return res.status(400).json({ error: 'El valor declarado debe ser un número mayor o igual a 0.' });
+      }
+      picked.fob = Number(picked.fob);
     }
     // Regla de negocio: los documentos van unicamente por DHL. Se evalua el resultado
     // final (lo que viene en el body + lo que ya estaba), porque la edicion es parcial.
