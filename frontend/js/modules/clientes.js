@@ -8,12 +8,48 @@
 
   let clientes = [];
   let modoEdicion = false;
+  // Lo tipeado en el buscador. La lista se filtra en memoria mientras se escribe: con
+  // ~100 clientes no hay nada que pedirle al servidor.
+  let busqueda = '';
 
   async function init() {
     await cargarClientes();
     bindBtnNuevo();
     bindBtnCancelar();
     bindForm();
+    bindBuscador();
+  }
+
+  // Sin tildes y en minúsculas, para que "Perez" encuentre a "PÉREZ" — el mismo criterio
+  // que canonizarPais en el motor: lo que uno tipea rara vez coincide letra por letra.
+  function normalizar(s) {
+    return String(s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+
+  function clientesFiltrados() {
+    const q = normalizar(busqueda).trim();
+    if (!q) return clientes;
+    // Cada palabra tipeada tiene que aparecer en ALGÚN campo (en cualquiera): "perez cc"
+    // encuentra al Pérez de cuenta corriente sin exigir que estén juntos en el mismo campo.
+    const palabras = q.split(/\s+/);
+    return clientes.filter((c) => {
+      const pajar = normalizar([c.nombre, c.nombre_nova, c.cuit, c.contacto, c.email, c.localidad, c.whatsapp]
+        .filter(Boolean).join(' '));
+      return palabras.every((p) => pajar.includes(p));
+    });
+  }
+
+  function bindBuscador() {
+    const input = document.getElementById('buscador-clientes');
+    if (!input) return;
+    input.addEventListener('input', () => {
+      busqueda = input.value;
+      renderTabla();
+    });
+    // Escape limpia y devuelve la lista entera, sin sacar el foco del campo.
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { input.value = ''; busqueda = ''; renderTabla(); }
+    });
   }
 
   async function cargarClientes() {
@@ -26,11 +62,22 @@
   }
 
   function renderTabla() {
+    const lista = clientesFiltrados();
+    const cuenta = document.getElementById('buscador-cuenta');
+    if (cuenta) {
+      cuenta.textContent = busqueda.trim()
+        ? `${lista.length} de ${clientes.length}`
+        : `${clientes.length} clientes`;
+    }
     if (!clientes.length) {
       tabla.innerHTML = '<tr><td colspan="9" class="empty">No hay clientes registrados.</td></tr>';
       return;
     }
-    tabla.innerHTML = clientes
+    if (!lista.length) {
+      tabla.innerHTML = '<tr><td colspan="9" class="empty">Ningún cliente coincide con la búsqueda.</td></tr>';
+      return;
+    }
+    tabla.innerHTML = lista
       .map(
         (c) => `
       <tr>

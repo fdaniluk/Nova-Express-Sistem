@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Clientes – Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260814a">
+  <link rel="stylesheet" href="../css/main.css?v=20260814b">
   <style>
     .form-clientes {
       display: grid;
@@ -26,6 +26,12 @@
       text-decoration: underline;
       font-size: 0.9rem;
     }
+    .clientes-buscador { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.9rem; }
+    .clientes-buscador input { flex: 1; max-width: 420px; padding: 0.5rem 0.75rem;
+      border: 1px solid var(--color-border); border-radius: 8px; font-size: 0.9rem; }
+    .clientes-buscador input:focus { outline: none; border-color: #2a78d6;
+      box-shadow: 0 0 0 3px rgba(42,120,214,.12); }
+    .buscador-cuenta { font-size: 0.8rem; color: var(--color-muted); white-space: nowrap; }
   </style>
 </head>
 <body>
@@ -185,6 +191,13 @@
 
       <!-- Tabla de clientes -->
       <div class="card">
+        <!-- El buscador filtra mientras se escribe, sin distinguir tildes ni mayúsculas y
+             sin pedirle nada al servidor: la lista ya está entera en memoria. Busca en
+             razón social, nombre Nova, CUIT, contacto, email y localidad. -->
+        <div class="clientes-buscador">
+          <input type="search" id="buscador-clientes" placeholder="Buscar por nombre, CUIT, contacto o email…" autocomplete="off">
+          <span class="buscador-cuenta" id="buscador-cuenta"></span>
+        </div>
         <div class="table-wrap">
           <table>
             <thead>
@@ -210,9 +223,9 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260814a"></script>
-<script src="../js/api.js?v=20260814a"></script>
-<script src="../js/main.js?v=20260814a"></script>
-<script src="../js/modules/clientes.js?v=20260814a"></script>
+<script src="/js/auth-guard.js?v=20260814b"></script>
+<script src="../js/api.js?v=20260814b"></script>
+<script src="../js/main.js?v=20260814b"></script>
+<script src="../js/modules/clientes.js?v=20260814b"></script>
 </body>
 </html>
