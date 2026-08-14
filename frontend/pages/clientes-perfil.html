@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Perfil de cliente — Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260814a">
+  <link rel="stylesheet" href="../css/main.css?v=20260814b">
   <style>
     .info-grid {
       display: grid;
@@ -191,6 +191,16 @@
       font-size: 0.76rem; border-radius: 0 6px 6px 0; margin-bottom: 0.8rem; line-height: 1.45; }
     .t-acciones { display: flex; gap: 0.5rem; position: sticky; bottom: 0;
       background: #fafbfc; padding: 0.6rem 0 0.9rem; border-top: 1px solid #e5e8ee; }
+    .t-enviados { list-style: none; margin: 0; padding: 0; max-height: 160px; overflow-y: auto; }
+    .t-enviados li { display: flex; justify-content: space-between; gap: 0.5rem;
+      padding: 0.28rem 0.2rem; font-size: 0.76rem; border-bottom: 1px solid #eef1f5;
+      cursor: pointer; border-radius: 4px; }
+    .t-enviados li:hover { background: #eef4fb; }
+    .t-enviados li.activo { background: #e1edfb; }
+    .t-enviados li .t-env-que { color: #2c3542; }
+    .t-enviados li .t-env-cuando { color: #7a8496; white-space: nowrap; }
+    .t-enviados li.t-env-vacio { color: #7a8496; cursor: default; border: 0; }
+    .t-enviados li.t-env-vacio:hover { background: none; }
   </style>
 </head>
 <body>
@@ -494,6 +504,24 @@
           </div>
         </div>
 
+        <!-- Presets: una combinación de opciones con nombre, compartida por la oficina.
+             Sin esto, cada tarifario es volver a tildar quince casillas. -->
+        <div class="t-grupo">
+          <h3>Presets</h3>
+          <div class="t-fila">
+            <select id="t-preset" style="max-width:200px"><option value="">— elegir —</option></select>
+            <button class="btn btn-secondary btn-sm" id="t-preset-guardar" title="Guarda las opciones actuales con un nombre">Guardar</button>
+            <button class="btn btn-secondary btn-sm hidden" id="t-preset-borrar">Borrar</button>
+          </div>
+        </div>
+
+        <!-- Lo que ya se le mandó a ESTE cliente. Clic = reabrir la hoja tal como salió,
+             con sus precios y su fecha. Es lo que gana el "vos me pasaste este precio". -->
+        <div class="t-grupo">
+          <h3>Enviados a este cliente</h3>
+          <ul class="t-enviados" id="t-enviados"><li class="t-env-vacio">Ninguno todavía.</li></ul>
+        </div>
+
         <div class="t-alerta hidden" id="t-alerta"></div>
 
         <div class="t-acciones">
@@ -508,9 +536,9 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260814a"></script>
-<script src="../js/api.js?v=20260814a"></script>
-<script src="../js/main.js?v=20260814a"></script>
-<script src="../js/modules/clientes-perfil.js?v=20260814a"></script>
+<script src="/js/auth-guard.js?v=20260814b"></script>
+<script src="../js/api.js?v=20260814b"></script>
+<script src="../js/main.js?v=20260814b"></script>
+<script src="../js/modules/clientes-perfil.js?v=20260814b"></script>
 </body>
 </html>

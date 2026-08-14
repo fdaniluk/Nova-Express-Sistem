@@ -161,7 +161,9 @@
       hojas.push(columnas.slice(i, i + COLS_POR_HOJA));
     }
 
-    const hoy = new Date();
+    // Una emisión guardada se reabre con SU fecha, no con la de hoy: la hoja tiene que
+    // decir lo mismo que dijo el día que se mandó.
+    const hoy = opts.fechaEmision ? new Date(opts.fechaEmision) : new Date();
     const vence = opts.vence > 0 ? new Date(hoy.getTime() + opts.vence * 86400000) : null;
     // Nombrar el servicio o no es una decisión comercial de Felipe: a veces manda un
     // tarifario "a secas" y después despacha por el courier que le conviene.
@@ -189,30 +191,49 @@
     document.title = `Tarifario ${data.cliente.nombre} ${fecha(hoy)}`;
   }
 
-  async function init() {
-    const clienteId = P.get('cliente');
-    if (!clienteId) { cont.className = 'error'; cont.textContent = 'Falta el cliente.'; return; }
-    const opts = {
-      marca: P.get('marca') || 'nova',
-      logo: bool('logo', true),
-      nombrar: bool('nombrar', true),
-      nombreCliente: bool('nombre_cliente', true),
-      fuel: bool('fuel', false),
-      notas: bool('notas', true),
-      destinos: bool('destinos', true),
-      vence: P.get('vence') === null ? 30 : Number(P.get('vence')),
+  /** Las opciones de presentación, leídas de un accesor (la URL o una emisión guardada). */
+  function armarOpts(get) {
+    const b = (k, def) => (get(k) === null || get(k) === undefined ? def : String(get(k)) === '1');
+    return {
+      marca: get('marca') || 'nova',
+      logo: b('logo', true),
+      nombrar: b('nombrar', true),
+      nombreCliente: b('nombre_cliente', true),
+      fuel: b('fuel', false),
+      notas: b('notas', true),
+      destinos: b('destinos', true),
+      vence: (get('vence') === null || get('vence') === undefined) ? 30 : Number(get('vence')),
     };
-    const q = new URLSearchParams({
-      servicios: P.get('servicios') || 'DHL',
-      tipo: P.get('tipo') || 'export',
-      desde: P.get('desde') || '0.5',
-      hasta: P.get('hasta') || '50',
-      paso: P.get('paso') || 'auto',
-      combinar: P.get('combinar') === '1' ? '1' : '0',
-      base: P.get('base') || 'alto',
-      documentos: P.get('documentos') === '0' ? '0' : '1',
-    });
+  }
+
+  async function init() {
     try {
+      // Una emisión guardada: la hoja se dibuja DESDE lo archivado, con su fecha. Es lo
+      // que hace que "lo registrado" y "lo que salió" sean la misma cosa: la impresión
+      // normal también pasa por acá (el panel emite primero y después imprime esto).
+      const emitidoId = P.get('emitido');
+      if (emitidoId) {
+        const e = await NovaAPI.tarifario.emitido(emitidoId);
+        const opts = armarOpts((k) => (e.opciones ? e.opciones[k] : undefined));
+        opts.fechaEmision = (e.creado_en || '').replace(' ', 'T');
+        render(e.datos, opts);
+        if (P.get('imprimir') === '1') setTimeout(() => window.print(), 300);
+        return;
+      }
+
+      const clienteId = P.get('cliente');
+      if (!clienteId) { cont.className = 'error'; cont.textContent = 'Falta el cliente.'; return; }
+      const opts = armarOpts((k) => P.get(k));
+      const q = new URLSearchParams({
+        servicios: P.get('servicios') || 'DHL',
+        tipo: P.get('tipo') || 'export',
+        desde: P.get('desde') || '0.5',
+        hasta: P.get('hasta') || '50',
+        paso: P.get('paso') || 'auto',
+        combinar: P.get('combinar') === '1' ? '1' : '0',
+        base: P.get('base') || 'alto',
+        documentos: P.get('documentos') === '0' ? '0' : '1',
+      });
       const data = await NovaAPI.clientes.tarifario(clienteId, q.toString());
       render(data, opts);
       if (P.get('imprimir') === '1') setTimeout(() => window.print(), 300);

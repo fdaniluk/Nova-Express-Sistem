@@ -1,5 +1,6 @@
 const { Router } = require('express');
 const clientesRoutes = require('./clientes.routes');
+const tarifarioRoutes = require('./tarifario.routes');
 const enviosRoutes = require('./envios.routes');
 const liquidacionesRoutes = require('./liquidaciones.routes');
 const configuracionRoutes = require('./configuracion.routes');
@@ -33,6 +34,7 @@ router.use('/salud', requireSalud, saludRoutes);
 
 // Resto de rutas protegidas
 router.use('/clientes', clientesRoutes);
+router.use('/tarifario', tarifarioRoutes);
 router.use('/clientes/:id/direcciones', clienteDireccionesRoutes);
 router.use('/envios', enviosRoutes);
 router.use('/salidas', salidasRoutes);

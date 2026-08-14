@@ -493,3 +493,26 @@ CREATE TABLE IF NOT EXISTS sesiones (
   expira_en   TEXT NOT NULL,
   FOREIGN KEY(usuario_id) REFERENCES usuarios(id) ON DELETE CASCADE
 );
+
+-- El tarifario para el cliente: presets del panel y registro de lo emitido.
+-- `tarifario_emitidos.datos` guarda la GRILLA COMPLETA que salio, no solo las opciones:
+-- las tarifas cambian, y el registro sirve para reabrir exactamente la hoja que se mando.
+CREATE TABLE IF NOT EXISTS tarifario_presets (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  nombre     TEXT NOT NULL UNIQUE,
+  opciones   TEXT NOT NULL,
+  creado_en  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS tarifario_emitidos (
+  id          INTEGER PRIMARY KEY AUTOINCREMENT,
+  cliente_id  INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+  usuario_id  INTEGER REFERENCES usuarios(id),
+  usuario     TEXT,
+  formato     TEXT NOT NULL CHECK (formato IN ('pdf','excel')),
+  opciones    TEXT NOT NULL,
+  datos       TEXT NOT NULL,
+  creado_en   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_tarifario_emitidos_cliente ON tarifario_emitidos(cliente_id, creado_en);

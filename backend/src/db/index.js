@@ -600,6 +600,40 @@ async function migrateIndices() {
   );
 }
 
+// EL TARIFARIO PARA EL CLIENTE: presets del panel y registro de lo emitido.
+//
+// `tarifario_presets` guarda combinaciones de opciones con nombre ("Cliente nuevo -
+// generico", "UPS Expedited con logo Exportalo") para aplicarlas de un clic, en vez de
+// tildar quince casillas cada vez.
+//
+// `tarifario_emitidos` es el registro de que tarifario se le mando a que cliente: guarda
+// LA GRILLA COMPLETA (datos), no solo las opciones. Es a proposito y es la mitad del
+// valor: las tarifas cambian, y ante un "vos me pasaste este precio" lo que hace falta es
+// reabrir EXACTAMENTE la hoja que salio, no regenerarla con los precios de hoy.
+async function migrateTarifario() {
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS tarifario_presets (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      nombre     TEXT NOT NULL UNIQUE,
+      opciones   TEXT NOT NULL,
+      creado_en  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    )
+  `);
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS tarifario_emitidos (
+      id          INTEGER PRIMARY KEY AUTOINCREMENT,
+      cliente_id  INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+      usuario_id  INTEGER REFERENCES usuarios(id),
+      usuario     TEXT,
+      formato     TEXT NOT NULL CHECK (formato IN ('pdf','excel')),
+      opciones    TEXT NOT NULL,
+      datos       TEXT NOT NULL,
+      creado_en   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    )
+  `);
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_tarifario_emitidos_cliente ON tarifario_emitidos(cliente_id, creado_en)');
+}
+
 async function initSchema() {
   const schema = fs.readFileSync(config.schemaPath, 'utf8');
   await dbApi.exec(schema);
@@ -617,6 +651,7 @@ async function initSchema() {
   await migrateCobranzas();
   await migrateCierres();
   await migrateFuelNova();
+  await migrateTarifario();
   await migrateIndices();
   await seedIfEmpty();
 }

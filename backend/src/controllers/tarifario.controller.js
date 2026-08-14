@@ -1,6 +1,7 @@
 const ExcelJS = require('exceljs');
 const tarifarioService = require('../services/tarifario.service');
 const { hoyLocal } = require('../utils/fecha');
+const { getDb } = require('../db');
 
 /** Los interruptores del panel, leídos del query string y con los defaults acordados. */
 function opcionesDe(req) {
@@ -40,6 +41,11 @@ async function excel(req, res, next) {
   try {
     const opts = opcionesDe(req);
     const data = await tarifarioService.generarTarifario(opts);
+    // Bajar el Excel ES mandarlo: queda registrado igual que el PDF. Si el registro
+    // fallara, el Excel sale igual — el registro es un respaldo, no una traba.
+    await registrarEmision(req, 'excel', req.query || {}, data).catch((err) => {
+      console.error('[tarifario] no se pudo registrar la emisión del Excel:', err.message);
+    });
     const wb = new ExcelJS.Workbook();
     wb.creator = 'Nova Express';
 
@@ -92,4 +98,101 @@ async function excel(req, res, next) {
   }
 }
 
-module.exports = { obtener, excel };
+// ── El registro de lo emitido ────────────────────────────────────────────────
+//
+// Guarda LA GRILLA COMPLETA, no solo las opciones. Las tarifas cambian: ante un "vos me
+// pasaste este precio", lo que hace falta es reabrir exactamente la hoja que salió, no
+// regenerarla con los precios de hoy. Por eso el flujo de imprimir es: emitir (se genera
+// y se guarda) → la hoja se dibuja DESDE lo guardado → se imprime. Lo archivado y lo
+// impreso son la misma cosa por construcción.
+
+async function registrarEmision(req, formato, opciones, datos) {
+  const r = await getDb().prepare(
+    `INSERT INTO tarifario_emitidos (cliente_id, usuario_id, usuario, formato, opciones, datos)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(
+    datos.cliente.id,
+    (req.usuario && req.usuario.id) || null,
+    (req.usuario && req.usuario.usuario) || null,
+    formato,
+    JSON.stringify(opciones),
+    JSON.stringify(datos),
+  );
+  return r.lastInsertRowid;
+}
+
+// POST /api/clientes/:id/tarifario/emitir  — body: las mismas opciones del GET + presentacion
+async function emitir(req, res, next) {
+  try {
+    const q = req.body || {};
+    const opts = opcionesDe({ params: req.params, query: q });
+    const datos = await tarifarioService.generarTarifario(opts);
+    const id = await registrarEmision(req, 'pdf', q, datos);
+    res.status(201).json({ id });
+  } catch (e) {
+    if (e.status) return res.status(e.status).json({ error: e.message });
+    next(e);
+  }
+}
+
+// GET /api/clientes/:id/tarifario/emitidos — la lista, sin la grilla (pesa)
+async function emitidos(req, res, next) {
+  try {
+    const filas = await getDb().prepare(
+      `SELECT id, usuario, formato, opciones, creado_en
+       FROM tarifario_emitidos WHERE cliente_id = ? ORDER BY id DESC LIMIT 50`
+    ).all(req.params.id);
+    res.json(filas.map((f) => ({ ...f, opciones: JSON.parse(f.opciones) })));
+  } catch (e) { next(e); }
+}
+
+// GET /api/tarifario/emitidos/:id — una emisión completa, con la grilla tal como salió
+async function emitido(req, res, next) {
+  try {
+    const f = await getDb().prepare('SELECT * FROM tarifario_emitidos WHERE id = ?').get(req.params.id);
+    if (!f) return res.status(404).json({ error: 'No existe esa emisión' });
+    res.json({
+      id: f.id, cliente_id: f.cliente_id, usuario: f.usuario, formato: f.formato,
+      creado_en: f.creado_en, opciones: JSON.parse(f.opciones), datos: JSON.parse(f.datos),
+    });
+  } catch (e) { next(e); }
+}
+
+// ── Los presets del panel ────────────────────────────────────────────────────
+// Una combinación de opciones con nombre, para no tildar quince casillas cada vez.
+
+async function presets(req, res, next) {
+  try {
+    const filas = await getDb().prepare('SELECT * FROM tarifario_presets ORDER BY nombre').all();
+    res.json(filas.map((f) => ({ id: f.id, nombre: f.nombre, opciones: JSON.parse(f.opciones) })));
+  } catch (e) { next(e); }
+}
+
+async function guardarPreset(req, res, next) {
+  try {
+    const nombre = String(req.body && req.body.nombre || '').trim();
+    if (!nombre) return res.status(400).json({ error: 'El preset necesita un nombre.' });
+    if (nombre.length > 60) return res.status(400).json({ error: 'El nombre es demasiado largo (máximo 60).' });
+    const opciones = req.body.opciones;
+    if (!opciones || typeof opciones !== 'object') {
+      return res.status(400).json({ error: 'Faltan las opciones del preset.' });
+    }
+    // Mismo nombre = se pisa. Es lo que uno espera de "guardar" sobre un preset existente.
+    await getDb().prepare(
+      `INSERT INTO tarifario_presets (nombre, opciones) VALUES (?, ?)
+       ON CONFLICT(nombre) DO UPDATE SET opciones = excluded.opciones`
+    ).run(nombre, JSON.stringify(opciones));
+    res.status(201).json({ ok: true });
+  } catch (e) { next(e); }
+}
+
+async function borrarPreset(req, res, next) {
+  try {
+    await getDb().prepare('DELETE FROM tarifario_presets WHERE id = ?').run(req.params.presetId);
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+}
+
+module.exports = {
+  obtener, excel, emitir, emitidos, emitido, presets, guardarPreset, borrarPreset,
+};

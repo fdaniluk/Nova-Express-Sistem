@@ -71,6 +71,7 @@ async function main() {
   const sqlite3 = require('sqlite3');
   const db = new sqlite3.Database(DB);
   const run = (sql, p = []) => new Promise((res, rej) => db.run(sql, p, (e) => (e ? rej(e) : res())));
+  const q = (sql, p = []) => new Promise((res, rej) => db.all(sql, p, (e, r) => (e ? rej(e) : res(r))));
 
   await run("INSERT INTO clientes (id, nombre, tipo_cobro, tarifa_pct, activo) VALUES (?,?,?,?,1)",
     [CLI_PCT, 'TARIFARIO PORCENTAJE', 'CC', PCT]);
@@ -221,6 +222,73 @@ async function main() {
   check('es un xlsx de verdad (empieza con PK)', buf.slice(0, 2).toString() === 'PK');
   check('viene como archivo adjunto con nombre',
     /attachment; filename=/.test(xls.headers.get('content-disposition') || ''));
+
+  // ── 8. El registro de lo emitido ─────────────────────────────────────────────────────
+  // La mitad del valor del registro es que guarda LA GRILLA, no las opciones: las tarifas
+  // cambian, y reabrir una emisión tiene que mostrar los precios de ESE día.
+  console.log('\n8. Emitir deja registro, y la emisión guarda los precios del día\n');
+
+  const P = async (u, body) => {
+    const r = await fetch(BASE + u, { method: 'POST', headers: H, body: JSON.stringify(body) });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  };
+
+  const opciones = { servicios: 'DHL', desde: '0.5', hasta: '3', documentos: '0', marca: 'nova', vence: '30' };
+  const em = await P(`/api/clientes/${CLI_PCT}/tarifario/emitir`, opciones);
+  check('emitir responde 201 con un id', em.status === 201 && em.body.id > 0, JSON.stringify(em.body));
+
+  const lista = await J(`/api/clientes/${CLI_PCT}/tarifario/emitidos`);
+  check('la emisión aparece en la lista del cliente',
+    lista.status === 200 && lista.body.some((e) => e.id === em.body.id));
+  check('la lista dice el formato y las opciones',
+    lista.body[0].formato === 'pdf' && lista.body[0].opciones.servicios === 'DHL',
+    JSON.stringify(lista.body[0]).slice(0, 120));
+
+  const emitido = await J(`/api/tarifario/emitidos/${em.body.id}`);
+  check('la emisión completa trae la grilla', emitido.status === 200
+    && emitido.body.datos.tablas[0].filas.length > 0);
+  const precioEmitido = emitido.body.datos.tablas[0].filas[0].precios[0];
+
+  // La prueba de fuego: le cambiamos el profit al cliente y la emisión NO se mueve.
+  await run('UPDATE clientes SET tarifa_pct = 200 WHERE id = ?', [CLI_PCT]);
+  const emitidoDespues = await J(`/api/tarifario/emitidos/${em.body.id}`);
+  const vivoDespues = await J(`/api/clientes/${CLI_PCT}/tarifario?servicios=DHL&desde=0.5&hasta=3&documentos=0`);
+  check('la tarifa del cliente cambió y el tarifario VIVO lo refleja',
+    vivoDespues.body.tablas[0].filas[0].precios[0] > precioEmitido);
+  check('pero la emisión guardada sigue diciendo el precio de aquel día',
+    emitidoDespues.body.datos.tablas[0].filas[0].precios[0] === precioEmitido,
+    `guardado ${emitidoDespues.body.datos.tablas[0].filas[0].precios[0]} vs original ${precioEmitido}`);
+  await run('UPDATE clientes SET tarifa_pct = ? WHERE id = ?', [PCT, CLI_PCT]);
+
+  const cuenta = await q('SELECT COUNT(*) AS n FROM tarifario_emitidos WHERE cliente_id = ?', [CLI_PCT]);
+  check('bajar el Excel también quedó registrado', Number(cuenta[0].n) >= 2, `hay ${cuenta[0].n}`);
+
+  // ── 9. Los presets del panel ─────────────────────────────────────────────────────────
+  console.log('\n9. Los presets guardan y devuelven las opciones\n');
+
+  const PUT = async (u, body) => {
+    const r = await fetch(BASE + u, { method: 'PUT', headers: H, body: JSON.stringify(body) });
+    return { status: r.status, body: await r.json().catch(() => null) };
+  };
+
+  const g1 = await PUT('/api/tarifario/presets', { nombre: 'Cliente nuevo', opciones });
+  check('guardar un preset responde 201', g1.status === 201, JSON.stringify(g1.body));
+  const lp = await J('/api/tarifario/presets');
+  const preset = lp.body.find((p) => p.nombre === 'Cliente nuevo');
+  check('el preset aparece con sus opciones', Boolean(preset) && preset.opciones.hasta === '3');
+
+  await PUT('/api/tarifario/presets', { nombre: 'Cliente nuevo', opciones: { ...opciones, hasta: '50' } });
+  const lp2 = await J('/api/tarifario/presets');
+  check('guardar con el mismo nombre lo pisa (no duplica)',
+    lp2.body.filter((p) => p.nombre === 'Cliente nuevo').length === 1
+    && lp2.body.find((p) => p.nombre === 'Cliente nuevo').opciones.hasta === '50');
+
+  check('un preset sin nombre se rechaza',
+    (await PUT('/api/tarifario/presets', { opciones })).status === 400);
+
+  const del = await fetch(`${BASE}/api/tarifario/presets/${preset.id}`, { method: 'DELETE', headers: H });
+  check('borrar un preset lo saca de la lista', del.status === 200
+    && !(await J('/api/tarifario/presets')).body.some((p) => p.id === preset.id));
 
   // El formato lo lee verificar.js para sumar las tandas: no cambiarlo.
   console.log(`\n${ok} pasaron · ${fail} fallaron`);

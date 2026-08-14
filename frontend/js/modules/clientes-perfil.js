@@ -1043,10 +1043,13 @@
       return s;
     };
 
-    function queryString() {
+    // El juego COMPLETO de opciones como objeto. Es lo que viaja en el query string de la
+    // vista previa, lo que se emite al imprimir, y lo que se guarda en un preset: una
+    // sola fuente para las tres cosas.
+    function opcionesObj() {
       const combinar = escenario === 'unico' || (escenario === 'libre' && !$('t-nombrar').checked);
-      return new URLSearchParams({
-        cliente: clienteId,
+      return {
+        escenario,
         servicios: serviciosElegidos().join(','),
         tipo: $('t-tipo').value,
         desde: $('t-desde').value || '0.5',
@@ -1064,7 +1067,35 @@
         destinos: $('t-destinos').checked ? '1' : '0',
         fuel: $('t-fuel').checked ? '1' : '0',
         vence: $('t-vence').value || '0',
-      }).toString();
+      };
+    }
+
+    function queryString() {
+      return new URLSearchParams({ cliente: clienteId, ...opcionesObj() }).toString();
+    }
+
+    /** Aplica un juego de opciones guardado (preset) a los controles del panel. */
+    function aplicarOpciones(o) {
+      if (!o) return;
+      const servicios = String(o.servicios || 'DHL').split(',');
+      $('t-dhl').checked = servicios.includes('DHL');
+      $('t-ups-exp').checked = servicios.includes('UPS_EXP');
+      $('t-ups-sav').checked = servicios.includes('UPS_SAVER');
+      if (o.tipo) $('t-tipo').value = o.tipo;
+      if (o.desde) $('t-desde').value = o.desde;
+      if (o.hasta) $('t-hasta').value = o.hasta;
+      if (o.paso) $('t-paso').value = o.paso;
+      if (o.marca) $('t-marca').value = o.marca;
+      const chk = (id, v, def) => { $(id).checked = v === undefined ? def : String(v) === '1'; };
+      chk('t-documentos', o.documentos, true);
+      chk('t-logo', o.logo, true);
+      chk('t-nombrar', o.nombrar, true);
+      chk('t-nombre-cliente', o.nombre_cliente, true);
+      chk('t-notas', o.notas, true);
+      chk('t-destinos', o.destinos, true);
+      chk('t-fuel', o.fuel, false);
+      if (o.vence !== undefined) $('t-vence').value = o.vence;
+      aplicarEscenario(o.escenario || 'libre');
     }
 
     let pedido = null;
@@ -1119,6 +1150,9 @@
     document.getElementById('btn-armar-tarifario').addEventListener('click', () => {
       modal.classList.remove('hidden');
       aplicarEscenario(escenario);
+      // Al abrir se refrescan presets y enviados: otro usuario pudo haber agregado.
+      cargarPresets();
+      cargarEnviados();
     });
     $('tarifario-cerrar').addEventListener('click', () => modal.classList.add('hidden'));
     modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.add('hidden'); });
@@ -1126,14 +1160,127 @@
       if (e.key === 'Escape' && !modal.classList.contains('hidden')) modal.classList.add('hidden');
     });
 
-    $('t-imprimir').addEventListener('click', () => {
-      // Se imprime el iframe: exactamente lo que se está viendo, sin nada de la pantalla.
-      preview.contentWindow.focus();
-      preview.contentWindow.print();
+    // ── Imprimir = EMITIR: generar, registrar y recién ahí imprimir ─────────
+    //
+    // El orden importa: primero se emite (el servidor genera la grilla y la archiva con
+    // fecha y usuario), después el iframe se redibuja DESDE lo archivado, y eso es lo que
+    // se imprime. Así lo registrado y lo impreso son la misma hoja por construcción, y
+    // ante un "vos me pasaste este precio" se reabre tal cual desde "Enviados".
+    $('t-imprimir').addEventListener('click', async () => {
+      const btn = $('t-imprimir');
+      btn.disabled = true;
+      const textoOriginal = btn.textContent;
+      btn.textContent = 'Registrando…';
+      try {
+        const { id } = await NovaAPI.clientes.tarifarioEmitir(clienteId, opcionesObj());
+        await new Promise((res, rej) => {
+          preview.onload = res;
+          preview.onerror = rej;
+          preview.src = `tarifario.html?emitido=${id}`;
+        });
+        // El onload dispara con el HTML cargado pero los datos todavía en viaje: un
+        // respiro para que la hoja termine de dibujarse antes del diálogo de imprimir.
+        await new Promise((res) => setTimeout(res, 600));
+        preview.contentWindow.focus();
+        preview.contentWindow.print();
+        cargarEnviados();
+      } catch (err) {
+        // Si el registro falla, imprimir lo que se está viendo sigue siendo posible:
+        // el registro es un respaldo, no una traba para mandarle el precio al cliente.
+        NovaUtils.showAlert(alertBox, `No se pudo registrar la emisión (${err.message}); se imprime sin registrar.`);
+        preview.contentWindow.focus();
+        preview.contentWindow.print();
+      } finally {
+        btn.disabled = false;
+        btn.textContent = textoOriginal;
+      }
     });
     $('t-excel').addEventListener('click', () => {
+      // El Excel queda registrado del lado del servidor (bajarlo ES mandarlo).
       window.location.href = NovaAPI.clientes.tarifarioExcelUrl(clienteId, queryString());
+      setTimeout(cargarEnviados, 1500);
     });
+
+    // ── Presets ─────────────────────────────────────────────────────────────
+    let presetsCache = [];
+    async function cargarPresets() {
+      try {
+        presetsCache = await NovaAPI.tarifario.presets();
+        const sel = $('t-preset');
+        const actual = sel.value;
+        sel.innerHTML = '<option value="">— elegir —</option>'
+          + presetsCache.map((p) => `<option value="${p.id}">${p.nombre}</option>`).join('');
+        sel.value = actual;
+      } catch { /* sin presets no se rompe nada */ }
+    }
+    $('t-preset').addEventListener('change', () => {
+      const p = presetsCache.find((x) => String(x.id) === $('t-preset').value);
+      $('t-preset-borrar').classList.toggle('hidden', !p);
+      if (p) aplicarOpciones(p.opciones);
+    });
+    $('t-preset-guardar').addEventListener('click', async () => {
+      const elegido = presetsCache.find((x) => String(x.id) === $('t-preset').value);
+      const nombre = prompt('Nombre del preset (el mismo nombre lo pisa):', elegido ? elegido.nombre : '');
+      if (!nombre || !nombre.trim()) return;
+      try {
+        await NovaAPI.tarifario.guardarPreset(nombre.trim(), opcionesObj());
+        await cargarPresets();
+        const nuevo = presetsCache.find((x) => x.nombre === nombre.trim());
+        if (nuevo) { $('t-preset').value = String(nuevo.id); $('t-preset-borrar').classList.remove('hidden'); }
+      } catch (err) {
+        NovaUtils.showAlert(alertBox, `No se pudo guardar el preset: ${err.message}`);
+      }
+    });
+    $('t-preset-borrar').addEventListener('click', async () => {
+      const p = presetsCache.find((x) => String(x.id) === $('t-preset').value);
+      if (!p || !confirm(`¿Borrar el preset "${p.nombre}"?`)) return;
+      await NovaAPI.tarifario.borrarPreset(p.id);
+      $('t-preset').value = '';
+      $('t-preset-borrar').classList.add('hidden');
+      cargarPresets();
+    });
+
+    // ── Enviados a este cliente ─────────────────────────────────────────────
+    async function cargarEnviados() {
+      try {
+        const lista = await NovaAPI.clientes.tarifarioEmitidos(clienteId);
+        const ul = $('t-enviados');
+        if (!lista.length) {
+          ul.innerHTML = '<li class="t-env-vacio">Ninguno todavía.</li>';
+          return;
+        }
+        ul.innerHTML = lista.map((e) => {
+          const o = e.opciones || {};
+          const que = [
+            o.combinar === '1' ? 'único' : (o.servicios || '').replaceAll('UPS_EXP', 'UPS Exp').replaceAll('UPS_SAVER', 'UPS Sav'),
+            `${o.desde || '?'}–${o.hasta || '?'} kg`,
+            e.formato === 'excel' ? 'Excel' : 'PDF',
+          ].join(' · ');
+          const cuando = String(e.creado_en || '').slice(0, 16).replace('-', '/').replace('-', '/');
+          return `<li data-emitido="${e.id}" title="Reabrir la hoja tal como salió, con sus precios y su fecha">`
+            + `<span class="t-env-que">${que}${e.usuario ? ` — ${e.usuario}` : ''}</span>`
+            + `<span class="t-env-cuando">${cuando}</span></li>`;
+        }).join('');
+      } catch { /* la lista es informativa; si falla no rompe el panel */ }
+    }
+    $('t-enviados').addEventListener('click', (e) => {
+      const li = e.target.closest('li[data-emitido]');
+      if (!li) return;
+      // La vista previa pasa a mostrar la emisión archivada (precios y fecha de ESE día).
+      modal.querySelectorAll('#t-enviados li').forEach((x) => x.classList.toggle('activo', x === li));
+      clearTimeout(pedido);
+      preview.src = `tarifario.html?emitido=${li.dataset.emitido}`;
+    });
+    // Tocar cualquier opción vuelve a la vista previa en vivo (refrescar() ya lo hace);
+    // solo hay que soltar el resaltado de la emisión.
+    modal.querySelectorAll('.tarifario-opciones input, .tarifario-opciones select').forEach((el) => {
+      el.addEventListener('change', () => {
+        modal.querySelectorAll('#t-enviados li').forEach((x) => x.classList.remove('activo'));
+      });
+    });
+
+    cargarPresets();
+    cargarEnviados();
   }
 
   init();

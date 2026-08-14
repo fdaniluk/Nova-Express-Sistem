@@ -150,6 +150,16 @@ api.clientes.tarifaKg = {
 // venta ya resueltos (nunca costos ni margenes). `qs` son las opciones del panel.
 api.clientes.tarifario = (id, qs) => api.get(`/clientes/${id}/tarifario?${qs}`);
 api.clientes.tarifarioExcelUrl = (id, qs) => `${API_BASE}/clientes/${id}/tarifario.xlsx?${qs}`;
+// Emitir = generar la grilla Y dejarla registrada (quien, cuando, y la hoja completa).
+api.clientes.tarifarioEmitir = (id, opciones) => api.post(`/clientes/${id}/tarifario/emitir`, opciones);
+api.clientes.tarifarioEmitidos = (id) => api.get(`/clientes/${id}/tarifario/emitidos`);
+// Lo del tarifario que no cuelga de un cliente: presets del panel y emisiones por id.
+api.tarifario = {
+  emitido: (id) => api.get(`/tarifario/emitidos/${id}`),
+  presets: () => api.get('/tarifario/presets'),
+  guardarPreset: (nombre, opciones) => api.put('/tarifario/presets', { nombre, opciones }),
+  borrarPreset: (id) => api.delete(`/tarifario/presets/${id}`),
+};
 
 // Tramos de peso del cliente. Los usan las DOS matrices: la de porcentaje y la de kilo.
 // Un cliente sin tramos propios hereda los por defecto; la respuesta dice cual es el caso.
