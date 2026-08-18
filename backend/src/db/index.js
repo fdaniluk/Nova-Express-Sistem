@@ -265,6 +265,13 @@ async function migrateEnvios() {
     // Flag "envío número 0": 1 = envío raro que se muestra con #Sal 0, va arriba de
     // todos y no consume número correlativo. El renumerado es del frontend.
     ['num_sal_cero',     'INTEGER DEFAULT 0'],
+    // Seguro DE VENTA congelado al alta, SOLO para clientes con seguro propio
+    // (clientes.seguro_pct_propio): es el monto negociado que se le cobra al cliente por
+    // asegurar este envío. NULL = el cliente no tenía seguro propio al cargarlo → la línea
+    // "Seguro" del desglose de venta usa la columna `seguro` (escala de lista), que es lo
+    // que valía siempre. Sin esta foto, el Excel de la liquidación mostraba la escala de
+    // lista aunque el cliente tuviera un porcentaje negociado.
+    ['seguro_venta',     'REAL'],
     // Columnas módulo Control de Facturas
     ['costo_facturado',  'REAL'],
     ['peso_facturado',   'REAL'],

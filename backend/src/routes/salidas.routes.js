@@ -1,6 +1,6 @@
 const { Router } = require('express');
 const { getDb } = require('../db');
-const { buildPesos, calcularDesgloseAlCosto } = require('../models/envio.model');
+const { buildPesos, calcularDesgloseAlCosto, calcularSeguroVenta } = require('../models/envio.model');
 const { pesoVolumetricoBulto } = require('../services/calculos.service');
 const { deriveProfit } = require('../utils/profit');
 const { descomponerVenta } = require('../utils/desgloseVenta');
@@ -77,6 +77,7 @@ async function listarSalidas({ desde, hasta } = {}) {
       e.flete,
       e.descuento,
       e.seguro,
+      e.seguro_venta,
       e.fuel,
       e.fuel_pct,
       e.derechos,
@@ -226,7 +227,9 @@ async function listarSalidas({ desde, hasta } = {}) {
     if (!row.total) return null;
     return descomponerVenta({
       total_cobrado: row.total,
-      seguro: row.seguro,
+      // Cliente con seguro propio: la línea "Seguro" de la venta es el monto negociado
+      // congelado al alta (seguro_venta), no la escala de lista (seguro = COSTO).
+      seguro: row.seguro_venta ?? row.seguro,
       adicionales: row.adicionales,
       derechos: row.derechos,
       otros: row.otros,
@@ -725,6 +728,18 @@ router.patch('/:id', async (req, res, next) => {
         avisoZona = `El país "${String(picked.pais_destino).trim()}" no resuelve una zona automática; `
           + 'se conservó la zona anterior. Verificá la zona manualmente.';
       }
+    }
+
+    // SEGURO DE VENTA negociado: si la edición toca fob, cliente o courier en un envío
+    // NO liquidado, la foto congelada se rehace con la misma regla del alta (los
+    // liquidados ya rechazaron el cambio de fob/cliente más arriba; su foto no se toca).
+    if (!existing.liquidado
+        && ['fob', 'cliente_id', 'courier'].some((c) => Object.prototype.hasOwnProperty.call(picked, c))) {
+      picked.seguro_venta = await calcularSeguroVenta(
+        picked.cliente_id ?? existing.cliente_id,
+        picked.courier ?? existing.courier,
+        picked.fob !== undefined ? picked.fob : existing.fob
+      );
     }
 
     // El save persiste lo recibido: NO recalcula el motor ni pisa los costos del payload

@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Cotizador — Nova Express</title>
-<link rel="stylesheet" href="../css/main.css?v=20260815a">
+<link rel="stylesheet" href="../css/main.css?v=20260818a">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 :root{--cot-bg:#f5f4f0;--cot-surface:#ffffff;--cot-border:#e2e0d8;--cot-border-strong:#c8c5bb;--cot-text:#1a1916;--cot-text-secondary:#6b6860;--cot-text-tertiary:#9c9a94;--cot-accent-dhl:#d4a017;--cot-accent-ups:#2d5fa6;--cot-accent-dhl-bg:#fdf8ec;--cot-accent-ups-bg:#eef3fb;--cot-success:#2d6a4f;--cot-success-bg:#edf7f2;--cot-danger:#c0392b;--cot-radius:10px;--cot-radius-sm:6px;--cot-shadow:0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04);--cot-shadow-md:0 4px 12px rgba(0,0,0,0.08),0 2px 4px rgba(0,0,0,0.05)}
@@ -274,9 +274,9 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260815a"></script>
-<script src="/js/api.js?v=20260815a"></script>
-<script src="/shared/cotizador/cotizador-core.js?v=20260815a"></script>
+<script src="/js/auth-guard.js?v=20260818a"></script>
+<script src="/js/api.js?v=20260818a"></script>
+<script src="/shared/cotizador/cotizador-core.js?v=20260818a"></script>
 <script>
 let bultoId=0;
 function agregarBulto(){bultoId++;const wrap=document.getElementById('bultos-wrap');const div=document.createElement('div');div.className='bulto-row';div.id='bulto-'+bultoId;div.innerHTML=`<div class="bulto-num">#${wrap.children.length+1}</div><div class="cot-field"><label>Peso real (kg)</label><input type="number" min="0.5" step="0.5" placeholder="Peso (kg)" class="b-peso" oninput="actualizarBulto(this)" /></div><div class="cot-field"><label>Largo (cm)</label><input type="number" min="1" step="1" placeholder="Largo (cm)" class="b-largo" oninput="actualizarBulto(this)" /></div><div class="cot-field"><label>Ancho (cm)</label><input type="number" min="1" step="1" placeholder="Ancho (cm)" class="b-ancho" oninput="actualizarBulto(this)" /></div><div class="cot-field"><label>Alto (cm)</label><input type="number" min="1" step="1" placeholder="Alto (cm)" class="b-alto" oninput="actualizarBulto(this)" /></div><button class="btn-remove" onclick="eliminarBulto('bulto-${bultoId}')" title="Eliminar bulto">✕</button>`;wrap.appendChild(div);const info=document.createElement('div');info.id='info-bulto-'+bultoId;info.style.padding='0 12px 8px';wrap.appendChild(info);renumerarBultos();actualizarBulto(div.querySelector('.b-peso'));}

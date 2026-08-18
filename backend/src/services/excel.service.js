@@ -4,7 +4,7 @@ const envioModel = require('../models/envio.model');
 const clienteModel = require('../models/cliente.model');
 const { hoyLocal } = require('../utils/fecha');
 const { normalizarDestino } = require('../utils/paises');
-const { calcularPesos, buscarZona, ZONAS_DHL, ZONAS_UPS } = require('./calculos.service');
+const { calcularPesos, buscarZona, ZONAS_DHL, ZONAS_UPS, ZONAS_UPS_I } = require('./calculos.service');
 const { getDb } = require('../db');
 
 // Columnas por posición fija (índice 0-based → col 1 del Excel = índice 0)
@@ -86,13 +86,18 @@ function parseCourier(val) {
   return null;
 }
 
+// Devuelve null si la celda no dice nada de impo/expo (en la planilla real esa columna
+// suele traer el tipo de PAQUETE: "MERCADERIA"/"DOCUMENTO"). El que llama decide el
+// fallback — desde el 15/08/2026 es la `direccion` que detectó normalizarDestino, no
+// un 'exportacion' fijo: antes una IMPO detectada por el país/observaciones quedaba
+// guardada con tipo_envio='exportacion' y el desglose al costo usaba la tabla de expo.
 function parseTipo(val) {
   const s = String(val || '').toUpperCase();
   if (s.includes('IMP')) return 'importacion';
   if (s.includes('EXP')) return 'exportacion';
   if (s === 'I') return 'importacion';
   if (s === 'E') return 'exportacion';
-  return 'exportacion';
+  return null;
 }
 
 function parseFecha(val) {
@@ -199,14 +204,29 @@ async function importarSalidas(buffer) {
         );
 
         const paisParaZona = direccion === 'impo' ? origen : destino;
-        const zonaTabla    = courier === 'DHL' ? ZONAS_DHL : ZONAS_UPS;
+        // La zona depende de la DIRECCIÓN, no solo del courier: UPS tiene tabla propia de
+        // importación (ZONAS_UPS_I). Antes una impo UPS tomaba la zona de la tabla de expo,
+        // y como esa zona queda guardada y después actúa de override en los recálculos, el
+        // costo del envío salía de la fila equivocada de la matriz. DHL usa la misma tabla
+        // en ambas direcciones.
+        const zonaTabla = courier === 'DHL'
+          ? ZONAS_DHL
+          : (direccion === 'impo' ? ZONAS_UPS_I : ZONAS_UPS);
         const zonaNum      = paisParaZona != null ? buscarZona(zonaTabla, paisParaZona) : undefined;
 
         const payload = {
           cliente_id,
           fecha: parseFecha(m.fecha) || hoyLocal(),
           courier,
-          tipo_envio: parseTipo(m.tipo_envio),
+          // Si la celda no dice impo/expo, manda la dirección detectada por el destino y
+          // las observaciones: tipo_envio y direccion no pueden contarse historias distintas.
+          tipo_envio: parseTipo(m.tipo_envio) || (direccion === 'impo' ? 'importacion' : 'exportacion'),
+          // La variante de UPS queda EXPLÍCITA en el envío ("Saver" si la celda del courier
+          // lo menciona, si no Expedited). Antes quedaba en NULL y cada recálculo dependía
+          // del fallback silencioso a UPS_EXP del modelo.
+          servicio_ups: courier === 'UPS'
+            ? (/SAV/i.test(String(m.courier)) ? 'UPS_SAV' : 'UPS_EXP')
+            : null,
           numero_guia: guia,
           pais_destino: destino,
           destino_raw,

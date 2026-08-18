@@ -73,7 +73,10 @@ const api = {
     preview: (data) => api.post('/liquidaciones/preview', data),
     crear: (data) => api.post('/liquidaciones', data),
     cotizar: (data) => api.post('/liquidaciones/cotizar', data),
-    confirmar: (id) => request(`/liquidaciones/${id}/confirmar`, { method: 'PATCH' }),
+    // `envio_ids` es la selección que la pantalla está mostrando: el backend la compara
+    // con el borrador y rechaza con 409 si difieren (el "borrador pegado").
+    confirmar: (id, envio_ids) => request(`/liquidaciones/${id}/confirmar`, { method: 'PATCH', body: envio_ids ? { envio_ids } : undefined }),
+    eliminarBorrador: (id) => api.delete(`/liquidaciones/${id}`),
     listar: (params) => {
       const q = new URLSearchParams(params).toString();
       return api.get(`/liquidaciones${q ? `?${q}` : ''}`);

@@ -73,11 +73,28 @@ async function crear(req, res, next) {
 
 async function confirmar(req, res, next) {
   try {
-    const liq = await liquidacionModel.confirmar(req.params.id);
+    // La pantalla manda su selección actual y el modelo la compara con el borrador: si
+    // difieren, 409 (el borrador pegado — sospecha 6 de AUDITORIA-NUMEROS.md).
+    const esperados = Array.isArray(req.body && req.body.envio_ids) ? req.body.envio_ids : null;
+    const liq = await liquidacionModel.confirmar(req.params.id, esperados);
     if (!liq) return res.status(404).json({ error: 'Liquidación no encontrada' });
     res.json(liq);
   } catch (e) {
-    if (e.status === 400) return res.status(400).json({ error: e.message });
+    if (e.status === 400 || e.status === 409) return res.status(e.status).json({ error: e.message });
+    next(e);
+  }
+}
+
+// DELETE /api/liquidaciones/:id — SOLO borradores. Existe por dos motivos: la pantalla
+// invalida y borra el borrador viejo cuando cambia la selección (así no se acumulan), y
+// la oficina puede sacar de encima borradores muertos (los #12 y #30 del limitador L1).
+async function eliminar(req, res, next) {
+  try {
+    const r = await liquidacionModel.eliminarBorrador(req.params.id);
+    if (!r) return res.status(404).json({ error: 'Liquidación no encontrada' });
+    res.json({ ok: true });
+  } catch (e) {
+    if (e.status === 409) return res.status(409).json({ error: e.message });
     next(e);
   }
 }
@@ -181,4 +198,4 @@ async function cotizar(req, res, next) {
   }
 }
 
-module.exports = { pendientes, preview, crear, confirmar, listar, obtener, exportar, cotizar };
+module.exports = { pendientes, preview, crear, confirmar, eliminar, listar, obtener, exportar, cotizar };

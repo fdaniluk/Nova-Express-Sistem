@@ -184,6 +184,57 @@ async function main() {
       `quedó ${relee.total_cobrado}`);
   }
 
+  // ── 6. El borrador pegado: confirmar exige que la selección coincida ────────
+  // Sospecha 6 de AUDITORIA-NUMEROS.md, confirmada y arreglada el 15/08. Exportar creaba
+  // el borrador; cambiar la selección actualizaba la pantalla pero Confirmar confirmaba el
+  // borrador viejo. Ahora la pantalla manda su selección y el backend compara.
+  console.log('\n6. El borrador pegado: confirmar exige que la selección coincida\n');
+
+  const p1 = await alta({ total_cobrado: 100 });
+  const p2 = await alta({ total_cobrado: 200 });
+  const borr = await J('POST', '/api/liquidaciones', {
+    cliente_id: cli.id, periodo_desde: '2026-08-01', periodo_hasta: '2026-08-31',
+    envio_ids: [p1.body.id], cargos: [], cotizaciones: [], confirmar: false,
+  });
+  check('se crea un borrador con UN envío', borr.status === 201 || borr.status === 200,
+    `status ${borr.status}`);
+
+  const confMal = await J('PATCH', `/api/liquidaciones/${borr.body.id}/confirmar`,
+    { envio_ids: [p1.body.id, p2.body.id] });
+  check('confirmar con OTRA selección en pantalla se rechaza con 409', confMal.status === 409,
+    `status ${confMal.status}`);
+  check('y el error dice que hay que recalcular la vista previa',
+    /selección|seleccion/i.test((confMal.body || {}).error || ''), (confMal.body || {}).error);
+
+  const sigueBorrador = (await J('GET', `/api/liquidaciones/${borr.body.id}`)).body;
+  check('el borrador NO quedó confirmado', sigueBorrador.estado !== 'confirmada',
+    sigueBorrador.estado);
+
+  const confBien = await J('PATCH', `/api/liquidaciones/${borr.body.id}/confirmar`,
+    { envio_ids: [p1.body.id] });
+  check('con la selección correcta confirma normal', confBien.status === 200,
+    `status ${confBien.status} ${JSON.stringify(confBien.body).slice(0, 90)}`);
+
+  // ── 7. Borrar borradores (los #12 y #30 de L1 salen por acá) ────────────────
+  console.log('\n7. Un borrador se puede borrar; una confirmada no\n');
+
+  const borr2 = await J('POST', '/api/liquidaciones', {
+    cliente_id: cli.id, periodo_desde: '2026-08-01', periodo_hasta: '2026-08-31',
+    envio_ids: [p2.body.id], cargos: [], cotizaciones: [], confirmar: false,
+  });
+  const del1 = await J('DELETE', `/api/liquidaciones/${borr2.body.id}`);
+  check('borrar un borrador responde ok', del1.status === 200, `status ${del1.status}`);
+  check('y desaparece', (await J('GET', `/api/liquidaciones/${borr2.body.id}`)).status === 404);
+
+  const pendTras = await J('GET', `/api/liquidaciones/pendientes?cliente_id=${cli.id}`);
+  const idsPend = ((pendTras.body || [])[0]?.envios || []).map((e) => e.id);
+  check('su envío sigue PENDIENTE (borrar el borrador no pierde plata)',
+    idsPend.includes(p2.body.id), JSON.stringify(idsPend));
+
+  const delConf = await J('DELETE', `/api/liquidaciones/${borr.body.id}`);
+  check('una confirmada NO se puede borrar (409)', delConf.status === 409,
+    `status ${delConf.status}`);
+
   console.log('\n' + '─'.repeat(60));
   console.log(`${ok} pasaron · ${fail} fallaron`);
   await cerrar(fail === 0 ? 0 : 1);

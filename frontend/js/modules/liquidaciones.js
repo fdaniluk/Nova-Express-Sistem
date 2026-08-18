@@ -122,13 +122,41 @@
     }
   }
 
+  // EL BORRADOR PEGADO (sospecha 6 de la auditoría, confirmada el 15/08): exportar creaba
+  // el borrador y guardaba su id; cambiar la selección actualizaba la vista previa pero
+  // Confirmar seguía apuntando al borrador viejo — se confirmaba otra cosa que la que se
+  // veía. Regla nueva: CUALQUIER cambio (tildes, adicionales, cliente, fechas) invalida el
+  // borrador y la vista previa, y hay que recalcular antes de confirmar o exportar. El
+  // borrador viejo se borra del servidor para que no quede flotando como los #12 y #30.
+  function invalidarBorrador() {
+    if (lastLiquidacionId) {
+      NovaAPI.liquidaciones.eliminarBorrador(lastLiquidacionId).catch(() => {});
+      lastLiquidacionId = null;
+    }
+    lastPreview = null;
+    document.getElementById('liq-preview').classList.add('hidden');
+    document.getElementById('btn-confirmar-liq').disabled = true;
+    document.getElementById('btn-export-borrador').disabled = true;
+  }
+
   function bindCrear() {
     document.getElementById('btn-cargar-envios').addEventListener('click', cargarEnviosCliente);
     document.getElementById('liq-select-all').addEventListener('change', (e) => {
       document.querySelectorAll('.liq-envio-check').forEach((c) => {
         c.checked = e.target.checked;
       });
+      invalidarBorrador();
     });
+    // Delegado en el tbody porque las filas se redibujan con cada cliente.
+    document.getElementById('liq-envios-body').addEventListener('change', (e) => {
+      if (e.target.classList.contains('liq-envio-check')) invalidarBorrador();
+    });
+    document.getElementById('liq-envios-body').addEventListener('input', (e) => {
+      if (e.target.classList.contains('liq-adicional')) invalidarBorrador();
+    });
+    document.getElementById('liq-cliente').addEventListener('change', invalidarBorrador);
+    document.getElementById('liq-desde').addEventListener('change', invalidarBorrador);
+    document.getElementById('liq-hasta').addEventListener('change', invalidarBorrador);
     document.getElementById('btn-preview').addEventListener('click', calcularPreview);
     document.getElementById('btn-confirmar-liq').addEventListener('click', confirmarLiquidacion);
     document.getElementById('btn-export-borrador').addEventListener('click', exportarActual);
@@ -269,7 +297,10 @@
     try {
       let liq;
       if (lastLiquidacionId) {
-        liq = await NovaAPI.liquidaciones.confirmar(lastLiquidacionId);
+        // Se manda la selección que se está viendo: si no coincide con el borrador, el
+        // backend corta con 409 en vez de confirmar otra cosa (defensa en profundidad;
+        // con la invalidación de arriba no debería pasar nunca).
+        liq = await NovaAPI.liquidaciones.confirmar(lastLiquidacionId, getSelectedEnvios().envio_ids);
       } else {
         const { cliente_id, envio_ids, cargos, cotizaciones } = lastPreview;
         liq = await NovaAPI.liquidaciones.crear({
@@ -354,12 +385,27 @@
           <td>${l.cantidad_envios}</td>
           <td>${NovaUtils.formatMoney(l.total)}</td>
           <td><span class="badge ${l.estado === 'confirmada' ? 'badge-liquidado' : 'badge-pendiente'}">${l.estado}</span></td>
-          <td><button type="button" class="btn btn-sm btn-secondary" data-export="${l.id}">Excel</button></td>
+          <td style="display:flex;gap:0.35rem">
+            <button type="button" class="btn btn-sm btn-secondary" data-export="${l.id}">Excel</button>
+            ${l.estado !== 'confirmada' ? `<button type="button" class="btn btn-sm btn-danger" data-borrar="${l.id}" title="Borrar este borrador. No toca ningún envío: los envíos de un borrador siguen pendientes.">Borrar</button>` : ''}
+          </td>
         </tr>`
       ).join('');
       tbody.querySelectorAll('[data-export]').forEach((btn) => {
         btn.addEventListener('click', () => {
           window.open(NovaAPI.liquidaciones.exportarUrl(btn.dataset.export), '_blank');
+        });
+      });
+      // Borrar borradores muertos (los #12 y #30 del limitador L1 se sacan por acá).
+      tbody.querySelectorAll('[data-borrar]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          if (!confirm(`¿Borrar el borrador #${btn.dataset.borrar}? Sus envíos siguen pendientes; no se pierde nada.`)) return;
+          try {
+            await NovaAPI.liquidaciones.eliminarBorrador(btn.dataset.borrar);
+            loadHistorial();
+          } catch (err) {
+            NovaUtils.showAlert(alertBox, err.message, 'error');
+          }
         });
       });
     } catch (err) {

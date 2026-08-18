@@ -175,6 +175,10 @@ CREATE TABLE IF NOT EXISTS envios (
   -- todos y no consume número correlativo. El renumerado es del frontend; acá solo
   -- persiste el flag.
   num_sal_cero        INTEGER DEFAULT 0,
+  -- Seguro DE VENTA congelado al alta, SOLO para clientes con seguro propio negociado
+  -- (clientes.seguro_pct_propio). NULL = sin seguro propio al cargarlo → el desglose de
+  -- venta usa `seguro` (escala de lista), como siempre.
+  seguro_venta        REAL,
   -- Control de Facturas
   costo_facturado     REAL,
   peso_facturado      REAL,

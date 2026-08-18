@@ -64,7 +64,11 @@ async function calcularItem(envio, adicional = 0) {
   // recotiza ni aplica profit: el profit ya está dentro de total_cobrado.
   const venta = descomponerVenta({
     total_cobrado: envio.total_cobrado,
-    seguro: envio.seguro,
+    // Cliente con seguro propio: la línea "Seguro" de cara al cliente es el monto
+    // negociado congelado en el envío (seguro_venta), no la escala de lista (seguro =
+    // COSTO del desglose del alta). NULL = cliente sin seguro propio → escala de lista,
+    // el comportamiento de siempre.
+    seguro: envio.seguro_venta ?? envio.seguro,
     adicionales: envio.adicionales,
     derechos: envio.derechos,
     otros: envio.otros,
@@ -244,7 +248,14 @@ function validarSinCeros(items) {
   }
 }
 
-async function confirmar(id) {
+// `envioIdsEsperados` (opcional) es LO QUE LA PANTALLA CREE que tiene este borrador.
+// Sospecha 6 de AUDITORIA-NUMEROS.md — EL BORRADOR PEGADO, confirmada el 15/08: exportar
+// creaba el borrador y guardaba su id; si después se cambiaba la selección, la vista
+// previa mostraba la selección nueva pero Confirmar confirmaba el borrador VIEJO. Lo que
+// se confirmaba no era lo que se estaba viendo. Ahora la pantalla manda su selección y,
+// si no coincide con los ítems del borrador, esto corta con 409 en vez de confirmar otra
+// cosa. Sin el parámetro (API vieja, scripts) se confirma como siempre.
+async function confirmar(id, envioIdsEsperados = null) {
   const db = getDb();
   const liq = await buscarPorId(id);
   if (!liq) return null;
@@ -255,6 +266,22 @@ async function confirmar(id) {
   }
 
   const envioIds = liq.items.map((i) => i.envio_id);
+
+  if (Array.isArray(envioIdsEsperados)) {
+    const enBorrador = new Set(envioIds.map(Number));
+    const enPantalla = new Set(envioIdsEsperados.map(Number));
+    const igual = enBorrador.size === enPantalla.size
+      && [...enBorrador].every((x) => enPantalla.has(x));
+    if (!igual) {
+      const err = new Error(
+        'La selección de envíos cambió después de crear este borrador: lo que está en '
+        + 'pantalla no es lo que tiene el borrador. Volvé a calcular la vista previa y '
+        + 'confirmá de nuevo.'
+      );
+      err.status = 409;
+      throw err;
+    }
+  }
 
   // ⚠️ Defecto 2 de AUDITORIA-NUMEROS.md — EL MISMO ENVÍO FACTURADO DOS VECES. Crear un
   // borrador no marca nada; el envío queda libre y puede entrar en OTRO borrador. Al
@@ -354,8 +381,33 @@ async function listar(filtros = {}) {
   return db.prepare(sql).all(...params);
 }
 
+/**
+ * Borra un BORRADOR. Una confirmada no se toca por acá: sus envíos están marcados y el
+ * cliente ya recibió el Excel — eso es una anulación, otro trabajo. Borrar un borrador es
+ * seguro por construcción: crear un borrador no marca ningún envío.
+ */
+async function eliminarBorrador(id) {
+  const db = getDb();
+  const liq = await buscarPorId(id);
+  if (!liq) return null;
+  if (liq.estado === 'confirmada') {
+    const err = new Error('La liquidación está confirmada: no se puede borrar (habría que anularla, y eso es otra operación).');
+    err.status = 409;
+    throw err;
+  }
+  await db.transaction(async () => {
+    await db.prepare('DELETE FROM liquidacion_items WHERE liquidacion_id = ?').run(id);
+    // Los cargos adicionales pertenecen al ENVÍO; al morir el borrador quedan sueltos
+    // (liquidacion_id NULL) y los levanta el próximo, igual que sus envíos.
+    await db.prepare('UPDATE cargos_adicionales SET liquidacion_id = NULL WHERE liquidacion_id = ?').run(id);
+    await db.prepare('DELETE FROM liquidaciones WHERE id = ?').run(id);
+  });
+  return true;
+}
+
 module.exports = {
   migrarColumnas,
+  eliminarBorrador,
   preview,
   crear,
   confirmar,

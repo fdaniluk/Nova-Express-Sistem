@@ -1,5 +1,6 @@
 const clienteModel = require('../models/cliente.model');
 const { getDb } = require('../db');
+const { deriveProfit } = require('../utils/profit');
 
 async function listar(req, res, next) {
   try {
@@ -67,88 +68,103 @@ async function perfil(req, res, next) {
     const cliente = await clienteModel.buscarPorId(id);
     if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
 
-    const [statsRow, guias, utilidadMensual] = await Promise.all([
-      db
-        .prepare(
-          `SELECT
-             COUNT(e.id) AS total_guias,
-             SUM(COALESCE(li.utilidad_usd, e.total_cobrado * c.tarifa_pct / 100.0)) AS utilidad_total_usd,
-             MAX(CASE WHEN e.liquidado = 1 THEN strftime('%Y-%m', e.fecha) ELSE NULL END) AS ultima_liquidacion
-           FROM envios e
-           JOIN clientes c ON c.id = e.cliente_id
-           LEFT JOIN liquidacion_items li
-                  ON li.envio_id = e.id
-                 AND li.liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
-           WHERE e.cliente_id = ?`
-        )
-        .get(id),
-
-      db
-        .prepare(
-          `SELECT
-             e.id,
-             e.numero_guia,
-             e.fecha,
-             e.pais_destino AS pais,
-             e.courier,
-             e.asegurado,
-             e.total_cobrado AS total_cobrado_usd,
-             COALESCE(li.utilidad_usd, e.total_cobrado * c.tarifa_pct / 100.0) AS utilidad_usd,
-             CASE WHEN e.liquidado = 1 THEN 'liquidado' ELSE 'pendiente' END AS estado
-           FROM envios e
-           JOIN clientes c ON c.id = e.cliente_id
-           LEFT JOIN liquidacion_items li
-                  ON li.envio_id = e.id
-                 AND li.liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
-           WHERE e.cliente_id = ?
-           ORDER BY e.fecha DESC, e.id DESC`
-        )
-        .all(id),
-
-      db
-        .prepare(
-          `SELECT
-             strftime('%Y-%m', e.fecha) AS mes,
-             SUM(COALESCE(li.utilidad_usd, e.total_cobrado * c.tarifa_pct / 100.0)) AS utilidad_usd,
-             COUNT(e.id) AS cantidad_envios
-           FROM envios e
-           JOIN clientes c ON c.id = e.cliente_id
-           LEFT JOIN liquidacion_items li
-                  ON li.envio_id = e.id
-                 AND li.liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
-           WHERE e.cliente_id = ?
-           GROUP BY mes
-           ORDER BY mes DESC
-           LIMIT 12`
-        )
-        .all(id),
-    ]);
+    // La utilidad por envío se deriva en JS con deriveProfit: la MISMA función y la MISMA
+    // precedencia que usan Salidas y el Dashboard (costo real de factura aprobada > foto de
+    // la liquidación confirmada > estimación venta − costo del desglose congelado). Antes acá
+    // se hacía total_cobrado × tarifa_pct en SQL, que solo es cierto para el cliente
+    // porcentual "de manual": pisaba a los por-kilo, a las tarifas negociadas y al costo real.
+    // El LEFT JOIN a liquidacion_items va pre-agregado por envío (GROUP BY envio_id) para
+    // garantizar UNA fila por envío, igual que en el Dashboard.
+    const filas = await db
+      .prepare(
+        `SELECT
+           e.id,
+           e.numero_guia,
+           e.fecha,
+           e.pais_destino AS pais,
+           e.courier,
+           e.asegurado,
+           e.liquidado,
+           e.total_cobrado AS total,
+           e.flete, e.descuento, e.seguro, e.fuel, e.derechos, e.adicionales, e.otros,
+           e.profit, e.porcentaje,
+           e.estado_revision, e.costo_facturado,
+           li.utilidad_usd AS utilidad_liq,
+           li.venta_liq    AS venta_liq
+         FROM envios e
+         LEFT JOIN (
+           SELECT envio_id,
+                  SUM(utilidad_usd) AS utilidad_usd,
+                  SUM(total_usd)    AS venta_liq
+           FROM liquidacion_items
+           WHERE liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
+           GROUP BY envio_id
+         ) li ON li.envio_id = e.id
+         WHERE e.cliente_id = ?
+         ORDER BY e.fecha DESC, e.id DESC`
+      )
+      .all(id);
 
     const round2 = (n) => Math.round((n || 0) * 100) / 100;
+
+    // Idéntica a utilidadEnvio del Dashboard: si cambia allá, cambia acá.
+    const utilidadEnvio = (row) => {
+      const { profit, profit_real } = deriveProfit(row);
+      if (profit_real) return profit;
+      if (row.utilidad_liq != null) return row.utilidad_liq;
+      return profit == null ? 0 : profit;
+    };
+
+    let utilidadTotal = 0;
+    let ultimaLiquidacion = null;
+    const porMes = new Map();
+    const guias = [];
+
+    for (const row of filas) {
+      const u = utilidadEnvio(row);
+      utilidadTotal += u;
+
+      const mes = String(row.fecha || '').slice(0, 7);
+      if (row.liquidado && mes && (!ultimaLiquidacion || mes > ultimaLiquidacion)) {
+        ultimaLiquidacion = mes;
+      }
+      if (mes) {
+        let m = porMes.get(mes);
+        if (!m) { m = { mes, utilidad_usd: 0, cantidad_envios: 0 }; porMes.set(mes, m); }
+        m.utilidad_usd += u;
+        m.cantidad_envios += 1;
+      }
+
+      guias.push({
+        id: row.id,
+        numero_guia: row.numero_guia,
+        fecha: row.fecha,
+        pais: row.pais,
+        courier: row.courier,
+        asegurado: Boolean(row.asegurado),
+        total_cobrado_usd: round2(row.total),
+        utilidad_usd: round2(u),
+        estado: row.liquidado ? 'liquidado' : 'pendiente',
+      });
+    }
+
+    const utilidadMensual = [...porMes.values()]
+      .sort((a, b) => b.mes.localeCompare(a.mes))
+      .slice(0, 12);
 
     res.json({
       cliente: clienteModel.parseTarifa(cliente),
       stats: {
-        total_guias: statsRow.total_guias || 0,
-        utilidad_total_usd: round2(statsRow.utilidad_total_usd),
-        ultima_liquidacion: statsRow.ultima_liquidacion || null,
+        total_guias: filas.length,
+        utilidad_total_usd: round2(utilidadTotal),
+        ultima_liquidacion: ultimaLiquidacion,
       },
       utilidad_mensual: utilidadMensual.map((r) => ({
         mes: r.mes,
         utilidad_usd: round2(r.utilidad_usd),
         cantidad_envios: r.cantidad_envios,
       })),
-      guias: guias.map((g) => ({
-        id: g.id,
-        numero_guia: g.numero_guia,
-        fecha: g.fecha,
-        pais: g.pais,
-        courier: g.courier,
-        asegurado: Boolean(g.asegurado),
-        total_cobrado_usd: round2(g.total_cobrado_usd),
-        utilidad_usd: round2(g.utilidad_usd),
-        estado: g.estado,
-      })),
+      guias,
     });
   } catch (e) {
     next(e);

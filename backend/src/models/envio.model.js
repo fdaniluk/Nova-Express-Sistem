@@ -196,6 +196,24 @@ async function calcularDesgloseAlCosto(data, pesoFacturable) {
   return resultado;
 }
 
+// Seguro DE VENTA congelado (auditoría 15/08/2026, sospecha "el seguro negociado no se
+// congela"). La columna `seguro` es el COSTO: la escala de lista del courier, congelada
+// por calcularDesgloseAlCosto. Pero si el cliente tiene seguro propio negociado
+// (clientes.seguro_pct_propio), lo que se le COBRA por asegurar es otro número, y hasta
+// ahora no quedaba escrito en ningún lado: el Excel de la liquidación descomponía la venta
+// con la escala de lista. Esta función saca la foto del monto negociado al alta (y al
+// editar fob/cliente/courier). Devuelve null si el cliente no tiene seguro propio: el
+// desglose de venta cae a `seguro`, que es el comportamiento de siempre.
+async function calcularSeguroVenta(clienteId, courier, fob) {
+  // require adentro para no armar un ciclo de módulos (profit.service es grande).
+  const { resolverSeguroPropio } = require('../services/profit.service');
+  const propio = await resolverSeguroPropio(clienteId);
+  if (!propio) return null;
+  const { calcSeguroDHL, calcSeguroUPS } = require('../../../shared/cotizador/cotizador-core');
+  const calc = courier === 'DHL' ? calcSeguroDHL : calcSeguroUPS;
+  return calc(Number(fob) || 0, propio).monto;
+}
+
 async function crear(data) {
   const db = getDb();
   const { pesoVolumetrico, pesoFacturable } = buildPesos(data);
@@ -203,6 +221,8 @@ async function crear(data) {
 
   // Desglose al costo (profit 0) congelado al momento del alta.
   const desglose = await calcularDesgloseAlCosto(data, pesoFacturable);
+  // Seguro de venta negociado (solo clientes con seguro propio; null para el resto).
+  const seguroVenta = await calcularSeguroVenta(data.cliente_id, data.courier, data.fob);
 
   const doInsert = async () => {
     const result = await db
@@ -213,8 +233,8 @@ async function crear(data) {
           peso_volumetrico, peso_facturable, fob, total_cobrado, observaciones,
           numero_salida, bulto, tipo_paquete, asegurado, ddp, proteccion_doc, remota, entrega,
           flete, descuento, seguro, fuel, fuel_pct, fuel_origen, derechos, adicionales, otros, profit, porcentaje,
-          extras_json, servicio_ups, num_sal_cero
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          extras_json, servicio_ups, num_sal_cero, seguro_venta
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         data.cliente_id,
@@ -259,7 +279,8 @@ async function crear(data) {
         data.courier === 'UPS' ? (data.servicio_ups ?? null) : null,
         // "Sin numerar" (salida 0): desde el 14/08 se puede marcar ya en el alta, en vez
         // de cargar el envío y después entrar a Salidas a corregirlo.
-        data.num_sal_cero ? 1 : 0
+        data.num_sal_cero ? 1 : 0,
+        seguroVenta
       );
     const envioId = result.lastInsertRowid;
     if (hasBultos) await saveBultos(envioId, data.bultos);
@@ -333,6 +354,16 @@ async function actualizar(id, data) {
     }, pesoFacturable);
   }
 
+  // El seguro de venta negociado se recalcula SIEMPRE en la edición (la consulta es
+  // barata y el envío no está liquidado): depende de cliente, courier y fob, y cualquiera
+  // de los tres puede haber cambiado. Si el cliente ya no tiene seguro propio queda NULL,
+  // que es "usar la escala de lista", el comportamiento de siempre.
+  const seguroVenta = await calcularSeguroVenta(
+    data.cliente_id ?? actual.cliente_id,
+    data.courier ?? actual.courier,
+    data.fob ?? actual.fob
+  );
+
   // Si la edición dejó al envío SIN PESAR (le sacaron los pesos), las columnas de costo
   // tienen que quedar vacías, no conservar el número viejo. Con el COALESCE de siempre se
   // quedarían con el costo del peso anterior, que ya no corresponde a nada.
@@ -356,6 +387,7 @@ async function actualizar(id, data) {
         servicio_ups = ?, fuel_pct = ?,
         tipo_paquete = ?, asegurado = ?, ddp = ?, proteccion_doc = ?, remota = ?, entrega = ?,
         num_sal_cero = ?,
+        seguro_venta = ?,
         ${costoSet},
         updated_at = datetime('now', 'localtime')
        WHERE id = ?`
@@ -386,6 +418,7 @@ async function actualizar(id, data) {
       data.remota !== undefined ? (data.remota ? 1 : 0) : actual.remota,
       data.entrega !== undefined ? data.entrega : actual.entrega,
       data.num_sal_cero !== undefined ? (data.num_sal_cero ? 1 : 0) : actual.num_sal_cero,
+      seguroVenta,
       // Los ocho de abajo son siempre los mismos parámetros; lo que cambia es el SQL de
       // arriba. Sin recálculo van todos NULL y el COALESCE deja la columna como estaba;
       // con el envío sin pesar, esos mismos NULL la vacían.
@@ -490,4 +523,5 @@ module.exports = {
   getBultos,
   buildPesos,
   calcularDesgloseAlCosto,
+  calcularSeguroVenta,
 };
