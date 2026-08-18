@@ -51,7 +51,8 @@
     "test-tramos": "node scripts/test-tramos-cliente.js",
     "test-datos-viejos": "node scripts/test-datos-viejos.js",
     "test-plata": "node scripts/test-plata-en-riesgo.js",
-    "test-auditoria": "node scripts/test-auditoria-numeros.js"
+    "test-auditoria": "node scripts/test-auditoria-numeros.js",
+    "revisar-envios": "node scripts/revisar-envios.js"
   },
   "keywords": [
     "nova-express",
