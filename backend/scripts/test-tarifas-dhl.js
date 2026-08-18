@@ -127,6 +127,45 @@ check('un envío de importación de 60 kg usa la tabla especial, no la común', 
   return cerca(r.fleteBase, core.getDHLBig(r.zona, 60));
 })());
 
+// ── Los mapas de zonas cubren los mismos países ─────────────────────────────
+// El 15/08/2026 la oficina quiso cotizar una impo desde Bélgica: UPS cotizaba y DHL decía
+// que el país no existía. Bélgica NO ESTABA en el mapa de DHL ni en el de UPS expo — y
+// nadie lo notó en meses porque nunca antes se había cotizado a Bélgica. Este bloque
+// existe para que un país que le falte a UN mapa no vuelva a esperar a que un cliente
+// lo pida: todo país de los mapas de UPS tiene que resolver también en DHL (al revés no:
+// hay islas que DHL sirve y UPS no lista, y eso es legítimo del tarifario de UPS).
+console.log('\nLos mapas de zonas cubren los mismos países\n');
+
+check('Bélgica resuelve en DHL (impo y expo), zona 4',
+  core.resolverZona('Bélgica', 'DHL', 'import') === 4
+  && core.resolverZona('Bélgica', 'DHL', 'export') === 4);
+check('Bélgica resuelve en UPS exportación, zona 4',
+  core.resolverZona('Bélgica', 'UPS_EXP', 'export') === 4);
+check('Bélgica resuelve en UPS importación (zona 5, como siempre)',
+  core.resolverZona('Bélgica', 'UPS_EXP', 'import') === 5);
+check('una impo desde Bélgica cotiza por DHL de verdad (no null)', (() => {
+  const r = core.cotizarServicio('DHL', {
+    pais: 'Bélgica', tipo: 'import', pf: 5, fob: 0, fuelPct: 0, profitPct: 0, bultosProc: [],
+  });
+  return r !== null && r.total > 0;
+})());
+
+// El mismo país con el nombre del otro mapa: los alias del 15/08.
+check('"Antigua y Barbuda" (nombre UPS) resuelve en DHL',
+  core.resolverZona('Antigua y Barbuda', 'DHL', 'export') === 2);
+check('"Antigua" (nombre DHL) resuelve en UPS',
+  core.resolverZona('Antigua', 'UPS_EXP', 'export') === 3);
+check('"Guyana Francesa" y "Guayana Francesa" resuelven en los dos couriers',
+  core.resolverZona('Guyana Francesa', 'DHL', 'export') === 2
+  && core.resolverZona('Guayana Francesa', 'UPS_EXP', 'export') === 3);
+
+check('NINGÚN país de los mapas de UPS falta en el de DHL', (() => {
+  const faltan = [...new Set([...Object.keys(core.ZONAS_UPS), ...Object.keys(core.ZONAS_UPS_I)])]
+    .filter((p) => core.ZONAS_DHL[p] === undefined);
+  if (faltan.length) console.log('      faltan en DHL: ' + faltan.join(', '));
+  return faltan.length === 0;
+})());
+
 console.log('\n' + '─'.repeat(60));
 console.log(`${ok} pasaron · ${fail} fallaron`);
 process.exit(fail === 0 ? 0 : 1);
