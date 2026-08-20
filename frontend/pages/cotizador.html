@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Cotizador — Nova Express</title>
-<link rel="stylesheet" href="../css/main.css?v=20260820e">
+<link rel="stylesheet" href="../css/main.css?v=20260820f">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 :root{--cot-bg:#f5f4f0;--cot-surface:#ffffff;--cot-border:#e2e0d8;--cot-border-strong:#c8c5bb;--cot-text:#1a1916;--cot-text-secondary:#6b6860;--cot-text-tertiary:#9c9a94;--cot-accent-dhl:#d4a017;--cot-accent-ups:#2d5fa6;--cot-accent-dhl-bg:#fdf8ec;--cot-accent-ups-bg:#eef3fb;--cot-success:#2d6a4f;--cot-success-bg:#edf7f2;--cot-danger:#c0392b;--cot-radius:10px;--cot-radius-sm:6px;--cot-shadow:0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04);--cot-shadow-md:0 4px 12px rgba(0,0,0,0.08),0 2px 4px rgba(0,0,0,0.05)}
@@ -305,9 +305,9 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260820e"></script>
-<script src="/js/api.js?v=20260820e"></script>
-<script src="/shared/cotizador/cotizador-core.js?v=20260820e"></script>
+<script src="/js/auth-guard.js?v=20260820f"></script>
+<script src="/js/api.js?v=20260820f"></script>
+<script src="/shared/cotizador/cotizador-core.js?v=20260820f"></script>
 <script>
 let bultoId=0;
 function agregarBulto(){bultoId++;const wrap=document.getElementById('bultos-wrap');const div=document.createElement('div');div.className='bulto-row';div.id='bulto-'+bultoId;div.innerHTML=`<div class="bulto-num">#${wrap.children.length+1}</div><div class="cot-field"><label>Peso real (kg)</label><input type="number" min="0.5" step="0.5" placeholder="Peso (kg)" class="b-peso" oninput="actualizarBulto(this)" /></div><div class="cot-field"><label>Largo (cm)</label><input type="number" min="1" step="1" placeholder="Largo (cm)" class="b-largo" oninput="actualizarBulto(this)" /></div><div class="cot-field"><label>Ancho (cm)</label><input type="number" min="1" step="1" placeholder="Ancho (cm)" class="b-ancho" oninput="actualizarBulto(this)" /></div><div class="cot-field"><label>Alto (cm)</label><input type="number" min="1" step="1" placeholder="Alto (cm)" class="b-alto" oninput="actualizarBulto(this)" /></div><button class="btn-remove" onclick="eliminarBulto('bulto-${bultoId}')" title="Eliminar bulto">✕</button>`;wrap.appendChild(div);const info=document.createElement('div');info.id='info-bulto-'+bultoId;info.style.padding='0 12px 8px';wrap.appendChild(info);renumerarBultos();actualizarBulto(div.querySelector('.b-peso'));}
@@ -511,14 +511,28 @@ async function copiarImagen(i,btn){
   const CUERPO_TOP=22, H_FILA=28, SEP_SUB=10, SEP_TOT=14;
   /* La franja del pie aparece si hay logo O si hay validez: la fecha vive ahi abajo,
      en el mismo gris que el contacto (pedido de Felipe, 20/08). */
-  const H_DISC=15, DISC_GAP=18, CUERPO_BOT=14, H_PIE=(conLogo||conVal)?58:0;
+  const H_DISC=15, DISC_GAP=18, CUERPO_BOT=14, H_PIE=(conLogo||conVal)?68:0;
 
   const filas=_filasDe(res);
-  const meta=(()=>{
+  /* La linea de medidas se arma en TRAMOS y no como un solo texto: el peso facturable es
+     el dato que decide el precio, asi que va en negrita y mas oscuro que el resto
+     (pedido del padre de Felipe, 20/08). Cada tramo dice si va resaltado. */
+  const metaTramos=(()=>{
     const b=est.bultosProc, prT=b.reduce((s,x)=>s+x.pr,0), pvT=b.reduce((s,x)=>s+x.pv,0);
     const dir=est.tipo==='export'?'Exportación':'Importación';
-    if(b.length===1){const u=b[0];return `Zona ${res.zona} · ${u.pr} kg real · ${u.l}×${u.a}×${u.al} cm · ${u.pv.toFixed(1)} kg vol · ${u.pf.toFixed(1)} kg facturable · 1 bulto · ${dir}`;}
-    return `Zona ${res.zona} · ${prT.toFixed(1)} kg real · ${pvT.toFixed(1)} kg vol · ${res.pf.toFixed(1)} kg facturable · ${b.length} bultos · ${dir}`;
+    if(b.length===1){
+      const u=b[0];
+      return [
+        [`Zona ${res.zona} · ${u.pr} kg real · ${u.l}×${u.a}×${u.al} cm · ${u.pv.toFixed(1)} kg vol · `,false],
+        [`${u.pf.toFixed(1)} kg facturable`,true],
+        [` · 1 bulto · ${dir}`,false],
+      ];
+    }
+    return [
+      [`Zona ${res.zona} · ${prT.toFixed(1)} kg real · ${pvT.toFixed(1)} kg vol · `,false],
+      [`${res.pf.toFixed(1)} kg facturable`,true],
+      [` · ${b.length} bultos · ${dir}`,false],
+    ];
   })();
 
   /* El primer renglon de la cabecera es solo el nombre del cliente. La fecha se fue al pie. */
@@ -557,15 +571,26 @@ async function copiarImagen(i,btn){
     yc+=H_RENGLON1-15;
   }
   yc+=OFF_COURIER;
-  x.fillStyle='#1a1916'; x.font='600 17px "DM Sans", sans-serif';
-  x.fillText(res.courier,P,yc);
+  /* "Nova Express – UPS Worldwide Expedited". El nombre del courier ya no va en negrita
+     ni grande: lo que tiene que llamar la atencion es la empresa, no el servicio. Nova
+     queda apenas mas firme que el resto para que el ojo caiga ahi primero. */
+  x.font='600 15px "DM Sans", sans-serif'; x.fillStyle='#1a1916';
+  x.fillText('Nova Express',P,yc);
+  const anchoNova=x.measureText('Nova Express').width;
+  x.font='400 15px "DM Sans", sans-serif'; x.fillStyle='#5c5a54';
+  x.fillText(' – '+res.courier,P+anchoNova,yc);
   x.textAlign='right';
   x.fillStyle='#1a1916'; x.font='600 23px "DM Mono", monospace';
   x.fillText(fmt(res.total),W-P,yc+2);
   x.textAlign='left';
   yc+=H_META;
-  x.fillStyle=esDhl?'#a8853a':'#7d92b5'; x.font='400 10.5px "DM Mono", monospace';
-  x.fillText(meta,P,yc);
+  let xm=P;
+  metaTramos.forEach(([txt,fuerte])=>{
+    x.font=(fuerte?'500 ':'400 ')+'10.5px "DM Mono", monospace';
+    x.fillStyle=fuerte?(esDhl?'#7a5f1f':'#3d5a8a'):(esDhl?'#a8853a':'#7d92b5');
+    x.fillText(txt,xm,yc);
+    xm+=x.measureText(txt).width;
+  });
 
   /* ── MARCA DE AGUA ────────────────────────────────────────────────────────────────
      Recortada al cuerpo para que no invada ni la cabecera ni la franja del pie.       */
@@ -607,19 +632,19 @@ async function copiarImagen(i,btn){
     x.fillStyle='#e2e0d8'; x.fillRect(0,yp,W,1);
     let xTexto=P;
     if(logo){
-      const h=26, w=h*(logo.width/logo.height);
+      const h=36, w=h*(logo.width/logo.height);
       x.drawImage(logo,P,yp+(H_PIE-h)/2,w,h);
-      xTexto=P+w+18;
+      xTexto=P+w+20;
     }
     if(conVal){
       x.fillStyle='#9c9a94'; x.font='400 9.5px "DM Mono", monospace';
-      x.fillText(_fechaHoy(),xTexto,yp+24);
-      x.fillText('válida hasta el '+_fechaMas(dias),xTexto,yp+38);
+      x.fillText(_fechaHoy(),xTexto,yp+29);
+      x.fillText('válida hasta el '+_fechaMas(dias),xTexto,yp+43);
     }
     if(logo){
       x.fillStyle='#9c9a94'; x.font='400 9.5px "DM Mono", monospace'; x.textAlign='right';
-      x.fillText('Nova Express · Courier internacional',W-P,yp+24);
-      x.fillText('Buenos Aires · ventas@novaexpress.com.ar',W-P,yp+38);
+      x.fillText('Nova Express · Courier internacional',W-P,yp+29);
+      x.fillText('Buenos Aires · ventas@novaexpress.com.ar',W-P,yp+43);
       x.textAlign='left';
     }
   }
