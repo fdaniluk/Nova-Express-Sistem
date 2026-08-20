@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Cotizador — Nova Express</title>
-<link rel="stylesheet" href="../css/main.css?v=20260820a">
+<link rel="stylesheet" href="../css/main.css?v=20260820b">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 :root{--cot-bg:#f5f4f0;--cot-surface:#ffffff;--cot-border:#e2e0d8;--cot-border-strong:#c8c5bb;--cot-text:#1a1916;--cot-text-secondary:#6b6860;--cot-text-tertiary:#9c9a94;--cot-accent-dhl:#d4a017;--cot-accent-ups:#2d5fa6;--cot-accent-dhl-bg:#fdf8ec;--cot-accent-ups-bg:#eef3fb;--cot-success:#2d6a4f;--cot-success-bg:#edf7f2;--cot-danger:#c0392b;--cot-radius:10px;--cot-radius-sm:6px;--cot-shadow:0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04);--cot-shadow-md:0 4px 12px rgba(0,0,0,0.08),0 2px 4px rgba(0,0,0,0.05)}
@@ -71,6 +71,20 @@
 .brow.section-header .bl{font-size:10px;text-transform:uppercase;letter-spacing:.08em;color:var(--cot-text-tertiary);font-weight:600}
 .bultos-summary{background:var(--cot-bg);border-radius:var(--cot-radius-sm);padding:8px 10px;margin-bottom:10px;font-size:12px;color:var(--cot-text-secondary);font-family:'DM Mono',monospace;line-height:1.8}
 @media(max-width:600px){.cot-grid3{grid-template-columns:1fr 1fr}.cot-grid2{grid-template-columns:1fr}.checks-grid{grid-template-columns:1fr}.cot-header{flex-direction:column;align-items:flex-start;gap:8px}.bulto-row{grid-template-columns:auto 1fr 1fr auto;grid-template-rows:auto auto}.result-total{font-size:20px}}
+
+/* ── Tira interna: lo que NO puede salir en la imagen del cliente ─────────────────── */
+.tira-interna{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:14px 0 4px;padding:8px 12px;
+  background:#fff8e6;border:1px solid #e8c96a;border-radius:var(--cot-radius-sm);
+  font-size:11.5px;color:#6b5a20;font-family:'DM Mono',monospace}
+.tira-interna .ti-tag{font-family:'DM Sans',sans-serif;font-weight:600;font-size:10px;text-transform:uppercase;
+  letter-spacing:.08em;background:#e8c96a;color:#4a3d10;padding:2px 7px;border-radius:99px}
+.tira-interna .ti-item b{color:#4a3d10}
+.btn-copiar{font-family:'DM Sans',sans-serif;font-size:11.5px;font-weight:500;white-space:nowrap;
+  padding:6px 11px;border:1px solid var(--cot-border-strong);border-radius:var(--cot-radius-sm);
+  background:var(--cot-surface);color:var(--cot-text-secondary);cursor:pointer;transition:all .15s}
+.btn-copiar:hover{border-color:var(--cot-accent-ups);color:var(--cot-accent-ups)}
+.btn-copiar.ok{background:var(--cot-success-bg);border-color:var(--cot-success);color:var(--cot-success)}
+.btn-copiar.err{background:#fdecea;border-color:var(--cot-danger);color:var(--cot-danger)}
 </style>
 </head>
 <body>
@@ -265,8 +279,25 @@
           </div>
         </div>
 
+        <div class="cot-card">
+          <div class="cot-card-title">La cotización que ve el cliente</div>
+          <div class="cot-field" style="margin-bottom:12px">
+            <label>Nombre del cliente en la cotización (opcional)</label>
+            <input type="text" id="pres_nombre" maxlength="60" placeholder="Ej: ASAPLAST S.R.L. — vacío no muestra ninguna línea" />
+            <div class="cot-hint">Sale arriba del desglose. Si el cliente ya está elegido arriba, se completa solo.</div>
+          </div>
+          <div class="checks-grid">
+            <label class="check-label"><input type="checkbox" id="pres_logo" checked /> Logo de Nova (marca de agua y pie)</label>
+            <label class="check-label" style="gap:8px"><input type="checkbox" id="pres_validez" /> Validez
+              <input type="number" id="pres_dias" value="15" min="1" max="180" step="1" style="width:64px;padding:4px 6px;font-size:12px" /> días
+            </label>
+          </div>
+          <div style="margin-top:8px;font-size:11px;color:var(--cot-text-tertiary)">Esto solo cambia la imagen que se copia con “Copiar imagen”. Los números no se tocan.</div>
+        </div>
+
         <div id="error-msg" class="cot-error-msg"></div>
         <button class="btn-calc" onclick="cotizar()">Calcular cotización</button>
+        <div id="tira-interna" class="tira-interna" style="display:none"></div>
         <div class="cot-results" id="results"></div>
 
       </div>
@@ -274,9 +305,9 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260820a"></script>
-<script src="/js/api.js?v=20260820a"></script>
-<script src="/shared/cotizador/cotizador-core.js?v=20260820a"></script>
+<script src="/js/auth-guard.js?v=20260820b"></script>
+<script src="/js/api.js?v=20260820b"></script>
+<script src="/shared/cotizador/cotizador-core.js?v=20260820b"></script>
 <script>
 let bultoId=0;
 function agregarBulto(){bultoId++;const wrap=document.getElementById('bultos-wrap');const div=document.createElement('div');div.className='bulto-row';div.id='bulto-'+bultoId;div.innerHTML=`<div class="bulto-num">#${wrap.children.length+1}</div><div class="cot-field"><label>Peso real (kg)</label><input type="number" min="0.5" step="0.5" placeholder="Peso (kg)" class="b-peso" oninput="actualizarBulto(this)" /></div><div class="cot-field"><label>Largo (cm)</label><input type="number" min="1" step="1" placeholder="Largo (cm)" class="b-largo" oninput="actualizarBulto(this)" /></div><div class="cot-field"><label>Ancho (cm)</label><input type="number" min="1" step="1" placeholder="Ancho (cm)" class="b-ancho" oninput="actualizarBulto(this)" /></div><div class="cot-field"><label>Alto (cm)</label><input type="number" min="1" step="1" placeholder="Alto (cm)" class="b-alto" oninput="actualizarBulto(this)" /></div><button class="btn-remove" onclick="eliminarBulto('bulto-${bultoId}')" title="Eliminar bulto">✕</button>`;wrap.appendChild(div);const info=document.createElement('div');info.id='info-bulto-'+bultoId;info.style.padding='0 12px 8px';wrap.appendChild(info);renumerarBultos();actualizarBulto(div.querySelector('.b-peso'));}
@@ -325,7 +356,31 @@ async function cotizarConProfit(svc){const fuelSvc=fuelPara(svc);if(!clienteId){
    arriba de los resultados. Misma regla que en Cargar envío. */
 const params={...baseParams,fuelPct:fuelSvc,profitPct:resuelto.profitPct,precioKgVenta:resuelto.precioKg||null,seguroPropio:segCli};const r=cotizarServicio(svc,params);r.fuelUsado=fuelSvc;r.profitInfo={pct:resuelto.profitPct,origen:resuelto.origen,modo:resuelto.modo,precioKg:resuelto.precioKg,fuelPct:fuelSvc,fuelCliente:(fuelCli!==null&&isFinite(fuelCli))?fuelCli:null,seguroPropio:segCli,advertencia:resuelto.advertencia||null};return{r};}
 const errores=[];const btnCalc=document.querySelector('.btn-calc');btnCalc.disabled=true;btnCalc.style.opacity='.6';const div=document.getElementById('results');try{const CONTORNO_MSG='⚠ Uno o más bultos superan el contorno máximo de 400 cm y no pueden enviarse por UPS.';const MIN40_MSG='⚠ Hay un bulto que supera los 300 cm de contorno: UPS lo factura con un mínimo de 40 kg, así que el flete no se calcula con el peso facturable real.';if(mostrarDHL){const res=await cotizarConProfit('DHL');if(res.notFound){errores.push('País no encontrado en DHL.');}else if(res.error){errores.push('DHL: '+res.error);}else{pushResult(res.r,'dhl');}}let totalExp=null;if(mostrarExp){const res=await cotizarConProfit('UPS_EXP');if(res.notFound){errores.push('País no encontrado en UPS Expedited.');}else if(res.error){errores.push('UPS Expedited: '+res.error);}else{if(res.r.contornoWarn)errores.push(CONTORNO_MSG);if(res.r.minPesoAplicado)errores.push(MIN40_MSG);totalExp=res.r.total;pushResult(res.r,'ups');}}if(mostrarSav){const res=await cotizarConProfit('UPS_SAVER');if(res.notFound){errores.push('País no encontrado en UPS Saver.');}else if(res.error){errores.push('UPS Saver: '+res.error);}else{if(res.r.contornoWarn)errores.push(CONTORNO_MSG);if(res.r.minPesoAplicado)errores.push(MIN40_MSG);if(totalExp===null||res.r.total>totalExp){pushResult(res.r,'ups');}}}}finally{btnCalc.disabled=false;btnCalc.style.opacity='';}/* Si el cliente esta en modo precio por kilo pero le falta la tarifa para ese peso o esa zona, el backend cotiza con el porcentaje y avisa. El aviso se muestra: un agujero en la tabla es un error de carga que hay que ver, no algo para tapar. */results.forEach(r=>{if(r.profitInfo&&r.profitInfo.advertencia)errores.push('⚠ '+r.profitInfo.advertencia);});/* Aviso, no bloqueo: el cliente tiene un fuel negociado y se está cotizando con otro. */
-results.forEach(r=>{const pi=r.profitInfo;if(pi&&pi.fuelCliente!==null&&pi.fuelCliente!==undefined&&Number(pi.fuelCliente)!==Number(pi.fuelPct))errores.push(`⚠ Este cliente tiene fuel propio negociado (${pi.fuelCliente}%) y se está cotizando con ${pi.fuelPct}%. Si va el suyo, elegí "A mano" y escribí ${pi.fuelCliente}.`);});if(errores.length){errEl.textContent=[...new Set(errores)].join(' ');errEl.style.display='block';}if(!results.length){div.innerHTML='';return;}const bultosHtml=bultosProc.map(b=>`Bulto #${b.num}: ${b.pr} kg real · ${b.l}×${b.a}×${b.al} cm · ${b.pf.toFixed(1)} kg facturable`).join('\n');div.innerHTML=results.map(res=>{const{courier,zona,pf,conGan,surgeAmt,subtotalConSurge,fuelMonto,total,extraRows,tag,profitInfo,fuelPctUsado,modoVenta,precioKgVenta,pfVenta}=res;const ORIGENES={celda:'celda',banda:'rango',zona:'zona',tabla:'tabla',cliente:'tarifa cliente'};/* Con tarifa por kilo no hay porcentaje que mostrar: se muestra el precio por kilo, que es lo que la oficina necesita chequear. */const profitHtml=profitInfo?`<div style="margin-bottom:8px;font-size:11px;color:var(--cot-text-secondary);font-family:'DM Mono',monospace">${profitInfo.modo==='por_kg'?`Tarifa cliente: USD ${Number(profitInfo.precioKg).toFixed(2)} por kilo`:`Profit cliente: ${profitInfo.pct}%`} (${ORIGENES[profitInfo.origen]||profitInfo.origen})${(profitInfo.fuelCliente!==null&&profitInfo.fuelCliente!==undefined&&Number(profitInfo.fuelCliente)!==Number(profitInfo.fuelPct))?` · ⚠ fuel propio del cliente ${profitInfo.fuelCliente}% (no aplicado)`:''}</div>`:'';const extrasHtml=extraRows.map(([n,v])=>`<div class="brow"><span class="bl">${n}</span><span class="br">${fmt(v)}</span></div>`).join('');const surgeHtml=surgeAmt>0?`<div class="brow"><span class="bl">Surge fee UPS</span><span class="br">${fmt(surgeAmt)}</span></div>`:'';const subtotalLabel=surgeAmt>0?'Subtotal (con surge)':'Subtotal';let impHtml='';if(tipo==='import'&&arancel>0&&valor>0){const fleteParaCIF=subtotalConSurge+fuelMonto;const imp=calcImpuestos(valor,fleteParaCIF,arancel);const pct=arancel===0.20?'20%':'30%';impHtml=`<div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--cot-border)"><div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--cot-text-tertiary);margin-bottom:6px">Impuestos en destino estimados (arancel ${pct})</div><div class="brow"><span class="bl">Valor CIF</span><span class="br">${fmt(imp.CIF)}</span></div><div class="brow"><span class="bl">Derechos importación (${pct})</span><span class="br">${fmt(imp.derechos)}</span></div><div class="brow"><span class="bl">Tasa estadística (3%)</span><span class="br">${fmt(imp.tasaEst)}</span></div><div class="brow"><span class="bl">IVA aduana (21%)</span><span class="br">${fmt(imp.ivaAduana)}</span></div><div class="brow"><span class="bl">Gasto documental (6.12%)</span><span class="br">${fmt(imp.gastoDoc)}</span></div><div class="brow"><span class="bl">IVA gasto documental (21%)</span><span class="br">${fmt(imp.ivaGastoDoc)}</span></div><div class="brow subtotal-row"><span class="bl" style="font-weight:600">Total impuestos estimados</span><span class="br" style="font-weight:700">${fmt(imp.total)}</span></div></div>`;}return`<div class="result-card"><div class="result-header ${tag}"><div><div class="result-courier">${courier}</div><div class="result-meta">${(()=>{const prTotal=bultosProc.reduce((s,b)=>s+b.pr,0);const pvTotal=bultosProc.reduce((s,b)=>s+b.pv,0);if(bultosProc.length===1){const b=bultosProc[0];return`Zona ${zona} · ${b.pr} kg real · ${b.l}×${b.a}×${b.al} cm · ${b.pv.toFixed(1)} kg vol · ${b.pf.toFixed(1)} kg facturable · 1 bulto · ${tipo==='export'?'Exportación':'Importación'}`;}else{return`Zona ${zona} · ${prTotal.toFixed(1)} kg real · ${pvTotal.toFixed(1)} kg vol · ${pf.toFixed(1)} kg facturable · ${bultosProc.length} bultos · ${tipo==='export'?'Exportación':'Importación'}`;}})()} </div></div><div class="result-total">${fmt(total)}</div></div><div class="result-body">${profitHtml}${bultosProc.length>1?`<div class="bultos-summary">${bultosHtml}</div>`:''}<div class="breakdown"><div class="brow"><span class="bl">Flete internacional${modoVenta==='por_kg'?` (${Number(pfVenta).toFixed(1)} kg × USD ${Number(precioKgVenta).toFixed(2)})`:''}</span><span class="br">${fmt(conGan)}</span></div>${surgeHtml}<div class="brow subtotal-row"><span class="bl">${subtotalLabel}</span><span class="br">${fmt(subtotalConSurge)}</span></div><div class="brow fuel-row"><span class="bl">Fuel (${fuelPctUsado}%)</span><span class="br">+ ${fmt(fuelMonto)}</span></div>${extrasHtml}<div class="brow total-row"><span class="bl">Total</span><span class="br">${fmt(total)}</span></div></div><div style="margin-top:10px;font-size:11px;color:var(--cot-text-tertiary);font-style:italic;">El costo dado no contempla impuestos de nacionalización en destino.</div>${impHtml}</div></div>`;}).join('');}
+results.forEach(r=>{const pi=r.profitInfo;if(pi&&pi.fuelCliente!==null&&pi.fuelCliente!==undefined&&Number(pi.fuelCliente)!==Number(pi.fuelPct))errores.push(`⚠ Este cliente tiene fuel propio negociado (${pi.fuelCliente}%) y se está cotizando con ${pi.fuelPct}%. Si va el suyo, elegí "A mano" y escribí ${pi.fuelCliente}.`);});if(errores.length){errEl.textContent=[...new Set(errores)].join(' ');errEl.style.display='block';}if(!results.length){div.innerHTML='';return;}const bultosHtml=bultosProc.map(b=>`Bulto #${b.num}: ${b.pr} kg real · ${b.l}×${b.a}×${b.al} cm · ${b.pf.toFixed(1)} kg facturable`).join('\n');const profitPorServicio=[];div.innerHTML=results.map((res,_i)=>{const{courier,zona,pf,conGan,surgeAmt,subtotalConSurge,fuelMonto,total,extraRows,tag,profitInfo,fuelPctUsado,modoVenta,precioKgVenta,pfVenta}=res;const ORIGENES={celda:'celda',banda:'rango',zona:'zona',tabla:'tabla',cliente:'tarifa cliente'};/* Con tarifa por kilo no hay porcentaje que mostrar: se muestra el precio por kilo, que es lo que la oficina necesita chequear. *//* ⚠ EL PROFIT NO VA ADENTRO DE LA TARJETA. La oficina manda la cotizacion sacandole
+   una imagen a la tarjeta; si el margen vive ahi adentro, se le manda al cliente. Desde el
+   20/08/2026 esta linea se acumula aparte y se dibuja en la TIRA INTERNA, arriba de los
+   resultados, que nunca entra en la imagen. Ver `tiraInterna` mas abajo. */
+const profitTexto=profitInfo?`${profitInfo.modo==='por_kg'?`Tarifa cliente: USD ${Number(profitInfo.precioKg).toFixed(2)} por kilo`:`Profit cliente: ${profitInfo.pct}%`} (${ORIGENES[profitInfo.origen]||profitInfo.origen})${(profitInfo.fuelCliente!==null&&profitInfo.fuelCliente!==undefined&&Number(profitInfo.fuelCliente)!==Number(profitInfo.fuelPct))?` · ⚠ fuel propio del cliente ${profitInfo.fuelCliente}% (no aplicado)`:''}`:'';
+/* El "(10 kg × USD 7,77)" del flete tambien es el precio de venta por kilo del cliente,
+   rotulado. Va a la tira interna por la MISMA razon que el profit: la regla de Felipe es
+   que el cliente nunca ve un precio por kilo rotulado. Encontrado por el test el 20/08. */
+const kgTexto=(modoVenta==='por_kg')?`flete = ${Number(pfVenta).toFixed(1)} kg × USD ${Number(precioKgVenta).toFixed(2)}`:'';
+const lineaInterna=[profitTexto,kgTexto].filter(Boolean).join(' · ');
+if(lineaInterna)profitPorServicio.push({courier,texto:lineaInterna});const extrasHtml=extraRows.map(([n,v])=>`<div class="brow"><span class="bl">${n}</span><span class="br">${fmt(v)}</span></div>`).join('');const surgeHtml=surgeAmt>0?`<div class="brow"><span class="bl">Surge fee UPS</span><span class="br">${fmt(surgeAmt)}</span></div>`:'';const subtotalLabel=surgeAmt>0?'Subtotal (con surge)':'Subtotal';let impHtml='';if(tipo==='import'&&arancel>0&&valor>0){const fleteParaCIF=subtotalConSurge+fuelMonto;const imp=calcImpuestos(valor,fleteParaCIF,arancel);const pct=arancel===0.20?'20%':'30%';impHtml=`<div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--cot-border)"><div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--cot-text-tertiary);margin-bottom:6px">Impuestos en destino estimados (arancel ${pct})</div><div class="brow"><span class="bl">Valor CIF</span><span class="br">${fmt(imp.CIF)}</span></div><div class="brow"><span class="bl">Derechos importación (${pct})</span><span class="br">${fmt(imp.derechos)}</span></div><div class="brow"><span class="bl">Tasa estadística (3%)</span><span class="br">${fmt(imp.tasaEst)}</span></div><div class="brow"><span class="bl">IVA aduana (21%)</span><span class="br">${fmt(imp.ivaAduana)}</span></div><div class="brow"><span class="bl">Gasto documental (6.12%)</span><span class="br">${fmt(imp.gastoDoc)}</span></div><div class="brow"><span class="bl">IVA gasto documental (21%)</span><span class="br">${fmt(imp.ivaGastoDoc)}</span></div><div class="brow subtotal-row"><span class="bl" style="font-weight:600">Total impuestos estimados</span><span class="br" style="font-weight:700">${fmt(imp.total)}</span></div></div>`;}return`<div class="result-card"><div class="result-header ${tag}"><div><div class="result-courier">${courier}</div><div class="result-meta">${(()=>{const prTotal=bultosProc.reduce((s,b)=>s+b.pr,0);const pvTotal=bultosProc.reduce((s,b)=>s+b.pv,0);if(bultosProc.length===1){const b=bultosProc[0];return`Zona ${zona} · ${b.pr} kg real · ${b.l}×${b.a}×${b.al} cm · ${b.pv.toFixed(1)} kg vol · ${b.pf.toFixed(1)} kg facturable · 1 bulto · ${tipo==='export'?'Exportación':'Importación'}`;}else{return`Zona ${zona} · ${prTotal.toFixed(1)} kg real · ${pvTotal.toFixed(1)} kg vol · ${pf.toFixed(1)} kg facturable · ${bultosProc.length} bultos · ${tipo==='export'?'Exportación':'Importación'}`;}})()} </div></div><div style="display:flex;align-items:center;gap:10px"><div class="result-total">${fmt(total)}</div><button class="btn-copiar" data-i="${_i}" onclick="copiarImagen(${_i},this)" title="Copiar la cotizacion como imagen para pegar en WhatsApp">Copiar imagen</button></div></div><div class="result-body">${bultosProc.length>1?`<div class="bultos-summary">${bultosHtml}</div>`:''}<div class="breakdown"><div class="brow"><span class="bl">Flete internacional</span><span class="br">${fmt(conGan)}</span></div>${surgeHtml}<div class="brow subtotal-row"><span class="bl">${subtotalLabel}</span><span class="br">${fmt(subtotalConSurge)}</span></div><div class="brow fuel-row"><span class="bl">Fuel (${fuelPctUsado}%)</span><span class="br">+ ${fmt(fuelMonto)}</span></div>${extrasHtml}<div class="brow total-row"><span class="bl">Total</span><span class="br">${fmt(total)}</span></div></div><div style="margin-top:10px;font-size:11px;color:var(--cot-text-tertiary);font-style:italic;">El costo dado no contempla impuestos de nacionalización en destino.</div>${impHtml}</div></div>`;}).join('');
+  /* TIRA INTERNA — solo para la oficina. Va FUERA de las tarjetas a proposito: es lo unico
+     de esta pantalla que no puede terminar en la imagen que se le manda al cliente. */
+  const tira=document.getElementById('tira-interna');
+  if(tira){
+    if(profitPorServicio.length){
+      tira.innerHTML='<span class="ti-tag">Solo para la oficina</span>'+profitPorServicio
+        .map(p=>`<span class="ti-item"><b>${p.courier}</b> · ${p.texto}</span>`).join('');
+      tira.style.display='flex';
+    } else { tira.style.display='none'; tira.innerHTML=''; }
+  }
+  /* Lo que necesita el dibujante de la imagen. Se guarda aparte del DOM porque la imagen
+     NO es una captura de la tarjeta: se dibuja de cero en un canvas. */
+  window.__cot={results,bultosProc,tipo,arancel,valor};
+}
 const paises=[...new Set([...Object.keys(ZONAS_DHL),...Object.keys(ZONAS_UPS),...Object.keys(ZONAS_UPS_I)])].sort((a,b)=>a.localeCompare(b,'es'));
 document.getElementById('pais').innerHTML='<option value="">Seleccionar país...</option>'+paises.map(p=>`<option value="${p}">${p}</option>`).join('');
 actualizarSeguro();
@@ -380,6 +435,194 @@ document.getElementById('cliente').addEventListener('change',function(){const ha
   aplicar();
 })();
 (async function cargarClientes(){try{const clientes=await NovaAPI.clientes.listar();const sel=document.getElementById('cliente');clientes.forEach(c=>{const opt=document.createElement('option');opt.value=c.id;opt.textContent=c.nombre_nova||c.nombre||('Cliente '+c.id);sel.appendChild(opt);});}catch(e){const hint=document.getElementById('cliente-hint');hint.textContent='No se pudieron cargar los clientes: '+(e.message||e)+' — podés cotizar con ganancia manual.';hint.className='cot-hint warn';}})();
+
+/* ═══════════════════════════════════════════════════════════════════════════════════
+   COPIAR LA COTIZACION COMO IMAGEN  (20/08/2026)
+   Reemplaza el flujo viejo: captura de pantalla -> recortar el cuadradito -> pegar.
+
+   ⚠ LA IMAGEN NO ES UNA CAPTURA DEL HTML. Se dibuja de cero en un canvas, a proposito:
+   asi se controla exactamente que entra y NADA de la pantalla de trabajo se puede colar
+   -- empezando por el profit del cliente, que es el motivo por el que se hizo esto.
+   Si algun dia se cambia a capturar el DOM, vuelve la fuga.
+
+   El copiado al portapapeles solo funciona en HTTPS o localhost. La oficina entra por
+   sistema.novaexpress.com.ar (HTTPS), asi que anda; si alguien entrara por la IP de la red
+   local, cae solo a descargar el archivo.
+   ═══════════════════════════════════════════════════════════════════════════════════ */
+const IMG_ESC=2;                    // se dibuja al doble y se exporta grande: se ve nitido
+let _logoNova=null;                 // se carga una vez
+
+function cargarLogo(){
+  if(_logoNova)return Promise.resolve(_logoNova);
+  return new Promise(res=>{
+    const im=new Image();
+    im.onload=()=>{_logoNova=im;res(im);};
+    im.onerror=()=>res(null);       // sin logo la imagen sale igual, sin marca
+    im.src='../assets/logos/nova.png';
+  });
+}
+
+function _fechaHoy(){
+  const d=new Date();
+  return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
+}
+function _fechaMas(dias){
+  const d=new Date(); d.setDate(d.getDate()+Number(dias||0));
+  return String(d.getDate()).padStart(2,'0')+'/'+String(d.getMonth()+1).padStart(2,'0')+'/'+d.getFullYear();
+}
+
+/* Arma las filas del desglose del MISMO objeto que pinto la tarjeta. No recalcula nada:
+   si el numero de la pantalla y el de la imagen difirieran, el papel mentiria. */
+function _filasDe(res){
+  const f=[];
+  /* Sin el "(x kg × USD y)": es el precio por kilo del cliente y no va en lo que ve él. */
+  f.push(['Flete internacional',fmt(res.conGan),'normal']);
+  if(res.surgeAmt>0)f.push(['Surge fee UPS',fmt(res.surgeAmt),'normal']);
+  f.push([res.surgeAmt>0?'Subtotal (con surge)':'Subtotal',fmt(res.subtotalConSurge),'subtotal']);
+  f.push([`Fuel (${res.fuelPctUsado}%)`,'+ '+fmt(res.fuelMonto),'normal']);
+  (res.extraRows||[]).forEach(([n,v])=>f.push([n,fmt(v),'normal']));
+  f.push(['Total',fmt(res.total),'total']);
+  return f;
+}
+
+async function copiarImagen(i,btn){
+  const est=window.__cot;
+  if(!est||!est.results[i])return;
+  const res=est.results[i];
+  const nombre=(document.getElementById('pres_nombre').value||'').trim();
+  const conLogo=document.getElementById('pres_logo').checked;
+  const conVal=document.getElementById('pres_validez').checked;
+  const dias=document.getElementById('pres_dias').value||15;
+  const logo=conLogo?await cargarLogo():null;
+
+  const W=660, P=22;
+  const filas=_filasDe(res);
+  const meta=(()=>{
+    const b=est.bultosProc, prT=b.reduce((s,x)=>s+x.pr,0), pvT=b.reduce((s,x)=>s+x.pv,0);
+    const dir=est.tipo==='export'?'Exportación':'Importación';
+    if(b.length===1){const u=b[0];return `Zona ${res.zona} · ${u.pr} kg real · ${u.l}×${u.a}×${u.al} cm · ${u.pv.toFixed(1)} kg vol · ${u.pf.toFixed(1)} kg facturable · 1 bulto · ${dir}`;}
+    return `Zona ${res.zona} · ${prT.toFixed(1)} kg real · ${pvT.toFixed(1)} kg vol · ${res.pf.toFixed(1)} kg facturable · ${b.length} bultos · ${dir}`;
+  })();
+
+  /* Alto exacto. Se recorren las filas con los MISMOS incrementos que usa el dibujo de
+     abajo, en vez de estimar: estimando quedaba un hueco blanco antes del pie. Si se
+     cambia el dibujo, hay que cambiar los dos lados — por eso el avance vive en una sola
+     funcion, `_avance`. */
+  const hCab=74, hLinea=26, hPie=conLogo?52:0;
+  const _avance=(tipoF)=>(tipoF==='subtotal'?7:0)+(tipoF==='total'?9:0)
+    +hLinea-(tipoF==='subtotal'?7:0)-(tipoF==='total'?9:0);
+  let hCuerpo=(nombre||conVal?24:0)+14;
+  filas.forEach(([,,t])=>{hCuerpo+=_avance(t);});
+  hCuerpo+=12+6;                       // el renglon de la aclaracion
+  const H=hCab+hCuerpo+16+hPie;        // 16 de respiro antes del pie
+
+  const c=document.createElement('canvas');
+  c.width=W*IMG_ESC; c.height=H*IMG_ESC;
+  const x=c.getContext('2d');
+  x.scale(IMG_ESC,IMG_ESC);
+  x.textBaseline='alphabetic';
+
+  // Fondo
+  x.fillStyle='#ffffff'; x.fillRect(0,0,W,H);
+
+  // Cabecera con el color del courier
+  const esDhl=(res.tag==='dhl');
+  x.fillStyle=esDhl?'#fdf8ec':'#eef3fb'; x.fillRect(0,0,W,hCab);
+  x.fillStyle='#e2e0d8'; x.fillRect(0,hCab-1,W,1);
+  x.fillStyle='#1a1916'; x.font='600 16px "DM Sans", sans-serif';
+  x.fillText(res.courier,P,30);
+  x.fillStyle='#9c9a94'; x.font='400 10.5px "DM Mono", monospace';
+  x.fillText(meta,P,49);
+  x.fillStyle='#1a1916'; x.font='600 21px "DM Mono", monospace';
+  x.textAlign='right'; x.fillText(fmt(res.total),W-P,38); x.textAlign='left';
+
+  let y=hCab;
+
+  // Marca de agua: va detras del desglose, tenue. Se recorta al cuerpo para que no invada
+  // ni la cabecera ni el pie.
+  if(logo){
+    const cuerpoAlto=H-hCab-hPie;
+    x.save(); x.beginPath(); x.rect(0,hCab,W,cuerpoAlto); x.clip();
+    const w=W*0.62, h=w*(logo.height/logo.width);
+    x.globalAlpha=0.06; x.drawImage(logo,(W-w)/2,hCab+(cuerpoAlto-h)/2,w,h);
+    x.restore();
+  }
+
+  // Linea del cliente y la validez
+  if(nombre||conVal){
+    y+=18;
+    x.font='400 12px "DM Sans", sans-serif';
+    let t='';
+    if(nombre){x.fillStyle='#6b6860';x.fillText('Cotización para ',P,y);
+      const an=x.measureText('Cotización para ').width;
+      x.fillStyle='#1a1916';x.font='600 12px "DM Sans", sans-serif';x.fillText(nombre,P+an,y);
+      t=P+an+x.measureText(nombre).width;}
+    if(conVal){
+      const txt=(nombre?' · ':'')+_fechaHoy()+' · válida hasta el '+_fechaMas(dias);
+      x.fillStyle='#9c9a94'; x.font='400 10.5px "DM Mono", monospace';
+      x.fillText(txt,nombre?t:P,y);
+    }
+    y+=6;
+  }
+
+  // Desglose
+  y+=14;
+  filas.forEach(([izq,der,tipoF])=>{
+    if(tipoF==='subtotal'){x.fillStyle='#e2e0d8';x.fillRect(P,y-1,W-P*2,1);y+=7;}
+    if(tipoF==='total'){x.fillStyle='#1a1916';x.fillRect(P,y+1,W-P*2,2);y+=9;}
+    const neg=(tipoF==='total');
+    x.fillStyle=neg?'#1a1916':'#6b6860';
+    x.font=(neg?'700 13px':(tipoF==='subtotal'?'500 12.5px':'400 12.5px'))+' "DM Sans", sans-serif';
+    x.fillText(izq,P,y+13);
+    x.fillStyle='#1a1916';
+    x.font=(neg?'700 14px':'500 12.5px')+' "DM Mono", monospace';
+    x.textAlign='right'; x.fillText(der,W-P,y+13); x.textAlign='left';
+    y+=hLinea-(tipoF==='subtotal'?7:0)-(tipoF==='total'?9:0);   // ver _avance()
+  });
+
+  // La aclaracion de siempre
+  y+=12;
+  x.fillStyle='#9c9a94'; x.font='italic 400 10.5px "DM Sans", sans-serif';
+  x.fillText('El costo dado no contempla impuestos de nacionalización en destino.',P,y);
+
+  // Franja al pie con el logo y el contacto
+  if(logo){
+    const yp=H-hPie;
+    x.fillStyle='#faf9f6'; x.fillRect(0,yp,W,hPie);
+    x.fillStyle='#e2e0d8'; x.fillRect(0,yp,W,1);
+    const h=24, w=h*(logo.width/logo.height);
+    x.drawImage(logo,P,yp+(hPie-h)/2,w,h);
+    x.fillStyle='#9c9a94'; x.font='400 9.5px "DM Mono", monospace'; x.textAlign='right';
+    x.fillText('Nova Express · Courier internacional',W-P,yp+21);
+    x.fillText('Buenos Aires · ventas@novaexpress.com.ar',W-P,yp+34);
+    x.textAlign='left';
+  }
+
+  const blob=await new Promise(r=>c.toBlob(r,'image/png'));
+  const avisar=(clase,txt)=>{const t=btn.textContent;btn.classList.add(clase);btn.textContent=txt;
+    setTimeout(()=>{btn.classList.remove(clase);btn.textContent='Copiar imagen';},2200);void t;};
+  try{
+    if(!navigator.clipboard||!window.ClipboardItem)throw new Error('sin portapapeles');
+    await navigator.clipboard.write([new ClipboardItem({'image/png':blob})]);
+    avisar('ok','¡Copiada! Ctrl+V');
+  }catch(e){
+    // Sin portapapeles (HTTP, o navegador viejo): se baja el archivo, que sirve igual.
+    const a=document.createElement('a');
+    a.href=URL.createObjectURL(blob);
+    a.download='cotizacion-'+res.courier.toLowerCase().replace(/[^a-z0-9]+/g,'-')+'.png';
+    a.click(); URL.revokeObjectURL(a.href);
+    avisar('err','Descargada');
+  }
+}
+
+/* Si ya hay un cliente elegido arriba, se completa el nombre de la cotizacion solo. */
+document.addEventListener('DOMContentLoaded',()=>{
+  const sel=document.getElementById('cliente'), nom=document.getElementById('pres_nombre');
+  if(sel&&nom)sel.addEventListener('change',()=>{
+    if(!nom.value.trim()&&sel.value)nom.value=sel.options[sel.selectedIndex].textContent.trim();
+  });
+});
+
 </script>
 </body>
 </html>

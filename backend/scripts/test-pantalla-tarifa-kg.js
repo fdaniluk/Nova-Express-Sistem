@@ -403,10 +403,21 @@ async function main() {
   await esperar(2500);
 
   const texto = await page.textContent('#results');
-  check('la cotización dice que es tarifa por kilo', /por kilo/i.test(texto || ''),
-    (texto || '').slice(0, 120));
-  check('muestra el flete como kilos × precio', /6\.0 kg × USD 5\.00/.test(texto || ''),
-    (texto || '').slice(0, 200));
+  const tira = await page.textContent('#tira-interna');
+
+  /* ⚠ CAMBIÓ DE LUGAR EL 20/08/2026, no de sentido. Hasta esa fecha estos dos controles
+     leían la TARJETA. Pero la oficina manda la cotización sacándole una imagen a la
+     tarjeta, así que "USD 5,00 por kilo" era el precio negociado del cliente yéndose
+     adentro de lo que se le manda a él — la misma fuga que el `Profit cliente: 120%`.
+     Ahora ese detalle vive en la tira interna, y acá se controlan las DOS mitades:
+     que la tira lo diga (la oficina lo necesita) y que la tarjeta NO. */
+  check('la tira interna avisa que es tarifa por kilo', /por kilo/i.test(tira || ''),
+    (tira || '').slice(0, 140));
+  check('la tira interna muestra kilos × precio', /6\.0 kg × USD 5\.00/.test(tira || ''),
+    (tira || '').slice(0, 200));
+  check('y NADA de eso está en la tarjeta (se le mandaría al cliente)',
+    !/por kilo/i.test(texto || '') && !/kg × USD/.test(texto || ''),
+    (texto || '').match(/.{0,40}(por kilo|kg × USD).{0,40}/i)?.[0] || '');
   check('y el flete internacional da USD 30.00', /Flete internacional[^$]*USD 30\.00/.test(texto || ''),
     (texto || '').match(/Flete internacional.{0,60}/)?.[0] || '');
   console.log(`      ${(texto || '').match(/Flete internacional.{0,50}/)?.[0] || ''}`);
