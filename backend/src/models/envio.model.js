@@ -244,7 +244,11 @@ async function crear(data) {
         String(data.numero_guia ?? '').trim().toUpperCase() || null,
         data.pais_destino,
         data.destino_raw ?? null,
-        data.direccion ?? 'expo',
+        // Si el alta no trae direccion (el formulario de Cargar envío no la manda), se
+        // deriva del tipo de envío en vez de caer siempre en 'expo': una impo cargada a
+        // mano quedaba con tipo_envio='importacion' pero direccion='expo', y Salidas y el
+        // Excel del cierre la mostraban como exportación (revisar-envios, sección 1).
+        data.direccion ?? (data.tipo_envio === 'importacion' ? 'impo' : 'expo'),
         data.zona || null,
         data.cantidad_bultos || 1,
         data.peso_real,
@@ -376,10 +380,19 @@ async function actualizar(id, data) {
         derechos = COALESCE(?, derechos), adicionales = COALESCE(?, adicionales),
         otros = COALESCE(?, otros), extras_json = COALESCE(?, extras_json)`;
 
+  // Si la edición CAMBIA el tipo de envío y no trae direccion explícita, la direccion lo
+  // sigue (misma regla que el alta). Si el tipo no se toca, la direccion tampoco: lo que
+  // haya elegido la oficina en el modal de Salidas se respeta.
+  const cambiaTipo = data.tipo_envio !== undefined
+    && String(data.tipo_envio) !== String(actual.tipo_envio);
+  const direccionNueva = data.direccion !== undefined
+    ? data.direccion
+    : (cambiaTipo ? (data.tipo_envio === 'importacion' ? 'impo' : 'expo') : actual.direccion);
+
   await db.transaction(async () => {
     await db.prepare(
       `UPDATE envios SET
-        cliente_id = ?, fecha = ?, courier = ?, tipo_envio = ?,
+        cliente_id = ?, fecha = ?, courier = ?, tipo_envio = ?, direccion = ?,
         numero_guia = ?, pais_destino = ?, zona = ?,
         cantidad_bultos = ?, peso_real = ?, largo = ?, ancho = ?, alto = ?,
         peso_volumetrico = ?, peso_facturable = ?,
@@ -396,6 +409,7 @@ async function actualizar(id, data) {
       data.fecha ?? actual.fecha,
       data.courier ?? actual.courier,
       data.tipo_envio ?? actual.tipo_envio,
+      direccionNueva ?? 'expo',
       String(data.numero_guia ?? actual.numero_guia ?? '').trim().toUpperCase() || actual.numero_guia,
       data.pais_destino ?? actual.pais_destino,
       data.zona !== undefined ? data.zona : actual.zona,

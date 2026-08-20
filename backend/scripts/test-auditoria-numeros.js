@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 /**
  * test-auditoria-numeros.js — las tres sospechas de AUDITORIA-NUMEROS.md que faltaban
- * comprobar y arreglar (15/08/2026). Cada sección reproduce el error tal como estaba
+ * comprobar y arreglar (15/08/2026), más la coherencia direccion↔tipo_envio (18/08). Cada sección reproduce el error tal como estaba
  * escrito ANTES del arreglo: si alguien lo deshace, esto se pone rojo.
  *
  *  1. IMPORTADOR DE PLANILLA (excel.service.js):
@@ -264,6 +264,45 @@ async function main() {
   const segNulo = await uno('SELECT seguro_venta FROM envios WHERE id = ?', [alta2Body.id]);
   check('cliente sin seguro propio: seguro_venta queda NULL (escala de lista, como siempre)',
     segNulo.seguro_venta === null, String(segNulo.seguro_venta));
+
+  // ── 4. direccion sigue al tipo de envío ─────────────────────────────────────────────
+  console.log('\n4. La direccion sigue al tipo de envío en el alta manual\n');
+
+  const altaImpo = await fetch(`${BASE}/api/envios`, {
+    method: 'POST', headers: H,
+    body: JSON.stringify({
+      cliente_id: 960, fecha: '2026-08-18', tipo_envio: 'importacion',
+      pais_destino: 'BRASIL', courier: 'UPS', servicio_ups: 'UPS_EXP', tipo_paquete: 'm',
+      numero_guia: 'AUD-DIR-1', peso_real: 5, largo: 30, ancho: 20, alto: 20,
+      total_cobrado: 100,
+    }),
+  });
+  const altaImpoBody = await altaImpo.json().catch(() => null);
+  check('el alta manual de una impo entra', altaImpo.status === 201,
+    JSON.stringify(altaImpoBody).slice(0, 120));
+  check('y queda con direccion=impo (antes: expo, el default)',
+    (await uno('SELECT direccion FROM envios WHERE id = ?', [altaImpoBody.id])).direccion === 'impo');
+
+  const putExpo = await fetch(`${BASE}/api/envios/${altaImpoBody.id}`, {
+    method: 'PUT', headers: H, body: JSON.stringify({ tipo_envio: 'exportacion' }),
+  });
+  check('editar el tipo a exportación arrastra la direccion a expo', putExpo.status === 200
+    && (await uno('SELECT direccion FROM envios WHERE id = ?', [altaImpoBody.id])).direccion === 'expo');
+
+  // El script de corrección puntual: una fila incoherente se arregla, y es idempotente.
+  await run("UPDATE envios SET direccion = 'expo' WHERE numero_guia = 'AUD-IMPO-1'");
+  const { execFile } = require('child_process');
+  const correr = () => new Promise((res) => {
+    execFile('node', [path.join(__dirname, 'arreglar-direccion.js')],
+      { env: { ...process.env, DB_PATH: DB } }, (err, stdout) => res({ err, stdout }));
+  });
+  const fix1 = await correr();
+  check('arreglar-direccion corrige la fila incoherente', !fix1.err
+    && (await uno("SELECT direccion FROM envios WHERE numero_guia = 'AUD-IMPO-1'")).direccion === 'impo',
+    (fix1.stdout || '').slice(-120));
+  const fix2 = await correr();
+  check('y corrido de nuevo no encuentra nada (idempotente)',
+    !fix2.err && /Nada que corregir/.test(fix2.stdout || ''), (fix2.stdout || '').slice(-120));
 
   await new Promise((res) => db.close(() => res()));
   // El formato lo lee verificar.js para sumar las tandas: no cambiarlo.

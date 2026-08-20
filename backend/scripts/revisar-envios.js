@@ -138,6 +138,16 @@ async function main() {
   const sinVenta = envios.filter((e) => Number(e.peso_facturable) > 0 && !(Number(e.total) > 0) && !e.liquidado);
   seccion('6. Con peso y SIN precio de venta (plata sin cobrar; no entran a liquidación por cb1aaa3)',
     sinVenta, (e) => `${etiqueta(e)} · ${e.peso_facturable} kg · costo estimado ${fmt(costoEstimado(e))}`);
+  if (sinVenta.length > 0) {
+    const costoTotal = sinVenta.reduce((s, e) => s + costoEstimado(e), 0);
+    const porCliente = new Map();
+    for (const e of sinVenta) {
+      porCliente.set(e.cliente_nombre, (porCliente.get(e.cliente_nombre) || 0) + costoEstimado(e));
+    }
+    const top = [...porCliente.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8);
+    console.log(`   Σ costo estimado sin precio de venta: USD ${fmt(costoTotal)} (la venta será más: esto es solo el costo).`);
+    console.log(`   Por cliente (top): ${top.map(([n, m]) => `${n} ${fmt(m)}`).join(' · ')}`);
+  }
 
   // 7. Asegurado con valor declarado y seguro en cero
   const sinSeguro = envios.filter((e) => Number(e.asegurado) === 1 && Number(e.fob) > 100 && !(Number(e.seguro) > 0));
