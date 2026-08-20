@@ -225,6 +225,16 @@ async function main() {
     dimSinLogo.h < dimPelada.h, `${dimSinLogo.h} vs ${dimPelada.h}`);
   check('sin logo la imagen igual se genera', imgSinLogo.startsWith('data:image/png'));
   check('apagar el logo no cambia el ancho', dimSinLogo.w === dimPelada.w);
+
+  /* La fecha y la validez viven en la franja del pie, junto al logo. Entonces esa franja
+     tiene que existir aunque apaguen el logo: si no, la validez no tendría dónde ir y se
+     perdería en silencio (el caso que se introdujo al mover la fecha, 20/08). */
+  await page.check('#pres_validez');
+  const imgSinLogoConVal = await generar();
+  const dimSinLogoConVal = await medir(imgSinLogoConVal);
+  check('sin logo pero CON validez, la franja del pie igual aparece',
+    dimSinLogoConVal.h > dimSinLogo.h, `${dimSinLogoConVal.h} vs ${dimSinLogo.h} (sin nada)`);
+  await page.uncheck('#pres_validez');
   await page.check('#pres_logo');
 
   const dias = await page.$eval('#pres_dias', (e) => e.value);
