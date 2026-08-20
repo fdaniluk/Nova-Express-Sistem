@@ -163,32 +163,133 @@ async function main() {
   check('el precio BAJA al pasar el corte, como está cargado',
     f33.precios[0] < f32.precios[0]);
 
-  // ── 5. Las zonas del tarifario combinado ─────────────────────────────────────────────
-  console.log('\n5. DHL y UPS zonifican distinto y el combinado lo traduce\n');
+  // ── 5. Las columnas: cada courier con SUS zonas ──────────────────────────────────────
+  console.log('\n5. Cada hoja usa las zonas reales del courier que nombra\n');
 
+  // EL DEFECTO QUE ESTA SECCIÓN CUIDA (20/08/2026, lo encontró la oficina):
+  // el tarifario usaba SIEMPRE las zonas de DHL, y para UPS tomaba el peor caso entre las
+  // zonas donde caían los países de esa columna. Como DHL mete Europa Occidental (UPS 4) y
+  // Polonia/Chequia/Hungría/Rumania (UPS 6) en su zona 4, la columna Europa de un tarifario
+  // UPS salía con el precio de la zona 6: entre 54% y 72% MÁS CARO que lo que cobra UPS.
+  // Lo mismo Asia (5 y 6) y Resto del mundo. Las tres columnas imprimían el mismo número.
   const tarifarioService = require('../src/services/tarifario.service');
-  const eq3 = tarifarioService.zonasEquivalentes(3, 'UPS_EXP', 'export');
-  check('la zona 3 de Nova (EE.UU./Canadá/México) cae en la 2 de UPS', eq3.includes(2),
-    JSON.stringify(eq3));
-  check('la zona 3 de Nova en DHL es la 3 de DHL',
-    JSON.stringify(tarifarioService.zonasEquivalentes(3, 'DHL', 'export')) === '[3]');
 
-  const comb = await J(`/api/clientes/${CLI_PCT}/tarifario?servicios=DHL,UPS_EXP&combinar=1&base=alto&desde=1&hasta=3&documentos=0`);
-  const soloDhl = await J(`/api/clientes/${CLI_PCT}/tarifario?servicios=DHL&desde=1&hasta=3&documentos=0`);
-  const soloUps = await J(`/api/clientes/${CLI_PCT}/tarifario?servicios=UPS_EXP&desde=1&hasta=3&documentos=0`);
-  let combOk = true; let detalle = '';
-  comb.body.tablas[0].filas.forEach((f, i) => {
-    f.precios.forEach((p, z) => {
-      const a = soloDhl.body.tablas[0].filas[i].precios[z];
-      const b = soloUps.body.tablas[0].filas[i].precios[z];
-      // 'alto' nunca puede dar menos que cualquiera de los dos por separado. Puede dar MÁS
-      // que el de UPS de esa misma columna, porque UPS zonifica distinto y se toma el peor
-      // país de la zona.
-      if (p < Math.max(a, b) - 0.02) { combOk = false; detalle = `${f.peso} kg col ${z + 1}: ${p} < max(${a},${b})`; }
-    });
+  const eq4 = tarifarioService.zonasEquivalentes(4, 'UPS_EXP', 'export');
+  check('la zona 4 de Nova (Europa) cae en DOS zonas de UPS: la 4 y la 6',
+    eq4.includes(4) && eq4.includes(6), JSON.stringify(eq4));
+  check('la zona 3 de Nova (EE.UU./Canadá/México) cae en la 2 de UPS',
+    tarifarioService.zonasEquivalentes(3, 'UPS_EXP', 'export').includes(2));
+
+  const cols = (t) => t.body.destinos.map((d) => d.nombre);
+  const flete = (servicio, zona, peso) => Math.round(cotizarServicio(servicio, {
+    tipo: 'export', pf: peso, zonaOverride: zona,
+    fuelPct: 0, fob: 0, bultosProc: [], profitPct: PCT, contenido: 'paquete',
+  }).conGan * 100) / 100;
+
+  const qs = 'desde=1&hasta=3&documentos=0';
+  const hojaDhl = await J(`/api/clientes/${CLI_PCT}/tarifario?servicios=DHL&${qs}`);
+  const hojaUps = await J(`/api/clientes/${CLI_PCT}/tarifario?servicios=UPS_EXP&${qs}`);
+  const hibrida = await J(`/api/clientes/${CLI_PCT}/tarifario?servicios=DHL,UPS_EXP&combinar=1&base=alto&${qs}`);
+
+  // 5a. DHL solo: seis columnas, exactamente como siempre. Ni un número se movió.
+  check('la hoja de DHL sigue teniendo las 6 columnas de siempre',
+    JSON.stringify(cols(hojaDhl)) === JSON.stringify([
+      'Mercosur', 'Resto Sudamérica y Caribe', 'Norteamérica', 'Europa', 'Asia', 'Resto del mundo']),
+    JSON.stringify(cols(hojaDhl)));
+  let dhlOk = true; let dhlDet = '';
+  for (const f of hojaDhl.body.tablas[0].filas) {
+    for (let z = 1; z <= 6; z += 1) {
+      const debe = flete('DHL', z, f.peso);
+      if (Math.abs(f.precios[z - 1] - debe) > 0.005) { dhlOk = false; dhlDet = `${f.peso}kg z${z}: ${f.precios[z - 1]} vs ${debe}`; }
+    }
+  }
+  check('y cada celda sigue siendo la zona de DHL que le toca', dhlOk, dhlDet);
+
+  // 5b. UPS solo: las zonas de UPS. Acá vivía el defecto.
+  check('la hoja de UPS usa las columnas de UPS',
+    JSON.stringify(cols(hojaUps)) === JSON.stringify([
+      'Mercosur', 'Norteamérica', 'Resto Sudamérica y Caribe',
+      'Europa Occidental', 'Asia-Pacífico', 'Resto del mundo']),
+    JSON.stringify(cols(hojaUps)));
+
+  const iEuroUps = cols(hojaUps).indexOf('Europa Occidental');
+  const iAsiaUps = cols(hojaUps).indexOf('Asia-Pacífico');
+  const filaUps = hojaUps.body.tablas[0].filas[0];
+  check('Europa por UPS cotiza la zona 4 (era el defecto: cotizaba la 6)',
+    Math.abs(filaUps.precios[iEuroUps] - flete('UPS_EXP', 4, filaUps.peso)) < 0.005,
+    `dio ${filaUps.precios[iEuroUps]}, zona 4 = ${flete('UPS_EXP', 4, filaUps.peso)}, zona 6 = ${flete('UPS_EXP', 6, filaUps.peso)}`);
+  check('y NO cotiza la zona 6',
+    Math.abs(filaUps.precios[iEuroUps] - flete('UPS_EXP', 6, filaUps.peso)) > 0.005);
+  check('Asia-Pacífico por UPS cotiza la zona 5 (ahí está Australia)',
+    Math.abs(filaUps.precios[iAsiaUps] - flete('UPS_EXP', 5, filaUps.peso)) < 0.005,
+    `dio ${filaUps.precios[iAsiaUps]}, zona 5 = ${flete('UPS_EXP', 5, filaUps.peso)}`);
+  check('las tres columnas caras de UPS ya NO imprimen todas lo mismo',
+    new Set([filaUps.precios[iEuroUps], filaUps.precios[iAsiaUps],
+      filaUps.precios[cols(hojaUps).indexOf('Resto del mundo')]]).size === 3,
+    JSON.stringify(filaUps.precios));
+  check('la hoja de UPS no lleva nota de países a consultar (no hay conflicto)',
+    (hojaUps.body.excepciones || []).length === 0);
+
+  // 5c. Híbrida: ocho columnas, Europa y Asia partidas.
+  check('la hoja de los dos couriers parte Europa y Asia en dos (8 columnas)',
+    JSON.stringify(cols(hibrida)) === JSON.stringify([
+      'Mercosur', 'Resto Sudamérica y Caribe', 'Norteamérica',
+      'Europa Occidental', 'Europa del Este', 'Asia', 'Asia del Sur', 'Resto del mundo']),
+    JSON.stringify(cols(hibrida)));
+  const iOcc = 3; const iEste = 4; const iAsia = 5; const iAsiaSur = 6;
+  const filaH = hibrida.body.tablas[0].filas[0];
+  // OJO, esto NO es un defecto: en la hoja COMBINADA con base "alto" cada celda es el
+  // precio más caro entre los dos couriers, y en Europa a estos pesos manda DHL (que cobra
+  // igual a Alemania que a Polonia). Por eso las dos mitades pueden dar el mismo número.
+  // Que estén partidas igual es lo que hace que la celda sea correcta cuando el que manda
+  // es UPS. La diferencia real se ve en la comparativa, que es lo que chequea 5d.
+  let altoOk = true; let altoDet = '';
+  hibrida.body.destinos.forEach((d, i) => {
+    const debe = Math.max(flete('DHL', d.zonas.DHL, filaH.peso), flete('UPS_EXP', d.zonas.UPS, filaH.peso));
+    if (Math.abs(filaH.precios[i] - debe) > 0.005) { altoOk = false; altoDet = `${d.nombre}: ${filaH.precios[i]} vs ${debe}`; }
   });
-  check('la base "alto" nunca queda por debajo de un servicio suelto', combOk, detalle);
-  check('el tarifario combinado no nombra el servicio', comb.body.tablas[0].servicio === null);
+  check('en la hoja combinada cada celda es el más caro de los dos couriers, columna por columna',
+    altoOk, altoDet);
+  check('la híbrida nombra los 4 países que hay que consultar',
+    (hibrida.body.excepciones || []).length === 4
+    && hibrida.body.excepciones.some((e) => e.pais === 'Australia'),
+    JSON.stringify((hibrida.body.excepciones || []).map((e) => e.pais)));
+  check('el tarifario combinado sigue sin nombrar el servicio',
+    hibrida.body.tablas[0].servicio === null);
+
+  // 5d. En la hoja de DHL las dos mitades de Europa valen igual: DHL cobra lo mismo.
+  const hibDhl = await J(`/api/clientes/${CLI_PCT}/tarifario?servicios=DHL,UPS_EXP&${qs}`);
+  const tablaDhl = hibDhl.body.tablas.find((t) => t.servicio === 'DHL');
+  const tablaUps = hibDhl.body.tablas.find((t) => t.servicio === 'UPS_EXP');
+  check('en la comparativa, la tabla de DHL da el MISMO precio a las dos mitades de Europa',
+    Math.abs(tablaDhl.filas[0].precios[iOcc] - tablaDhl.filas[0].precios[iEste]) < 0.005,
+    `${tablaDhl.filas[0].precios[iOcc]} vs ${tablaDhl.filas[0].precios[iEste]}`);
+  // Y en la de UPS NO, que es todo el punto del arreglo.
+  check('en la comparativa, la tabla de UPS cobra distinto Europa Occidental y del Este',
+    tablaUps.filas[0].precios[iEste] > tablaUps.filas[0].precios[iOcc] + 0.01,
+    `occ ${tablaUps.filas[0].precios[iOcc]} vs este ${tablaUps.filas[0].precios[iEste]}`);
+  check('y Europa Occidental por UPS es la zona 4, no la 6',
+    Math.abs(tablaUps.filas[0].precios[iOcc] - flete('UPS_EXP', 4, tablaUps.filas[0].peso)) < 0.005);
+  check('Asia y Asia del Sur por UPS también se cobran distinto',
+    tablaUps.filas[0].precios[iAsiaSur] > tablaUps.filas[0].precios[iAsia] + 0.01,
+    `asia ${tablaUps.filas[0].precios[iAsia]} vs sur ${tablaUps.filas[0].precios[iAsiaSur]}`);
+
+  // 5e. LA INVARIANTE QUE PROTEGE LA PLATA: ninguna columna puede cotizar por DEBAJO de lo
+  // que cuesta la zona real de cualquiera de sus países. De más sí (los 4 de la nota).
+  let bajoOk = true; let bajoDet = '';
+  for (const [hoja, servs] of [[hojaDhl, ['DHL']], [hojaUps, ['UPS_EXP']], [hibrida, ['DHL', 'UPS_EXP']]]) {
+    hoja.body.destinos.forEach((d, i) => {
+      for (const sv of servs) {
+        const zona = sv === 'DHL' ? d.zonas.DHL : d.zonas.UPS;
+        if (zona == null) continue;
+        const f = hoja.body.tablas[0].filas[0];
+        if (f.precios[i] < flete(sv, zona, f.peso) - 0.02) {
+          bajoOk = false; bajoDet = `${d.nombre} en ${sv}: ${f.precios[i]} < ${flete(sv, zona, f.peso)}`;
+        }
+      }
+    });
+  }
+  check('ninguna columna cotiza por debajo de su zona real en ningún courier', bajoOk, bajoDet);
 
   // ── 6. Rango y paso ──────────────────────────────────────────────────────────────────
   console.log('\n6. Desde, hasta y cada cuánto\n');

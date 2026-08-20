@@ -72,6 +72,12 @@
     }
     .notas ul { margin: 0; padding-left: 13px; line-height: 1.5; font-size: 6.9pt; }
     .notas li { margin-bottom: 4px; }
+    /* Hoja de los dos couriers: son 8 destinos en vez de 6 y el cuadro se desbordaba a una
+       segunda hoja casi vacía. Con muchos destinos se compacta el interlineado. */
+    .notas.apretada ul { line-height: 1.35; font-size: 6.6pt; }
+    .notas.apretada li { margin-bottom: 2px; }
+    .notas.apretada .zonas div { font-size: 6.3pt; line-height: 1.35; }
+    .notas.apretada .zonas { margin-top: 6px; }
     .zonas { margin-top: 10px; border-top: 2px solid var(--ac); padding-top: 6px; }
     .zonas h3 {
       margin: 0 0 4px; font-size: 8pt; color: var(--osc);
@@ -98,7 +104,7 @@
 </head>
 <body>
   <div id="tarifario" class="cargando">Armando el tarifario…</div>
-  <script src="../js/api.js?v=20260818a"></script>
-  <script src="../js/modules/tarifario.js?v=20260818a"></script>
+  <script src="../js/api.js?v=20260820a"></script>
+  <script src="../js/modules/tarifario.js?v=20260820a"></script>
 </body>
 </html>

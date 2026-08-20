@@ -39,6 +39,11 @@ Object.assign(ZONAS_UPS,{
   'St. Kitts':3,
   'Macedonia del Norte':6,           // UPS: "Macedonia"
   'Guayana Francesa':3,              // UPS: "Guyana Francesa"
+  // 20/08/2026: faltaba la grafía CON Y, que es la que usa el mapa de DHL y por lo tanto
+  // la que aparece en los desplegables. Sin esto, cotizar la Guayana Francesa por UPS
+  // exportación fallaba con "ese país no existe" — el mismo síntoma que tuvo Bélgica.
+  // Las dos grafías apuntan a la misma zona a propósito.
+  'Guyana Francesa':3,
 });
 Object.assign(ZONAS_UPS_I,{
   'Antigua':2,

@@ -148,12 +148,22 @@
       const notas = opts.notas
         ? `<h3>Notas</h3><ul>${armarNotas(data, opts).map((x) => `<li>${x}</li>`).join('')}</ul>`
         : '';
+      // Los cuatro países que en la hoja híbrida quedan cotizados por encima de su zona
+      // real (el backend los manda en `excepciones`; en una hoja de un solo courier viene
+      // vacío). Se nombran para que el vendedor sepa que ahí conviene pedir precio.
+      const exc = (data.excepciones || []).length
+        ? `<div style="margin-top:5px"><b>Consultar precio:</b> ${
+          data.excepciones.map((e) => e.pais.replace(' (EE.UU.)', '')).join(' · ')}.</div>`
+        : '';
       const destinos = opts.destinos
         ? `<div class="zonas"><h3>Destinos</h3>${
           data.destinos.map((d) => `<div><b>${d.nombre}:</b> ${d.ejemplos}</div>`).join('')
-        }<div style="margin-top:5px;opacity:.65">Detalle completo de países a pedido.</div></div>`
+        }${exc}<div style="margin-top:5px;opacity:.65">Detalle completo de países a pedido.</div></div>`
         : '';
-      columnas.push(`<div class="notas">${notas}${destinos}</div>`);
+      // Con más de 6 destinos (la hoja de los dos couriers) el cuadro se aprieta para que
+      // no se vaya a una segunda hoja casi vacía.
+      const apretada = (data.destinos || []).length > 6 ? ' apretada' : '';
+      columnas.push(`<div class="notas${apretada}">${notas}${destinos}</div>`);
     }
 
     const hojas = [];

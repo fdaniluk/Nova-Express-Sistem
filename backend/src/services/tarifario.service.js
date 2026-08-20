@@ -47,15 +47,98 @@ const profitService = require('./profit.service');
 const clienteModel = require('../models/cliente.model');
 const { getDb } = require('../db');
 
-/** Los seis destinos del tarifario. El número es la zona de DHL, que es el mapa de Nova. */
-const DESTINOS = [
-  { zona: 1, nombre: 'Mercosur',                  ejemplos: 'Brasil · Chile · Uruguay · Paraguay · Bolivia' },
-  { zona: 2, nombre: 'Resto Sudamérica y Caribe', ejemplos: 'Colombia · Ecuador · Perú · Centroamérica · Caribe' },
-  { zona: 3, nombre: 'Norteamérica',              ejemplos: 'EE.UU. · Canadá · México' },
-  { zona: 4, nombre: 'Europa',                    ejemplos: 'Unión Europea · Reino Unido · Suiza' },
-  { zona: 5, nombre: 'Asia',                      ejemplos: 'China · Japón · India · Sudeste asiático' },
-  { zona: 6, nombre: 'Resto del mundo',           ejemplos: 'África · Oceanía · Medio Oriente' },
+/**
+ * LAS COLUMNAS DEL TARIFARIO — tres juegos, uno por escenario (20/08/2026).
+ *
+ * Antes había UNO solo: las seis zonas de DHL, y para UPS se buscaba el peor caso entre las
+ * zonas en las que caían sus países. Eso rompía tres columnas de las seis: DHL mete en su
+ * zona 4 a Europa Occidental (UPS 4) junto con Polonia, Chequia, Hungría y Rumania (UPS 6),
+ * y en su zona 5 a China y Japón (UPS 5) junto con India y Vietnam (UPS 6). Al imprimir el
+ * peor caso, Europa, Asia y Resto del mundo salían las TRES con el precio de UPS zona 6:
+ * Europa quedaba entre 54% y 72% por encima de lo que UPS cobra de verdad. Lo encontró la
+ * oficina comparando un tarifario a profit 0 contra la tabla de UPS Saver.
+ *
+ * Ahora cada columna dice EXPLÍCITAMENTE en qué zona cae en cada courier, y se elige el
+ * juego según lo que se pidió (ver `destinosPara`):
+ *
+ *   · un solo servicio  → las zonas REALES de ese courier, sin aproximar nada;
+ *   · más de uno        → las columnas híbridas, partidas donde los dos couriers difieren,
+ *                         que es la única forma de que un mismo número sea cierto para los
+ *                         dos a la vez (el caso del tarifario sin nombre de servicio).
+ *
+ * `zonas.UPS` vale para Expedited y para Saver: las dos variantes comparten mapa de zonas.
+ */
+
+/** DHL solo: las seis zonas de DHL. Es el tarifario histórico; ni un número cambia. */
+const DESTINOS_DHL = [
+  { nombre: 'Mercosur',                  ejemplos: 'Brasil · Chile · Uruguay · Paraguay · Bolivia',      zonas: { DHL: 1 } },
+  { nombre: 'Resto Sudamérica y Caribe', ejemplos: 'Colombia · Ecuador · Perú · Centroamérica · Caribe', zonas: { DHL: 2 } },
+  { nombre: 'Norteamérica',              ejemplos: 'EE.UU. · Canadá · México',                           zonas: { DHL: 3 } },
+  { nombre: 'Europa',                    ejemplos: 'Unión Europea · Reino Unido · Suiza',                 zonas: { DHL: 4 } },
+  { nombre: 'Asia',                      ejemplos: 'China · Japón · India · Sudeste asiático',            zonas: { DHL: 5 } },
+  { nombre: 'Resto del mundo',           ejemplos: 'África · Oceanía · Medio Oriente',                    zonas: { DHL: 6 } },
 ];
+
+/** UPS solo: las seis zonas de UPS, tal como las zonifica UPS. Sin aproximaciones. */
+const DESTINOS_UPS = [
+  { nombre: 'Mercosur',                  ejemplos: 'Brasil · Chile · Uruguay · Paraguay · Bolivia',        zonas: { UPS: 1 } },
+  { nombre: 'Norteamérica',              ejemplos: 'EE.UU. · Canadá · México · Puerto Rico',               zonas: { UPS: 2 } },
+  { nombre: 'Resto Sudamérica y Caribe', ejemplos: 'Colombia · Ecuador · Perú · Centroamérica · Caribe',   zonas: { UPS: 3 } },
+  { nombre: 'Europa Occidental',         ejemplos: 'Unión Europea · Reino Unido · Suiza · Noruega',        zonas: { UPS: 4 } },
+  { nombre: 'Asia-Pacífico',             ejemplos: 'China · Japón · Corea del Sur · Sudeste asiático · Australia', zonas: { UPS: 5 } },
+  { nombre: 'Resto del mundo',           ejemplos: 'Europa del Este · India · África · Medio Oriente · Nueva Zelanda', zonas: { UPS: 6 } },
+];
+
+/**
+ * Los dos couriers juntos: ocho columnas. Las seis de siempre, con Europa y Asia partidas
+ * en dos, que son los dos lugares donde DHL y UPS no coinciden y el precio cambia fuerte.
+ * En la hoja de DHL las dos mitades muestran el mismo número — no es un error: DHL
+ * efectivamente le cobra igual a Alemania que a Polonia.
+ */
+const DESTINOS_HIBRIDO = [
+  { nombre: 'Mercosur',                  ejemplos: 'Brasil · Chile · Uruguay · Paraguay · Bolivia',      zonas: { DHL: 1, UPS: 1 } },
+  { nombre: 'Resto Sudamérica y Caribe', ejemplos: 'Colombia · Ecuador · Perú · Centroamérica · Caribe', zonas: { DHL: 2, UPS: 3 } },
+  { nombre: 'Norteamérica',              ejemplos: 'EE.UU. · Canadá · México',                           zonas: { DHL: 3, UPS: 2 } },
+  { nombre: 'Europa Occidental',         ejemplos: 'Unión Europea · Reino Unido · Suiza · Noruega',      zonas: { DHL: 4, UPS: 4 } },
+  { nombre: 'Europa del Este',           ejemplos: 'Polonia · Rep. Checa · Hungría · Rumania',           zonas: { DHL: 4, UPS: 6 } },
+  { nombre: 'Asia',                      ejemplos: 'China · Japón · Corea del Sur · Sudeste asiático',   zonas: { DHL: 5, UPS: 5 } },
+  { nombre: 'Asia del Sur',              ejemplos: 'India · Vietnam · Bangladesh · Sri Lanka',           zonas: { DHL: 5, UPS: 6 } },
+  { nombre: 'Resto del mundo',           ejemplos: 'África · Oceanía · Medio Oriente',                   zonas: { DHL: 6, UPS: 6 } },
+];
+
+/**
+ * Los países que NINGUNA columna híbrida puede cotizar bien, porque los dos couriers los
+ * ubican en zonas que no se corresponden con las del resto de su columna. Son cuatro, y en
+ * los cuatro la columna que les toca es MÁS CARA que su zona real de UPS: el tarifario
+ * nunca cotiza de menos, a lo sumo de más. Van al pie de la hoja con un "consultar".
+ * En la hoja de UPS sola no existe el problema: ahí cada uno cae en su zona real.
+ */
+const EXCEPCIONES_HIBRIDO = [
+  { pais: 'Australia',            nota: 'más barato por UPS que lo que muestra Resto del mundo' },
+  { pais: 'Islas Canarias',       nota: 'más barato por UPS que lo que muestra Resto del mundo' },
+  { pais: 'Puerto Rico',          nota: 'más barato por UPS que lo que muestra Resto Sudamérica y Caribe' },
+  { pais: 'Islas Vírgenes (EE.UU.)', nota: 'más barato por UPS que lo que muestra Resto Sudamérica y Caribe' },
+];
+
+/**
+ * Qué columnas corresponden a lo que se pidió. UN solo servicio usa las zonas propias de
+ * ese courier; dos o más (combinados en una tabla o comparados en tablas separadas, que
+ * comparten el encabezado) usan las híbridas.
+ */
+function destinosPara(elegidos) {
+  if (elegidos.length === 1) {
+    return elegidos[0] === 'DHL' ? DESTINOS_DHL : DESTINOS_UPS;
+  }
+  return DESTINOS_HIBRIDO;
+}
+
+/** La zona que le toca a una columna en un servicio dado. */
+function zonaDeDestino(destino, servicio) {
+  return servicio === 'DHL' ? destino.zonas.DHL : destino.zonas.UPS;
+}
+
+/** Compatibilidad: el nombre viejo apuntaba a las columnas de DHL. */
+const DESTINOS = DESTINOS_DHL;
 
 const SERVICIOS = {
   DHL:       { label: 'DHL Express Worldwide', matriz: 'DHL' },
@@ -246,6 +329,10 @@ async function generarTarifario({
   if (!elegidos.length) throw badRequest('Hay que elegir al menos un servicio.');
   if (tipo !== 'export' && tipo !== 'import') throw badRequest('El tipo tiene que ser export o import.');
 
+  // Las columnas dependen de lo que se pidió: un solo courier usa sus zonas reales, dos o
+  // más usan las híbridas. Ver el bloque de DESTINOS_* arriba.
+  const destinos = destinosPara(elegidos);
+
   const pesos = armarPesos({ desde, hasta, paso });
   // Documentos: solo DHL y solo hasta 2 kg. Arriba de eso el motor ya cobra tarifa de
   // paquete, así que una tabla de documentos más larga estaría mintiendo.
@@ -260,15 +347,19 @@ async function generarTarifario({
     const filas = [];
     for (const peso of lista) {
       const celdas = [];
-      for (const d of DESTINOS) {
+      for (const d of destinos) {
         const valores = [];
         for (const servicio of servs) {
-          for (const zonaServicio of zonasEquivalentes(d.zona, servicio, tipo)) {
-            // eslint-disable-next-line no-await-in-loop
-            valores.push(await precioCelda({
-              clienteId, servicio, tipo, zona: zonaServicio, peso, contenido, memo, cortes,
-            }));
-          }
+          // La zona sale de la propia columna, no de una traducción con peor caso: cada
+          // columna ya sabe en qué zona cae en cada courier. Cuando se combinan servicios,
+          // `base` sigue decidiendo con cuál de los DOS COURIERS se arma la celda (que es
+          // para lo que existe), pero adentro de cada courier el número es exacto.
+          const zonaServicio = zonaDeDestino(d, servicio);
+          if (zonaServicio == null) continue;
+          // eslint-disable-next-line no-await-in-loop
+          valores.push(await precioCelda({
+            clienteId, servicio, tipo, zona: zonaServicio, peso, contenido, memo, cortes,
+          }));
         }
         celdas.push(elegirBase(valores, base));
       }
@@ -310,7 +401,10 @@ async function generarTarifario({
     combinar: Boolean(combinar),
     base: combinar ? base : null,
     rango: { desde: pesos[0], hasta: pesos[pesos.length - 1], paso },
-    destinos: DESTINOS,
+    destinos,
+    // Solo en la hoja híbrida: los cuatro países que su columna cotiza de más. En una hoja
+    // de un solo courier el array va vacío y la nota no se dibuja.
+    excepciones: destinos === DESTINOS_HIBRIDO ? EXCEPCIONES_HIBRIDO : [],
     tablas,
     etiquetas: elegidos.map((s) => SERVICIOS[s].label),
   };
@@ -318,4 +412,5 @@ async function generarTarifario({
 
 module.exports = {
   generarTarifario, DESTINOS, SERVICIOS, armarPesos, zonasEquivalentes, elegirBase,
+  DESTINOS_DHL, DESTINOS_UPS, DESTINOS_HIBRIDO, EXCEPCIONES_HIBRIDO, destinosPara, zonaDeDestino,
 };

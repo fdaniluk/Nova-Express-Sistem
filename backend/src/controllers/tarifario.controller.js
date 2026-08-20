@@ -85,6 +85,13 @@ async function excel(req, res, next) {
       ws.addRow([]);
       ws.addRow(['Destinos:']).font = { bold: true };
       for (const d of data.destinos) ws.addRow([d.nombre, d.ejemplos]);
+      // Igual que en la hoja impresa: los países que su columna cotiza de más (solo en el
+      // tarifario híbrido; con un solo courier el array viene vacío).
+      if ((data.excepciones || []).length) {
+        ws.addRow([]);
+        ws.addRow(['Consultar precio:', data.excepciones.map((e) => e.pais).join(' · ')])
+          .getCell(1).font = { bold: true };
+      }
     }
 
     const nombre = `Tarifario_${String(data.cliente.nombre).replace(/[^A-Za-z0-9]+/g, '_')}_${hoyLocal()}.xlsx`;

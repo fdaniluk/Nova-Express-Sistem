@@ -166,6 +166,39 @@ check('NINGÚN país de los mapas de UPS falta en el de DHL', (() => {
   return faltan.length === 0;
 })());
 
+// La Guayana Francesa se escribe de dos formas y cada courier usa la suya. Las dos tienen
+// que resolver en los DOS mapas: el desplegable ofrece la de DHL ("Guyana Francesa") y sin
+// esto cotizar por UPS fallaba con "ese país no existe" (encontrado el 20/08/2026).
+check('las dos grafías de la Guayana Francesa resuelven en DHL y en UPS', (() => {
+  for (const g of ['Guyana Francesa', 'Guayana Francesa']) {
+    if (core.ZONAS_DHL[g] === undefined) return false;
+    if (core.ZONAS_UPS[g] === undefined) return false;
+    if (core.ZONAS_UPS_I[g] === undefined) return false;
+  }
+  return true;
+})());
+
+// CANARIO. Al revés que el chequeo de arriba: hay países que están en DHL y NO en UPS, y
+// eso es legítimo — UPS no presta servicio a Cuba, Irán o Somalia, y a varias islas
+// diminutas. Pero si la lista CRECE es que alguien agregó un destino a DHL y se olvidó de
+// UPS, que es exactamente cómo nacieron el error de Bélgica y el de la Guayana Francesa.
+// Si este test se pone rojo: agregá el país al mapa de UPS, o —si UPS realmente no lo
+// lleva— sumalo a esta lista a conciencia.
+const SOLO_DHL = [
+  'Cabo Verde', 'Camboya', 'Camerún', 'Chad', 'Ciudad del Vaticano', 'Cuba', 'Groenlandia',
+  'Guinea Ecuatorial', 'Irán', 'Isla de Reunión', 'Isla Malvinas', 'Islas Cook',
+  'Islas Marshall', 'Islas Salomón', 'Jersey', 'Kiribati', 'Kosovo', 'Myanmar', 'Niue',
+  'Palau', 'Samoa', 'San Eustaquio', 'Somalia', 'Sudán del Sur', 'Tonga', 'Tuvalu',
+];
+check(`los países que DHL lleva y UPS no siguen siendo los ${SOLO_DHL.length} conocidos`, (() => {
+  const hoy = Object.keys(core.ZONAS_DHL).filter((p) => core.ZONAS_UPS[p] === undefined).sort();
+  const nuevos = hoy.filter((p) => !SOLO_DHL.includes(p));
+  const idos = SOLO_DHL.filter((p) => !hoy.includes(p));
+  if (nuevos.length) console.log('      NUEVOS sin zona UPS (¿falta cargarlos?): ' + nuevos.join(', '));
+  if (idos.length) console.log('      ya no están: ' + idos.join(', '));
+  return nuevos.length === 0 && idos.length === 0;
+})());
+
 console.log('\n' + '─'.repeat(60));
 console.log(`${ok} pasaron · ${fail} fallaron`);
 process.exit(fail === 0 ? 0 : 1);
