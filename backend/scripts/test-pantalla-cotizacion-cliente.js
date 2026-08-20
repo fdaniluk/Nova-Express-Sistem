@@ -256,6 +256,67 @@ async function main() {
 
   check('la pantalla no tiró ningún error de JavaScript', errores.length === 0, errores.join(' | ').slice(0, 160));
 
+  // ── 6. Las tildes se VEN puestas y se pueden sacar ────────────────────────────────
+  /* Bug encontrado el 20/08/2026, y estuvo invisible mucho tiempo: la regla general de
+     inputs del cotizador lleva `appearance:none` (esta pensada para los campos de texto) y
+     tambien alcanzaba a las tildes, borrandoles el dibujo nativo. El `accent-color` que
+     habia no hacia nada sin apariencia nativa, asi que la tilde se veia IGUAL puesta que
+     sin poner: lo unico que cambiaba era el aro del foco. La oficina creia que no se podian
+     destildar y recargaba la pagina. Se destildaban siempre; no se veia.
+     Esto NO es un test de estetica: si alguien vuelve a dejar la tilde sin dibujo, la
+     oficina cotiza sin saber si el DDP o la proteccion de documentos estan puestos. */
+  console.log('\n6. Las tildes muestran si están puestas y se pueden sacar\n');
+
+  /* OJO AL MEDIR: la tilde tiene `transition: background .12s`. Si se lee el color en el
+     instante del click se lee la animacion a mitad de camino y da el color ANTERIOR — la
+     primera version de este test fallaba por eso y el CSS estaba bien. Por eso se espera a
+     que el color efectivamente cambie, no a que pase un tiempo fijo. */
+  const colorDe = (id) => page.$eval(`#${id}`, (e) => getComputedStyle(e).backgroundColor);
+  const colorFila = (id) => page.$eval(`#${id}`, (e) => getComputedStyle(e.closest('.check-label')).backgroundColor);
+  const esperarColorDistinto = async (id, previo) => {
+    await page.waitForFunction(
+      ([sel, antes]) => getComputedStyle(document.getElementById(sel)).backgroundColor !== antes,
+      [id, previo], { timeout: 4000 },
+    ).catch(() => {});
+    return colorDe(id);
+  };
+
+  await page.uncheck('#ex_ddp');
+  await page.waitForTimeout(200);
+  const tildeApagada = await colorDe('ex_ddp');
+  const filaApagada = await colorFila('ex_ddp');
+
+  // Se tilda haciendo click en el RENGLON, que es como lo usa la oficina.
+  await page.click('label:has(#ex_ddp)');
+  check('hacer click en el renglón pone la tilde', await page.isChecked('#ex_ddp'));
+  const tildePuesta = await esperarColorDistinto('ex_ddp', tildeApagada);
+  const filaPuesta = await colorFila('ex_ddp');
+
+  check('la tilde puesta se ve DISTINTA de la tilde sin poner',
+    tildePuesta !== tildeApagada,
+    `puesta ${tildePuesta} · sin poner ${tildeApagada}`);
+  check('y no es solo el borde: se rellena de color',
+    tildePuesta !== 'rgba(0, 0, 0, 0)' && tildePuesta !== 'rgb(255, 255, 255)', tildePuesta);
+  check('el renglón entero también se pinta',
+    filaPuesta !== filaApagada, `puesto ${filaPuesta} · sin poner ${filaApagada}`);
+  check('la tilde dibuja el gancho (tiene ::after)',
+    await page.$eval('#ex_ddp', (e) => getComputedStyle(e, '::after').content !== 'none'));
+
+  // Y se puede SACAR, que era la queja concreta de la oficina.
+  await page.click('label:has(#ex_ddp)');
+  check('volver a hacer click la saca', !(await page.isChecked('#ex_ddp')));
+  /* Acá hay que esperar a que LLEGUE al color de apagada, no a que se despegue del azul:
+     la transición pasa por colores intermedios y cualquiera de ellos ya es "distinto". */
+  await page.waitForFunction(
+    ([sel, fin]) => getComputedStyle(document.getElementById(sel)).backgroundColor === fin,
+    ['ex_ddp', tildeApagada], { timeout: 4000 },
+  ).catch(() => {});
+  check('y vuelve al color de apagada', (await colorDe('ex_ddp')) === tildeApagada,
+    `quedó ${await colorDe('ex_ddp')} · esperado ${tildeApagada}`);
+
+  check('las etiquetas de las opciones NO van en mayúscula sostenida',
+    await page.$eval('label:has(#ex_ddp)', (e) => getComputedStyle(e).textTransform === 'none'));
+
   await browser.close();
   matarSrv();
   // El formato lo lee verificar.js para sumar las tandas: no cambiarlo.

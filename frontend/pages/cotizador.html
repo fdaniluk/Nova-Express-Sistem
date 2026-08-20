@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Cotizador — Nova Express</title>
-<link rel="stylesheet" href="../css/main.css?v=20260820f">
+<link rel="stylesheet" href="../css/main.css?v=20260820g">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 :root{--cot-bg:#f5f4f0;--cot-surface:#ffffff;--cot-border:#e2e0d8;--cot-border-strong:#c8c5bb;--cot-text:#1a1916;--cot-text-secondary:#6b6860;--cot-text-tertiary:#9c9a94;--cot-accent-dhl:#d4a017;--cot-accent-ups:#2d5fa6;--cot-accent-dhl-bg:#fdf8ec;--cot-accent-ups-bg:#eef3fb;--cot-success:#2d6a4f;--cot-success-bg:#edf7f2;--cot-danger:#c0392b;--cot-radius:10px;--cot-radius-sm:6px;--cot-shadow:0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04);--cot-shadow-md:0 4px 12px rgba(0,0,0,0.08),0 2px 4px rgba(0,0,0,0.05)}
@@ -39,10 +39,43 @@
 .bulto-info{font-size:11px;color:var(--cot-text-tertiary);font-family:'DM Mono',monospace;margin-top:2px}
 .bulto-warn{font-size:11px;color:#b45309;font-family:'DM Mono',monospace;margin-top:2px}
 .checks-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px}
-.check-label{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--cot-text-secondary);cursor:pointer;padding:6px 10px;border:1px solid var(--cot-border);border-radius:var(--cot-radius-sm);transition:background .12s,border-color .12s}
+/* text-transform:none a proposito: main.css pone TODAS las <label> de la app en
+   MAYUSCULAS, y estas filas son labels. En mayuscula sostenida "LOGO DE NOVA (MARCA DE
+   AGUA Y PIE)" grita y se lee peor que la opcion de al lado. */
+.check-label{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:400;
+  text-transform:none;letter-spacing:normal;
+  color:var(--cot-text-secondary);cursor:pointer;padding:7px 10px;
+  border:1px solid var(--cot-border);border-radius:var(--cot-radius-sm);
+  transition:background .12s,border-color .12s,color .12s}
 .check-label:hover{background:var(--cot-bg);border-color:var(--cot-border-strong)}
-.check-label input[type=checkbox]{width:14px;height:14px;accent-color:var(--cot-accent-ups);flex-shrink:0}
-.check-label input[type=radio]{width:14px;height:14px;accent-color:var(--cot-accent-ups);flex-shrink:0}
+/* LAS TILDES. Ojo con esto: la regla general de arriba (.cot-wrap input) lleva
+   `appearance:none` porque esta pensada para los campos de texto, pero tambien alcanzaba a
+   las tildes y les borraba el dibujo nativo. El `accent-color` que habia aca no hacia nada,
+   porque no se aplica sin apariencia nativa: la tilde NUNCA mostro si estaba puesta, solo
+   cambiaba el aro del foco al tocarla. La oficina creia que no se podian destildar — se
+   destildaban siempre, no se veia. Por eso ahora el dibujo es propio y explicito. */
+.check-label input[type=checkbox],.check-label input[type=radio]{
+  appearance:none;-webkit-appearance:none;
+  width:18px;height:18px;flex-shrink:0;margin:0;padding:0;
+  border:1.5px solid var(--cot-border-strong);background:var(--cot-surface);
+  border-radius:5px;position:relative;cursor:pointer;
+  transition:background .12s,border-color .12s}
+.check-label input[type=radio]{border-radius:50%}
+.check-label input[type=checkbox]:checked,.check-label input[type=radio]:checked{
+  background:var(--cot-accent-ups);border-color:var(--cot-accent-ups)}
+.check-label input[type=checkbox]:checked::after{
+  content:'';position:absolute;left:5.5px;top:1.5px;width:4px;height:9px;
+  border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.check-label input[type=radio]:checked::after{
+  content:'';position:absolute;left:4px;top:4px;width:6px;height:6px;
+  border-radius:50%;background:#fff}
+.check-label input[type=checkbox]:focus-visible,.check-label input[type=radio]:focus-visible{
+  outline:2px solid rgba(45,95,166,.4);outline-offset:2px}
+/* Y ademas se pinta el renglon entero: de un vistazo se ve cuales opciones estan puestas,
+   sin tener que mirar tilde por tilde. */
+.check-label:has(input:checked){
+  background:var(--cot-accent-ups-bg);border-color:#b8cef0;
+  color:var(--cot-text);font-weight:500}
 .btn-calc{width:100%;padding:12px;font-family:inherit;font-size:15px;font-weight:600;border:none;border-radius:var(--cot-radius);background:var(--cot-text);color:#fff;cursor:pointer;letter-spacing:-.01em;transition:opacity .15s,transform .1s;margin-bottom:1.5rem}
 .btn-calc:hover{opacity:.88}
 .btn-calc:active{transform:scale(.99)}
@@ -305,9 +338,9 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260820f"></script>
-<script src="/js/api.js?v=20260820f"></script>
-<script src="/shared/cotizador/cotizador-core.js?v=20260820f"></script>
+<script src="/js/auth-guard.js?v=20260820g"></script>
+<script src="/js/api.js?v=20260820g"></script>
+<script src="/shared/cotizador/cotizador-core.js?v=20260820g"></script>
 <script>
 let bultoId=0;
 function agregarBulto(){bultoId++;const wrap=document.getElementById('bultos-wrap');const div=document.createElement('div');div.className='bulto-row';div.id='bulto-'+bultoId;div.innerHTML=`<div class="bulto-num">#${wrap.children.length+1}</div><div class="cot-field"><label>Peso real (kg)</label><input type="number" min="0.5" step="0.5" placeholder="Peso (kg)" class="b-peso" oninput="actualizarBulto(this)" /></div><div class="cot-field"><label>Largo (cm)</label><input type="number" min="1" step="1" placeholder="Largo (cm)" class="b-largo" oninput="actualizarBulto(this)" /></div><div class="cot-field"><label>Ancho (cm)</label><input type="number" min="1" step="1" placeholder="Ancho (cm)" class="b-ancho" oninput="actualizarBulto(this)" /></div><div class="cot-field"><label>Alto (cm)</label><input type="number" min="1" step="1" placeholder="Alto (cm)" class="b-alto" oninput="actualizarBulto(this)" /></div><button class="btn-remove" onclick="eliminarBulto('bulto-${bultoId}')" title="Eliminar bulto">✕</button>`;wrap.appendChild(div);const info=document.createElement('div');info.id='info-bulto-'+bultoId;info.style.padding='0 12px 8px';wrap.appendChild(info);renumerarBultos();actualizarBulto(div.querySelector('.b-peso'));}
