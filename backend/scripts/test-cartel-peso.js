@@ -99,8 +99,17 @@ async function main() {
   // ── el caso de la oficina: 22 bultos de 60×35×35 ────────────────────────────
   console.log('\n1. El caso que reportó la oficina (22 bultos de 60×35×35)\n');
 
-  // 60×35×35 / 5000 = 14.7 kg por bulto. Crudo: 22 × 14.7 = 323.4.
-  // Redondeado por bulto (lo que mostraba antes): 22 × 15 = 330.
+  // 60×35×35 / 5000 = 14.7 kg de VOLUMEN por bulto. Facturable por bulto: 15 (medio kilo
+  // para arriba). Total: 22 × 15 = 330, y el volumen crudo sigue siendo 22 × 14.7 = 323.4.
+  //
+  // ⚠️ ESTE TEST CAMBIÓ DE NÚMEROS EL 20/08/2026, y conviene entender por qué antes de
+  // volver a tocarlo. Nació de un reclamo de la oficina: el cartel por bulto decía 14,7 y
+  // el total cobraba 330. El reclamo NO era contra el redondeo por bulto: era contra la
+  // CONTRADICCIÓN entre las dos cifras. En su momento se resolvió sacando el redondeo por
+  // bulto (todo a 323,4). Ahora se resolvió al revés —los couriers nos facturan por bulto,
+  // verificado contra facturas reales— así que se redondea por bulto Y el cartel muestra
+  // ese mismo número. Lo que este test cuida es lo de siempre: que el cartel y el total
+  // NUNCA digan cosas distintas.
   await page.evaluate(() => {
     document.getElementById('pais').value = 'China';
     document.getElementById('tipo').value = 'import';
@@ -136,7 +145,8 @@ async function main() {
     const el = document.querySelector('.bulto-info, .bulto-warn');
     return el ? el.textContent : null;
   });
-  check('el cartel por bulto dice 14.7 y no 15', /14\.7/.test(cartel || ''), cartel);
+  check('el cartel por bulto muestra el volumen real (14.7)', /14\.7/.test(cartel || ''), cartel);
+  check('y el facturable del bulto, redondeado (15)', /15(\D|$)/.test(cartel || ''), cartel);
 
   await page.click('.btn-calc');
   await esperar(2500);
@@ -150,13 +160,22 @@ async function main() {
 
   const vol = meta && meta.match(/([\d.]+) kg vol/);
   const fact = meta && meta.match(/([\d.]+) kg facturable/);
-  check('el encabezado muestra 323.4 kg de volumen (antes decía 330.0)',
+  check('el encabezado muestra el volumen real: 323.4 kg',
     vol && Math.abs(Number(vol[1]) - 323.4) < 0.05, vol ? vol[1] : 'no se encontró');
-  check('el facturable sigue siendo 323.4',
-    fact && Math.abs(Number(fact[1]) - 323.4) < 0.05, fact ? fact[1] : 'no se encontró');
-  check('volumen y facturable coinciden (no se contradicen más)',
-    vol && fact && Math.abs(Number(vol[1]) - Number(fact[1])) < 0.05,
-    `${vol && vol[1]} vs ${fact && fact[1]}`);
+  check('y el facturable redondeado por bulto: 330 kg (22 × 15)',
+    fact && Math.abs(Number(fact[1]) - 330) < 0.05, fact ? fact[1] : 'no se encontró');
+  /* LA REGLA QUE SOSTIENE ESTE TEST: el facturable del encabezado tiene que ser la suma de
+     los facturables que muestra cada cartel de bulto. Da igual cuál sea el criterio de
+     redondeo — lo que no puede pasar es que la pantalla diga una cosa y se cobre otra. */
+  const sumaCarteles = await page.evaluate(() => {
+    const nums = [...document.querySelectorAll('.bulto-info, .bulto-warn')]
+      .map((el) => (el.textContent.match(/Facturable:\s*([\d.]+)/) || [])[1])
+      .filter(Boolean).map(Number);
+    return nums.length ? nums.reduce((s, n) => s + n, 0) : null;
+  });
+  check('el facturable del total es la SUMA de lo que dice cada cartel de bulto',
+    sumaCarteles !== null && fact && Math.abs(sumaCarteles - Number(fact[1])) < 0.05,
+    `carteles suman ${sumaCarteles} · encabezado dice ${fact && fact[1]}`);
 
   // ── el precio NO cambió ─────────────────────────────────────────────────────
   console.log('2. El precio no se movió\n');
@@ -165,8 +184,11 @@ async function main() {
     const el = document.querySelector('.result-total');
     return el ? el.textContent.replace(/[^\d.]/g, '') : null;
   });
-  // con ganancia 0 y fuel 35.25 el total es el mismo que reportó la oficina
-  check('el total sigue dando 4373.99', total && Math.abs(Number(total) - 4373.99) < 0.02, total);
+  // Con ganancia 0 y fuel 35.25. Subió de 4373.99 a 4462.90 al pasar a redondeo por bulto
+  // (323,4 → 330 kg facturables): son los 6,6 kg que el courier nos factura de más y que
+  // antes salían de nuestro margen.
+  check('el total da 4462.90 con el redondeo por bulto',
+    total && Math.abs(Number(total) - 4462.90) < 0.02, total);
 
   console.log('\n3. Sin errores de JavaScript\n');
   const rel = errores.filter((x) => !/favicon|net::ERR/i.test(x));

@@ -347,7 +347,7 @@
 
   const SERVICIOS_MATRIZ = [
     { serv: 'DHL', nombre: 'DHL', chip: 'dhl', chipTxt: 'DHL' },
-    { serv: 'UPS_EXP', nombre: 'UPS Express', chip: 'ups', chipTxt: 'UPS' },
+    { serv: 'UPS_EXP', nombre: 'UPS Expedited', chip: 'ups', chipTxt: 'UPS' },
     { serv: 'UPS_SAVER', nombre: 'UPS Saver', chip: 'ups', chipTxt: 'UPS' },
   ];
   const TIPOS_MATRIZ = ['export', 'import'];

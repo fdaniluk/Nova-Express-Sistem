@@ -180,6 +180,44 @@ for (const servicio of ['DHL', 'UPS_EXP']) {
   }
 }
 
+// ── 4-ter. El peso facturable se redondea POR BULTO ─────────────────────────
+// Regla del 20/08/2026, y mueve plata: se redondea CADA bulto a medio kilo para arriba y
+// después se suman. Antes se sumaba crudo y se redondeaba el total, que da menos. El
+// cambio salió de las facturas: los couriers nos cobran por bulto, así que con el criterio
+// viejo cotizábamos por debajo de lo que después nos facturaban.
+console.log('\n4-ter. El peso facturable se redondea por bulto\n');
+
+const { calcularPesos } = require(path.join(RAIZ, 'backend', 'src', 'services', 'calculos.service'));
+const caja = (pr, l = 10, a = 10, h = 10) => ({ peso_real: pr, largo: l, ancho: a, alto: h });
+
+const CASOS_PESO = [
+  { que: 'tres cajas de 4,2 / 4,3 / 4,4 kg dan 13,5 y no 13',
+    bultos: [caja(4.2), caja(4.3), caja(4.4)], espera: 13.5 },
+  { que: 'un solo bulto de 4,2 kg se cobra 4,5', bultos: [caja(4.2)], espera: 4.5 },
+  { que: 'los pesos que ya caen justo no se mueven', bultos: [caja(5), caja(5)], espera: 10 },
+  { que: 'manda el volumétrico cuando es mayor (caja de 1 kg y 100×100×40)',
+    bultos: [caja(1, 100, 100, 40)], espera: 80 },
+  { que: 'un volumétrico con decimales también redondea (60×40×30 = 14,4 kg → 14,5)',
+    bultos: [caja(1, 60, 40, 30)], espera: 14.5 },
+];
+for (const c of CASOS_PESO) {
+  const r = calcularPesos(0, c.bultos);
+  check(c.que, Math.abs(r.pesoFacturable - c.espera) < 1e-9,
+    `dio ${r.pesoFacturable}, esperaba ${c.espera}`);
+}
+// El envío SIN PESAR tiene que seguir dando 0: es la marca de "todavía no se pesó" y hay
+// media docena de reglas colgadas de eso (no congela costo, no se puede liquidar).
+check('un envío sin pesar sigue dando 0 y no medio kilo',
+  calcularPesos(0, [], {}).pesoFacturable === 0);
+
+// El cotizador de pantalla tiene su propia copia de la cuenta (corre en el navegador):
+// si queda con la fórmula vieja, la pantalla y el backend cobran distinto.
+const COT = path.join(RAIZ, 'frontend', 'pages', 'cotizador.html');
+const cot = fs.readFileSync(COT, 'utf8');
+check('el cotizador de pantalla redondea por bulto igual que el backend',
+  /const pf=Math\.ceil\(Math\.max\(b\.pr,pvRaw\)\*2\)\/2/.test(cot),
+  'no se encontró el redondeo por bulto en cotizador.html');
+
 // ── 5. El profit se resuelve en un solo lugar ───────────────────────────────
 console.log('\n5. Resolución del profit\n');
 

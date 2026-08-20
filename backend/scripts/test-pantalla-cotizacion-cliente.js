@@ -317,6 +317,70 @@ async function main() {
   check('las etiquetas de las opciones NO van en mayúscula sostenida',
     await page.$eval('label:has(#ex_ddp)', (e) => getComputedStyle(e).textTransform === 'none'));
 
+  // ── 7. Títulos abreviados, panel de compra y cartel de +50 kg ─────────────────────
+  /* Los tres pedidos de la oficina del 20/08/2026. El del panel de compra es el mismo
+     riesgo que el profit: son NUESTROS numeros de costo, asi que tiene que vivir FUERA de
+     la tarjeta — si entrara adentro, una captura de la tarjeta se los manda al cliente. */
+  console.log('\n7. Títulos abreviados, panel de compra y cartel de +50 kg\n');
+
+  // Las secciones anteriores dejaron un solo courier elegido: para mirar los tres títulos
+  // hay que volver a cotizar con los tres.
+  await page.selectOption('#couriers', 'ambos');
+  await page.click('.btn-calc');
+  await page.waitForSelector('.result-card');
+  await esperar(1200);
+
+  const titulos = await page.$$eval('.result-courier', (e) => e.map((x) => x.textContent.trim()));
+  check('el servicio se muestra abreviado y no con el nombre largo',
+    titulos.some((t) => /UPS W\.E/.test(t)) && !titulos.some((t) => /Worldwide Expedited/.test(t)),
+    titulos.join(' | '));
+  check('el Saver también', titulos.some((t) => /UPS W\.S/.test(t)), titulos.join(' | '));
+  check('y DHL queda solo como "DHL"',
+    titulos.some((t) => /^DHL/.test(t)) && !titulos.some((t) => /DHL Express Worldwide/.test(t)),
+    titulos.join(' | '));
+
+  const panel = await page.$$('.panel-compra');
+  check('hay un panel de "nuestra compra" por cotización', panel.length >= 1, `hay ${panel.length}`);
+  check('🔴 el panel de compra vive FUERA de la tarjeta (si no, una captura le manda el costo al cliente)',
+    await page.$$eval('.result-card .panel-compra', (e) => e.length === 0));
+  const textoPanel = await page.$eval('.panel-compra', (e) => e.textContent);
+  check('el panel muestra el costo y la ganancia',
+    /Costo total/i.test(textoPanel) && /Ganancia/i.test(textoPanel), textoPanel.slice(0, 90));
+  check('y aclara que es solo para la oficina', /solo oficina/i.test(textoPanel));
+
+  // El costo del panel tiene que ser MENOR que lo que se le cobra al cliente.
+  const nums = await page.$eval('.res-fila', (fila) => {
+    const total = fila.querySelector('.result-total').textContent.replace(/[^\d.]/g, '');
+    const filas = [...fila.querySelectorAll('.panel-compra .pc-row')].map((r) => r.textContent);
+    const costo = (filas.find((t) => /Costo total/i.test(t)) || '').replace(/[^\d.]/g, '');
+    return { total: Number(total), costo: Number(costo) };
+  });
+  check('el costo es menor que el precio de venta', nums.costo > 0 && nums.costo < nums.total,
+    `costo ${nums.costo} · venta ${nums.total}`);
+
+  // El cartel de +50 kg: solo importación, solo DHL, solo arriba de 50 kg.
+  await page.selectOption('#tipo', 'import');
+  await page.selectOption('#couriers', 'dhl');
+  await page.fill('.bulto-row .b-peso', '60');
+  await page.click('.btn-calc');
+  await page.waitForSelector('.result-card');
+  await esperar(1200);
+  check('en una impo DHL de más de 50 kg aparece el cartel "Tarifa +50Kg"',
+    (await page.$$('.badge-50')).length === 1);
+
+  await page.fill('.bulto-row .b-peso', '10');
+  await page.click('.btn-calc');
+  await esperar(1200);
+  check('y NO aparece si el envío pesa menos de 50 kg',
+    (await page.$$('.badge-50')).length === 0);
+
+  await page.selectOption('#tipo', 'export');
+  await page.fill('.bulto-row .b-peso', '60');
+  await page.click('.btn-calc');
+  await esperar(1200);
+  check('tampoco aparece en una exportación de 60 kg (es solo para impo)',
+    (await page.$$('.badge-50')).length === 0);
+
   await browser.close();
   matarSrv();
   // El formato lo lee verificar.js para sumar las tandas: no cambiarlo.

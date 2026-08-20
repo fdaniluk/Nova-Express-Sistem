@@ -18,6 +18,24 @@ function pesoVolumetricoBulto(largo, ancho, alto) {
   return (l * a * h) / 5000;
 }
 
+// Redondeo del peso facturable: MEDIO KILO PARA ARRIBA, POR BULTO.
+//
+// ⚠️ CAMBIÓ EL 20/08/2026 Y MUEVE PRECIOS. Hasta esa fecha se sumaban los pesos crudos de
+// cada bulto y se redondeaba el TOTAL. Ahora se redondea CADA BULTO y después se suman,
+// que da igual o más: tres cajas de 4,2 / 4,3 / 4,4 kg pasan de 13 a 13,5 kg.
+//
+// El motivo NO es encarecer: es que los couriers nos están facturando así. Lo verificó la
+// oficina contra las facturas que venimos recibiendo ("últimamente nos lo están cobrando
+// redondeado por bulto"). Con el criterio viejo cotizábamos por debajo de lo que después
+// nos cobraban, y la diferencia salía de nuestro margen.
+//
+// Los envíos YA CARGADOS no se tocan: su costo quedó congelado al alta. Ojo con eso — si a
+// uno viejo se le edita el peso o se le da "Recalcular" en Salidas, ahí sí se recalcula con
+// el criterio nuevo, porque el sistema tiene una sola regla vigente y no guarda cuál se usó.
+function redondearBulto(kg) {
+  return Math.ceil((Number(kg) || 0) * 2) / 2;
+}
+
 function calcularPesos(pesoReal, bultos = [], dims = {}) {
   const real = Number(pesoReal) || 0;
   let volTotal = 0;
@@ -27,14 +45,14 @@ function calcularPesos(pesoReal, bultos = [], dims = {}) {
       const vol = pesoVolumetricoBulto(b.largo, b.ancho, b.alto);
       const pr  = Number(b.peso_real) || 0;
       volTotal += vol;
-      pfTotal  += Math.max(pr, vol);
+      pfTotal  += redondearBulto(Math.max(pr, vol));
     }
   } else {
     const vol = (dims.largo && dims.ancho && dims.alto)
       ? pesoVolumetricoBulto(dims.largo, dims.ancho, dims.alto)
       : 0;
     volTotal = vol;
-    pfTotal  = Math.max(real, vol);
+    pfTotal  = redondearBulto(Math.max(real, vol));
   }
   const pesoVolumetrico = Math.round(volTotal * 1000) / 1000;
   const pesoFacturable  = Math.round(pfTotal * 1000) / 1000;
@@ -306,6 +324,7 @@ function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zo
 }
 
 module.exports = {
+  redondearBulto,
   canonizarPais,
   pesoVolumetricoBulto,
   calcularPesos,
