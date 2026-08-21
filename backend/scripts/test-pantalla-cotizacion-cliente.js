@@ -381,6 +381,19 @@ async function main() {
   check('tampoco aparece en una exportación de 60 kg (es solo para impo)',
     (await page.$$('.badge-50')).length === 0);
 
+  /* ── El contacto de la franja del pie ──────────────────────────────────────────
+     El canvas no se puede leer sin OCR, así que el control es sobre el código que lo
+     dibuja. Al cliente le tiene que quedar el WhatsApp, no un mail: la oficina atiende
+     por WhatsApp y una cotización que ofrece un mail manda al cliente a un buzón que
+     nadie mira. Si alguien vuelve a poner un mail acá, esto se pone rojo. */
+  const src = fs.readFileSync(
+    path.join(__dirname, '..', '..', 'frontend', 'pages', 'cotizador.html'), 'utf8');
+  const franja = src.slice(src.indexOf('FRANJA DEL PIE'), src.indexOf('Filete de 1 px'));
+  check('la franja del pie lleva el WhatsApp de Nova',
+    franja.includes('+54 9 11 6500-2047'));
+  check('y NO lleva ningún mail', !/@[\w.-]+\.\w+/.test(franja),
+    (franja.match(/@[\w.-]+\.\w+/) || [''])[0]);
+
   await browser.close();
   matarSrv();
   // El formato lo lee verificar.js para sumar las tandas: no cambiarlo.
