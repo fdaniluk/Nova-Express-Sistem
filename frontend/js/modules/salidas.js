@@ -27,7 +27,6 @@
   let ddTempSelected = new Set();
 
   // caché de resultados de tracking (por sesión)
-  const trackingCache = {};
 
   // Clientes para el select del modal de edición. Se cargan una vez en init y se
   // reusan cada vez que se abre el modal (para poder preseleccionar el del envío).
@@ -1487,84 +1486,23 @@
   }
 
   // ── UPS Tracking ────────────────────────────────────────────────────────────
+  // El camioncito lleva DERECHO a la página de UPS (pedido de la oficina, 24/08/2026).
+  // Antes abría un recuadro con lo que devuelve la API de UPS, pero la página es más
+  // completa y más fácil de leer, así que el recuadro se retiró. El endpoint
+  // /api/tracking/ups sigue existiendo por si otra pantalla lo necesita.
   function trackBtnHtml(guia) {
-    return `<button class="track-btn" data-guia="${esc(guia)}" title="Consultar tracking UPS">🚚</button>`;
+    return `<button class="track-btn" data-guia="${esc(guia)}" title="Ver el tracking en la página de UPS">🚚</button>`;
   }
 
   function bindTracking() {
-    const popup = document.createElement('div');
-    popup.id = 'tracking-popup';
-    popup.className = 'tracking-popup';
-    popup.style.display = 'none';
-    document.body.appendChild(popup);
-
-    document.getElementById('salidas-body').addEventListener('click', async (e) => {
+    document.getElementById('salidas-body').addEventListener('click', (e) => {
       const btn = e.target.closest('.track-btn');
       if (!btn) return;
       e.stopPropagation();
-      await showTrackingPopup(btn, btn.dataset.guia, popup);
+      // loc=es_AR para que UPS la muestre en castellano.
+      const url = `https://www.ups.com/track?loc=es_AR&tracknum=${encodeURIComponent(btn.dataset.guia)}`;
+      window.open(url, '_blank', 'noopener');
     });
-
-    document.addEventListener('click', (e) => {
-      if (!popup.contains(e.target) && !e.target.classList.contains('track-btn')) {
-        popup.style.display = 'none';
-      }
-    });
-  }
-
-  async function showTrackingPopup(btn, guia, popup) {
-    const rect = btn.getBoundingClientRect();
-    popup.style.display = 'block';
-    popup.style.top = `${rect.bottom + window.scrollY + 4}px`;
-    popup.style.left = `${rect.left + window.scrollX}px`;
-    popup.innerHTML = '<div class="tracking-loading">Consultando UPS…</div>';
-
-    if (trackingCache[guia]) {
-      renderTrackingPopup(popup, trackingCache[guia]);
-      return;
-    }
-
-    try {
-      const data = await NovaAPI.tracking.ups(guia);
-      trackingCache[guia] = { ok: true, data };
-      renderTrackingPopup(popup, trackingCache[guia]);
-    } catch (err) {
-      trackingCache[guia] = { ok: false, error: err.message };
-      renderTrackingPopup(popup, trackingCache[guia]);
-    }
-  }
-
-  function renderTrackingPopup(popup, cached) {
-    if (!cached.ok) {
-      popup.innerHTML = `<div class="tracking-error">Error: ${esc(cached.error)}</div>`;
-      return;
-    }
-    const d = cached.data;
-    const timeline = (d.movimientos && d.movimientos.length)
-      ? `
-      <div class="tracking-row"><span class="tracking-label">Historial</span></div>
-      <div class="tracking-timeline">
-        ${d.movimientos.map((m) => `
-          <div class="tracking-event">
-            <span class="tracking-event-when">${m.fecha ? NovaUtils.formatDate(m.fecha) : ''}${m.hora ? ` ${esc(m.hora)}` : ''}</span>
-            <span class="tracking-event-what">${esc(m.estado || '')}${m.ubicacion ? `<br><span class="tracking-event-loc">${esc(m.ubicacion)}</span>` : ''}</span>
-          </div>
-        `).join('')}
-      </div>`
-      : '';
-
-    popup.innerHTML = `
-      <div class="tracking-header"><span class="badge badge-ups">UPS</span> ${esc(d.guia)}</div>
-      <div class="tracking-row"><span class="tracking-label">Estado</span><span>${esc(d.estado)}</span></div>
-      ${d.ubicacion ? `<div class="tracking-row"><span class="tracking-label">Ubicación</span><span>${esc(d.ubicacion)}</span></div>` : ''}
-      ${d.fecha ? `<div class="tracking-row"><span class="tracking-label">Fecha</span><span>${NovaUtils.formatDate(d.fecha)}</span></div>` : ''}
-      ${d.fechaEstimada ? `<div class="tracking-row"><span class="tracking-label">Entrega estimada</span><span>${NovaUtils.formatDate(d.fechaEstimada)}</span></div>` : ''}
-      ${d.fechaEntrega ? `<div class="tracking-row"><span class="tracking-label">Entregado el</span><span>${NovaUtils.formatDate(d.fechaEntrega)}</span></div>` : ''}
-      ${d.detalleEntrega ? `<div class="tracking-row"><span class="tracking-label">Entregado a</span><span>${esc(d.detalleEntrega)}</span></div>` : ''}
-      ${d.servicio ? `<div class="tracking-row"><span class="tracking-label">Servicio</span><span>${esc(d.servicio)}</span></div>` : ''}
-      ${d.peso ? `<div class="tracking-row"><span class="tracking-label">Peso UPS</span><span>${esc(d.peso)}</span></div>` : ''}
-      ${timeline}
-    `;
   }
 
   // ── Helpers de formato ───────────────────────────────────────────────────────

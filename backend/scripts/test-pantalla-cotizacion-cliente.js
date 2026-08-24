@@ -381,6 +381,32 @@ async function main() {
   check('tampoco aparece en una exportación de 60 kg (es solo para impo)',
     (await page.$$('.badge-50')).length === 0);
 
+  /* ── El FOB en la tarjeta ──────────────────────────────────────────────────────
+     Pedido de la oficina (24/08): el valor DECLARADO tiene que ser uno de los datos de
+     la cotizacion que ve el cliente. Que quede escrito evita el "yo nunca dije ese
+     valor" cuando llegan los impuestos de destino. Con valor 0 no va: "FOB USD 0.00"
+     pareceria un envio declarado en cero. */
+  console.log('\n7. El FOB (valor declarado) en la tarjeta\n');
+
+  await page.fill('#valor', '500');
+  await page.click('.btn-calc');
+  await esperar(1200);
+  let metaFob = await page.$eval('.result-meta', (e) => e.textContent);
+  check('con valor declarado, la tarjeta muestra el FOB', /FOB USD 500\.00/.test(metaFob),
+    metaFob.slice(-70));
+  /* La imagen sale del mismo objeto: el tramo del FOB tiene que estar en metaTramos. */
+  const tramos = await page.evaluate(() => {
+    const est = window.__cot;
+    return est && est.valor;
+  });
+  check('y la imagen lo dibuja del MISMO objeto (est.valor)', tramos === 500, String(tramos));
+
+  await page.fill('#valor', '0');
+  await page.click('.btn-calc');
+  await esperar(1200);
+  metaFob = await page.$eval('.result-meta', (e) => e.textContent);
+  check('con valor 0 el FOB no aparece', !/FOB/.test(metaFob), metaFob.slice(-60));
+
   /* ── El contacto de la franja del pie ──────────────────────────────────────────
      El canvas no se puede leer sin OCR, así que el control es sobre el código que lo
      dibuja. Al cliente le tiene que quedar el WhatsApp, no un mail: la oficina atiende
