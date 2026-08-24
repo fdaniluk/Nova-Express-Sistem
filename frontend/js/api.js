@@ -251,4 +251,31 @@ api.salud = {
   resumen: () => api.get('/salud/resumen'),
 };
 
+// Cotizaciones guardadas y el precio acordado (caso Asaplast). El cotizador no
+// persistia nada: sin esto, el precio que el cliente ACEPTO no existia en ningun lado y
+// el de Salidas —recalculado con las medidas reales— era el unico que quedaba.
+api.cotizaciones = {
+  listar: (params) => {
+    // OJO: URLSearchParams convierte undefined en el STRING "undefined". Si se le pasa
+    // {estado: undefined} el servidor filtra por estado='undefined' y devuelve cero filas
+    // sin ningun error a la vista. Se limpian los vacios antes de armar la query.
+    const limpio = {};
+    Object.entries(params || {}).forEach(([k, v]) => {
+      if (v !== undefined && v !== null && v !== '') limpio[k] = v;
+    });
+    const q = new URLSearchParams(limpio).toString();
+    return api.get(`/cotizaciones${q ? `?${q}` : ''}`);
+  },
+  obtener: (id) => api.get(`/cotizaciones/${id}`),
+  // Las aceptadas de un cliente que todavia no se usaron en ningun envio.
+  aceptadasDe: (clienteId) => api.get(`/cotizaciones/cliente/${clienteId}/aceptadas`),
+  crear: (data) => api.post('/cotizaciones', data),
+  // `servicio` es cual de las opciones eligio el cliente. El TOTAL no viaja: lo saca el
+  // servidor de la opcion guardada, asi el precio acordado no se puede tipear.
+  aceptar: (id, servicio) => api.post(`/cotizaciones/${id}/aceptar`, { servicio }),
+  cambiarEstado: (id, estado) => api.patch(`/cotizaciones/${id}/estado`, { estado }),
+  editar: (id, data) => api.patch(`/cotizaciones/${id}`, data),
+  eliminar: (id) => api.delete(`/cotizaciones/${id}`),
+};
+
 window.NovaAPI = api;

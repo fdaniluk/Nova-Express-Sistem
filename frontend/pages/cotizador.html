@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Cotizador — Nova Express</title>
-<link rel="stylesheet" href="../css/main.css?v=20260820h">
+<link rel="stylesheet" href="../css/main.css?v=20260824a">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 :root{--cot-bg:#f5f4f0;--cot-surface:#ffffff;--cot-border:#e2e0d8;--cot-border-strong:#c8c5bb;--cot-text:#1a1916;--cot-text-secondary:#6b6860;--cot-text-tertiary:#9c9a94;--cot-accent-dhl:#d4a017;--cot-accent-ups:#2d5fa6;--cot-accent-dhl-bg:#fdf8ec;--cot-accent-ups-bg:#eef3fb;--cot-success:#2d6a4f;--cot-success-bg:#edf7f2;--cot-danger:#c0392b;--cot-radius:10px;--cot-radius-sm:6px;--cot-shadow:0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04);--cot-shadow-md:0 4px 12px rgba(0,0,0,0.08),0 2px 4px rgba(0,0,0,0.05)}
@@ -147,6 +147,34 @@
 .tira-interna .ti-tag{font-family:'DM Sans',sans-serif;font-weight:600;font-size:10px;text-transform:uppercase;
   letter-spacing:.08em;background:#e8c96a;color:#4a3d10;padding:2px 7px;border-radius:99px}
 .tira-interna .ti-item b{color:#4a3d10}
+/* Barra de guardado y lista de cotizaciones guardadas (caso Asaplast). */
+.barra-guardar{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:10px 0 4px;padding:8px 12px;
+  background:#f2f6f4;border:1px solid #cfe0d8;border-radius:var(--cot-radius-sm)}
+.btn-guardar-ctz{background:#2d6a4f;border:none;border-radius:var(--cot-radius-sm);color:#fff;cursor:pointer;
+  padding:8px 16px;font-size:13px;font-family:inherit;font-weight:600;transition:all .12s}
+.btn-guardar-ctz:hover{background:#245741}
+.btn-guardar-ctz:disabled{opacity:.55;cursor:default}
+.bg-hint{font-size:11px;color:var(--cot-text-tertiary)}
+.bg-msg{font-size:12px;font-weight:600}
+.bg-msg.ok{color:#2d6a4f}.bg-msg.err{color:var(--cot-danger)}
+.ctz-tabla{width:100%;border-collapse:collapse;font-size:12.5px}
+.ctz-tabla th{text-align:left;font-family:'DM Sans',sans-serif;font-size:10px;text-transform:uppercase;
+  letter-spacing:.6px;color:var(--cot-text-tertiary);padding:6px 8px;border-bottom:1px solid var(--cot-border)}
+.ctz-tabla td{padding:7px 8px;border-bottom:1px solid var(--cot-border);vertical-align:middle}
+.ctz-tabla tr:last-child td{border-bottom:none}
+.ctz-num{font-family:'DM Mono',monospace;font-weight:600}
+.ctz-chip{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+  padding:2px 7px;border-radius:20px}
+.ctz-chip.emitida{background:#eef1f6;color:#4a5568}
+.ctz-chip.aceptada{background:#dff3e8;color:#1f5136}
+.ctz-chip.rechazada{background:#fdeceb;color:#8c2f26}
+.ctz-chip.vencida{background:#faf0dc;color:#7a5a12}
+.ctz-acciones{display:flex;gap:6px;flex-wrap:wrap}
+.ctz-acciones button,.ctz-acciones select{font-family:inherit;font-size:11.5px;padding:4px 8px;cursor:pointer;
+  border:1px solid var(--cot-border);border-radius:var(--cot-radius-sm);background:var(--cot-surface);
+  color:var(--cot-text-secondary)}
+.ctz-acciones button:hover{border-color:var(--cot-accent-ups);color:var(--cot-accent-ups)}
+.ctz-vacio{padding:14px 4px;font-size:12.5px;color:var(--cot-text-tertiary)}
 .btn-copiar{font-family:'DM Sans',sans-serif;font-size:11.5px;font-weight:500;white-space:nowrap;
   padding:6px 11px;border:1px solid var(--cot-border-strong);border-radius:var(--cot-radius-sm);
   background:var(--cot-surface);color:var(--cot-text-secondary);cursor:pointer;transition:all .15s}
@@ -373,16 +401,41 @@
         <div id="error-msg" class="cot-error-msg"></div>
         <button class="btn-calc" onclick="cotizar()">Calcular cotización</button>
         <div id="tira-interna" class="tira-interna" style="display:none"></div>
+        <div id="barra-guardar" class="barra-guardar" style="display:none">
+          <button class="btn-guardar-ctz" onclick="guardarCotizacion(this)">Guardar cotización</button>
+          <span class="bg-hint">Queda registrada con número propio. Cuando el cliente confirma, se marca aceptada
+            y ese pasa a ser el precio del envío aunque la caja mida otra cosa.</span>
+          <span id="bg-msg" class="bg-msg"></span>
+        </div>
         <div class="cot-results" id="results"></div>
+
+        <div class="cot-card" style="margin-top:22px">
+          <div class="cot-card-title" style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+            <span>Cotizaciones guardadas</span>
+            <span style="display:flex;gap:6px;align-items:center;text-transform:none;letter-spacing:0">
+              <select id="ctz-filtro-estado" onchange="cargarCotizaciones()"
+                      style="font-family:inherit;font-size:11.5px;padding:4px 8px;border:1px solid var(--cot-border);border-radius:var(--cot-radius-sm)">
+                <option value="">Todas</option>
+                <option value="emitida">Emitidas</option>
+                <option value="aceptada">Aceptadas</option>
+                <option value="rechazada">Rechazadas</option>
+                <option value="vencida">Vencidas</option>
+              </select>
+              <button onclick="cargarCotizaciones()"
+                      style="font-family:inherit;font-size:11.5px;padding:4px 10px;cursor:pointer;border:1px solid var(--cot-border);border-radius:var(--cot-radius-sm);background:var(--cot-surface)">Actualizar</button>
+            </span>
+          </div>
+          <div id="ctz-lista"><div class="ctz-vacio">Cargando…</div></div>
+        </div>
 
       </div>
     </div>
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260820h"></script>
-<script src="/js/api.js?v=20260820h"></script>
-<script src="/shared/cotizador/cotizador-core.js?v=20260820h"></script>
+<script src="/js/auth-guard.js?v=20260824a"></script>
+<script src="/js/api.js?v=20260824a"></script>
+<script src="/shared/cotizador/cotizador-core.js?v=20260824a"></script>
 <script>
 let bultoId=0;
 /* agregarBulto(datos, despuesDeInfo)
@@ -511,6 +564,136 @@ return`<div class="res-fila"><div class="result-card"><div class="result-header 
   /* Lo que necesita el dibujante de la imagen. Se guarda aparte del DOM porque la imagen
      NO es una captura de la tarjeta: se dibuja de cero en un canvas. */
   window.__cot={results,bultosProc,tipo,arancel,valor};
+  /* La cotizacion se puede guardar recien cuando hay resultados: antes no hay nada que
+     congelar. Se limpia el cartel de la vez anterior para que no quede diciendo
+     "Guardada #12" al lado de numeros nuevos. */
+  const barra=document.getElementById('barra-guardar');
+  if(barra){
+    barra.style.display=results.length?'flex':'none';
+    const m=document.getElementById('bg-msg'); if(m){m.textContent='';m.className='bg-msg';}
+    const b=barra.querySelector('.btn-guardar-ctz'); if(b){b.disabled=false;b.textContent='Guardar cotización';}
+  }
+}
+
+/* ═══ COTIZACIONES GUARDADAS Y EL PRECIO ACORDADO ══════════════════════════════════
+   El caso Asaplast: se cotizo una caja por 14 kg, el cliente acepto y pago ESE precio, la
+   caja midio 10 y el cotizador de Salidas recalculo y guardo el de 10. El envio quedo bien
+   cargado —las medidas reales son las que factura el courier— pero la plata registrada
+   dejo de ser la cobrada. Guardar la cotizacion es lo que le da al envio un segundo
+   numero: el que el cliente acepto.
+
+   Se guarda TODO lo que hace falta para reconstruirla (fuel usado y de donde salio,
+   profit aplicado, precio por kilo y modo del cliente, zona, bultos con sus medidas),
+   porque el fuel cambio cinco veces en dos meses: sin la foto, dentro de un mes nadie
+   puede explicar por que esa cotizacion decia ese numero.                              */
+
+function _ctzAviso(texto,clase){
+  const m=document.getElementById('bg-msg');
+  if(m){m.textContent=texto;m.className='bg-msg'+(clase?' '+clase:'');}
+}
+
+async function guardarCotizacion(btn){
+  const c=window.__cot;
+  if(!c||!c.results||!c.results.length){_ctzAviso('Calculá una cotización primero.','err');return;}
+  const sel=document.getElementById('cliente');
+  const clienteId=sel.value||null;
+  let clienteNombre=clienteId?sel.options[sel.selectedIndex].textContent.trim():'';
+  if(!clienteId){
+    /* Sin cliente elegido igual se puede guardar: la oficina cotiza a gente que todavia
+       no esta dada de alta. Se pide el nombre para que la cotizacion no quede huerfana. */
+    clienteNombre=(prompt('¿Para quién es esta cotización? (nombre del cliente)')||'').trim();
+    if(!clienteNombre){_ctzAviso('Guardado cancelado.','err');return;}
+  }
+  const dias=parseInt(document.getElementById('pres_dias')?document.getElementById('pres_dias').value:15,10);
+  const cuerpo={
+    cliente_id:clienteId?Number(clienteId):null,
+    cliente_nombre:clienteNombre,
+    pais:document.getElementById('pais').value,
+    tipo_envio:c.tipo==='import'?'importacion':'exportacion',
+    contenido:document.getElementById('contenido').value,
+    zona:String(c.results[0].zona||''),
+    peso_facturable:c.results[0].pf,
+    cantidad_bultos:c.bultosProc.length,
+    valor_declarado:c.valor||0,
+    dias_validez:Number.isFinite(dias)&&dias>0?dias:15,
+    /* La foto de lo que se tipeo. */
+    entrada:{
+      bultos:c.bultosProc.map(b=>({pr:b.pr,l:b.l,a:b.a,al:b.al,pv:b.pv,pf:b.pf})),
+      ganancia_pct:parseFloat(document.getElementById('ganancia').value)||0,
+      fuel_fuente:document.getElementById('fuel_fuente').value,
+      arancel:c.arancel,
+      residencial:document.getElementById('ex_residencial').checked,
+      entrega:document.getElementById('ex_entrega').value,
+      ddp:document.getElementById('ex_ddp').checked,
+      proteccion_doc:document.getElementById('ex_proteccion_doc').checked,
+    },
+    /* Cada tarjeta tal cual se le mostro al cliente. `total` es el precio que se le paso:
+       de aca sale despues el precio acordado, y por eso el servidor no acepta que se lo
+       manden a mano al aceptar. */
+    opciones:c.results.map(r=>({
+      servicio:r.courier, total:r.total, zona:r.zona, pf:r.pf,
+      flete:r.conGan, surge:r.surgeAmt, subtotal:r.subtotalConSurge,
+      fuel_monto:r.fuelMonto, fuel_pct:r.fuelPctUsado,
+      extras:r.extraRows||[],
+      costo:r.costo,
+      modo_venta:r.modoVenta, precio_kg_venta:r.precioKgVenta, pf_venta:r.pfVenta,
+    })),
+  };
+  btn.disabled=true; btn.textContent='Guardando…';
+  try{
+    const q=await NovaAPI.cotizaciones.crear(cuerpo);
+    _ctzAviso('Guardada como CTZ-'+q.numero+' · vence el '+(q.vence_en||'—'),'ok');
+    btn.textContent='Guardada';
+    await cargarCotizaciones();
+  }catch(e){
+    _ctzAviso('No se pudo guardar: '+(e.message||e),'err');
+    btn.disabled=false; btn.textContent='Guardar cotización';
+  }
+}
+
+function _ctzFmt(n){return n==null?'—':'USD '+Number(n).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});}
+
+async function cargarCotizaciones(){
+  const cont=document.getElementById('ctz-lista');
+  if(!cont)return;
+  const estado=document.getElementById('ctz-filtro-estado').value;
+  try{
+    const filas=await NovaAPI.cotizaciones.listar({estado:estado||undefined,limite:40});
+    if(!filas.length){cont.innerHTML='<div class="ctz-vacio">Todavía no hay cotizaciones guardadas.</div>';return;}
+    cont.innerHTML='<table class="ctz-tabla"><thead><tr>'
+      +'<th>N°</th><th>Cliente</th><th>Destino</th><th>Peso fact.</th><th>Opciones</th>'
+      +'<th>Acordado</th><th>Estado</th><th>Vence</th><th></th></tr></thead><tbody>'
+      +filas.map(f=>{
+        const ops=(f.opciones_resumen||[]);
+        const acciones=f.estado==='aceptada'
+          ? `<button onclick="ctzEstado(${f.id},'emitida')">Desmarcar</button>`
+          : ops.map(o=>`<button onclick="ctzAceptar(${f.id},'${o.servicio}')" title="El cliente aceptó ${o.servicio}">Aceptar ${o.servicio}</button>`).join('')
+            +`<button onclick="ctzEstado(${f.id},'rechazada')">Rechazar</button>`;
+        return `<tr>
+          <td class="ctz-num">CTZ-${f.numero}</td>
+          <td>${f.cliente_nombre_actual||'—'}</td>
+          <td>${f.pais}<br><span style="font-size:11px;color:var(--cot-text-tertiary)">${f.tipo_envio==='importacion'?'Importación':'Exportación'} · Zona ${f.zona||'—'}</span></td>
+          <td>${Number(f.peso_facturable).toFixed(1)} kg</td>
+          <td style="font-size:11.5px">${ops.map(o=>`${o.servicio}: ${_ctzFmt(o.total)}`).join('<br>')||'—'}</td>
+          <td>${f.estado==='aceptada'?`<b>${_ctzFmt(f.total_acordado)}</b><br><span style="font-size:11px;color:var(--cot-text-tertiary)">${f.servicio_aceptado||''}</span>`:'—'}</td>
+          <td><span class="ctz-chip ${f.estado}">${f.estado}</span></td>
+          <td style="font-size:11.5px">${f.vence_en||'—'}</td>
+          <td><div class="ctz-acciones">${acciones}</div></td>
+        </tr>`;
+      }).join('')
+      +'</tbody></table>';
+  }catch(e){
+    cont.innerHTML='<div class="ctz-vacio">No se pudieron cargar: '+(e.message||e)+'</div>';
+  }
+}
+
+async function ctzAceptar(id,servicio){
+  try{ await NovaAPI.cotizaciones.aceptar(id,servicio); await cargarCotizaciones(); }
+  catch(e){ alert('No se pudo aceptar: '+(e.message||e)); }
+}
+async function ctzEstado(id,estado){
+  try{ await NovaAPI.cotizaciones.cambiarEstado(id,estado); await cargarCotizaciones(); }
+  catch(e){ alert('No se pudo cambiar el estado: '+(e.message||e)); }
 }
 const paises=[...new Set([...Object.keys(ZONAS_DHL),...Object.keys(ZONAS_UPS),...Object.keys(ZONAS_UPS_I)])].sort((a,b)=>a.localeCompare(b,'es'));
 document.getElementById('pais').innerHTML='<option value="">Seleccionar país...</option>'+paises.map(p=>`<option value="${p}">${p}</option>`).join('');
@@ -565,6 +748,7 @@ document.getElementById('cliente').addEventListener('change',function(){const ha
   couriers.addEventListener('change', () => { if (couriers.value !== 'dhl') ultimoNoDoc = couriers.value; });
   aplicar();
 })();
+cargarCotizaciones();
 (async function cargarClientes(){try{const clientes=await NovaAPI.clientes.listar();const sel=document.getElementById('cliente');clientes.forEach(c=>{const opt=document.createElement('option');opt.value=c.id;opt.textContent=c.nombre_nova||c.nombre||('Cliente '+c.id);sel.appendChild(opt);});}catch(e){const hint=document.getElementById('cliente-hint');hint.textContent='No se pudieron cargar los clientes: '+(e.message||e)+' — podés cotizar con ganancia manual.';hint.className='cot-hint warn';}})();
 
 /* ═══════════════════════════════════════════════════════════════════════════════════

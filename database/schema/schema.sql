@@ -186,6 +186,19 @@ CREATE TABLE IF NOT EXISTS envios (
   fecha_facturado     TEXT,
   estado_revision     TEXT,
   servicio_ups        TEXT,
+  -- EL PRECIO ACORDADO (caso Asaplast). Ver la tabla `cotizaciones`.
+  -- cotizacion_id      la cotización que el cliente aceptó, si la hubo
+  -- precio_acordado    lo que el cliente aceptó pagar, congelado de esa cotización
+  -- precio_recalculado lo que da el cotizador con las medidas REALES de la caja
+  -- decision_precio    'acordado' | 'recalculado' — qué eligió la oficina cuando no
+  --                    coincidieron. NULL = no hubo cotización previa, o dieron igual.
+  -- Todo NULL en los envíos que ya existen: ninguno cambia de precio por esta migración.
+  cotizacion_id       INTEGER,
+  precio_acordado     REAL,
+  precio_recalculado  REAL,
+  decision_precio     TEXT,
+  decision_usuario    TEXT,
+  decision_en         TEXT,
   FOREIGN KEY (cliente_id) REFERENCES clientes(id),
   FOREIGN KEY (liquidacion_id) REFERENCES liquidaciones(id)
 );
@@ -520,3 +533,76 @@ CREATE TABLE IF NOT EXISTS tarifario_emitidos (
 );
 
 CREATE INDEX IF NOT EXISTS idx_tarifario_emitidos_cliente ON tarifario_emitidos(cliente_id, creado_en);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- COTIZACIONES GUARDADAS Y EL PRECIO ACORDADO
+--
+-- El caso que le dio origen (Asaplast, 30/07/2026): se cotizó una caja por 14 kg
+-- facturables, el cliente aceptó y pagó ESE precio, la caja llegó y midió 10, y el
+-- cotizador automático de Salidas recalculó y guardó el precio de 10. El envío quedó
+-- bien cargado (las medidas reales son las que factura el courier) pero la plata
+-- registrada dejó de ser la plata cobrada.
+--
+-- La raíz: el envío tiene UN número donde tiene que haber DOS. El precio ACORDADO sale
+-- de la cotización que el cliente aceptó; el RECALCULADO sale de las medidas reales.
+-- Esta tabla es la que guarda el primero, que hasta hoy no existía en ningún lado.
+--
+-- `entrada` y `opciones` son JSON a propósito: la cotización tiene que poder
+-- reconstruirse tal cual se emitió aunque después cambien el fuel, el profit del
+-- cliente o el tarifario. Las columnas sueltas son solo las que se filtran o se
+-- muestran en listas.
+CREATE TABLE IF NOT EXISTS cotizaciones (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  numero            INTEGER NOT NULL UNIQUE,
+  cliente_id        INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
+  -- Para cotizar a alguien que todavía no es cliente. Si hay cliente_id, este campo
+  -- guarda igual el nombre que se usó, así la cotización no cambia si mañana le
+  -- renombran el cliente.
+  cliente_nombre    TEXT,
+  estado            TEXT NOT NULL DEFAULT 'emitida'
+                      CHECK (estado IN ('emitida','aceptada','rechazada','vencida')),
+  pais              TEXT NOT NULL,
+  tipo_envio        TEXT NOT NULL CHECK (tipo_envio IN ('exportacion','importacion')),
+  contenido         TEXT,
+  zona              TEXT,
+  peso_facturable   REAL NOT NULL DEFAULT 0,
+  cantidad_bultos   INTEGER NOT NULL DEFAULT 1,
+  valor_declarado   REAL NOT NULL DEFAULT 0,
+  -- Todo lo que se tipeó (bultos con sus medidas, extras, fuel elegido, ganancia).
+  entrada           TEXT NOT NULL,
+  -- Las tarjetas tal cual se le mostraron al cliente, una por servicio.
+  opciones          TEXT NOT NULL,
+  -- Se llenan al ACEPTAR: qué opción eligió el cliente y por cuánta plata.
+  servicio_aceptado TEXT,
+  total_acordado    REAL,
+  vence_en          TEXT,
+  usuario_id        INTEGER REFERENCES usuarios(id),
+  usuario           TEXT,
+  aceptada_por_id   INTEGER REFERENCES usuarios(id),
+  aceptada_por      TEXT,
+  aceptada_en       TEXT,
+  -- Envío al que terminó atada. NULL = todavía no llegó la caja.
+  envio_id          INTEGER REFERENCES envios(id) ON DELETE SET NULL,
+  notas             TEXT,
+  creado_en         TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  actualizado_en    TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_cotizaciones_cliente ON cotizaciones(cliente_id, estado, creado_en);
+CREATE INDEX IF NOT EXISTS idx_cotizaciones_estado  ON cotizaciones(estado, vence_en);
+CREATE INDEX IF NOT EXISTS idx_cotizaciones_envio   ON cotizaciones(envio_id);
+
+-- Una cotización aceptada SE PUEDE editar (el cliente negocia), pero no en silencio:
+-- cada cambio deja acá la foto de cómo estaba antes, con quién lo hizo.
+CREATE TABLE IF NOT EXISTS cotizacion_historial (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  cotizacion_id  INTEGER NOT NULL REFERENCES cotizaciones(id) ON DELETE CASCADE,
+  accion         TEXT NOT NULL,
+  antes          TEXT,
+  despues        TEXT,
+  usuario_id     INTEGER REFERENCES usuarios(id),
+  usuario        TEXT,
+  creado_en      TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_cotizacion_historial ON cotizacion_historial(cotizacion_id, creado_en);

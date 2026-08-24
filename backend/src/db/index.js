@@ -279,6 +279,15 @@ async function migrateEnvios() {
     ['fecha_facturado',  'TEXT'],
     ['estado_revision',  'TEXT'],
     ['servicio_ups',     'TEXT'],
+    // EL PRECIO ACORDADO (caso Asaplast). Ver la tabla `cotizaciones` y el comentario
+    // en schema.sql. Todas NULL en lo que ya está cargado: ningún envío existente
+    // cambia de precio al aplicar esta migración.
+    ['cotizacion_id',     'INTEGER'],
+    ['precio_acordado',   'REAL'],
+    ['precio_recalculado','REAL'],
+    ['decision_precio',   'TEXT'],
+    ['decision_usuario',  'TEXT'],
+    ['decision_en',       'TEXT'],
   ];
   for (const [col, def] of toAdd) {
     if (!cols.includes(col)) {
@@ -641,6 +650,61 @@ async function migrateTarifario() {
   await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_tarifario_emitidos_cliente ON tarifario_emitidos(cliente_id, creado_en)');
 }
 
+/* Cotizaciones guardadas y el precio acordado.
+   Ver el comentario largo en database/schema/schema.sql: nacen del caso Asaplast, donde
+   el precio que el cliente aceptó y el que el sistema recalculó con las medidas reales
+   dejaron de ser el mismo número. En bases que ya existen se crean vacías, así que
+   ningún envío cargado cambia de precio por esta migración. */
+async function migrateCotizaciones() {
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS cotizaciones (
+      id                INTEGER PRIMARY KEY AUTOINCREMENT,
+      numero            INTEGER NOT NULL UNIQUE,
+      cliente_id        INTEGER REFERENCES clientes(id) ON DELETE SET NULL,
+      cliente_nombre    TEXT,
+      estado            TEXT NOT NULL DEFAULT 'emitida'
+                          CHECK (estado IN ('emitida','aceptada','rechazada','vencida')),
+      pais              TEXT NOT NULL,
+      tipo_envio        TEXT NOT NULL CHECK (tipo_envio IN ('exportacion','importacion')),
+      contenido         TEXT,
+      zona              TEXT,
+      peso_facturable   REAL NOT NULL DEFAULT 0,
+      cantidad_bultos   INTEGER NOT NULL DEFAULT 1,
+      valor_declarado   REAL NOT NULL DEFAULT 0,
+      entrada           TEXT NOT NULL,
+      opciones          TEXT NOT NULL,
+      servicio_aceptado TEXT,
+      total_acordado    REAL,
+      vence_en          TEXT,
+      usuario_id        INTEGER REFERENCES usuarios(id),
+      usuario           TEXT,
+      aceptada_por_id   INTEGER REFERENCES usuarios(id),
+      aceptada_por      TEXT,
+      aceptada_en       TEXT,
+      envio_id          INTEGER REFERENCES envios(id) ON DELETE SET NULL,
+      notas             TEXT,
+      creado_en         TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      actualizado_en    TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    )
+  `);
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS cotizacion_historial (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      cotizacion_id  INTEGER NOT NULL REFERENCES cotizaciones(id) ON DELETE CASCADE,
+      accion         TEXT NOT NULL,
+      antes          TEXT,
+      despues        TEXT,
+      usuario_id     INTEGER REFERENCES usuarios(id),
+      usuario        TEXT,
+      creado_en      TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    )
+  `);
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cotizaciones_cliente ON cotizaciones(cliente_id, estado, creado_en)');
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cotizaciones_estado  ON cotizaciones(estado, vence_en)');
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cotizaciones_envio   ON cotizaciones(envio_id)');
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cotizacion_historial ON cotizacion_historial(cotizacion_id, creado_en)');
+}
+
 async function initSchema() {
   const schema = fs.readFileSync(config.schemaPath, 'utf8');
   await dbApi.exec(schema);
@@ -659,6 +723,7 @@ async function initSchema() {
   await migrateCierres();
   await migrateFuelNova();
   await migrateTarifario();
+  await migrateCotizaciones();
   await migrateIndices();
   await seedIfEmpty();
 }
