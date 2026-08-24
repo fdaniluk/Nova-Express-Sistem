@@ -20,6 +20,11 @@ app.use(cookieParser());
 app.use('/api', routes);
 
 const frontendPath = path.join(__dirname, '../../frontend');
+// La URL linda del link de cotizacion: /cotizar/CODIGO sirve la pagina publica y la
+// pagina saca el codigo de la URL. Va ANTES del static para que no busque un archivo.
+app.get('/cotizar/:codigo', (req, res) => {
+  res.sendFile(path.join(frontendPath, 'pages', 'cotizar-cliente.html'));
+});
 app.use(express.static(frontendPath));
 app.use('/shared', express.static(path.join(__dirname, '../../shared')));
 

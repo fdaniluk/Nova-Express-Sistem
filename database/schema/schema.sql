@@ -606,3 +606,47 @@ CREATE TABLE IF NOT EXISTS cotizacion_historial (
 );
 
 CREATE INDEX IF NOT EXISTS idx_cotizacion_historial ON cotizacion_historial(cotizacion_id, creado_en);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- LINKS DE COTIZACIÓN PARA CLIENTES (punto A de IDEAS-COTIZACIONES-Y-BOT.md)
+--
+-- El caso que le dio origen: "una señora me pide diez cotizaciones a cinco destinos
+-- diferentes... necesitaría algo que yo le paso con una tarifa ya precargada y que ella
+-- se vaya armando la cotización sola". Es la PRIMERA puerta sin contraseña del sistema,
+-- así que las reglas de seguridad viven acá y no en la pantalla:
+--
+--   · Es un LINK y no un archivo: el cálculo pasa en el servidor y el profit nunca viaja.
+--   · `codigo` es un token aleatorio largo, único por link. No hay ids adivinables.
+--   · El link solo cotiza. No lee la base, no lista clientes, no muestra costos.
+--   · Vence (`vence_en`), se da de baja (`activo`), y tiene tope de consultas por día.
+--
+-- Con cliente_id, cotiza con la tarifa DE ESE CLIENTE (su profit o su precio por kilo,
+-- resuelto por cotizacion.service como si cotizara la oficina). Sin cliente_id, usa el
+-- `profit_pct` fijado al armar el link (gente que todavía no es cliente).
+CREATE TABLE IF NOT EXISTS cotizador_links (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  codigo          TEXT NOT NULL UNIQUE,
+  cliente_id      INTEGER REFERENCES clientes(id) ON DELETE CASCADE,
+  -- Para el saludo de la página y para links sin cliente.
+  nombre          TEXT,
+  -- Qué servicios ofrece: 'ambos' | 'dhl' | 'ups' | 'ups_exp' | 'ups_sav'
+  couriers        TEXT NOT NULL DEFAULT 'ambos',
+  -- 1 = las tarjetas nombran el servicio ("UPS W.E"); 0 = "a secas", como el tarifario
+  -- sin nombrar: Felipe a veces manda una tarifa y despacha por el courier que le
+  -- conviene. Con 0, la MISMA regla del tarifario: los renglones tampoco pueden
+  -- nombrarlo ("Seguro DHL" abajo de un título genérico es nombrarlo igual).
+  nombrar         INTEGER NOT NULL DEFAULT 1,
+  profit_pct      REAL,
+  vence_en        TEXT NOT NULL,
+  activo          INTEGER NOT NULL DEFAULT 1,
+  -- Contadores de uso. El tope diario corta el abuso sin molestar el uso normal.
+  consultas       INTEGER NOT NULL DEFAULT 0,
+  consultas_hoy   INTEGER NOT NULL DEFAULT 0,
+  dia_consultas   TEXT,
+  usuario_id      INTEGER REFERENCES usuarios(id),
+  usuario         TEXT,
+  creado_en       TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  baja_en         TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_cotizador_links_cliente ON cotizador_links(cliente_id, activo);

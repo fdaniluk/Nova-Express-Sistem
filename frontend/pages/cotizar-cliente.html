@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex, nofollow">
+<title>Cotizá tu envío · Nova Express</title>
+<!--
+  LA PÁGINA PÚBLICA DEL LINK DE COTIZACIÓN. La abre el CLIENTE, sin sesión.
+
+  Reglas de esta página, en orden de importancia:
+  · NO carga el motor (cotizador-core.js lleva las tarifas de costo adentro), ni api.js,
+    ni auth-guard, ni ningún módulo del sistema. Todo cálculo pasa por /api/publico.
+  · Solo muestra lo que muestra la imagen de la cotización: flete, fuel, extras, total.
+    Nada de profit, costo ni precio por kilo — eso lo garantiza el servidor por lista
+    blanca, y esta página ni siquiera lo recibe.
+  · El código del link sale de la URL (/cotizar/CODIGO). Si el link está vencido o dado
+    de baja, la página muestra el motivo y el WhatsApp, y nada más.
+-->
+<style>
+:root{
+  --nova:#403754; --acento:#EE6C52; --fondo:#f6f5f2; --tarjeta:#fff;
+  --borde:#e2e0d8; --texto:#1a1916; --texto2:#5c5a54; --texto3:#9c9a94;
+}
+*{margin:0;padding:0;box-sizing:border-box}
+body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--fondo);color:var(--texto);min-height:100vh}
+.franja{background:var(--nova);color:#fff;padding:16px 0}
+.franja .wrap{display:flex;justify-content:space-between;align-items:center}
+.wrap{max-width:720px;margin:0 auto;padding:0 16px}
+.logo{height:34px;background:#fff;border-radius:8px;padding:5px 10px;box-sizing:content-box}
+.saludo{font-size:13px;opacity:.85;text-align:right}
+.saludo b{display:block;font-size:15px;opacity:1}
+h1{font-size:20px;margin:22px 0 4px}
+.sub{font-size:13px;color:var(--texto2);margin-bottom:18px}
+.card{background:var(--tarjeta);border:1px solid var(--borde);border-radius:10px;padding:16px;margin-bottom:14px}
+.card h2{font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--texto3);margin-bottom:10px}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+label{display:block;font-size:12px;color:var(--texto2);margin-bottom:3px}
+select,input{width:100%;padding:9px 10px;border:1px solid var(--borde);border-radius:7px;font-size:14px;font-family:inherit;background:#fff;color:var(--texto)}
+.bulto{display:grid;grid-template-columns:auto 1fr 1fr 1fr 1fr auto;gap:8px;align-items:end;background:var(--fondo);border:1px solid var(--borde);border-radius:8px;padding:10px;margin-bottom:8px}
+.bulto .num{font-size:12px;font-weight:600;color:var(--texto3);padding-bottom:10px}
+.bulto button{background:none;border:1px solid var(--borde);border-radius:7px;color:var(--texto3);cursor:pointer;padding:8px 10px;font-size:13px;height:38px}
+.bulto button:hover{color:var(--acento);border-color:var(--acento)}
+.fila-botones{display:flex;gap:8px;margin-top:4px}
+.fila-botones button{flex:1;background:none;border:1px dashed var(--borde);border-radius:8px;color:var(--texto2);cursor:pointer;padding:9px;font-size:13px;font-family:inherit}
+.fila-botones button:hover{color:var(--acento);border-color:var(--acento)}
+.btn-cotizar{width:100%;background:var(--acento);color:#fff;border:none;border-radius:9px;padding:13px;font-size:15px;font-weight:600;font-family:inherit;cursor:pointer;margin:6px 0 18px}
+.btn-cotizar:hover{filter:brightness(.95)}
+.btn-cotizar:disabled{opacity:.6;cursor:default}
+.error{background:#fdeceb;border:1px solid #f0b9b3;color:#8c2f26;border-radius:8px;padding:10px 12px;font-size:13px;margin-bottom:14px;display:none}
+.aviso-fuel{display:flex;gap:10px;align-items:flex-start;background:#fdf6e0;border:1px solid #e4c65e;border-left:4px solid #d9a514;border-radius:8px;padding:10px 12px;font-size:13px;color:#6b5100;margin-top:8px;line-height:1.45}
+.aviso-fuel .icono{font-size:16px;line-height:1.3}
+.aviso-fuel b{color:#4d3a00}
+.res{background:var(--tarjeta);border:1px solid var(--borde);border-radius:10px;margin-bottom:14px;overflow:hidden}
+.res-cab{background:#eef;padding:12px 16px;display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.res-cab.dhl{background:#fdf6e3}
+.res-cab .quien{font-weight:700;font-size:15px}
+.res-cab .quien span{font-weight:400;color:var(--texto2)}
+.res-cab .cuanto{font-size:21px;font-weight:700;font-variant-numeric:tabular-nums}
+.res-meta{padding:6px 16px 0;font-size:11.5px;color:var(--texto3);font-family:Consolas,monospace}
+.res-body{padding:10px 16px 14px}
+.rw{display:flex;justify-content:space-between;padding:5px 0;font-size:13.5px}
+.rw span:last-child{font-variant-numeric:tabular-nums}
+.rw.sub{border-top:1px solid var(--borde);font-weight:600}
+.rw.tot{border-top:2px solid var(--texto);font-weight:700;font-size:15px}
+.nota{font-size:11px;color:var(--texto3);font-style:italic;margin-top:8px}
+.pie{border-top:1px solid var(--borde);margin-top:24px;padding:16px 0 26px;text-align:center;font-size:12px;color:var(--texto3)}
+.pie b{color:var(--nova)}
+.roto{max-width:520px;margin:60px auto;text-align:center;padding:0 16px}
+.roto .card{padding:28px}
+.roto h1{margin-bottom:10px}
+@media(max-width:600px){.bulto{grid-template-columns:auto 1fr 1fr;grid-auto-rows:auto}.grid2{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+<div id="app" style="display:none">
+  <div class="franja"><div class="wrap">
+    <img class="logo" src="/assets/logos/nova.png" alt="Nova Express">
+    <div class="saludo" id="saludo"></div>
+  </div></div>
+  <div class="wrap">
+    <h1>Cotizá tu envío</h1>
+    <div class="sub" id="sub"></div>
+
+    <div class="card">
+      <h2>Destino</h2>
+      <div class="grid2">
+        <div><label for="pais">País</label><select id="pais"><option value="">Elegí un país…</option></select></div>
+        <div><label for="tipo">Tipo de envío</label>
+          <select id="tipo">
+            <option value="export">Exportación (desde Argentina)</option>
+            <option value="import">Importación (hacia Argentina)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>Tus cajas</h2>
+      <div id="bultos"></div>
+      <div class="fila-botones">
+        <button onclick="agregarBulto()">+ Agregar caja</button>
+        <button onclick="duplicarUltima()">⧉ Otra caja igual</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="grid2">
+        <div>
+          <h2>Valor de la mercadería</h2>
+          <label for="valor">Valor declarado (USD)</label>
+          <input type="number" id="valor" min="0" step="1" value="0">
+        </div>
+        <div>
+          <h2>Combustible (fuel)</h2>
+          <label for="fuel">Fuel (%)</label>
+          <input type="number" id="fuel" min="0" max="100" step="0.5">
+          <!-- El cartel del fuel (Felipe, 24/08): banda ámbar visible, corta y abajo del
+               cuadrado del fuel. Sin teléfono: el WhatsApp ya vive en el pie. -->
+          <div class="aviso-fuel">
+            <span class="icono">⚠️</span>
+            <span><b>El fuel se modifica semanalmente</b>, consultar por el último.</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="error" id="error"></div>
+    <button class="btn-cotizar" id="btn" onclick="cotizar()">Cotizar</button>
+    <div id="resultados"></div>
+
+    <div class="pie">
+      Nova Express · Courier internacional · Buenos Aires, Argentina<br>
+      <b>WhatsApp +54 9 11 6500-2047</b>
+    </div>
+  </div>
+</div>
+<div id="roto" class="roto" style="display:none">
+  <div class="card">
+    <img class="logo" src="/assets/logos/nova.png" alt="Nova Express" style="height:40px;margin-bottom:16px;background:transparent;padding:0">
+    <h1 style="font-size:17px" id="roto-titulo"></h1>
+    <div style="font-size:13px;color:var(--texto2)">Nova Express · WhatsApp <b>+54 9 11 6500-2047</b></div>
+  </div>
+</div>
+
+<script>
+/* El código del link: /cotizar/CODIGO, con ?c=CODIGO de repuesto por si la página se
+   abre directo desde /pages/. */
+const CODIGO=(location.pathname.match(/\/cotizar\/([a-f0-9]+)/i)||[])[1]
+  ||new URLSearchParams(location.search).get('c')||'';
+const API='/api/publico/cotizador/'+encodeURIComponent(CODIGO);
+
+const fmt=n=>'USD '+Number(n).toLocaleString('es-AR',{minimumFractionDigits:2,maximumFractionDigits:2});
+
+function romper(msg){
+  document.getElementById('app').style.display='none';
+  document.getElementById('roto').style.display='block';
+  document.getElementById('roto-titulo').textContent=msg;
+}
+
+let nBultos=0;
+function agregarBulto(datos){
+  nBultos++;
+  const div=document.createElement('div');div.className='bulto';div.id='b'+nBultos;
+  div.innerHTML='<div class="num">#'+nBultos+'</div>'
+    +'<div><label>Peso (kg)</label><input type="number" min="0.1" step="0.1" class="pr"></div>'
+    +'<div><label>Largo (cm)</label><input type="number" min="1" step="1" class="l"></div>'
+    +'<div><label>Ancho (cm)</label><input type="number" min="1" step="1" class="a"></div>'
+    +'<div><label>Alto (cm)</label><input type="number" min="1" step="1" class="al"></div>'
+    +'<button title="Quitar esta caja" onclick="quitarBulto(this)">✕</button>';
+  document.getElementById('bultos').appendChild(div);
+  if(datos){['pr','l','a','al'].forEach(k=>{div.querySelector('.'+k).value=datos[k];});}
+  renumerar();
+}
+function quitarBulto(btn){btn.closest('.bulto').remove();if(!document.querySelector('.bulto'))agregarBulto();renumerar();}
+function renumerar(){document.querySelectorAll('.bulto .num').forEach((n,i)=>{n.textContent='#'+(i+1);});}
+function duplicarUltima(){
+  const rows=document.querySelectorAll('.bulto');const u=rows[rows.length-1];
+  const d={};['pr','l','a','al'].forEach(k=>{d[k]=u.querySelector('.'+k).value;});
+  if(!d.pr&&!d.l&&!d.a&&!d.al)return agregarBulto();
+  agregarBulto(d);
+}
+function leerBultos(){
+  return[...document.querySelectorAll('.bulto')].map(r=>({
+    pr:parseFloat(r.querySelector('.pr').value)||0,
+    l:parseFloat(r.querySelector('.l').value)||0,
+    a:parseFloat(r.querySelector('.a').value)||0,
+    al:parseFloat(r.querySelector('.al').value)||0,
+  })).filter(b=>b.pr>0||b.l>0||b.a>0||b.al>0);
+}
+
+async function cotizar(){
+  const err=document.getElementById('error');err.style.display='none';
+  const pais=document.getElementById('pais').value;
+  if(!pais){err.textContent='Elegí el país de destino.';err.style.display='block';return;}
+  const bultos=leerBultos();
+  if(!bultos.length||bultos.some(b=>!(b.pr>0&&b.l>0&&b.a>0&&b.al>0))){
+    err.textContent='Completá el peso y las tres medidas de cada caja.';err.style.display='block';return;
+  }
+  const btn=document.getElementById('btn');btn.disabled=true;btn.textContent='Cotizando…';
+  try{
+    const r=await fetch(API+'/cotizar',{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({pais,tipo:document.getElementById('tipo').value,
+        valor:parseFloat(document.getElementById('valor').value)||0,
+        fuel:document.getElementById('fuel').value,bultos})});
+    const d=await r.json();
+    if(!r.ok)throw new Error(d.error||'No se pudo cotizar');
+    pintar(d);
+  }catch(e){err.textContent=e.message||e;err.style.display='block';}
+  btn.disabled=false;btn.textContent='Cotizar';
+}
+
+function pintar(d){
+  const meta='Zona compartida · '+d.peso_real+' kg real · '+d.peso_volumetrico+' kg vol · '
+    +d.peso_facturable.toFixed(1)+' kg facturable · '+d.bultos+(d.bultos===1?' caja':' cajas')
+    +' · '+(d.tipo==='export'?'Exportación':'Importación')
+    +(d.valor_declarado>0?' · FOB '+fmt(d.valor_declarado):'');
+  document.getElementById('resultados').innerHTML=d.opciones.map(o=>{
+    const filas=[['Flete internacional',fmt(o.flete)]];
+    if(o.surge>0)filas.push(['Surge fee',fmt(o.surge)]);
+    filas.push(['__sub',o.surge>0?'Subtotal (con surge)':'Subtotal',fmt(o.subtotal)]);
+    filas.push(['Fuel ('+o.fuel_pct+'%)','+ '+fmt(o.fuel_monto)]);
+    (o.extras||[]).forEach(([n,m])=>filas.push([n,fmt(m)]));
+    filas.push(['__tot','Total',fmt(o.total)]);
+    /* Link "a secas": el servidor manda "Opción N" en vez del servicio. Con una sola
+       opción ni eso: la tarjeta dice Nova Express y listo. Y sin el tinte por courier,
+       que también lo delataría. */
+    const anon=/^Opción/.test(o.corto);
+    const sufijo=(anon&&d.opciones.length===1)?'':' <span>– '+o.corto+'</span>';
+    return '<div class="res">'
+      +'<div class="res-cab'+(!anon&&/DHL/.test(o.servicio)?' dhl':'')+'">'
+        +'<div class="quien">Nova Express'+sufijo+'</div>'
+        +'<div class="cuanto">'+fmt(o.total)+'</div></div>'
+      +'<div class="res-meta">'+meta.replace('Zona compartida','Zona '+o.zona)+'</div>'
+      +'<div class="res-body">'
+      +filas.map(f=>{
+        if(f[0]==='__sub')return'<div class="rw sub"><span>'+f[1]+'</span><span>'+f[2]+'</span></div>';
+        if(f[0]==='__tot')return'<div class="rw tot"><span>'+f[1]+'</span><span>'+f[2]+'</span></div>';
+        return'<div class="rw"><span>'+f[0]+'</span><span>'+f[1]+'</span></div>';
+      }).join('')
+      +'<div class="nota">El costo dado no contempla impuestos de nacionalización en destino. '
+      +'Cotización válida hasta el '+d.vence_en.split('-').reverse().join('/')+'.</div>'
+      +'</div></div>';
+  }).join('');
+}
+
+(async function init(){
+  if(!CODIGO)return romper('Este link no es válido.');
+  try{
+    const r=await fetch(API);
+    const d=await r.json();
+    if(!r.ok)return romper(d.error||'Este link no está disponible.');
+    document.getElementById('app').style.display='block';
+    document.getElementById('saludo').innerHTML=d.nombre?('Cotizador para<b></b>'):'';
+    if(d.nombre)document.querySelector('#saludo b').textContent=d.nombre;
+    const deQuien=d.servicios.length
+      ?'Precios de '+(d.servicios.length>1?d.servicios.slice(0,-1).join(', ')+' y '+d.servicios[d.servicios.length-1]:d.servicios[0])
+      :'Precios';
+    document.getElementById('sub').textContent='Cargá tus cajas y el destino. '+deQuien
+      +' al instante · válido hasta el '+d.vence_en.split('-').reverse().join('/')+'.';
+    if(Number.isFinite(d.fuel))document.getElementById('fuel').value=d.fuel;
+
+    const sel=document.getElementById('pais');
+    d.paises.forEach(p=>{const o=document.createElement('option');o.value=p;o.textContent=p;sel.appendChild(o);});
+    agregarBulto();
+  }catch(e){console.error(e);romper('No pudimos cargar el cotizador. Probá de nuevo en un rato.');}
+})();
+</script>
+</body>
+</html>

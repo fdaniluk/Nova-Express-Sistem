@@ -278,4 +278,12 @@ api.cotizaciones = {
   eliminar: (id) => api.delete(`/cotizaciones/${id}`),
 };
 
+// Links de cotizacion para clientes (la puerta publica). Esta parte es la de OFICINA,
+// con sesion; la cara publica va directo por fetch a /api/publico y no pasa por aca.
+api.cotizadorLinks = {
+  deCliente: (clienteId) => api.get(`/cotizador-links/cliente/${clienteId}`),
+  crear: (data) => api.post('/cotizador-links', data),
+  darDeBaja: (id) => api.post(`/cotizador-links/${id}/baja`),
+};
+
 window.NovaAPI = api;

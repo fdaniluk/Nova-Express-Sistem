@@ -25,6 +25,8 @@
       bindDirecciones();
       bindTarifas();
       bindTarifario();
+      await cargarLinks();
+      bindLinks();
     } catch (err) {
       NovaUtils.showAlert(alertBox, 'Error al cargar perfil: ' + err.message);
     }
@@ -1281,6 +1283,74 @@
 
     cargarPresets();
     cargarEnviados();
+  }
+
+  // ── Links de cotización ───────────────────────────────
+  // La cara de oficina de la puerta pública. El link se arma acá y la URL se copia y
+  // se manda por WhatsApp; el cliente cotiza solo, con la tarifa de ESTE cliente,
+  // resuelta en el servidor. Dar de baja lo apaga al instante (la página pública del
+  // link muestra el motivo y el WhatsApp).
+
+  async function cargarLinks() {
+    const ul = document.getElementById('links-list');
+    if (!ul) return;
+    try {
+      const links = await NovaAPI.cotizadorLinks.deCliente(clienteId);
+      if (!links.length) {
+        ul.innerHTML = '<li class="empty" style="padding:0">Este cliente no tiene links todavía.</li>';
+        return;
+      }
+      ul.innerHTML = links.map((l) => {
+        const url = `${location.origin}/cotizar/${l.codigo}`;
+        const estado = !l.activo ? '<span style="color:#8c2f26;font-weight:600">dado de baja</span>'
+          : (l.vence_en < new Date().toISOString().slice(0, 10)
+            ? '<span style="color:#7a5a12;font-weight:600">vencido</span>'
+            : `<span style="color:#1f5136;font-weight:600">activo</span> · vence ${l.vence_en}`);
+        return `<li style="border:1px solid #e2e0d8;border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12.5px">
+          <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap">
+            <div style="min-width:0">
+              <div style="font-family:monospace;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px" title="${url}">${url}</div>
+              <div style="color:#777">${estado} · ${l.couriers}${l.nombrar ? '' : ' · sin nombrar el servicio'} · ${l.consultas} consulta${l.consultas === 1 ? '' : 's'}</div>
+            </div>
+            <div style="display:flex;gap:6px;flex-shrink:0">
+              <button class="btn btn-secondary btn-sm" data-copiar="${url}">Copiar</button>
+              ${l.activo ? `<button class="btn btn-secondary btn-sm" data-baja="${l.id}">Dar de baja</button>` : ''}
+            </div>
+          </div></li>`;
+      }).join('');
+      ul.querySelectorAll('[data-copiar]').forEach((b) => b.addEventListener('click', async () => {
+        try { await navigator.clipboard.writeText(b.dataset.copiar); b.textContent = '¡Copiado!'; }
+        catch { window.prompt('Copialo a mano:', b.dataset.copiar); }
+        setTimeout(() => { b.textContent = 'Copiar'; }, 1800);
+      }));
+      ul.querySelectorAll('[data-baja]').forEach((b) => b.addEventListener('click', async () => {
+        if (!window.confirm('¿Dar de baja este link? El cliente deja de poder cotizar con él.')) return;
+        try { await NovaAPI.cotizadorLinks.darDeBaja(b.dataset.baja); await cargarLinks(); }
+        catch (e) { NovaUtils.showAlert(alertBox, 'No se pudo dar de baja: ' + e.message); }
+      }));
+    } catch (e) {
+      ul.innerHTML = `<li class="empty" style="padding:0">No se pudieron cargar: ${e.message}</li>`;
+    }
+  }
+
+  function bindLinks() {
+    const btn = document.getElementById('btn-crear-link');
+    if (!btn) return;
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      try {
+        await NovaAPI.cotizadorLinks.crear({
+          cliente_id: Number(clienteId),
+          couriers: document.getElementById('link-couriers').value,
+          dias: Number(document.getElementById('link-dias').value) || 30,
+          nombrar: document.getElementById('link-nombrar').checked,
+        });
+        await cargarLinks();
+      } catch (e) {
+        NovaUtils.showAlert(alertBox, 'No se pudo armar el link: ' + e.message);
+      }
+      btn.disabled = false;
+    });
   }
 
   init();

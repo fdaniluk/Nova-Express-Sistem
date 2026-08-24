@@ -705,6 +705,38 @@ async function migrateCotizaciones() {
   await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cotizacion_historial ON cotizacion_historial(cotizacion_id, creado_en)');
 }
 
+/* Links de cotización para clientes (punto A del doc de ideas). Primera puerta sin
+   contraseña del sistema: el detalle de las reglas de seguridad está en schema.sql.
+   Tabla nueva, vacía al migrar: no toca nada existente. */
+async function migrateCotizadorLinks() {
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS cotizador_links (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      codigo          TEXT NOT NULL UNIQUE,
+      cliente_id      INTEGER REFERENCES clientes(id) ON DELETE CASCADE,
+      nombre          TEXT,
+      couriers        TEXT NOT NULL DEFAULT 'ambos',
+      nombrar         INTEGER NOT NULL DEFAULT 1,
+      profit_pct      REAL,
+      vence_en        TEXT NOT NULL,
+      activo          INTEGER NOT NULL DEFAULT 1,
+      consultas       INTEGER NOT NULL DEFAULT 0,
+      consultas_hoy   INTEGER NOT NULL DEFAULT 0,
+      dia_consultas   TEXT,
+      usuario_id      INTEGER REFERENCES usuarios(id),
+      usuario         TEXT,
+      creado_en       TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      baja_en         TEXT
+    )
+  `);
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cotizador_links_cliente ON cotizador_links(cliente_id, activo)');
+  // Resguardo para una base que haya creado la tabla antes de que existiera `nombrar`.
+  const colsLinks = (await dbApi.prepare('PRAGMA table_info(cotizador_links)').all()).map((c) => c.name);
+  if (!colsLinks.includes('nombrar')) {
+    await dbApi.exec('ALTER TABLE cotizador_links ADD COLUMN nombrar INTEGER NOT NULL DEFAULT 1');
+  }
+}
+
 async function initSchema() {
   const schema = fs.readFileSync(config.schemaPath, 'utf8');
   await dbApi.exec(schema);
@@ -724,6 +756,7 @@ async function initSchema() {
   await migrateFuelNova();
   await migrateTarifario();
   await migrateCotizaciones();
+  await migrateCotizadorLinks();
   await migrateIndices();
   await seedIfEmpty();
 }

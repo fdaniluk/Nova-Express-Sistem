@@ -15,6 +15,8 @@ const trackingRoutes = require('./tracking.routes');
 const facturasRoutes = require('./facturas.routes');
 const cobranzasRoutes = require('./cobranzas.routes');
 const authRoutes = require('./auth.routes');
+const publicoRoutes = require('./publico.routes');
+const cotizadorLinksRoutes = require('./cotizador-links.routes');
 const usuariosRoutes = require('./usuarios.routes');
 const { requireAuth, requireDashboard, requireSalud, requireAdmin } = require('../middleware/auth');
 
@@ -23,6 +25,9 @@ const router = Router();
 // Rutas públicas (sin autenticación)
 router.get('/health', (req, res) => res.json({ ok: true, service: 'nova-express-api' }));
 router.use('/auth', authRoutes);
+// La cara publica de los links de cotizacion. UNICO grupo sin sesion ademas de /auth:
+// solo cotiza, con codigo aleatorio, vencimiento y tope diario (ver publico.routes.js).
+router.use('/publico', publicoRoutes);
 
 // A partir de acá todo requiere sesión válida
 router.use(requireAuth);
@@ -39,6 +44,7 @@ router.use('/tarifario', tarifarioRoutes);
 router.use('/clientes/:id/direcciones', clienteDireccionesRoutes);
 router.use('/envios', enviosRoutes);
 router.use('/cotizaciones', cotizacionesRoutes);
+router.use('/cotizador-links', cotizadorLinksRoutes);
 router.use('/salidas', salidasRoutes);
 router.use('/liquidaciones', liquidacionesRoutes);
 router.use('/configuracion', configuracionRoutes);
