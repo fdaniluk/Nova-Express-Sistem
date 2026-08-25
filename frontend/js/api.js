@@ -205,6 +205,9 @@ api.salidas = {
   actualizarEstadoBultoUnico: (envioId, data) =>
     request(`/salidas/envios/${envioId}/estado-bulto-unico`, { method: 'PATCH', body: data }),
   eliminar: (id) => request(`/salidas/${id}`, { method: 'DELETE' }),
+  // NO VOLO: marcar / desmarcar un envio que no salio. no_volo: 1 marca, 0 deshace.
+  noVolo: (id, noVolo) =>
+    request(`/salidas/${id}/no-volo`, { method: 'PATCH', body: { no_volo: noVolo ? 1 : 0 } }),
 };
 
 api.tracking = {

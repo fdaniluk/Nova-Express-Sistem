@@ -56,6 +56,11 @@ router.get('/metricas', async (req, res, next) => {
     // El LEFT JOIN a liquidacion_items se pre-agrega por envío (subquery GROUP BY envio_id)
     // para garantizar UNA fila por envío: sin eso, un envío con varios items confirmados se
     // duplicaría e inflaría counts y sumas.
+    // NO VOLO: los envios marcados (envios cargados con guia que nunca salieron) quedan
+    // AFUERA de todas las metricas — utilidad, kilos, bultos, cantidad, ticket, mix de
+    // couriers, pais y top de clientes. Es el motivo por el que existe la marca: que un
+    // envio que no salio no mueva la estadistica del mes. Su plata sigue guardada en la
+    // fila; lo unico que se hace aca es no contarla.
     const [
       enviosPeriodo,
       kilosRow,
@@ -90,7 +95,7 @@ router.get('/metricas', async (req, res, next) => {
              WHERE liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
              GROUP BY envio_id
            ) li ON li.envio_id = e.id
-           WHERE e.fecha >= ? AND e.fecha < ?`
+           WHERE e.fecha >= ? AND e.fecha < ? AND e.no_volo = 0`
         )
         .all(desde, hasta),
 
@@ -98,18 +103,18 @@ router.get('/metricas', async (req, res, next) => {
         .prepare(
           `SELECT SUM(peso_facturable) AS kilos_facturados,
                   SUM(cantidad_bultos) AS bultos_despachados
-           FROM envios WHERE fecha >= ? AND fecha < ?`
+           FROM envios WHERE fecha >= ? AND fecha < ? AND no_volo = 0`
         )
         .get(desde, hasta),
 
       db
         .prepare(
           `SELECT COUNT(*) AS total, AVG(total_cobrado) AS ticket_promedio
-           FROM envios WHERE fecha >= ? AND fecha < ?`
+           FROM envios WHERE fecha >= ? AND fecha < ? AND no_volo = 0`
         )
         .get(desde, hasta),
 
-      db.prepare(`SELECT COUNT(*) AS n FROM envios WHERE liquidado = 0`).get(),
+      db.prepare(`SELECT COUNT(*) AS n FROM envios WHERE liquidado = 0 AND no_volo = 0`).get(),
 
       db
         .prepare(
@@ -120,7 +125,7 @@ router.get('/metricas', async (req, res, next) => {
       db
         .prepare(
           `SELECT pais_destino, COUNT(*) AS n
-           FROM envios WHERE fecha >= ? AND fecha < ?
+           FROM envios WHERE fecha >= ? AND fecha < ? AND no_volo = 0
            GROUP BY pais_destino ORDER BY n DESC LIMIT 1`
         )
         .get(desde, hasta),
@@ -128,7 +133,7 @@ router.get('/metricas', async (req, res, next) => {
       db
         .prepare(
           `SELECT courier, COUNT(*) AS cantidad
-           FROM envios WHERE fecha >= ? AND fecha < ?
+           FROM envios WHERE fecha >= ? AND fecha < ? AND no_volo = 0
            GROUP BY courier ORDER BY cantidad DESC`
         )
         .all(desde, hasta),

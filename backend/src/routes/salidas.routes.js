@@ -94,6 +94,9 @@ async function listarSalidas({ desde, hasta } = {}) {
       e.courier_facturado,
       e.fecha_facturado,
       e.num_sal_cero,
+      e.no_volo,
+      e.no_volo_usuario,
+      e.no_volo_en,
       e.liquidado,
       e.fecha_liquidacion,
       e.liquidacion_id,
@@ -292,6 +295,10 @@ async function listarSalidas({ desde, hasta } = {}) {
     fecha_facturado: row.fecha_facturado ?? null,
     recargos_facturados: recargosPorEnvio.get(row.id) ?? [],
     num_sal_cero: Boolean(row.num_sal_cero),
+    // NO VOLO: el envio sigue en la lista y con su numero, pero no cuenta en ningun total.
+    no_volo: Boolean(row.no_volo),
+    no_volo_usuario: row.no_volo_usuario ?? null,
+    no_volo_en: row.no_volo_en ?? null,
     liquidado: Boolean(row.liquidado),
     fecha_liquidacion: row.fecha_liquidacion,
     bultos: bultosDe(row),
@@ -897,6 +904,79 @@ router.patch('/envios/:envioId/estado-bulto-unico', async (req, res, next) => {
 
 // Borra un envío entero, incluso si está liquidado.
 // envio_bultos y cargos_adicionales se van solos por ON DELETE CASCADE.
+// ── NO VOLÓ ─────────────────────────────────────────────────────────────────
+// Marca (o desmarca) un envío que se cargó, se le emitió la guía y NO salió — ni va a
+// salir por ahora. La oficina lo venía haciendo a mano en el Excel: pintaba el renglón,
+// le escribía "NO VOLÓ" y le borraba la venta y los kilos, para que un envío que nunca
+// salió no ensuciara la estadística del mes.
+//
+// Acá NO se borra nada: la plata y los kilos quedan guardados y simplemente dejan de
+// contar (dashboard, perfil del cliente, cierre de mes y liquidaciones). Así el día que
+// el envío finalmente sale, el mismo botón lo devuelve a la normalidad sin volver a
+// cargar nada.
+//
+// El número de salida NO se toca: el envío 27 sigue siendo el 27 aunque no vuele
+// (pedido expreso de la oficina). Como el correlativo se calcula sobre TODOS los envíos
+// por id, con solo dejar la fila en su lugar el número se mantiene solo.
+//
+// Un envío LIQUIDADO no se puede marcar: ya se le facturó al cliente. Primero hay que
+// sacarlo de la liquidación; si no, el sistema diría "esto no salió" y la factura diría
+// lo contrario.
+router.patch('/:id/no-volo', async (req, res, next) => {
+  try {
+    const db = getDb();
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: 'ID inválido' });
+
+    const { no_volo } = req.body || {};
+    if (no_volo !== 0 && no_volo !== 1 && no_volo !== true && no_volo !== false) {
+      return res.status(400).json({ error: 'no_volo debe ser 0 o 1.' });
+    }
+    const marcar = no_volo === 1 || no_volo === true;
+
+    const envio = await db
+      .prepare('SELECT id, numero_guia, liquidado, no_volo FROM envios WHERE id = ?')
+      .get(id);
+    if (!envio) return res.status(404).json({ error: 'Envío no encontrado' });
+
+    if (marcar && envio.liquidado) {
+      return res.status(409).json({
+        error: 'Este envío ya está liquidado: no se puede marcar como "no voló". '
+          + 'Primero hay que sacarlo de la liquidación.',
+      });
+    }
+
+    const usuario = req.usuario ? req.usuario.usuario : null;
+
+    // La fecha la pone SQLite en hora local, como el resto del sistema: con
+    // toISOString() (UTC) un envio marcado a las 22:00 quedaria fechado al dia siguiente.
+    await db.prepare(
+      marcar
+        ? `UPDATE envios SET no_volo = 1, no_volo_usuario = ?,
+             no_volo_en = datetime('now', 'localtime'),
+             updated_at = datetime('now', 'localtime')
+           WHERE id = ?`
+        : `UPDATE envios SET no_volo = 0, no_volo_usuario = NULL, no_volo_en = NULL,
+             updated_at = datetime('now', 'localtime')
+           WHERE id = ?`
+    ).run(...(marcar ? [usuario, id] : [id]));
+
+    const fila = await db
+      .prepare('SELECT no_volo, no_volo_usuario, no_volo_en FROM envios WHERE id = ?')
+      .get(id);
+
+    res.json({
+      ok: true,
+      id,
+      no_volo: Boolean(fila.no_volo),
+      no_volo_usuario: fila.no_volo_usuario ?? null,
+      no_volo_en: fila.no_volo_en ?? null,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // liquidacion_items es RESTRICT: hay que sacar sus filas a mano antes de borrar el
 // envío, y mantener consistente el liquidaciones.total (snapshot, no se recalcula solo).
 // Si el envío era el único de su liquidación, la liquidación queda vacía y se borra.

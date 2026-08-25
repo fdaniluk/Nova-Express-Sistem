@@ -448,6 +448,11 @@
     tr.dataset.envioId = e.id;
     if (!isFirst) tr.classList.add('bulto-detail-row');
 
+    // NO VOLO: el envio se cargo y no salio. Se pinta el renglon entero (todos sus bultos)
+    // para que se vea de un vistazo, igual que la oficina lo pintaba en el Excel. La fila
+    // NO se saca de la lista y conserva su numero de salida: el envio 27 sigue siendo el 27.
+    if (e.no_volo) tr.classList.add('row-no-volo');
+
     // Alertas: resaltar TODOS los renglones del envío (se ve como una unidad).
     const alert = alertLevel(e, today);
     if (alert === 'rojo') tr.classList.add('row-alert-rojo');
@@ -678,6 +683,9 @@
   // ── Auto 2: alertas de profit ────────────────────────────────────────────────
   // Retorna 'rojo' | 'ambar' | null
   function alertLevel(e) {
+    // NO VOLO: el envio no salio, asi que su profit en cero o su falta de costo no son un
+    // problema para revisar — son la consecuencia de que no exista la operacion.
+    if (e.no_volo) return null;
     if (e.profit !== null && e.profit < 0) return 'rojo';
     if (e.profit === 0 || (e.total && !e.flete && !e.profit)) return 'ambar';
     if (!e.total && e.valor_declarado) return 'ambar';
@@ -776,6 +784,7 @@
 
   // ── Auto 5: semáforo de antigüedad ──────────────────────────────────────────
   function estadoLabel(e, today) {
+    if (e.no_volo) return 'NO VOLÓ';
     if (e.liquidado) return 'Liquidado';
     const dias = diffDias(e.fecha, today);
     if (dias >= DIAS_ALERTA_ROJO) return `Pendiente · ${dias}d`;
@@ -783,6 +792,11 @@
   }
 
   function estadoBadge(e, today) {
+    if (e.no_volo) {
+      const quien = e.no_volo_usuario ? ` — marcado por ${e.no_volo_usuario}` : '';
+      const cuando = e.no_volo_en ? ` el ${String(e.no_volo_en).slice(0, 10).split('-').reverse().join('/')}` : '';
+      return `<span class="badge badge-no-volo" title="Este envío no salió${quien}${cuando}. No cuenta en el dashboard ni en el cierre de mes.">NO VOLÓ</span>`;
+    }
     if (e.liquidado) {
       return `<span class="badge badge-liq">Liquidado</span>`;
     }
@@ -1624,6 +1638,7 @@
         </div>
         <div class="sal-modal-body">
           <div id="sal-modal-alert"></div>
+          <div id="saled-no-volo-note" class="saled-no-volo-note hidden"></div>
           <div>
             <div class="sal-section-title">Identificación</div>
             <div class="sal-form-grid">
@@ -1774,6 +1789,7 @@
         </div>
         <div class="sal-modal-footer">
           <button class="btn btn-danger" id="sal-modal-delete" style="margin-right:auto">Eliminar</button>
+          <button class="btn btn-no-volo" id="sal-modal-no-volo">NO VOLÓ</button>
           <button class="btn btn-secondary" id="sal-modal-cancel">Cancelar</button>
           <button class="btn btn-primary" id="sal-modal-save">Guardar cambios</button>
         </div>
@@ -1785,6 +1801,7 @@
     document.getElementById('sal-modal-cancel').addEventListener('click', closeEditModal);
     document.getElementById('sal-modal-save').addEventListener('click', saveEditModal);
     document.getElementById('sal-modal-delete').addEventListener('click', deleteEditModal);
+    document.getElementById('sal-modal-no-volo').addEventListener('click', toggleNoVolo);
     document.getElementById('saled-recalcular').addEventListener('click', recalcularDesglose);
     document.getElementById('saled-calcular-venta').addEventListener('click', calcularVenta);
     document.getElementById('saled-courier').addEventListener('change', () => toggleProtDocVisible(true));
@@ -1924,6 +1941,7 @@
     document.getElementById('saled-recalc-status').textContent = '';
 
     document.getElementById('sal-modal-alert').innerHTML = '';
+    sincronizarNoVolo(envio);
     document.getElementById('sal-edit-overlay').classList.remove('hidden');
 
     // Si el modal se abrió por click en una celda con campo asociado (mejora de foco),
@@ -2744,6 +2762,86 @@
     const cta = document.getElementById('saled-recalc-cta');
     if (cta) cta.addEventListener('click', recalcularDesglose);
     document.querySelector('.sal-modal-body').scrollTop = 0;
+  }
+
+  // ── NO VOLÓ ─────────────────────────────────────────────────────────────────
+  // El envío se cargó, se emitió la guía y no salió — ni va a salir por ahora. La oficina
+  // lo venía marcando a mano en el Excel: renglón pintado, leyenda "NO VOLÓ" y la venta y
+  // los kilos borrados, para que un envío que nunca salió no ensuciara la estadística del
+  // mes.
+  //
+  // Acá NO se borra nada: la plata y los kilos quedan guardados y dejan de contar (en el
+  // dashboard, en el perfil del cliente, en el cierre de mes y en las liquidaciones). Por
+  // eso el mismo botón lo deshace: el día que el envío sale, vuelve a la normalidad sin
+  // tener que volver a cargar un solo número.
+  //
+  // Y el número de salida NO cambia: el envío 27 sigue siendo el 27 (pedido de la oficina).
+  function sincronizarNoVolo(envio) {
+    const btn = document.getElementById('sal-modal-no-volo');
+    const nota = document.getElementById('saled-no-volo-note');
+    const marcado = Boolean(envio.no_volo);
+
+    btn.textContent = marcado ? 'Sí voló — deshacer' : 'NO VOLÓ';
+    btn.classList.toggle('activo', marcado);
+    btn.title = marcado
+      ? 'Devolver el envío a la normalidad: vuelve a contar en las estadísticas'
+      : 'El envío no salió: deja de contar en las estadísticas, pero conserva su número';
+
+    if (marcado) {
+      const quien = envio.no_volo_usuario ? ` por ${esc(envio.no_volo_usuario)}` : '';
+      const cuando = envio.no_volo_en
+        ? ` el ${String(envio.no_volo_en).slice(0, 10).split('-').reverse().join('/')}`
+        : '';
+      nota.innerHTML = `<b>NO VOLÓ</b> — marcado${quien}${cuando}. Este envío no cuenta en el `
+        + `dashboard, en el perfil del cliente ni en el cierre de mes, y no se puede liquidar. `
+        + `Conserva su número de salida y sus datos.`;
+      nota.classList.remove('hidden');
+    } else {
+      nota.innerHTML = '';
+      nota.classList.add('hidden');
+    }
+  }
+
+  async function toggleNoVolo() {
+    if (!editEnvio) return;
+    const envio = editEnvio;
+    const marcar = !envio.no_volo;
+
+    const msg = marcar
+      ? `Marcar el envío de guía ${envio.numero_guia} como NO VOLÓ.\n\n`
+        + `Deja de contar en el dashboard, en el perfil del cliente y en el cierre de mes, `
+        + `y no se va a poder liquidar. Los datos NO se borran y el número de salida no cambia.\n\n`
+        + `¿Confirmás?`
+      : `Devolver el envío de guía ${envio.numero_guia} a la normalidad.\n\n`
+        + `Vuelve a contar en todas las estadísticas con los valores que ya tenía.\n\n¿Confirmás?`;
+    if (!confirm(msg)) return;
+
+    const btn = document.getElementById('sal-modal-no-volo');
+    const textoPrevio = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Guardando…';
+
+    try {
+      const r = await NovaAPI.salidas.noVolo(envio.id, marcar);
+      // El objeto de la grilla se actualiza en el acto para que la fila se pinte (o se
+      // despinte) sin esperar la recarga, igual que hace el resto del modal.
+      envio.no_volo = Boolean(r.no_volo);
+      envio.no_volo_usuario = r.no_volo_usuario;
+      envio.no_volo_en = r.no_volo_en;
+      sincronizarNoVolo(envio);
+      closeEditModal();
+      await loadData();
+      NovaUtils.showAlert(alertBox,
+        marcar ? 'Envío marcado como NO VOLÓ' : 'El envío vuelve a contar en las estadísticas',
+        'success');
+    } catch (err) {
+      const modalAlert = document.getElementById('sal-modal-alert');
+      NovaUtils.showAlert(modalAlert, err.message, 'error');
+      document.querySelector('.sal-modal-body').scrollTop = 0;
+    } finally {
+      btn.disabled = false;
+      btn.textContent = textoPrevio;
+    }
   }
 
   async function deleteEditModal() {

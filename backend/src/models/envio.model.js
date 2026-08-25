@@ -460,7 +460,10 @@ async function listarPendientesPorCliente(filtros = {}) {
     SELECT e.*, COALESCE(NULLIF(c.nombre_nova,''), c.nombre) AS cliente_nombre, c.tipo_cobro, c.id AS cliente_id
     FROM envios e
     JOIN clientes c ON c.id = e.cliente_id
-    WHERE e.liquidado = 0`;
+    -- NO VOLO: un envio que no salio no se le factura al cliente, asi que ni siquiera
+    -- aparece en la lista de pendientes de liquidar. Si algun dia sale, se desmarca y
+    -- vuelve a la lista solo.
+    WHERE e.liquidado = 0 AND e.no_volo = 0`;
   const params = [];
 
   if (filtros.cliente_id) {

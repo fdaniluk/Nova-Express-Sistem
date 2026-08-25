@@ -276,6 +276,13 @@ tr:hover td {
   color: var(--color-success);
 }
 
+/* NO VOLO: envio cargado que nunca salio. No cuenta en ninguna estadistica. */
+.badge-no_volo {
+  background: #8c2f26;
+  color: #fff;
+  font-weight: 700;
+}
+
 .badge-dhl {
   background: #ffcc00;
   color: #1a1a1a;

@@ -282,6 +282,12 @@ async function migrateEnvios() {
     // EL PRECIO ACORDADO (caso Asaplast). Ver la tabla `cotizaciones` y el comentario
     // en schema.sql. Todas NULL en lo que ya está cargado: ningún envío existente
     // cambia de precio al aplicar esta migración.
+    // NO VOLO: envio cargado con guia emitida que no salio ni va a salir por ahora.
+    // Deja de contar en el dashboard, en el perfil del cliente, en el cierre de mes y no
+    // se puede liquidar. Su plata y sus kilos NO se borran, y CONSERVA su numero de salida.
+    ['no_volo',           'INTEGER NOT NULL DEFAULT 0'],
+    ['no_volo_usuario',   'TEXT'],
+    ['no_volo_en',        'TEXT'],
     ['cotizacion_id',     'INTEGER'],
     ['precio_acordado',   'REAL'],
     ['precio_recalculado','REAL'],

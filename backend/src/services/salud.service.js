@@ -478,6 +478,8 @@ async function chequeoEnviosSinPrecio(db) {
     WHERE e.fecha < ?
       AND (e.total_cobrado IS NULL OR e.total_cobrado = 0)
       AND e.liquidacion_id IS NULL
+      -- Un envio marcado NO VOLO no se le cobra a nadie a proposito: no es un olvido.
+      AND e.no_volo = 0
     ORDER BY e.fecha
   `).all(primerDiaMes);
 

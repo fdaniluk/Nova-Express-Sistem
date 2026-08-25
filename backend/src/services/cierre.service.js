@@ -163,6 +163,9 @@ function difPct(facturado, base) {
 
 // Mismo texto que la columna Estado de la pantalla (estadoLabel en salidas.js).
 function estadoLabel(e, hoy) {
+  // NO VOLO gana sobre cualquier otro estado: es la leyenda que la oficina venia
+  // escribiendo a mano en la planilla.
+  if (e.no_volo) return 'NO VOLO';
   if (e.liquidado) return 'Liquidado';
   const f = new Date(e.fecha);
   const t = new Date(hoy);
@@ -203,7 +206,10 @@ async function construirExcel(filas, rango, usuario) {
 
   ws.getCell(2, 1).value = `Período: ${rango.etiqueta} (${fmtDia(rango.desde)} a ${fmtDia(rango.hasta)})`;
   ws.getCell(3, 1).value = `Emitido: ${fmtDia(hoy)}${usuario ? ` por ${usuario}` : ''}`;
-  ws.getCell(4, 1).value = `${filas.length} envío(s)`;
+  const noVolaron = filas.filter((f) => f.no_volo).length;
+  ws.getCell(4, 1).value = noVolaron === 0
+    ? `${filas.length} envío(s)`
+    : `${filas.length} envío(s) — ${noVolaron} marcado(s) NO VOLO, en rojo, que NO suman en el total`;
   for (const f of [2, 3, 4]) ws.getCell(f, 1).font = { name: 'Calibri', size: 10, color: { argb: 'FF555555' } };
 
   const FILA_ENC = 6;
@@ -225,9 +231,16 @@ async function construirExcel(filas, rango, usuario) {
   for (let idx = 0; idx < filas.length; idx++) {
     const e = filas[idx];
     const row = ws.getRow(fila);
-    const fondo = idx % 2 === 0
-      ? { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } }
-      : { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F5FA' } };
+    // NO VOLO: renglon pintado y AFUERA de la fila de totales, igual que lo hacia la
+    // oficina a mano en el Excel. Los numeros se dejan a la vista (no se borran: son el
+    // registro de lo que se habia cargado), pero no suman: la planilla tiene que poder
+    // usarse como estadistica del mes sin restar nada de cabeza.
+    const noVolo = Boolean(e.no_volo);
+    const fondo = noVolo
+      ? { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3E0E0' } }
+      : idx % 2 === 0
+        ? { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } }
+        : { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F5FA' } };
 
     COLUMNAS.forEach(([, campo, tipo], i) => {
       const celda = row.getCell(i + 1);
@@ -243,8 +256,10 @@ async function construirExcel(filas, rango, usuario) {
         celda.value = v === null ? '' : v;
       }
       celda.fill = fondo;
-      celda.font = { name: 'Calibri', size: 10 };
-      if (SUMABLES.has(campo) && typeof celda.value === 'number') {
+      celda.font = noVolo
+        ? { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF8C2F26' } }
+        : { name: 'Calibri', size: 10 };
+      if (!noVolo && SUMABLES.has(campo) && typeof celda.value === 'number') {
         totales.set(campo, (totales.get(campo) || 0) + celda.value);
       }
     });

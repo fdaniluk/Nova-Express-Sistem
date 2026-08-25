@@ -193,6 +193,16 @@ CREATE TABLE IF NOT EXISTS envios (
   -- decision_precio    'acordado' | 'recalculado' — qué eligió la oficina cuando no
   --                    coincidieron. NULL = no hubo cotización previa, o dieron igual.
   -- Todo NULL en los envíos que ya existen: ninguno cambia de precio por esta migración.
+  -- NO VOLO: el envio se cargo, se emitio la guia, pero no salio ni va a salir por ahora.
+  -- La oficina lo venia marcando a mano en el Excel: renglon pintado, leyenda "NO VOLO" y
+  -- venta y kilos en blanco, para que un envio que nunca salio no ensucie la estadistica
+  -- del mes. Aca la plata NO se borra: se conserva y deja de contar.
+  --   no_volo          1 = marcado. El envio SIGUE en Salidas y CONSERVA su numero de
+  --                    salida (pedido de la oficina: el envio 27 sigue siendo el 27).
+  --   no_volo_usuario  quien lo marco   no_volo_en  cuando
+  no_volo             INTEGER NOT NULL DEFAULT 0,
+  no_volo_usuario     TEXT,
+  no_volo_en          TEXT,
   cotizacion_id       INTEGER,
   precio_acordado     REAL,
   precio_recalculado  REAL,

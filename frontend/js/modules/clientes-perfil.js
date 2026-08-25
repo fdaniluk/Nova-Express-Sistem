@@ -164,15 +164,15 @@
     }
     tbody.innerHTML = guias
       .map(
-        (g) => `<tr>
+        (g) => `<tr${g.no_volo ? ' style="opacity:.6"' : ''}>
         <td>${NovaUtils.formatDate(g.fecha)}</td>
         <td style="font-family:monospace;font-size:0.85rem">${g.numero_guia}</td>
         <td>${g.pais}</td>
         <td><span class="badge badge-${g.courier.toLowerCase()}">${g.courier}</span></td>
         <td>${g.asegurado ? 'Sí' : 'No'}</td>
         <td>${NovaUtils.formatMoney(g.total_cobrado_usd)}</td>
-        <td style="color:var(--color-success);font-weight:600">${NovaUtils.formatMoney(g.utilidad_usd)}</td>
-        <td><span class="badge badge-${g.estado}">${g.estado}</span></td>
+        <td style="color:${g.no_volo ? 'var(--color-muted)' : 'var(--color-success)'};font-weight:600">${g.no_volo ? '—' : NovaUtils.formatMoney(g.utilidad_usd)}</td>
+        <td><span class="badge badge-${g.estado}">${g.estado === 'no_volo' ? 'no voló' : g.estado}</span></td>
       </tr>`
       )
       .join('');

@@ -85,6 +85,7 @@ async function perfil(req, res, next) {
            e.courier,
            e.asegurado,
            e.liquidado,
+           e.no_volo,
            e.total_cobrado AS total,
            e.flete, e.descuento, e.seguro, e.fuel, e.derechos, e.adicionales, e.otros,
            e.profit, e.porcentaje,
@@ -121,14 +122,18 @@ async function perfil(req, res, next) {
     const guias = [];
 
     for (const row of filas) {
-      const u = utilidadEnvio(row);
+      // NO VOLO: el envio se sigue MOSTRANDO en la lista de guias del cliente (existe, tiene
+      // su numero y su guia), pero no suma un peso en la utilidad ni en el conteo mensual.
+      // Mismo criterio que el Dashboard: un envio que nunca salio no mueve la estadistica.
+      const noVolo = Boolean(row.no_volo);
+      const u = noVolo ? 0 : utilidadEnvio(row);
       utilidadTotal += u;
 
       const mes = String(row.fecha || '').slice(0, 7);
       if (row.liquidado && mes && (!ultimaLiquidacion || mes > ultimaLiquidacion)) {
         ultimaLiquidacion = mes;
       }
-      if (mes) {
+      if (mes && !noVolo) {
         let m = porMes.get(mes);
         if (!m) { m = { mes, utilidad_usd: 0, cantidad_envios: 0 }; porMes.set(mes, m); }
         m.utilidad_usd += u;
@@ -144,7 +149,8 @@ async function perfil(req, res, next) {
         asegurado: Boolean(row.asegurado),
         total_cobrado_usd: round2(row.total),
         utilidad_usd: round2(u),
-        estado: row.liquidado ? 'liquidado' : 'pendiente',
+        no_volo: noVolo,
+        estado: noVolo ? 'no_volo' : (row.liquidado ? 'liquidado' : 'pendiente'),
       });
     }
 
@@ -155,7 +161,8 @@ async function perfil(req, res, next) {
     res.json({
       cliente: clienteModel.parseTarifa(cliente),
       stats: {
-        total_guias: filas.length,
+        total_guias: filas.filter((r) => !r.no_volo).length,
+        guias_no_volaron: filas.filter((r) => Boolean(r.no_volo)).length,
         utilidad_total_usd: round2(utilidadTotal),
         ultima_liquidacion: ultimaLiquidacion,
       },

@@ -124,12 +124,12 @@ async function preview({ cliente_id, envio_ids, cargos = [], cotizaciones = [] }
   const envios = await db
     .prepare(
       `SELECT * FROM envios
-       WHERE id IN (${placeholders}) AND cliente_id = ? AND liquidado = 0`
+       WHERE id IN (${placeholders}) AND cliente_id = ? AND liquidado = 0 AND no_volo = 0`
     )
     .all(...envio_ids, cliente_id);
 
   if (envios.length !== envio_ids.length) {
-    const err = new Error('Algunos envíos no existen, no pertenecen al cliente o ya están liquidados');
+    const err = new Error('Algunos envíos no existen, no pertenecen al cliente, ya están liquidados o están marcados como "no voló"');
     err.status = 400;
     throw err;
   }

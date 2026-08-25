@@ -1192,3 +1192,57 @@ td.cell-sin-pesar { background: #fffbeb; }
   line-height: 1.5;
 }
 .saled-venta-aviso.hidden { display: none; }
+
+/* ── NO VOLÓ ─────────────────────────────────────────────────────────────────
+   El envío se cargó, se emitió la guía y no salió — ni va a salir por ahora. La oficina
+   lo venía pintando a mano en el Excel; acá se pinta solo.
+
+   Gris violáceo, no rojo: el rojo del semáforo significa "hay un problema de plata que
+   mirar", y esto no es un problema — es un envío que quedó afuera a propósito. Además la
+   fila se ve apagada (opacidad y números tachados) porque sus valores siguen ahí pero ya
+   no cuentan para nada. Lo único que NO se toca es el número de salida. */
+.salidas-table tbody tr.row-no-volo td {
+  background: #ece9f1;
+  color: #6b6478;
+}
+.salidas-table tbody tr.row-no-volo td:first-child { border-left: 3px solid #8c2f26; }
+.salidas-table tbody tr.row-no-volo td.num { text-decoration: line-through; }
+/* El número de salida NUNCA tachado: el envío 27 sigue siendo el 27 aunque no vuele. */
+.salidas-table tbody tr.row-no-volo td.numsal-cell {
+  text-decoration: none;
+  font-weight: 700;
+  color: #403754;
+}
+
+.badge-no-volo {
+  background: #8c2f26;
+  color: #fff;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+}
+
+/* Botón del pie del modal. Rojo lleno cuando marca; apagado cuando lo que hace es
+   deshacer, para que no invite a apretarlo de nuevo sin querer. */
+.btn-no-volo {
+  background: #8c2f26;
+  color: #fff;
+  border: 1px solid #8c2f26;
+}
+.btn-no-volo:hover { background: #741f18; border-color: #741f18; }
+.btn-no-volo.activo {
+  background: #fff;
+  color: #6b6478;
+  border: 1px solid #c9c3d4;
+}
+.btn-no-volo.activo:hover { background: #f3f1f6; }
+
+.saled-no-volo-note {
+  background: #f6f2f2;
+  border: 1px solid #d9c4c1;
+  border-left: 4px solid #8c2f26;
+  border-radius: 4px;
+  padding: 8px 10px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: #5b3b37;
+}
