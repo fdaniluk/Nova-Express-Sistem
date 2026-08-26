@@ -420,6 +420,101 @@ async function main() {
   check('y NO lleva ningún mail', !/@[\w.-]+\.\w+/.test(franja),
     (franja.match(/@[\w.-]+\.\w+/) || [''])[0]);
 
+  // ── 8. NADA SE ENCIMA EN LA IMAGEN ────────────────────────────────────────────────
+  /* El 25/08/2026 Felipe mandó una captura con dos cosas rotas en la misma cabecera:
+     el cartel "Tarifa +50Kg" dibujado sobre el final de la línea de medidas, y esa
+     línea saliéndose del borde derecho con el FOB cortado a la mitad.
+
+     Las dos son del mismo tipo: el dibujo del canvas no tiene layout, así que nadie
+     avisa cuando dos textos caen en el mismo lugar. Por eso este control no mira el PNG
+     —que necesitaría OCR— sino CADA TRAZO: se espía fillText, se anota qué se escribió,
+     dónde y con qué fuente, y después se mide. Si dos textos de un mismo renglón se
+     pisan, o si alguno se va del margen, esto se pone rojo.
+
+     Se prueba con el caso exacto de la captura: un solo bulto (que es cuando la línea
+     lleva también las medidas), impo DHL de más de 50 kg y FOB declarado. */
+  console.log('\n8. La imagen: ningún texto se encima ni se va del margen\n');
+
+  const W_IMG = 680, P_IMG = 28;
+
+  await page.selectOption('#tipo', 'import');
+  await page.selectOption('#couriers', 'dhl');
+  await page.fill('#valor', '1500');
+  await page.fill('#pres_nombre', 'CLIENTE DE PRUEBA SRL');
+  await page.fill('.bulto-row .b-peso', '80');
+  await page.fill('.bulto-row .b-largo', '60');
+  await page.fill('.bulto-row .b-ancho', '50');
+  await page.fill('.bulto-row .b-alto', '40');
+  await page.click('.btn-calc');
+  await page.waitForSelector('.result-card');
+  await esperar(1200);
+
+  /* Cada trazo con su ancho real medido con SU fuente. Para el texto alineado a la
+     derecha (el total) la x que llega es el borde derecho, así que se convierte a
+     izquierda para poder comparar todo con el mismo criterio. */
+  const trazos = await page.evaluate(async () => {
+    const proto = CanvasRenderingContext2D.prototype;
+    const orig = proto.fillText;
+    const t = [];
+    proto.fillText = function espia(txt, xx, yy) {
+      t.push({ txt: String(txt), x: xx, y: yy, font: this.font, align: this.textAlign });
+      return orig.apply(this, arguments);
+    };
+    try { await window.copiarImagen(0, document.querySelector('.btn-copiar')); }
+    finally { proto.fillText = orig; }
+    const m = document.createElement('canvas').getContext('2d');
+    return t.map((o) => {
+      m.font = o.font;
+      const w = m.measureText(o.txt).width;
+      return { ...o, w, izq: o.align === 'right' ? o.x - w : o.x, der: o.align === 'right' ? o.x : o.x + w };
+    });
+  });
+
+  check('se dibujó la imagen y se pudieron anotar los trazos', trazos.length > 5, `${trazos.length} trazos`);
+
+  const buscar = (re) => trazos.find((t) => re.test(t.txt));
+  const cartel = buscar(/Tarifa \+50Kg/);
+  const courier = buscar(/^Nova Express$/);
+  const metaZona = buscar(/^Zona /);
+  const fob = trazos.find((t) => /FOB/.test(t.txt));
+
+  check('el caso de prueba tiene el cartel "Tarifa +50Kg"', !!cartel);
+  check('y tiene el FOB en la línea de medidas', !!fob, fob ? fob.txt.slice(0, 60) : 'no está');
+
+  /* Lo que estaba mal N°1: el cartel vivía en el renglón de las medidas. Va en el del
+     courier, que es donde sobra lugar. */
+  check('el cartel va en el renglón del courier, no sobre la línea de medidas',
+    !!cartel && !!courier && Math.abs(cartel.y - courier.y) < 8,
+    cartel && courier ? `cartel y=${cartel.y} · courier y=${courier.y} · medidas y=${metaZona && metaZona.y}` : '');
+
+  /* Lo que estaba mal N°2: la línea de medidas se iba del borde. */
+  const finMeta = Math.max(...trazos.filter((t) => metaZona && Math.abs(t.y - metaZona.y) < 1).map((t) => t.der));
+  check('la línea de medidas entra entera de margen a margen',
+    finMeta <= W_IMG - P_IMG + 0.5, `termina en ${Math.round(finMeta)} y el margen está en ${W_IMG - P_IMG}`);
+
+  /* Y la regla general, que es la que va a cazar el próximo: dos textos que caen a la
+     misma altura no pueden ocupar el mismo lugar. La altura se compara con tolerancia y
+     no exacta: el cartel roto estaba 7 px abajo de la línea de medidas —no en su misma
+     baseline— y visualmente la tapaba igual. Los renglones de verdad están a 23 px o más
+     uno de otro, así que una banda de 10 px no junta dos que no se tocan. */
+  const BANDA = 10;
+  const choques = [];
+  for (let i = 0; i < trazos.length; i += 1) {
+    for (let j = i + 1; j < trazos.length; j += 1) {
+      const a = trazos[i]; const b = trazos[j];
+      if (!a.txt.trim() || !b.txt.trim()) continue;
+      if (Math.abs(a.y - b.y) > BANDA) continue;
+      if (a.izq < b.der - 0.5 && b.izq < a.der - 0.5) {
+        choques.push(`"${a.txt.trim().slice(0, 22)}" con "${b.txt.trim().slice(0, 22)}"`);
+      }
+    }
+  }
+  check('🔴 ningún texto se encima con otro', choques.length === 0, choques.slice(0, 3).join(' | '));
+
+  const seVan = trazos.filter((t) => t.der > W_IMG - P_IMG + 0.5 || t.izq < P_IMG - 0.5);
+  check('ningún texto se sale de los márgenes', seVan.length === 0,
+    seVan.slice(0, 3).map((t) => `"${t.txt.trim().slice(0, 25)}" hasta ${Math.round(t.der)}`).join(' | '));
+
   await browser.close();
   matarSrv();
   // El formato lo lee verificar.js para sumar las tandas: no cambiarlo.
