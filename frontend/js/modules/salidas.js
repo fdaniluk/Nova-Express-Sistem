@@ -1780,6 +1780,14 @@
               <div class="form-group"><label>Profit</label><input type="number" id="saled-profit" step="0.01"></div>
               <div class="form-group"><label>% Profit</label><input type="number" id="saled-porcentaje" step="0.1"></div>
             </div>
+            <!-- LAS COTIZACIONES DE ESTE CLIENTE. Arranca oculto y aparece SOLO cuando
+                 alguien se para en "Total cobrado" (pedido de Felipe, 25/08: "que no
+                 moleste, tal vez que solo aparezca en el caso que esten editando el
+                 precio de venta"). El precio que trae es un SUGERIDO. -->
+            <div id="saled-ctzr" class="saled-ctzr hidden">
+              <div class="saled-ctzr-tit">Cotizaciones de este cliente — últimos 30 días</div>
+              <div id="saled-ctzr-panel"></div>
+            </div>
             <div id="saled-extras-block" class="saled-extras"></div>
           </div>
           <div class="form-group">
@@ -1816,6 +1824,11 @@
 
     // El cartelito de desfase se re-evalúa en vivo cada vez que se edita Adicionales a mano.
     document.getElementById('saled-adicionales').addEventListener('input', updateExtrasWarn);
+
+    // Pararse en el precio de venta abre las cotizaciones de ese cliente. No se abre solo
+    // al abrir el envío: la mayoría de las veces no hace falta y sería ruido en un modal
+    // que ya está lleno.
+    document.getElementById('saled-total').addEventListener('focus', abrirCotizacionesDelCliente);
 
     document.addEventListener('keydown', (e) => {
       if (e.key === 'Escape' && !document.getElementById('sal-edit-overlay').classList.contains('hidden')) {
@@ -1941,6 +1954,9 @@
     document.getElementById('saled-recalc-status').textContent = '';
 
     document.getElementById('sal-modal-alert').innerHTML = '';
+    // Cada envío arranca con el panel cerrado y sin nada pintado: si quedara lo del envío
+    // anterior, alguien se llevaría el precio de otro cliente.
+    cerrarCotizacionesDelCliente();
     sincronizarNoVolo(envio);
     document.getElementById('sal-edit-overlay').classList.remove('hidden');
 
@@ -2762,6 +2778,39 @@
     const cta = document.getElementById('saled-recalc-cta');
     if (cta) cta.addEventListener('click', recalcularDesglose);
     document.querySelector('.sal-modal-body').scrollTop = 0;
+  }
+
+  // ── Cotizaciones recientes del cliente ───────────────────────────────────────
+  // Idea de Felipe (25/08/2026). En Salidas el panel NO está a la vista: aparece solo
+  // cuando alguien se para en "Total cobrado", que es el único momento en que sirve.
+  // Textual: *"me gustaría que esté de una forma que no moleste, tal vez que solo aparezca
+  // en el caso que estén editando el precio de venta"*.
+  //
+  // EL PRECIO ES UN SUGERIDO: se escribe en el campo y se puede pisar. El envío no queda
+  // atado a la cotización, y el profit se re-deriva solo como con cualquier otra edición.
+  function abrirCotizacionesDelCliente() {
+    const caja = document.getElementById('saled-ctzr');
+    const cont = document.getElementById('saled-ctzr-panel');
+    if (!caja || !cont || !editEnvio || !window.CotizacionesRecientes) return;
+    if (!caja.classList.contains('hidden')) return;   // ya está abierto: no re-consultar
+    caja.classList.remove('hidden');
+    window.CotizacionesRecientes.montar(cont, {
+      clienteId: document.getElementById('saled-cliente').value || editEnvio.cliente_id,
+      onUsar: (total) => {
+        const campo = document.getElementById('saled-total');
+        campo.value = Number(total).toFixed(2);
+        // Mismo camino que editarlo a mano: el profit y el % se re-derivan solos.
+        campo.dispatchEvent(new Event('input', { bubbles: true }));
+      },
+    });
+  }
+
+  function cerrarCotizacionesDelCliente() {
+    const caja = document.getElementById('saled-ctzr');
+    if (caja) caja.classList.add('hidden');
+    if (window.CotizacionesRecientes) {
+      window.CotizacionesRecientes.limpiar(document.getElementById('saled-ctzr-panel'));
+    }
   }
 
   // ── NO VOLÓ ─────────────────────────────────────────────────────────────────

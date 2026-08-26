@@ -22,6 +22,11 @@
     bindNuevoCliente();
     bindClienteProfit();
     bindCotizador();
+    // El panel arranca con el mensaje de "elegi un cliente"; el boton lo recarga a mano
+    // (una cotizacion recien guardada en otra pestaña aparece sin recargar la pagina).
+    pintarCotizacionesDelCliente();
+    document.getElementById('ctzr-refrescar')
+      .addEventListener('click', pintarCotizacionesDelCliente);
     document.getElementById('btn-cancelar-edit').addEventListener('click', resetForm);
     document.getElementById('cantidad_bultos').addEventListener('change', renderBultos);
   }
@@ -650,6 +655,10 @@
     document.getElementById('btn-cancelar-edit').classList.add('hidden');
     document.getElementById('cot-panel').classList.add('hidden');
     document.getElementById('cot-resultado').innerHTML = '';
+    // El form.reset() vacia el cliente: el panel y el aviso del sugerido lo siguen, si no
+    // quedaria en pantalla la cotizacion del cliente anterior sobre un formulario vacio.
+    document.getElementById('ctzr-sugerido').classList.add('hidden');
+    pintarCotizacionesDelCliente();
     updatePesos();
   }
 
@@ -662,6 +671,7 @@
     document.getElementById('form-title').textContent = 'Editar envío';
     document.getElementById('btn-cancelar-edit').classList.remove('hidden');
     document.getElementById('cliente_id').value = envio.cliente_id;
+    pintarCotizacionesDelCliente();
     document.getElementById('fecha').value = envio.fecha?.slice(0, 10);
     document.getElementById('courier').value = envio.courier;
     document.getElementById('cot-ups-wrap').style.display = envio.courier === 'UPS' ? '' : 'none';
@@ -796,6 +806,37 @@
       // El aviso del fuel negociado depende del cliente: se re-evalua al cambiarlo.
       avisarFuelDelCliente();
       precargarYCotizar();
+      // Y las cotizaciones que se le mandaron: son de ESE cliente.
+      pintarCotizacionesDelCliente();
+    });
+  }
+
+  // ── Cotizaciones recientes del cliente ───────────────────────────────────────
+  // Idea de Felipe (25/08/2026): la lista de cotizaciones no sirve guardada en el perfil,
+  // sirve ACA, cuando se esta cargando el envio. La oficina ve el destino, el peso y las
+  // medidas, reconoce cual es este envio y se trae el precio que se le habia pasado.
+  //
+  // EL PRECIO ES UN SUGERIDO. Se escribe en "Total cobrado" y ahi termina: se puede pisar,
+  // borrar o recalcular. El envio NO queda atado a la cotizacion.
+  function pintarCotizacionesDelCliente() {
+    const cont = document.getElementById('ctzr-panel');
+    if (!cont || !window.CotizacionesRecientes) return;
+    const clienteId = document.getElementById('cliente_id').value;
+    window.CotizacionesRecientes.montar(cont, {
+      clienteId,
+      onUsar: (total) => {
+        const campo = document.getElementById('total_cobrado');
+        campo.value = Number(total).toFixed(2);
+        // El cotizador automatico pudo haber dejado su propio numero: se avisa cual quedo
+        // puesto, para que nadie descubra despues que el precio salio de otro lado.
+        const nota = document.getElementById('ctzr-sugerido');
+        if (nota) {
+          nota.textContent = 'Precio traido de una cotizacion — es un sugerido, se puede cambiar.';
+          nota.classList.remove('hidden');
+        }
+        campo.focus();
+        campo.select();
+      },
     });
   }
 

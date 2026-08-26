@@ -687,6 +687,7 @@ async function migrateCotizaciones() {
       aceptada_por_id   INTEGER REFERENCES usuarios(id),
       aceptada_por      TEXT,
       aceptada_en       TEXT,
+      viaja_al_cliente  INTEGER NOT NULL DEFAULT 0,
       envio_id          INTEGER REFERENCES envios(id) ON DELETE SET NULL,
       notas             TEXT,
       creado_en         TEXT NOT NULL DEFAULT (datetime('now','localtime')),
@@ -705,6 +706,17 @@ async function migrateCotizaciones() {
       creado_en      TEXT NOT NULL DEFAULT (datetime('now','localtime'))
     )
   `);
+  /* viaja_al_cliente: ¿la cotización queda en el historial del cliente? Arranca apagada
+     porque el cotizador se usa mucho para tantear. Pero las que YA estaban guardadas se
+     marcan en 1: se guardaron a propósito, en un módulo que todavía no tenía la tilde, y
+     dejarlas afuera del historial sería esconder trabajo que la oficina ya hizo. El UPDATE
+     va adentro del `if`, así que corre UNA sola vez: el día que se agrega la columna. */
+  const colsCtz = (await dbApi.prepare('PRAGMA table_info(cotizaciones)').all()).map((c) => c.name);
+  if (!colsCtz.includes('viaja_al_cliente')) {
+    await dbApi.exec('ALTER TABLE cotizaciones ADD COLUMN viaja_al_cliente INTEGER NOT NULL DEFAULT 0');
+    await dbApi.exec('UPDATE cotizaciones SET viaja_al_cliente = 1');
+  }
+
   await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cotizaciones_cliente ON cotizaciones(cliente_id, estado, creado_en)');
   await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cotizaciones_estado  ON cotizaciones(estado, vence_en)');
   await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cotizaciones_envio   ON cotizaciones(envio_id)');

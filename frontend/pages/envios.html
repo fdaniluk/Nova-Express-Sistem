@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Registro de envíos – Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260825b">
-  <link rel="stylesheet" href="../css/modules/envios.css?v=20260825b">
+  <link rel="stylesheet" href="../css/main.css?v=20260825c">
+  <link rel="stylesheet" href="../css/modules/envios.css?v=20260825c">
   <style>
     .cot-header {
       display: flex;
@@ -247,6 +247,7 @@
             <div class="form-group">
               <label for="total_cobrado">Total cobrado (USD) *</label>
               <input type="number" id="total_cobrado" step="0.01" min="0" required>
+              <small id="ctzr-sugerido" class="hidden" style="color:#8a6500;font-size:11px"></small>
             </div>
             <div class="form-group full">
               <label for="observaciones">Observaciones</label>
@@ -262,6 +263,17 @@
           <div class="peso-preview" id="peso-preview" data-facturable="">
             Peso volumétrico: — | Peso facturable: —
           </div>
+
+          <!-- LAS COTIZACIONES DE ESTE CLIENTE (idea de Felipe, 25/08/2026).
+               Va acá, en la carga del envío, porque es el momento en que hace falta: la
+               oficina ve el destino, el peso y las medidas, reconoce cuál es este envío y
+               se lleva el precio. El precio que escribe es un SUGERIDO — se puede pisar. -->
+          <div class="cot-header" style="justify-content:space-between">
+            <span>📄 Cotizaciones de este cliente <small style="font-weight:400;color:#888">— últimos 30 días</small></span>
+            <button type="button" id="ctzr-refrescar" class="btn btn-secondary"
+                    style="padding:3px 10px;font-size:12px">Actualizar</button>
+          </div>
+          <div id="ctzr-panel" style="margin-bottom:14px"></div>
 
           <div class="cot-header">
             <span>🧮 Cotizador automático</span>
@@ -354,11 +366,12 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260825b"></script>
-<script src="../js/api.js?v=20260825b"></script>
-<script src="../js/main.js?v=20260825b"></script>
-<script src="/shared/cotizador/cotizador-core.js?v=20260825b"></script>
-<script src="/shared/guias/validar-guia.js?v=20260825b"></script>
-<script src="../js/modules/envios.js?v=20260825b"></script>
+<script src="/js/auth-guard.js?v=20260825c"></script>
+<script src="../js/api.js?v=20260825c"></script>
+<script src="../js/main.js?v=20260825c"></script>
+<script src="/shared/cotizador/cotizador-core.js?v=20260825c"></script>
+<script src="/shared/guias/validar-guia.js?v=20260825c"></script>
+<script src="../js/cotizaciones-recientes.js?v=20260825c"></script>
+<script src="../js/modules/envios.js?v=20260825c"></script>
 </body>
 </html>

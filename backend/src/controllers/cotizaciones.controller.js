@@ -79,6 +79,23 @@ async function aceptadasDeCliente(req, res, next) {
   } catch (e) { next(e); }
 }
 
+/**
+ * Las cotizaciones recientes de un cliente, para el panel de Cargar envío y de Salidas.
+ * `dias` son días CORRIDOS hacia atrás (por defecto 30). Solo salen las que la oficina
+ * marcó para que viajen al historial del cliente.
+ */
+async function recientesDeCliente(req, res, next) {
+  try {
+    const id = parseInt(req.params.clienteId, 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: 'Cliente inválido' });
+    const dias = req.query.dias === undefined ? 30 : Number(req.query.dias);
+    if (!Number.isFinite(dias) || dias <= 0) {
+      return res.status(400).json({ error: 'dias tiene que ser un número mayor a cero' });
+    }
+    res.json(await modelo.recientesDeCliente(id, dias));
+  } catch (e) { next(e); }
+}
+
 async function crear(req, res, next) {
   try {
     const error = await validar(req.body);
@@ -147,4 +164,4 @@ async function eliminar(req, res, next) {
   } catch (e) { next(e); }
 }
 
-module.exports = { listar, obtener, aceptadasDeCliente, crear, aceptar, cambiarEstado, editar, eliminar };
+module.exports = { listar, obtener, aceptadasDeCliente, recientesDeCliente, crear, aceptar, cambiarEstado, editar, eliminar };

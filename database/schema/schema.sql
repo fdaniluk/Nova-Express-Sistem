@@ -591,6 +591,11 @@ CREATE TABLE IF NOT EXISTS cotizaciones (
   aceptada_por_id   INTEGER REFERENCES usuarios(id),
   aceptada_por      TEXT,
   aceptada_en       TEXT,
+  -- ¿Esta cotización queda en el historial del cliente? Arranca APAGADA: la oficina
+  -- tiene que marcarla al guardar. El cotizador se usa mucho para tantear, y un
+  -- historial lleno de tanteos no le sirve a nadie para reconocer un envío.
+  -- Es lo que alimenta el panel de "cotizaciones recientes" de Cargar envío y Salidas.
+  viaja_al_cliente  INTEGER NOT NULL DEFAULT 0,
   -- Envío al que terminó atada. NULL = todavía no llegó la caja.
   envio_id          INTEGER REFERENCES envios(id) ON DELETE SET NULL,
   notas             TEXT,

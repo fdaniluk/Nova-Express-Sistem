@@ -1246,3 +1246,23 @@ td.cell-sin-pesar { background: #fffbeb; }
   font-size: 13px;
   color: #5b3b37;
 }
+
+/* ── Cotizaciones del cliente dentro del modal ───────────────────────────────
+   Arranca oculto: aparece solo cuando alguien se para en "Total cobrado". El pedido
+   fue explícito — que no moleste. El resto del estilo (las filas) vive en main.css,
+   porque el mismo panel se usa en Cargar envío. */
+.saled-ctzr {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border: 1px solid #e6e3ec;
+  border-radius: 6px;
+  background: #fbfafc;
+}
+.saled-ctzr-tit {
+  font-size: 11px;
+  font-weight: 600;
+  color: #8a8494;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  margin-bottom: 8px;
+}

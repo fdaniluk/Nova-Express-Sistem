@@ -113,6 +113,68 @@ async function aceptadasSinUsar(clienteId) {
     .all(clienteId);
 }
 
+/**
+ * LAS COTIZACIONES RECIENTES DE UN CLIENTE — el panel de Cargar envío y de Salidas.
+ *
+ * POR QUÉ EXISTE (idea de Felipe, 25/08/2026)
+ * La lista de cotizaciones guardadas vivía abajo del cotizador, y ahí no le sirve a nadie:
+ * *"pocas veces uno va a volver al perfil del cliente para ver una cotización"*. El momento
+ * en que hace falta es OTRO — cuando administración está cargando el envío y tiene que
+ * saber qué se le cotizó a esa persona. Con el destino, las medidas y el peso a la vista,
+ * la oficina reconoce el envío de un vistazo (*"se ve que es este"*) y se lleva el precio.
+ *
+ * DOS REGLAS QUE LO SOSTIENEN
+ *  1. Solo salen las marcadas con `viaja_al_cliente`. El cotizador se usa para tantear y
+ *     un historial lleno de tanteos no deja reconocer nada. La tilde arranca APAGADA.
+ *  2. NO se devuelve `entrada` ni `opciones` enteras: adentro va nuestro costo y el profit.
+ *     Se manda solo lo que sirve para reconocer el envío (medidas de los bultos) y el
+ *     precio de cada servicio. Mismo criterio que `listar()`.
+ *
+ * La ventana es de días CORRIDOS, no mes calendario (pedido textual: "los últimos treinta
+ * días, no mes calendario").
+ */
+async function recientesDeCliente(clienteId, dias = 30) {
+  await vencerLasQueCorresponda();
+  const db = getDb();
+  const n = Number.isFinite(Number(dias)) && Number(dias) > 0 ? Math.min(Number(dias), 365) : 30;
+  const filas = await db
+    .prepare(
+      `${SELECT_BASE}
+        WHERE q.cliente_id = ?
+          AND q.viaja_al_cliente = 1
+          AND date(q.creado_en) >= date('now','localtime','-' || ? || ' days')
+        ORDER BY q.creado_en DESC, q.id DESC`
+    )
+    .all(clienteId, n);
+
+  return filas.map((f) => {
+    const { entrada, opciones, ...resto } = f;
+    let bultos = [];
+    let precios = [];
+    try {
+      const e = JSON.parse(entrada || '{}');
+      // Solo las medidas y los pesos. Del resto de `entrada` (ganancia, fuel, arancel)
+      // no va nada: es cocina nuestra.
+      bultos = Array.isArray(e.bultos)
+        ? e.bultos.map((b) => ({ pr: b.pr, l: b.l, a: b.a, al: b.al, pv: b.pv, pf: b.pf }))
+        : [];
+    } catch { bultos = []; }
+    try {
+      /* Solo las opciones TILDADAS. Cotizar DHL + UPS rápido + UPS lento y mandarle una
+         sola al cliente es lo normal; si subieran las tres, el panel mostraría tres
+         precios para un envío que se cotizó a uno (pedido de Felipe, 26/08). */
+      precios = JSON.parse(opciones || '[]')
+        .filter((o) => o && o.viaja)
+        .map((o) => ({ servicio: o.servicio, total: o.total, pf: o.pf, zona: o.zona }));
+    } catch { precios = []; }
+    return { ...resto, bultos, opciones_resumen: precios };
+  })
+    /* Una cotización sin ninguna opción tildada no tiene nada que mostrar. Puede pasar si
+       alguien destildó todo antes de guardar: se guarda igual (es el respaldo) pero no
+       ensucia el panel. */
+    .filter((q) => q.opciones_resumen.length > 0);
+}
+
 async function anotarHistorial(cotizacionId, accion, antes, despues, usuario) {
   const db = getDb();
   await db
@@ -140,13 +202,29 @@ async function historial(cotizacionId) {
 async function crear(data, usuario) {
   const db = getDb();
   const numero = await proximoNumero();
+
+  /* QUÉ VIAJA AL HISTORIAL DEL CLIENTE (26/08/2026).
+     La marca es POR OPCIÓN: la tilde "Guardar" vive en cada tarjeta del cotizador. La
+     cotización se guarda SIEMPRE entera —es el respaldo de lo que se le mandó al cliente
+     y de ahí sale el precio al aceptar— pero al panel de Cargar envío y de Salidas suben
+     solo las opciones tildadas.
+     `viaja_al_cliente` es el resumen a nivel cotización: sirve para que la consulta del
+     panel filtre en SQL sin abrir el JSON de cada fila.
+     Compatibilidad: si NINGUNA opción trae la marca (un cliente viejo de la API), manda
+     el flag suelto y se aplica a todas. */
+  const ops = Array.isArray(data.opciones) ? data.opciones : [];
+  const marcadaPorOpcion = ops.some((o) => o && o.viaja !== undefined);
+  const viaja = marcadaPorOpcion ? ops.some((o) => o && o.viaja) : Boolean(data.viaja_al_cliente);
+  const opciones = marcadaPorOpcion
+    ? ops
+    : ops.map((o) => ({ ...o, viaja: viaja ? 1 : 0 }));
   const res = await db
     .prepare(
       `INSERT INTO cotizaciones
          (numero, cliente_id, cliente_nombre, estado, pais, tipo_envio, contenido, zona,
           peso_facturable, cantidad_bultos, valor_declarado, entrada, opciones,
-          vence_en, usuario_id, usuario, notas)
-       VALUES (?, ?, ?, 'emitida', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          vence_en, usuario_id, usuario, notas, viaja_al_cliente)
+       VALUES (?, ?, ?, 'emitida', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       numero,
@@ -160,11 +238,12 @@ async function crear(data, usuario) {
       data.cantidad_bultos ?? 1,
       data.valor_declarado ?? 0,
       JSON.stringify(data.entrada ?? {}),
-      JSON.stringify(data.opciones ?? []),
+      JSON.stringify(opciones),
       data.vence_en ?? null,
       (usuario && usuario.id) || null,
       (usuario && usuario.usuario) || null,
-      data.notas ?? null
+      data.notas ?? null,
+      viaja ? 1 : 0
     );
   const id = res.lastInsertRowid;
   await anotarHistorial(id, 'emitida', null, { numero, peso_facturable: data.peso_facturable }, usuario);
@@ -283,6 +362,7 @@ module.exports = {
   listar,
   obtener,
   aceptadasSinUsar,
+  recientesDeCliente,
   crear,
   aceptar,
   cambiarEstado,

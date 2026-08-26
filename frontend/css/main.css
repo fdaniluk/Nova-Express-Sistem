@@ -632,3 +632,35 @@ tr:hover td {
   cursor: pointer;
   text-align: left;
 }
+
+/* ── Cotizaciones recientes del cliente ──────────────────────────────────────
+   El panel de Cargar envio y de Salidas. Idea de Felipe (25/08): que la oficina
+   reconozca el envio por el destino y las medidas, y se lleve el precio de ahi.
+   El precio es un SUGERIDO: se escribe en el campo de venta y se puede pisar. */
+.ctzr-lista { display: flex; flex-direction: column; gap: 6px; }
+.ctzr-fila {
+  display: flex; justify-content: space-between; align-items: center; gap: 12px;
+  padding: 8px 10px; border: 1px solid #e6e3ec; border-radius: 6px; background: #fbfafc;
+}
+.ctzr-datos { min-width: 0; }
+.ctzr-titulo { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.ctzr-fecha { color: #8a8494; font-size: 12px; }
+.ctzr-destino { font-size: 12.5px; color: #403754; margin-top: 2px; }
+.ctzr-medidas { font-size: 12px; color: #8a8494; font-family: 'DM Mono', monospace; margin-top: 1px; }
+.ctzr-precios { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.ctzr-precio {
+  display: flex; flex-direction: column; align-items: flex-end; gap: 1px;
+  font-family: inherit; cursor: pointer; padding: 5px 10px;
+  border: 1px solid #cfc9da; border-radius: 6px; background: #fff; line-height: 1.15;
+}
+.ctzr-precio:hover { border-color: #403754; background: #f3f1f6; }
+.ctzr-precio.elegido { border-color: #EE6C52; background: #fdf1ee; }
+.ctzr-serv { font-size: 10.5px; color: #8a8494; letter-spacing: .02em; }
+.ctzr-monto { font-size: 13px; font-weight: 600; color: #403754; font-family: 'DM Mono', monospace; }
+.ctzr-estado {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
+  padding: 1px 6px; border-radius: 999px; background: #ece9f1; color: #6b6478;
+}
+.ctzr-estado.ctzr-aceptada { background: #dcfce7; color: #166534; }
+.ctzr-estado.ctzr-vencida, .ctzr-estado.ctzr-rechazada { background: #f3f4f6; color: #9ca3af; }
+.ctzr-vacio { font-size: 12.5px; color: #8a8494; padding: 6px 2px; }

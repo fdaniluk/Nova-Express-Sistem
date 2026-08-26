@@ -272,6 +272,10 @@ api.cotizaciones = {
   obtener: (id) => api.get(`/cotizaciones/${id}`),
   // Las aceptadas de un cliente que todavia no se usaron en ningun envio.
   aceptadasDe: (clienteId) => api.get(`/cotizaciones/cliente/${clienteId}/aceptadas`),
+  // Las de los ultimos N dias corridos (30 por defecto) que la oficina marco para que
+  // queden en el historial del cliente. Es lo que muestran Cargar envio y Salidas.
+  recientesDe: (clienteId, dias) =>
+    api.get(`/cotizaciones/cliente/${clienteId}/recientes${dias ? `?dias=${dias}` : ''}`),
   crear: (data) => api.post('/cotizaciones', data),
   // `servicio` es cual de las opciones eligio el cliente. El TOTAL no viaja: lo saca el
   // servidor de la opcion guardada, asi el precio acordado no se puede tipear.
