@@ -89,14 +89,22 @@
 .res-acciones{display:flex;flex-direction:column;align-items:flex-end;gap:4px}
 /* La tilde "Guardar" de cada tarjeta: chica y en gris, para que no le compita al precio.
    Marcada se pone firme, que es cuando importa que se vea. */
-/* text-transform:none y letter-spacing a proposito: main.css pone TODAS las <label> de la
-   app en mayusculas con espaciado, y aca quedaba un "GUARDAR" gritado al lado del precio. */
-.chk-viaja-lbl{display:inline-flex;align-items:center;gap:5px;font-size:11px;font-weight:400;
-  text-transform:none;letter-spacing:normal;color:var(--cot-text-tertiary);
-  cursor:pointer;white-space:nowrap;user-select:none;margin:0}
-.chk-viaja-lbl:hover{color:var(--cot-text-secondary)}
-.chk-viaja-lbl:has(input:checked){color:var(--cot-accent-ups);font-weight:600}
-.chk-viaja{width:13px;height:13px;min-width:13px;margin:0;padding:0;cursor:pointer;accent-color:var(--cot-accent-ups)}
+/* El boton "Guardar este precio", debajo del panel de compra. Es un boton y no una casilla
+   porque una casilla tildada "apenas se ve" (Felipe, 26/08): marcado tiene que cantar. */
+.col-oficina{width:210px;flex-shrink:0;display:flex;flex-direction:column;gap:8px}
+.btn-viaja{display:flex;align-items:center;justify-content:center;gap:7px;width:100%;
+  font-family:inherit;font-size:12px;font-weight:600;line-height:1.2;padding:9px 10px;
+  cursor:pointer;border-radius:var(--cot-radius-sm);
+  border:1px dashed #c9c3d4;background:#fff;color:var(--cot-text-tertiary);
+  transition:background .12s,border-color .12s,color .12s}
+.btn-viaja:hover{border-color:#403754;color:#403754}
+.btn-viaja .bv-ico{display:inline-flex;align-items:center;justify-content:center;
+  width:16px;height:16px;border-radius:50%;background:#ece9f1;color:#8a8494;
+  font-size:12px;font-weight:700;flex-shrink:0}
+/* Marcado: violeta Nova lleno. No verde: el verde de esta pantalla ya significa ganancia. */
+.btn-viaja[aria-pressed="true"]{border:1px solid #403754;background:#403754;color:#fff}
+.btn-viaja[aria-pressed="true"]:hover{background:#332c44}
+.btn-viaja[aria-pressed="true"] .bv-ico{background:#EE6C52;color:#fff}
 .cot-error-msg{font-size:13px;color:var(--cot-danger);background:#fdf0ee;border:1px solid #f5c6c1;border-radius:var(--cot-radius-sm);padding:8px 12px;margin-bottom:1rem;display:none}
 .cot-results{display:grid;gap:16px}
 .result-card{background:var(--cot-surface);border:1px solid var(--cot-border);border-radius:var(--cot-radius);overflow:hidden;box-shadow:var(--cot-shadow-md);animation:fadeIn .25s ease}
@@ -137,7 +145,7 @@
    analizar antes de mandar la tarifa. */
 .res-fila{display:flex;gap:12px;align-items:flex-start}
 .res-fila>.result-card{flex:1;min-width:0}
-.panel-compra{width:210px;flex-shrink:0;background:#f7f6f2;border:1px solid var(--cot-border);
+.panel-compra{width:100%;flex-shrink:0;background:#f7f6f2;border:1px solid var(--cot-border);
   border-radius:var(--cot-radius);padding:10px 12px;font-size:11.5px;
   font-family:'DM Mono',monospace;color:var(--cot-text-secondary)}
 .panel-compra .pc-tit{font-family:'DM Sans',sans-serif;font-weight:600;font-size:9.5px;
@@ -569,7 +577,17 @@ if(lineaInterna)profitPorServicio.push({courier,texto:lineaInterna});const extra
     +`<div class="pc-row pc-gan"><span>Ganancia</span><span>${fmt(gan)}${pct!==null?` <span class="pc-pct">(${pct.toFixed(0)}%)</span>`:''}</span></div>`
     +`</div>`;
 })();
-return`<div class="res-fila"><div class="result-card"><div class="result-header ${tag}"><div><div class="result-courier">${nombreCorto(courier)}${(tipo==='import'&&/DHL/i.test(courier)&&pf>50)?'<span class="badge-50">Tarifa +50Kg</span>':''}</div><div class="result-meta">${(()=>{const prTotal=bultosProc.reduce((s,b)=>s+b.pr,0);const pvTotal=bultosProc.reduce((s,b)=>s+b.pv,0);if(bultosProc.length===1){const b=bultosProc[0];return`Zona ${zona} · ${b.pr} kg real · ${b.l}×${b.a}×${b.al} cm · ${b.pv.toFixed(1)} kg vol · ${b.pf.toFixed(1)} kg facturable · 1 bulto · ${tipo==='export'?'Exportación':'Importación'}${valor>0?` · FOB ${fmt(valor)}`:''}`;}else{return`Zona ${zona} · ${prTotal.toFixed(1)} kg real · ${pvTotal.toFixed(1)} kg vol · ${pf.toFixed(1)} kg facturable · ${bultosProc.length} bultos · ${tipo==='export'?'Exportación':'Importación'}${valor>0?` · FOB ${fmt(valor)}`:''}`;}})()} </div></div><div style="display:flex;align-items:center;gap:10px"><div class="result-total">${fmt(total)}</div><div class="res-acciones"><button class="btn-copiar" data-i="${_i}" onclick="copiarImagen(${_i},this)" title="Copiar la cotizacion como imagen para pegar en WhatsApp">Copiar imagen</button><label class="chk-viaja-lbl" title="Al guardar, ESTE precio queda en el historial del cliente y aparece solo cuando administracion cargue un envio suyo. Las opciones sin tildar se guardan igual (son el respaldo) pero no salen en ese panel."><input type="checkbox" class="chk-viaja" data-i="${_i}"> Guardar</label></div></div></div><div class="result-body">${bultosProc.length>1?`<div class="bultos-summary">${bultosHtml}</div>`:''}<div class="breakdown"><div class="brow"><span class="bl">Flete internacional</span><span class="br">${fmt(conGan)}</span></div>${surgeHtml}<div class="brow subtotal-row"><span class="bl">${subtotalLabel}</span><span class="br">${fmt(subtotalConSurge)}</span></div><div class="brow fuel-row"><span class="bl">Fuel (${fuelPctUsado}%)</span><span class="br">+ ${fmt(fuelMonto)}</span></div>${extrasHtml}<div class="brow total-row"><span class="bl">Total</span><span class="br">${fmt(total)}</span></div></div><div style="margin-top:10px;font-size:11px;color:var(--cot-text-tertiary);font-style:italic;">El costo dado no contempla impuestos de nacionalización en destino.</div>${impHtml}</div></div>${panelCompra}</div>`;}).join('');
+/* LA COLUMNA DE OFICINA — el panel de compra y el boton de guardar, los dos FUERA de la
+   tarjeta. La tarjeta es lo que se le manda al cliente: cualquier control nuestro adentro
+   "contamina la vista", como dijo Felipe el 26/08. El boton existe SIEMPRE, aunque no haya
+   panel de compra (sin costo, panelCompra devuelve vacio): si no, habria cotizaciones que
+   no se podrian marcar. */
+const colOficina=`<div class="col-oficina">${panelCompra}`
+  +`<button type="button" class="btn-viaja" data-i="${_i}" aria-pressed="false"`
+  +` title="Al guardar la cotizacion, ESTE precio queda en el historial del cliente y aparece cuando administracion cargue un envio suyo. Las opciones sin marcar se guardan igual (son el respaldo) pero no salen en ese panel.">`
+  +`<span class="bv-ico">+</span><span class="bv-txt">Guardar este precio</span></button>`
+  +`</div>`;
+return`<div class="res-fila"><div class="result-card"><div class="result-header ${tag}"><div><div class="result-courier">${nombreCorto(courier)}${(tipo==='import'&&/DHL/i.test(courier)&&pf>50)?'<span class="badge-50">Tarifa +50Kg</span>':''}</div><div class="result-meta">${(()=>{const prTotal=bultosProc.reduce((s,b)=>s+b.pr,0);const pvTotal=bultosProc.reduce((s,b)=>s+b.pv,0);if(bultosProc.length===1){const b=bultosProc[0];return`Zona ${zona} · ${b.pr} kg real · ${b.l}×${b.a}×${b.al} cm · ${b.pv.toFixed(1)} kg vol · ${b.pf.toFixed(1)} kg facturable · 1 bulto · ${tipo==='export'?'Exportación':'Importación'}${valor>0?` · FOB ${fmt(valor)}`:''}`;}else{return`Zona ${zona} · ${prTotal.toFixed(1)} kg real · ${pvTotal.toFixed(1)} kg vol · ${pf.toFixed(1)} kg facturable · ${bultosProc.length} bultos · ${tipo==='export'?'Exportación':'Importación'}${valor>0?` · FOB ${fmt(valor)}`:''}`;}})()} </div></div><div style="display:flex;align-items:center;gap:10px"><div class="result-total">${fmt(total)}</div><button class="btn-copiar" data-i="${_i}" onclick="copiarImagen(${_i},this)" title="Copiar la cotizacion como imagen para pegar en WhatsApp">Copiar imagen</button></div></div><div class="result-body">${bultosProc.length>1?`<div class="bultos-summary">${bultosHtml}</div>`:''}<div class="breakdown"><div class="brow"><span class="bl">Flete internacional</span><span class="br">${fmt(conGan)}</span></div>${surgeHtml}<div class="brow subtotal-row"><span class="bl">${subtotalLabel}</span><span class="br">${fmt(subtotalConSurge)}</span></div><div class="brow fuel-row"><span class="bl">Fuel (${fuelPctUsado}%)</span><span class="br">+ ${fmt(fuelMonto)}</span></div>${extrasHtml}<div class="brow total-row"><span class="bl">Total</span><span class="br">${fmt(total)}</span></div></div><div style="margin-top:10px;font-size:11px;color:var(--cot-text-tertiary);font-style:italic;">El costo dado no contempla impuestos de nacionalización en destino.</div>${impHtml}</div></div>${colOficina}</div>`;}).join('');
   /* TIRA INTERNA — solo para la oficina. Va FUERA de las tarjetas a proposito: es lo unico
      de esta pantalla que no puede terminar en la imagen que se le manda al cliente. */
   const tira=document.getElementById('tira-interna');
@@ -591,9 +609,9 @@ return`<div class="res-fila"><div class="result-card"><div class="result-header 
     barra.style.display=results.length?'flex':'none';
     const m=document.getElementById('bg-msg'); if(m){m.textContent='';m.className='bg-msg';}
     const b=barra.querySelector('.btn-guardar-ctz'); if(b){b.disabled=false;b.textContent='Guardar cotización';}
-    /* Las tildes "Guardar" viven adentro de cada tarjeta y se redibujan con ellas, asi
-       que cada cotizacion nueva arranca sin ninguna marcada. Si quedaran pegadas, "solo
-       lo marcado" se convertiria en "todo", que es justo lo que se quiso evitar. */
+    /* Los botones "Guardar este precio" se redibujan con los resultados, asi que cada
+       cotizacion nueva arranca sin ninguno marcado. Si quedaran pegados, "solo lo marcado"
+       se convertiria en "todo", que es justo lo que se quiso evitar. */
   }
 }
 
@@ -658,7 +676,7 @@ async function guardarCotizacion(btn){
        de Salidas suben solo las opciones tildadas. Sin esto, cotizar DHL + UPS rapido +
        UPS lento llenaba el panel con tres precios cuando al cliente se le paso uno. */
     opciones:c.results.map((r,i)=>({
-      viaja:(document.querySelector('.chk-viaja[data-i="'+i+'"]')||{}).checked?1:0,
+      viaja:document.querySelector('.btn-viaja[data-i="'+i+'"]')&&document.querySelector('.btn-viaja[data-i="'+i+'"]').getAttribute('aria-pressed')==='true'?1:0,
       servicio:r.courier, total:r.total, zona:r.zona, pf:r.pf,
       flete:r.conGan, surge:r.surgeAmt, subtotal:r.subtotalConSurge,
       fuel_monto:r.fuelMonto, fuel_pct:r.fuelPctUsado,
@@ -1058,6 +1076,17 @@ document.addEventListener('DOMContentLoaded',()=>{
   const sel=document.getElementById('cliente'), nom=document.getElementById('pres_nombre');
   if(sel&&nom)sel.addEventListener('change',()=>{
     if(!nom.value.trim()&&sel.value)nom.value=sel.options[sel.selectedIndex].textContent.trim();
+  });
+
+  /* El boton "Guardar este precio" de cada opcion. Delegado: los resultados se redibujan
+     enteros en cada cotizacion y un listener por boton se perderia en cada render. */
+  document.addEventListener('click',(ev)=>{
+    const b=ev.target.closest&&ev.target.closest('.btn-viaja');
+    if(!b)return;
+    const puesto=b.getAttribute('aria-pressed')==='true';
+    b.setAttribute('aria-pressed',puesto?'false':'true');
+    b.querySelector('.bv-ico').textContent=puesto?'+':'✓';
+    b.querySelector('.bv-txt').textContent=puesto?'Guardar este precio':'Se guarda para el envío';
   });
 });
 

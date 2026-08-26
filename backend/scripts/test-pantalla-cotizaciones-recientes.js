@@ -5,7 +5,7 @@
  * El endpoint lo cubre test-cotizaciones-recientes.js. Esto controla lo otro, que es lo
  * que pidió Felipe con estas palabras:
  *
- *   · que la tilde viva EN CADA TARJETA y arranque apagada — se cotizan tres servicios y
+ *   · que el botón viva por opción, FUERA de la tarjeta, y arranque apagado — se cotizan tres servicios y
  *     al cliente se le manda uno solo: *"si yo lo pongo en el general, me va a guardar
  *     tres cotizaciones innecesariamente"*,
  *   · que en CARGAR ENVÍO el panel aparezca al elegir el cliente y el precio se escriba
@@ -128,7 +128,7 @@ async function main() {
   }).catch(() => false);
 
   // ── 1. La tilde del cotizador ───────────────────────────────────────────────────────
-  console.log('\n1. La tilde vive en cada tarjeta y arranca apagada\n');
+  console.log('\n1. El botón "Guardar" es por opción, vive fuera de la tarjeta y arranca apagado\n');
 
   await page.goto(`${BASE}/pages/cotizador.html`);
   await esperar(2500);
@@ -144,20 +144,37 @@ async function main() {
   await page.waitForSelector('.result-card', { timeout: 8000 });
   await esperar(800);
 
-  const tildes = await page.$$('.chk-viaja');
+  const botones = await page.$$('.btn-viaja');
   const tarjetas = await page.$$('.result-card');
-  check('hay una tilde "Guardar" por tarjeta y no una sola general',
-    tildes.length === tarjetas.length && tildes.length > 1,
-    `${tildes.length} tildes · ${tarjetas.length} tarjetas`);
+  check('hay un botón "Guardar" por opción y no uno solo general',
+    botones.length === tarjetas.length && botones.length > 1,
+    `${botones.length} botones · ${tarjetas.length} tarjetas`);
   check('no quedó la tilde general vieja', !(await page.$('#ctz-viaja')));
-  const algunaPrendida = await page.$$eval('.chk-viaja', (e) => e.some((x) => x.checked));
-  check('todas arrancan APAGADAS', !algunaPrendida);
 
-  await page.check('.chk-viaja');
+  /* 🔴 EL CONTROL VIVE FUERA DE LA TARJETA. La tarjeta es lo que se le manda al cliente:
+     un control nuestro adentro "contamina la vista" (Felipe, 26/08) y encima viaja en
+     cualquier captura de pantalla. Es la misma regla que sacó el profit de ahí el 20/08. */
+  check('🔴 el botón vive FUERA de la tarjeta que ve el cliente',
+    (await page.$$('.result-card .btn-viaja')).length === 0);
+  check('y está en la columna de oficina, con el panel de compra',
+    (await page.$$('.col-oficina .btn-viaja')).length === botones.length);
+
+  const algunoPrendido = await page.$$eval('.btn-viaja',
+    (e) => e.some((x) => x.getAttribute('aria-pressed') === 'true'));
+  check('todos arrancan APAGADOS', !algunoPrendido);
+
+  await page.click('.btn-viaja');
+  await esperar(300);
+  check('al apretarlo se nota que quedó marcado',
+    (await page.$eval('.btn-viaja', (e) => e.getAttribute('aria-pressed'))) === 'true');
+  check('y el texto cambia para que no haya dudas',
+    /Se guarda/i.test(await page.$eval('.btn-viaja', (e) => e.textContent)),
+    await page.$eval('.btn-viaja', (e) => e.textContent.trim()));
+
   await page.click('.btn-calc');
   await esperar(1500);
-  check('al volver a cotizar arrancan apagadas de nuevo (si no, "solo lo marcado" sería "todo")',
-    !(await page.$$eval('.chk-viaja', (e) => e.some((x) => x.checked))));
+  check('al volver a cotizar arrancan apagados de nuevo (si no, "solo lo marcado" sería "todo")',
+    !(await page.$$eval('.btn-viaja', (e) => e.some((x) => x.getAttribute('aria-pressed') === 'true'))));
 
   // ── 2. Cargar envío: el panel y el precio sugerido ──────────────────────────────────
   console.log('\n2. Cargar envío: el panel aparece con el cliente y el precio es un sugerido\n');
