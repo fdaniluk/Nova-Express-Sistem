@@ -281,6 +281,8 @@ api.cotizaciones = {
   // servidor de la opcion guardada, asi el precio acordado no se puede tipear.
   aceptar: (id, servicio) => api.post(`/cotizaciones/${id}/aceptar`, { servicio }),
   cambiarEstado: (id, estado) => api.patch(`/cotizaciones/${id}/estado`, { estado }),
+  // Que opciones de una guardada viajan al historial del cliente ([{servicio, viaja}]).
+  marcar: (id, marcas) => api.patch(`/cotizaciones/${id}/marcas`, { marcas }),
   editar: (id, data) => api.patch(`/cotizaciones/${id}`, data),
   eliminar: (id) => api.delete(`/cotizaciones/${id}`),
 };

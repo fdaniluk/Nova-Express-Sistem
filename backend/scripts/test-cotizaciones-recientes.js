@@ -210,8 +210,36 @@ async function main() {
   check('aunque se guardó igual', (await (await fetch(
     `${BASE}/api/cotizaciones/${ninguna.body.id}`, { headers: H })).json()).numero === ninguna.body.numero);
 
-  // ── 7. Bordes ───────────────────────────────────────────────────────────────────────
-  console.log('\n7. Parámetros inválidos\n');
+  // ── 7. Compatibilidad con las guardadas ANTES de la marca por opción ────────────────
+  /* La migración las dejó con viaja_al_cliente=1 pero ninguna opción trae `viaja`: sin la
+     rama de compatibilidad quedaban INVISIBLES — le pasó a Felipe el 26/08 probando el
+     circuito con cotizaciones viejas. Si ninguna opción conoce la marca, viajan todas. */
+  console.log('\n7. Las cotizaciones de antes de la marca por opción se siguen viendo\n');
+
+  const viejisima = await cotizar(970, {
+    opciones: [
+      { servicio: 'UPS Worldwide Expedited', total: 166.66, pf: 8, zona: 2, costo: 70 },
+      { servicio: 'DHL', total: 177.77, pf: 8, zona: 2, costo: 75 },
+    ],
+    viaja_al_cliente: 1,
+  });
+  // Borrarle las marcas que crear() le puso, para dejarla EXACTAMENTE como una migrada.
+  const sinMarcas = JSON.stringify([
+    { servicio: 'UPS Worldwide Expedited', total: 166.66, pf: 8, zona: 2, costo: 70 },
+    { servicio: 'DHL', total: 177.77, pf: 8, zona: 2, costo: 75 },
+  ]);
+  await run('UPDATE cotizaciones SET opciones = ?, viaja_al_cliente = 1 WHERE id = ?',
+    [sinMarcas, viejisima.body.id]);
+
+  const fVieja = (await recientes(970)).body.find((x) => x.numero === viejisima.body.numero);
+  check('🔴 la cotización migrada APARECE en el panel', !!fVieja);
+  check('con TODAS sus opciones (nadie sabe cuál se mandó: mejor las dos que ninguna)',
+    fVieja && fVieja.opciones_resumen.length === 2, JSON.stringify(fVieja && fVieja.opciones_resumen));
+  check('y sin que se escape el costo tampoco por esta rama',
+    !/"costo"/.test(JSON.stringify(fVieja)));
+
+  // ── 8. Bordes ───────────────────────────────────────────────────────────────────────
+  console.log('\n8. Parámetros inválidos\n');
 
   check('dias con texto da 400', (await recientes(970, '?dias=hola')).status === 400);
   check('dias en cero da 400', (await recientes(970, '?dias=0')).status === 400);

@@ -96,6 +96,26 @@ async function recientesDeCliente(req, res, next) {
   } catch (e) { next(e); }
 }
 
+/**
+ * Cambia qué opciones de una cotización guardada viajan al historial del cliente.
+ * Es la puerta del botón "Guardar este precio" cuando la cotización ya se creó: marcar
+ * otra opción o desmarcar edita las marcas en vez de crear una cotización nueva.
+ */
+async function marcas(req, res, next) {
+  try {
+    const lista = req.body && req.body.marcas;
+    if (!Array.isArray(lista) || lista.length === 0) {
+      return res.status(400).json({ error: 'Falta la lista de marcas' });
+    }
+    for (const m of lista) {
+      if (!m || !m.servicio) return res.status(400).json({ error: 'Hay una marca sin servicio' });
+    }
+    const q = await modelo.actualizarMarcas(req.params.id, lista, req.usuario);
+    if (!q) return res.status(404).json({ error: 'Cotización no encontrada' });
+    res.json(q);
+  } catch (e) { next(e); }
+}
+
 async function crear(req, res, next) {
   try {
     const error = await validar(req.body);
@@ -164,4 +184,4 @@ async function eliminar(req, res, next) {
   } catch (e) { next(e); }
 }
 
-module.exports = { listar, obtener, aceptadasDeCliente, recientesDeCliente, crear, aceptar, cambiarEstado, editar, eliminar };
+module.exports = { listar, obtener, aceptadasDeCliente, recientesDeCliente, crear, aceptar, cambiarEstado, editar, marcas, eliminar };

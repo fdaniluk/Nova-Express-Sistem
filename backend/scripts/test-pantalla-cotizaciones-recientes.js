@@ -135,7 +135,10 @@ async function main() {
 
   await page.selectOption('#pais', 'Estados Unidos');
   await page.selectOption('#couriers', 'ambos');   // los tres servicios, que es el caso real
-  await page.fill('#ganancia', '60');
+  /* Con cliente elegido la ganancia sale de SU matriz y el campo se bloquea: no se
+     tipea. Elegirlo ademas hace que el click en "Guardar este precio" guarde sin el
+     prompt del nombre. */
+  await page.selectOption('#cliente', String(cli.id));
   await page.fill('.bulto-row .b-peso', '4');
   await page.fill('.bulto-row .b-largo', '40');
   await page.fill('.bulto-row .b-ancho', '30');
@@ -164,11 +167,16 @@ async function main() {
   check('todos arrancan APAGADOS', !algunoPrendido);
 
   await page.click('.btn-viaja');
-  await esperar(300);
-  check('al apretarlo se nota que quedó marcado',
+  /* Desde el 26/08 el click GUARDA DIRECTO: se espera a que la base confirme (el renglon
+     de estado muestra el numero), no solo al cambio visual. */
+  const seGuardo = await esperarQue(async () =>
+    /CTZ-\d+/.test(await page.textContent('.bv-estado')));
+  check('al apretarlo guarda directo y muestra el número', seGuardo,
+    await page.textContent('.bv-estado'));
+  check('y el botón se nota marcado',
     (await page.$eval('.btn-viaja', (e) => e.getAttribute('aria-pressed'))) === 'true');
-  check('y el texto cambia para que no haya dudas',
-    /Se guarda/i.test(await page.$eval('.btn-viaja', (e) => e.textContent)),
+  check('con el texto cambiado para que no haya dudas',
+    /Guardado/i.test(await page.$eval('.btn-viaja', (e) => e.textContent)),
     await page.$eval('.btn-viaja', (e) => e.textContent.trim()));
 
   await page.click('.btn-calc');
@@ -199,11 +207,15 @@ async function main() {
     /Estados Unidos/.test(texto) && /40×30×32/.test(texto), texto.slice(0, 160));
   check('🔴 el panel NO muestra nuestro costo', !/83[.,]11/.test(texto));
 
+  /* Desde el guardado directo, la seccion 1 ya dejo OTRA cotizacion de este cliente en
+     el historial: el panel muestra la mas nueva primero. Por eso se compara contra el
+     boton que se aprieta, no contra un numero fijo. */
+  const totalBoton = await page.$eval('#ctzr-panel .ctzr-precio', (e) => Number(e.dataset.total).toFixed(2));
   await page.click('#ctzr-panel .ctzr-precio');
   await esperar(400);
   check('apretar el precio lo escribe en Total cobrado',
-    (await page.inputValue('#total_cobrado')) === '198.44',
-    await page.inputValue('#total_cobrado'));
+    (await page.inputValue('#total_cobrado')) === totalBoton,
+    `campo ${await page.inputValue('#total_cobrado')} · boton ${totalBoton}`);
   check('y avisa que es un sugerido', await visible('#ctzr-sugerido'));
 
   await page.fill('#total_cobrado', '250');
@@ -228,10 +240,11 @@ async function main() {
     (await page.textContent('#saled-ctzr')).trim().slice(0, 80));
 
   const profitAntes = await page.inputValue('#saled-profit');
+  const totalBoton2 = await page.$eval('#saled-ctzr .ctzr-precio', (e) => Number(e.dataset.total).toFixed(2));
   await page.click('#saled-ctzr .ctzr-precio');
   await esperar(500);
-  check('elegir una escribe el precio', (await page.inputValue('#saled-total')) === '198.44',
-    await page.inputValue('#saled-total'));
+  check('elegir una escribe el precio', (await page.inputValue('#saled-total')) === totalBoton2,
+    `campo ${await page.inputValue('#saled-total')} · boton ${totalBoton2}`);
   check('y el profit se re-deriva solo, como con cualquier edición a mano',
     (await page.inputValue('#saled-profit')) !== profitAntes,
     `antes ${profitAntes} · ahora ${await page.inputValue('#saled-profit')}`);

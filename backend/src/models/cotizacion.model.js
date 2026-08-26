@@ -160,11 +160,18 @@ async function recientesDeCliente(clienteId, dias = 30) {
         : [];
     } catch { bultos = []; }
     try {
-      /* Solo las opciones TILDADAS. Cotizar DHL + UPS rápido + UPS lento y mandarle una
+      /* Solo las opciones MARCADAS. Cotizar DHL + UPS rápido + UPS lento y mandarle una
          sola al cliente es lo normal; si subieran las tres, el panel mostraría tres
-         precios para un envío que se cotizó a uno (pedido de Felipe, 26/08). */
-      precios = JSON.parse(opciones || '[]')
-        .filter((o) => o && o.viaja)
+         precios para un envío que se cotizó a uno (pedido de Felipe, 26/08).
+         COMPATIBILIDAD: una cotización guardada ANTES de que existiera la marca por
+         opción pasó el filtro de la fila (la migración puso viaja_al_cliente=1) pero
+         ninguna de sus opciones trae `viaja` — sin esta rama quedaba INVISIBLE, que es
+         exactamente lo contrario de lo que prometía la migración. Si ninguna opción
+         conoce la marca, viajan todas: es la misma regla que aplica crear(). */
+      const todas = JSON.parse(opciones || '[]');
+      const conocenLaMarca = todas.some((o) => o && o.viaja !== undefined);
+      precios = todas
+        .filter((o) => o && (conocenLaMarca ? o.viaja : true))
         .map((o) => ({ servicio: o.servicio, total: o.total, pf: o.pf, zona: o.zona }));
     } catch { precios = []; }
     return { ...resto, bultos, opciones_resumen: precios };
@@ -173,6 +180,43 @@ async function recientesDeCliente(clienteId, dias = 30) {
        alguien destildó todo antes de guardar: se guarda igual (es el respaldo) pero no
        ensucia el panel. */
     .filter((q) => q.opciones_resumen.length > 0);
+}
+
+/**
+ * Actualiza QUÉ OPCIONES viajan al historial del cliente en una cotización ya guardada.
+ *
+ * Existe porque desde el 26/08 el botón "Guardar este precio" guarda DIRECTO: el primer
+ * click crea la cotización y los siguientes (marcar otra opción, desmarcar) editan las
+ * marcas de la misma, en vez de crear una cotización nueva por cada dedo.
+ *
+ * `marcas` = [{servicio, viaja}] — se matchea por servicio, que es único por cotización
+ * (lo garantiza validar()). Solo toca la marca: los precios guardados no se editan por
+ * esta puerta. Con todas las marcas en 0 la cotización queda guardada (es el respaldo)
+ * pero fuera del panel.
+ */
+async function actualizarMarcas(id, marcas, usuario) {
+  const db = getDb();
+  const q = await obtener(id);
+  if (!q) return null;
+  const porServicio = new Map((marcas || []).map((m) => [m.servicio, m.viaja ? 1 : 0]));
+  let opciones;
+  try { opciones = JSON.parse(q.opciones || '[]'); } catch { opciones = []; }
+  const antes = opciones.map((o) => ({ servicio: o.servicio, viaja: o.viaja ? 1 : 0 }));
+  opciones = opciones.map((o) => (
+    porServicio.has(o.servicio) ? { ...o, viaja: porServicio.get(o.servicio) } : o
+  ));
+  const viajaFila = opciones.some((o) => o.viaja) ? 1 : 0;
+  await db
+    .prepare(
+      `UPDATE cotizaciones
+          SET opciones = ?, viaja_al_cliente = ?,
+              actualizado_en = datetime('now','localtime')
+        WHERE id = ?`
+    )
+    .run(JSON.stringify(opciones), viajaFila, id);
+  await anotarHistorial(id, 'marcas_historial', antes,
+    opciones.map((o) => ({ servicio: o.servicio, viaja: o.viaja ? 1 : 0 })), usuario);
+  return obtener(id);
 }
 
 async function anotarHistorial(cotizacionId, accion, antes, despues, usuario) {
@@ -363,6 +407,7 @@ module.exports = {
   obtener,
   aceptadasSinUsar,
   recientesDeCliente,
+  actualizarMarcas,
   crear,
   aceptar,
   cambiarEstado,

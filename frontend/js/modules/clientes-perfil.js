@@ -27,6 +27,8 @@
       bindTarifario();
       await cargarLinks();
       bindLinks();
+      await cargarCotizacionesCliente();
+      bindCotizaciones();
     } catch (err) {
       NovaUtils.showAlert(alertBox, 'Error al cargar perfil: ' + err.message);
     }
@@ -1290,6 +1292,119 @@
   // se manda por WhatsApp; el cliente cotiza solo, con la tarifa de ESTE cliente,
   // resuelta en el servidor. Dar de baja lo apaga al instante (la página pública del
   // link muestra el motivo y el WhatsApp).
+
+  // ── Cotizaciones del cliente ─────────────────────────────────────────────────
+  // La lista vivia abajo del cotizador y Felipe pidio sacarla de ahi (26/08): contaminaba
+  // la vista y su casa natural es este perfil. ACA vive el boton Aceptar — el unico lugar
+  // del sistema donde se marca que opcion confirmo el cliente (el precio acordado del
+  // caso Asaplast). El ▸ abre la misma tabla que se le envio, para reenviarla.
+  const ctzAbiertas = new Set();
+
+  function ctzFmt(n) {
+    return n == null ? '—'
+      : 'USD ' + Number(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  }
+
+  function ctzFecha(iso) {
+    const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+    return m ? `${m[3]}/${m[2]}/${m[1]}` : '—';
+  }
+
+  async function cargarCotizacionesCliente() {
+    const cont = document.getElementById('ctz-lista');
+    if (!cont) return;
+    const estado = document.getElementById('ctz-filtro-estado').value;
+    try {
+      const filas = await NovaAPI.cotizaciones.listar({
+        cliente_id: clienteId, estado: estado || undefined, limite: 60,
+      });
+      if (!filas.length) {
+        cont.innerHTML = '<div class="ctz-vacio">Este cliente no tiene cotizaciones guardadas.'
+          + ' Se guardan desde el cotizador, con el botón "Guardar este precio".</div>';
+        return;
+      }
+      cont.innerHTML = '<table class="ctz-tabla"><thead><tr>'
+        + '<th></th><th>N°</th><th>Fecha</th><th>Destino</th><th>Peso fact.</th><th>Opciones</th>'
+        + '<th>Acordado</th><th>Estado</th><th>Vence</th><th></th></tr></thead><tbody>'
+        + filas.map((f) => {
+          const ops = f.opciones_resumen || [];
+          const acciones = f.estado === 'aceptada'
+            ? `<button data-accion="estado" data-id="${f.id}" data-estado="emitida">Desmarcar</button>`
+            : ops.map((o) => `<button data-accion="aceptar" data-id="${f.id}" data-servicio="${o.servicio}"`
+                + ` title="El cliente aceptó ${o.servicio}">Aceptar ${o.servicio}</button>`).join('')
+              + `<button data-accion="estado" data-id="${f.id}" data-estado="rechazada">Rechazar</button>`;
+          const abierta = ctzAbiertas.has(f.id);
+          return `<tr>
+            <td><button data-accion="desglose" data-id="${f.id}" title="Ver la tabla que se le envió"
+                 style="border:none;background:none;cursor:pointer;font-size:13px">${abierta ? '▾' : '▸'}</button></td>
+            <td style="font-weight:700">CTZ-${f.numero}</td>
+            <td style="font-size:11.5px">${ctzFecha(f.creado_en)}</td>
+            <td>${f.pais}<br><span style="font-size:11px;color:#8a8494">${f.tipo_envio === 'importacion' ? 'Impo' : 'Expo'} · Zona ${f.zona || '—'}</span></td>
+            <td>${Number(f.peso_facturable).toFixed(1)} kg</td>
+            <td style="font-size:11.5px">${ops.map((o) => `${o.servicio}: ${ctzFmt(o.total)}`).join('<br>') || '—'}</td>
+            <td>${f.estado === 'aceptada' ? `<b>${ctzFmt(f.total_acordado)}</b><br><span style="font-size:11px;color:#8a8494">${f.servicio_aceptado || ''}</span>` : '—'}</td>
+            <td><span class="ctz-chip ${f.estado}">${f.estado}</span></td>
+            <td style="font-size:11.5px">${f.vence_en || '—'}</td>
+            <td><div class="ctz-acciones">${acciones}</div></td>
+          </tr>${abierta ? `<tr class="ctz-desglose"><td colspan="10" data-desglose-de="${f.id}">Cargando…</td></tr>` : ''}`;
+        }).join('')
+        + '</tbody></table>';
+      // Las abiertas se re-pueblan (la tabla se redibujo entera).
+      for (const id of ctzAbiertas) pintarDesglose(id);
+    } catch (e) {
+      cont.innerHTML = `<div class="ctz-vacio">No se pudieron cargar: ${e.message || e}</div>`;
+    }
+  }
+
+  /* La tabla que se le envió: el desglose de cada opción tal cual salió (flete, surge,
+     fuel, extras, total). Sale de /:id — la lista no lo trae a propósito. Se muestran
+     SOLO los renglones del cliente: nuestro costo, aunque acá lo mira la oficina, no
+     hace falta para reenviar. */
+  async function pintarDesglose(id) {
+    const celda = document.querySelector(`[data-desglose-de="${id}"]`);
+    if (!celda) return;
+    try {
+      const q = await NovaAPI.cotizaciones.obtener(id);
+      let ops = [];
+      try { ops = JSON.parse(q.opciones || '[]'); } catch { ops = []; }
+      celda.innerHTML = `<div class="ctz-desglose-caja">${ops.map((o) => {
+        const filas = [['Flete internacional', o.flete]];
+        if (o.surge > 0) filas.push(['Surge fee UPS', o.surge]);
+        filas.push(['Subtotal', o.subtotal]);
+        filas.push([`Fuel (${o.fuel_pct}%)`, o.fuel_monto]);
+        (o.extras || []).forEach(([n, v]) => filas.push([n, v]));
+        return `<div class="ctz-desglose-op"><div class="dg-tit">${o.servicio}${o.viaja ? '' : ' <span style="font-weight:400;color:#9ca3af">(no enviada)</span>'}</div>`
+          + filas.map(([n, v]) => `<div class="dg-row"><span>${n}</span><span>${ctzFmt(v)}</span></div>`).join('')
+          + `<div class="dg-row dg-total"><span>Total</span><span>${ctzFmt(o.total)}</span></div></div>`;
+      }).join('')}</div>`;
+    } catch (e) {
+      celda.textContent = `No se pudo traer el desglose: ${e.message || e}`;
+    }
+  }
+
+  function bindCotizaciones() {
+    const cont = document.getElementById('ctz-lista');
+    if (!cont) return;
+    document.getElementById('ctz-filtro-estado').addEventListener('change', cargarCotizacionesCliente);
+    document.getElementById('btn-ctz-actualizar').addEventListener('click', cargarCotizacionesCliente);
+    cont.addEventListener('click', async (e) => {
+      const btn = e.target.closest('button[data-accion]');
+      if (!btn) return;
+      const id = Number(btn.dataset.id);
+      try {
+        if (btn.dataset.accion === 'aceptar') {
+          await NovaAPI.cotizaciones.aceptar(id, btn.dataset.servicio);
+        } else if (btn.dataset.accion === 'estado') {
+          await NovaAPI.cotizaciones.cambiarEstado(id, btn.dataset.estado);
+        } else if (btn.dataset.accion === 'desglose') {
+          if (ctzAbiertas.has(id)) ctzAbiertas.delete(id); else ctzAbiertas.add(id);
+        }
+        await cargarCotizacionesCliente();
+      } catch (err) {
+        alert('No se pudo: ' + (err.message || err));
+      }
+    });
+  }
 
   async function cargarLinks() {
     const ul = document.getElementById('links-list');

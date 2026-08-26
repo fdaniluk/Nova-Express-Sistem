@@ -11,6 +11,8 @@ router.get('/:id', ctrl.obtener);
 router.post('/', ctrl.crear);
 router.post('/:id/aceptar', ctrl.aceptar);
 router.patch('/:id/estado', ctrl.cambiarEstado);
+// Qué opciones viajan al historial del cliente (el botón "Guardar este precio").
+router.patch('/:id/marcas', ctrl.marcas);
 router.patch('/:id', ctrl.editar);
 router.delete('/:id', ctrl.eliminar);
 
