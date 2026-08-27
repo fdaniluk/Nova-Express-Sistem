@@ -222,6 +222,43 @@ async function main() {
   check('el precio se puede pisar a mano sin que nada se queje',
     (await page.inputValue('#total_cobrado')) === '250');
 
+  /* El orden de la pantalla (pedido de Felipe, 26/08): el cotizador automático se usa
+     más que el panel de cotizaciones, así que va PRIMERO. Se compara la posición real
+     en el DOM, no un recuerdo del layout. */
+  check('el cotizador automático está ARRIBA del panel de cotizaciones',
+    await page.evaluate(() => {
+      const paneles = [...document.querySelectorAll('.cot-header')];
+      const auto = paneles.findIndex((x) => /Cotizador autom/i.test(x.textContent));
+      const ctzr = paneles.findIndex((x) => /Cotizaciones de este cliente/i.test(x.textContent));
+      return auto !== -1 && ctzr !== -1 && auto < ctzr;
+    }));
+
+  console.log('\n2-bis. El seguro se tilda solo con FOB de 100 o más\n');
+
+  /* Pedido de Felipe (26/08): un envío declarado en USD 100+ casi siempre va asegurado y
+     el olvido de la tilde es plata sin cobrar. El corte es 100 exacto, que es desde donde
+     el motor cobra (calcSeguroUPS). Y una vez que la persona toca la tilde a mano, el
+     automático NO la pisa más: los envíos caros sin seguro existen y son decisión de
+     administración. */
+  check('arranca destildado', !(await page.isChecked('#asegurado')));
+  await page.fill('#fob', '150');
+  await esperar(300);
+  check('con FOB 150 se tilda solo', await page.isChecked('#asegurado'));
+  await page.fill('#fob', '99');
+  await esperar(300);
+  check('bajarlo a 99 lo destilda solo', !(await page.isChecked('#asegurado')));
+  await page.fill('#fob', '100');
+  await esperar(300);
+  check('en 100 exacto se tilda (el motor cobra desde 100)', await page.isChecked('#asegurado'));
+
+  await page.uncheck('#asegurado');   // administración decide que este va sin seguro
+  await page.fill('#fob', '500');
+  await esperar(300);
+  check('🔴 destildado A MANO, el automático no lo pisa aunque cambie el FOB',
+    !(await page.isChecked('#asegurado')));
+  await page.fill('#fob', '0');
+  await esperar(300);
+
   // ── 3. Salidas: que no moleste ──────────────────────────────────────────────────────
   console.log('\n3. Salidas: el panel aparece solo al pararse en el precio de venta\n');
 

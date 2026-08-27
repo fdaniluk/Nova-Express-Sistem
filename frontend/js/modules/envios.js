@@ -6,6 +6,9 @@
   // matriz y no se re-precarga. Se resetea al cambiar cliente / courier / servicio /
   // tipo / país, porque ahí corresponde volver a resolver el profit desde la matriz.
   let profitTocado = false;
+  // true cuando alguien tocó la tilde del seguro A MANO: desde ahí la decisión es de la
+  // persona y el automático no la pisa. Mismo criterio que profitTocado.
+  let seguroTocado = false;
 
   async function init() {
     // hoyLocal(): toISOString() es UTC y adelantaba la fecha un día después de las 21:00.
@@ -306,6 +309,22 @@
     // El FOB no afecta el profit de la matriz: solo recotiza.
     document.getElementById('fob').addEventListener('change', debounce(updateCotizacion, 400));
     document.getElementById('fob').addEventListener('input', debounce(updateCotizacion, 400));
+
+    // ── El seguro se tilda solo (pedido de Felipe, 26/08) ─────────────────────────
+    // Un envío declarado en USD 100 o más casi siempre viaja asegurado, y el olvido de
+    // la tilde es plata que se queda sin cobrar. Regla: al cargar un FOB que llega a
+    // 100, la tilde se prende sola; abajo de 100 se apaga sola. El corte es 100 y no
+    // "más de 100" porque el motor cobra el seguro DESDE 100 exacto (calcSeguroUPS).
+    //
+    // Los pocos envíos caros que van sin seguro los destilda administración a mano — y
+    // desde ese momento la decisión es de la persona: el automático no vuelve a tocar
+    // la tilde (seguroTocado), ni siquiera si siguen editando el FOB.
+    document.getElementById('asegurado').addEventListener('click', () => { seguroTocado = true; });
+    document.getElementById('fob').addEventListener('input', () => {
+      if (seguroTocado) return;
+      const fob = parseFloat(document.getElementById('fob').value) || 0;
+      document.getElementById('asegurado').checked = fob >= 100;
+    });
 
     // Mostrar selector de variante UPS solo cuando courier = UPS y precargar el fuel del courier
     document.getElementById('courier').addEventListener('change', function () {
@@ -640,6 +659,7 @@
     document.getElementById('form-envio').reset();
     updatePaisLabel();
     profitTocado = false;
+    seguroTocado = false;
     setProfitOrigen('');
     document.getElementById('envio-id').value = '';
     document.getElementById('form-title').textContent = 'Cargar envío';
@@ -701,6 +721,8 @@
     document.getElementById('fuel_pct').value =
       envio.fuel_pct != null ? envio.fuel_pct : (fuelPctActual[envio.courier] ?? '');
     document.getElementById('asegurado').checked = Boolean(envio.asegurado);
+    // La tilde guardada es una decisión ya tomada: el automático del FOB no la pisa.
+    seguroTocado = true;
     document.getElementById('ddp').checked = Boolean(envio.ddp);
     document.getElementById('proteccion_doc').checked = Boolean(envio.proteccion_doc);
     document.getElementById('sin_numerar').checked = Boolean(envio.num_sal_cero);
