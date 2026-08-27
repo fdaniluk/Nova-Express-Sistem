@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Operaciones — Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260826">
-  <link rel="stylesheet" href="../css/modules/operaciones.css?v=20260826">
+  <link rel="stylesheet" href="../css/main.css?v=20260826c">
+  <link rel="stylesheet" href="../css/modules/operaciones.css?v=20260826c">
 </head>
 <body>
 <div class="app-layout">
@@ -95,6 +95,25 @@
     </div>
 
     <div class="page-body">
+      <!-- Envio SIN pickup (pedido de operaciones, 26/08): una importacion no la pasa a
+           buscar nadie, pero operaciones la necesita aca para seguir sus checks. -->
+      <div style="display:flex;justify-content:flex-end;margin-bottom:0.5rem">
+        <button type="button" class="btn btn-secondary" id="btn-nuevo-suelto"
+                style="font-size:12.5px;padding:5px 12px">+ Envío sin pickup</button>
+      </div>
+      <div id="form-suelto" class="hidden" style="display:none;background:#fbfafc;border:1px solid #e6e3ec;border-radius:8px;padding:10px 12px;margin-bottom:0.75rem;gap:8px;flex-wrap:wrap;align-items:end">
+        <div style="min-width:220px">
+          <label style="font-size:11px;color:#777;display:block">Cliente</label>
+          <select id="suelto-cliente" style="width:100%"></select>
+        </div>
+        <div style="flex:1;min-width:200px">
+          <label style="font-size:11px;color:#777;display:block">Descripción (ej: "Impo 3 cajas repuestos")</label>
+          <input type="text" id="suelto-titulo" maxlength="120" style="width:100%">
+        </div>
+        <button type="button" class="btn btn-primary" id="btn-crear-suelto" style="font-size:12.5px;padding:6px 14px">Agregar al día</button>
+        <button type="button" class="btn btn-secondary" id="btn-cancelar-suelto" style="font-size:12.5px;padding:6px 10px">Cancelar</button>
+      </div>
+
       <div id="alert-box"></div>
       <div class="ops-list" id="ops-list">
         <div class="ops-empty">Cargando...</div>
@@ -103,9 +122,9 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260826"></script>
-<script src="../js/api.js?v=20260826"></script>
-<script src="../js/main.js?v=20260826"></script>
-<script src="../js/modules/operaciones.js?v=20260826"></script>
+<script src="/js/auth-guard.js?v=20260826c"></script>
+<script src="../js/api.js?v=20260826c"></script>
+<script src="../js/main.js?v=20260826c"></script>
+<script src="../js/modules/operaciones.js?v=20260826c"></script>
 </body>
 </html>

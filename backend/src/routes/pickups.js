@@ -36,7 +36,10 @@ router.get('/', async (req, res, next) => {
       ) co ON co.pickup_id = p.id`;
     const orderBy = ' ORDER BY p.fecha ASC, p.hora_inicio ASC';
 
-    const conds = [];
+    // Las tarjetas 'ninguna' (envíos sin recolección, cargados desde Operaciones) nunca
+    // aparecen en esta pantalla: acá se organiza a los choferes, y estos envíos no los
+    // pasa a buscar nadie. Viven solo en el módulo de Operaciones.
+    const conds = ["COALESCE(p.tipo_recoleccion,'normal') != 'ninguna'"];
     const params = [];
     if (desde) { conds.push('p.fecha >= ?'); params.push(desde); }
     if (hasta) { conds.push('p.fecha <= ?'); params.push(hasta); }

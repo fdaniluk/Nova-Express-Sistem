@@ -192,6 +192,10 @@ api.operaciones = {
   delDia: (fecha) => api.get(`/operaciones?fecha=${fecha}`),
   actualizarEnvio: (id, data) => request(`/operaciones/envios/${id}`, { method: 'PATCH', body: data }),
   actualizarPickup: (id, data) => request(`/operaciones/pickups/${id}`, { method: 'PATCH', body: data }),
+  // Envios SIN pickup (impo y parecidos): tarjetas propias de operaciones, que la
+  // pantalla de Pickups nunca muestra.
+  crearSuelto: (data) => api.post('/operaciones/sueltos', data),
+  borrarSuelto: (id) => api.delete(`/operaciones/sueltos/${id}`),
 };
 
 api.salidas = {

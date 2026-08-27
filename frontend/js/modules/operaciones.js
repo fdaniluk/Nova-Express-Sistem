@@ -67,7 +67,7 @@
     // Tipos especiales: 'cliente' y 'courier' se muestran en gris, fuera de la
     // cadena de chofer. El 'normal' deriva exactamente como antes.
     const tipo = p.tipo_recoleccion || 'normal';
-    if (tipo === 'cliente' || tipo === 'courier') return 'gris';
+    if (tipo === 'cliente' || tipo === 'courier' || tipo === 'ninguna') return 'gris';
     if (p.en_deposito_at || p.estado === 'en_deposito') return 'dep';
     if (p.confirmado_juanqui || p.estado === 'en_camioneta') return 'cam';
     return 'pend';
@@ -149,6 +149,7 @@
     opsList.innerHTML = html;
     bindCheckboxes();
     bindCuadranteAcciones();
+    bindSueltos();
   }
 
   // Cuadrantes que cuelgan de un pickup dado, por pickup_id. Para los rezagados
@@ -201,6 +202,8 @@
       const tipo = pickup.tipo_recoleccion || 'normal';
       const leyenda = tipo === 'courier'
         ? '📦 Lo levanta UPS/DHL'
+        : tipo === 'ninguna'
+        ? '📄 Sin pickup (impo / ya está acá)'
         : pickup.en_deposito_at
         ? '🏭 En depósito · lo trae el cliente'
         : '📥 Lo trae el cliente';
@@ -224,7 +227,9 @@
       <div class="envio-card-body">
         <div class="envio-card-info">
           <div class="envio-card-cliente">${escHtml(pickup.cliente_nombre)}</div>
-          <div class="envio-card-guia" style="color:var(--color-muted)">📍 ${escHtml(pickup.direccion)}</div>
+          ${(pickup.tipo_recoleccion === 'ninguna')
+            ? ''
+            : `<div class="envio-card-guia" style="color:var(--color-muted)">📍 ${escHtml(pickup.direccion)}</div>`}
           <input type="text" class="cuadrante-titulo-input" placeholder="Nota…"
             value="${escHtml(pickup.titulo || '')}" data-pickup-titulo="${pickup.id}">
           ${badgeRezagado}
@@ -238,6 +243,9 @@
       </div>
       <div class="envio-card-footer">
         <button type="button" class="btn-add-cuadrante" data-add-cuadrante-pickup="${pickup.id}">+ agregar cuadrante</button>
+        ${(pickup.tipo_recoleccion === 'ninguna')
+          ? `<button type="button" class="btn-add-cuadrante" data-borrar-suelto="${pickup.id}" style="color:#8c2f26">✕ quitar</button>`
+          : ''}
       </div>
     </div>`;
   }
@@ -401,6 +409,69 @@
     }
   }
 
+  // ── Envíos SIN pickup (pedido de operaciones, 26/08) ──────────────────────────
+  // El caso típico es una importación: no la pasa a buscar nadie, así que no existe en
+  // Pickups, pero operaciones la necesita acá para seguir si están los datos, la guía y
+  // la proforma. Por dentro es un pickup de tipo 'ninguna' (reusa los checks y el
+  // arrastre de rezagados); la pantalla de Pickups nunca lo muestra.
+
+  function bindSueltos() {
+    opsList.querySelectorAll('[data-borrar-suelto]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        if (!confirm('¿Quitar este envío de operaciones? No afecta nada más: solo existe acá.')) return;
+        try {
+          await NovaAPI.operaciones.borrarSuelto(Number(btn.dataset.borrarSuelto));
+          await cargarDia(fechaActual);
+        } catch (e) {
+          NovaUtils.showAlert(alertBox, 'No se pudo quitar: ' + e.message);
+        }
+      });
+    });
+  }
+
+  let clientesCargados = false;
+  async function abrirFormSuelto() {
+    const form = document.getElementById('form-suelto');
+    if (!clientesCargados) {
+      // Los clientes se piden recién la primera vez que alguien abre el formulario:
+      // la pantalla de operaciones no los necesita para nada más.
+      const sel = document.getElementById('suelto-cliente');
+      const clientes = await NovaAPI.clientes.listar();
+      sel.innerHTML = clientes
+        .map((c) => `<option value="${c.id}">${escHtml(c.nombre_nova || c.nombre)}</option>`)
+        .join('');
+      clientesCargados = true;
+    }
+    form.classList.remove('hidden');
+    form.style.display = 'flex';
+    document.getElementById('suelto-titulo').value = '';
+    document.getElementById('suelto-titulo').focus();
+  }
+
+  function cerrarFormSuelto() {
+    const form = document.getElementById('form-suelto');
+    form.classList.add('hidden');
+    form.style.display = 'none';
+  }
+
+  async function crearSuelto() {
+    const btn = document.getElementById('btn-crear-suelto');
+    btn.disabled = true;
+    try {
+      await NovaAPI.operaciones.crearSuelto({
+        cliente_id: Number(document.getElementById('suelto-cliente').value),
+        fecha: toYMD(fechaActual),
+        titulo: document.getElementById('suelto-titulo').value.trim() || null,
+      });
+      cerrarFormSuelto();
+      await cargarDia(fechaActual);
+    } catch (e) {
+      NovaUtils.showAlert(alertBox, 'No se pudo agregar: ' + e.message);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
   // ── Navegación ────────────────────────────────────────
 
   function cambiarDia(delta) {
@@ -420,6 +491,9 @@
 
   // ── Init ─────────────────────────────────────────────
 
+  document.getElementById('btn-nuevo-suelto').addEventListener('click', abrirFormSuelto);
+  document.getElementById('btn-cancelar-suelto').addEventListener('click', cerrarFormSuelto);
+  document.getElementById('btn-crear-suelto').addEventListener('click', crearSuelto);
   document.getElementById('btn-prev-day').addEventListener('click', () => cambiarDia(-1));
   document.getElementById('btn-next-day').addEventListener('click', () => cambiarDia(1));
 

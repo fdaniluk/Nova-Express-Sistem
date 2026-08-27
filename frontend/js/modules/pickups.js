@@ -202,10 +202,18 @@
   function renderVistaDia() {
     const ymd = toYMD(diaActual);
     const delDia = pickups.filter(p => p.fecha === ymd);
-    const depCount  = delDia.filter(p => !!p.en_deposito_at).length;
-    const camCount  = delDia.filter(p => !!p.confirmado_juanqui && !p.en_deposito_at).length;
-    const confCount = delDia.filter(p => !!p.confirmado_ricardo && !p.confirmado_juanqui).length;
-    const pendCount = delDia.filter(p => !p.confirmado_ricardo).length;
+    /* Los contadores del resumen cuentan SOLO los pickups con cadena de chofer. Un
+       'cliente' (lo trae al depósito) o un 'courier' (lo levanta UPS/DHL) no tiene nada
+       que confirmar, y contarlo como "sin confirmar" hacía parecer que faltaba alguien
+       cuando el día estaba completo (lo vio Felipe el 26/08). Van en su propia cuenta
+       gris, que solo aparece si hay alguno. */
+    const normales = delDia.filter(p => (p.tipo_recoleccion || 'normal') !== 'cliente'
+      && (p.tipo_recoleccion || 'normal') !== 'courier');
+    const grisCount = delDia.length - normales.length;
+    const depCount  = normales.filter(p => !!p.en_deposito_at).length;
+    const camCount  = normales.filter(p => !!p.confirmado_juanqui && !p.en_deposito_at).length;
+    const confCount = normales.filter(p => !!p.confirmado_ricardo && !p.confirmado_juanqui).length;
+    const pendCount = normales.filter(p => !p.confirmado_ricardo).length;
 
     const titulo = formatDiaTitulo(diaActual);
     document.getElementById('dia-titulo').textContent = titulo.charAt(0).toUpperCase() + titulo.slice(1);
@@ -216,6 +224,11 @@
     document.getElementById('count-cam').textContent  = `🚐 ${camCount} en camioneta`;
     document.getElementById('count-conf').textContent = `⚑ ${confCount} Ricardo`;
     document.getElementById('count-pend').textContent = `● ${pendCount} sin confirmar`;
+    const grisEl = document.getElementById('count-gris');
+    if (grisEl) {
+      grisEl.textContent = `◼ ${grisCount} cliente/courier`;
+      grisEl.style.display = grisCount > 0 ? '' : 'none';
+    }
 
     const list = document.getElementById('pickups-dia-list');
     if (delDia.length === 0) {
@@ -272,7 +285,11 @@
       : sc === 'dep' ? 'En depósito' : sc === 'cam' ? 'En camioneta'
       : sc === 'conf' ? (p.visto_juanqui_at ? 'Ricardo ✓ · 👁' : 'Ricardo ✓') : 'Sin confirmar';
     const stripeClass = p.recolector === 'Juanqui' ? 'stripe-juanqui' : p.recolector ? 'stripe-otro' : 'stripe-ninguno';
-    const stripeLabel = p.recolector || 'Sin asignar';
+    /* Un 'cliente' o 'courier' no lleva chofer: decirle "Sin asignar" hacía creer que
+       faltaba asignárselo a alguien (Felipe, 26/08). La tira dice quién lo mueve. */
+    const stripeLabel = esGris
+      ? (tipo === 'courier' ? 'UPS/DHL' : 'Lo trae el cliente')
+      : (p.recolector || 'Sin asignar');
     const stripeAttrs = (!esGris && p.confirmado_ricardo) ? ` data-action="reasignar-rec" data-id="${p.id}" style="cursor:pointer"` : '';
 
     let actionsHtml;
@@ -365,7 +382,12 @@
     </div>`;
   }
 
-  function recChipHtml(recolector) {
+  function recChipHtml(recolector, tipoRecoleccion) {
+    /* Mismo criterio que la tira de la tarjeta: un 'cliente'/'courier' no lleva chofer,
+       así que el chip dice quién lo mueve en vez de "Sin asignar". */
+    const tipo = tipoRecoleccion || 'normal';
+    if (tipo === 'courier') return '<span class="semana-rec-chip chip-ninguno">UPS/DHL</span>';
+    if (tipo === 'cliente') return '<span class="semana-rec-chip chip-ninguno">Lo trae el cliente</span>';
     if (!recolector) return '<span class="semana-rec-chip chip-ninguno">Sin asignar</span>';
     const cls = recolector === 'Juanqui' ? 'chip-juanqui' : 'chip-otro';
     return `<span class="semana-rec-chip ${cls}">${escHtml(recolector)}</span>`;
@@ -401,7 +423,7 @@
               ${courierBadgeHtml(p.courier)}
               ${cobroChip}
               <span class="semana-row-hora">${escHtml(p.hora_inicio)}</span>
-              ${recChipHtml(p.recolector)}
+              ${recChipHtml(p.recolector, p.tipo_recoleccion)}
               <span class="semana-row-badge ${sc}">${badgeLabel}</span>
             </div>`;
           }).join('');

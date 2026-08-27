@@ -80,6 +80,66 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// ── Envíos SIN pickup (pedido de operaciones, 26/08/2026) ────────────────────
+// El caso típico es una IMPORTACIÓN: no la pasa a buscar nadie, así que no existe en
+// Pickups, pero operaciones la necesita en su módulo para seguir si están los datos, la
+// guía y la proforma. Se guarda como un pickup de tipo 'ninguna': aprovecha los checks y
+// el arrastre de rezagados que ya existen, y el GET de la pantalla de Pickups lo excluye
+// — los choferes nunca lo ven.
+router.post('/sueltos', async (req, res, next) => {
+  try {
+    const db = getDb();
+    const { cliente_id, fecha, titulo, notas } = req.body || {};
+    if (!cliente_id || !fecha) {
+      return res.status(400).json({ error: 'cliente_id y fecha son obligatorios' });
+    }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(String(fecha))) {
+      return res.status(400).json({ error: 'Formato de fecha inválido (YYYY-MM-DD)' });
+    }
+    const cliente = await db
+      .prepare('SELECT nombre, nombre_nova FROM clientes WHERE id = ?')
+      .get(cliente_id);
+    if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
+    const nombre = (cliente.nombre_nova && cliente.nombre_nova.trim()) || cliente.nombre;
+
+    // direccion y horas son NOT NULL en la tabla pero acá no significan nada: no hay
+    // recolección. Se guardan neutros y el render de Operaciones no los muestra.
+    const result = await db
+      .prepare(
+        `INSERT INTO pickups
+           (cliente_id, cliente_nombre, direccion, fecha, hora_inicio, hora_fin, notas,
+            tipo_recoleccion, estado, titulo, mostrar_en_operaciones)
+         VALUES (?, ?, '—', ?, '00:00', '00:00', ?, 'ninguna', 'sin_recoleccion', ?, 1)`
+      )
+      .run(cliente_id, nombre, fecha, notas || null, titulo || null);
+
+    const created = await db.prepare('SELECT * FROM pickups WHERE id = ?').get(result.lastInsertRowid);
+    res.status(201).json(created);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Borrar una tarjeta suelta. SOLO las de tipo 'ninguna': un pickup de verdad se borra
+// desde su pantalla, con su circuito. Sin esto, operaciones no tendría cómo deshacer
+// una tarjeta cargada por error (en Pickups no la ve nadie).
+router.delete('/sueltos/:id', async (req, res, next) => {
+  try {
+    const db = getDb();
+    const fila = await db
+      .prepare("SELECT id, tipo_recoleccion FROM pickups WHERE id = ?")
+      .get(req.params.id);
+    if (!fila) return res.status(404).json({ error: 'No encontrado' });
+    if (fila.tipo_recoleccion !== 'ninguna') {
+      return res.status(400).json({ error: 'Solo se pueden borrar desde acá los envíos sin pickup' });
+    }
+    await db.prepare('DELETE FROM pickups WHERE id = ?').run(fila.id);
+    res.json({ ok: true });
+  } catch (e) {
+    next(e);
+  }
+});
+
 router.patch('/envios/:id', async (req, res, next) => {
   try {
     const db = getDb();

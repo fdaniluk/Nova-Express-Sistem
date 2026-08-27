@@ -230,6 +230,14 @@
   color: var(--pend-badge-text);
 }
 
+/* Pickups sin cadena de chofer (cliente/courier): cuenta aparte, en gris, para que no
+   se mezclen con los "sin confirmar" (Felipe, 26/08). */
+.resumen-card.gris {
+  background: #ece9f1;
+  color: #6b6478;
+  border-color: #d5d0de;
+}
+
 /* ── Tarjetas pickup (vista día) ─────────────────────────── */
 .pickup-cards-list {
   display: flex;

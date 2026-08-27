@@ -2,11 +2,17 @@ const RECOLECTORES = ['Juanqui', 'Felipe', 'Ricardo', 'Marcelo'];
 // 'cobranza': el chofer va sólo a buscar plata. Comparte la cadena de chofer del
 // tipo 'normal' (derivarEstado no lo trata especial); su particularidad es que la
 // plata se carga aparte con el botón "Cargar cobranza" (módulo Cobranzas).
-const TIPOS_RECOLECCION = ['normal', 'cliente', 'courier', 'cobranza'];
+// 'ninguna': no hay recolección — el caso típico es una IMPORTACIÓN, que nadie pasa a
+// buscar, pero que operaciones necesita en su módulo para seguir los checks (datos,
+// guía, proforma, despachado). Se crea DESDE Operaciones y NUNCA aparece en la pantalla
+// de Pickups (el GET de pickups la excluye).
+const TIPOS_RECOLECCION = ['normal', 'cliente', 'courier', 'cobranza', 'ninguna'];
 
 function derivarEstado(confirmado_juanqui, en_deposito_at, tipo_recoleccion = 'normal') {
   // 'courier': lo levanta UPS/DHL. Estado terminal, sin cadena ni confirmaciones.
   if (tipo_recoleccion === 'courier') return 'courier';
+  // 'ninguna': no hay recolección (impo). Terminal, igual que courier.
+  if (tipo_recoleccion === 'ninguna') return 'sin_recoleccion';
   if (en_deposito_at) return 'en_deposito';
   // 'cliente': lo trae el cliente. Sin cadena de chofer (ricardo/visto/juanqui);
   // solo el paso de depósito lo saca de 'pendiente'.
