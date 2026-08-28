@@ -1,6 +1,7 @@
 (function () {
   // ── Estado ──────────────────────────────────────────────────────────────────
-  let pdfFile = null;             // archivo seleccionado
+  let pdfFile = null;             // archivo seleccionado (modo de a una)
+  let pdfFiles = [];              // archivos seleccionados (varios a la vez)
   let revisarLoaded = false;      // si la pestaña Revisar ya cargó datos
   let sinEnvioLoaded = false;     // idem para la pestaña Sin envío
   let revisarData = [];           // guías cargadas para Revisar
@@ -8,6 +9,10 @@
   // DOS veces con segundos de diferencia: "Sobreescribir" y "Omitir" seguían vivos
   // mientras la carga viajaba, y el segundo click disparaba otra carga entera.
   let cargaEnCurso = false;
+  // Estado del lote (varios PDFs de una): una entrada por archivo, y la lista de
+  // los que ya estaban cargados esperando la decisión de sobreescribir.
+  let loteFilas = [];
+  let loteConflictos = null;
 
   const alertBox = document.getElementById('alert-box');
 
@@ -48,10 +53,16 @@
     const btnCargar = document.getElementById('btn-cargar');
 
     fileInput.addEventListener('change', () => {
-      pdfFile = fileInput.files[0] || null;
+      pdfFiles = Array.from(fileInput.files || []);
+      pdfFile = pdfFiles.length === 1 ? pdfFiles[0] : null;
       resetCargarUI();
 
-      if (pdfFile) {
+      if (pdfFiles.length > 1) {
+        filename.textContent = `${pdfFiles.length} facturas seleccionadas`;
+        filename.classList.add('has-file');
+        fileLabel.classList.add('has-file');
+        btnCargar.disabled = false;
+      } else if (pdfFile) {
         filename.textContent = pdfFile.name;
         filename.classList.add('has-file');
         fileLabel.classList.add('has-file');
@@ -62,12 +73,20 @@
         fileLabel.classList.remove('has-file');
         btnCargar.disabled = true;
       }
+      btnCargar.textContent = textoBotonCargar();
     });
 
     btnCargar.addEventListener('click', onCargarClick);
 
-    document.getElementById('btn-sobreescribir').addEventListener('click', () => ejecutarCarga(true));
-    document.getElementById('btn-omitir').addEventListener('click',       () => ejecutarCarga(false));
+    // Los dos botones de la confirmación sirven a los DOS modos: en el modo de a
+    // una relanzan la carga con/sin sobreescribir; en el modo lote deciden qué
+    // hacer con las facturas que ya estaban cargadas.
+    document.getElementById('btn-sobreescribir').addEventListener('click', () => (
+      loteConflictos ? continuarLoteSobreescribiendo() : ejecutarCarga(true)
+    ));
+    document.getElementById('btn-omitir').addEventListener('click', () => (
+      loteConflictos ? cerrarLoteSinSobreescribir() : ejecutarCarga(false)
+    ));
     document.getElementById('btn-revisar-reload').addEventListener('click', () => {
       revisarLoaded = false;
       loadRevisar();
@@ -80,6 +99,13 @@
     hide('fac-no-enc');
     hide('fac-reconc');
     hide('fac-advert');
+    hide('fac-lote');
+    loteConflictos = null;
+  }
+
+  // El texto del botón acompaña la selección: "Cargar factura" o "Cargar N facturas".
+  function textoBotonCargar() {
+    return pdfFiles.length > 1 ? `Cargar ${pdfFiles.length} facturas` : 'Cargar factura';
   }
 
   // Prende/apaga los TRES botones que pueden disparar una carga. Bloquear solo
@@ -92,7 +118,9 @@
   }
 
   async function onCargarClick() {
-    if (!pdfFile || cargaEnCurso) return;
+    if (cargaEnCurso) return;
+    if (pdfFiles.length > 1) return cargarLote();
+    if (!pdfFile) return;
     cargaEnCurso = true;
 
     const btn = document.getElementById('btn-cargar');
@@ -122,7 +150,7 @@
     } finally {
       cargaEnCurso = false;
       botonesDeCarga(false);
-      btn.textContent = 'Cargar factura';
+      btn.textContent = textoBotonCargar();
     }
   }
 
@@ -147,8 +175,138 @@
     } finally {
       cargaEnCurso = false;
       botonesDeCarga(false);
-      btn.textContent = 'Cargar factura';
+      btn.textContent = textoBotonCargar();
     }
+  }
+
+  // ── Carga de VARIAS facturas de una (28/08) ─────────────────────────────────
+  //
+  // El caso que la pidió: recargar las 14 facturas de julio de una sola vez.
+  // Los PDFs se procesan DE A UNO (el backend chequea duplicados por factura y dos
+  // cargas simultáneas podrían pisarse); si alguna factura ya estaba cargada, se
+  // junta todo y se pregunta UNA sola vez al final si se sobreescriben.
+
+  async function cargarLote() {
+    if (cargaEnCurso) return;
+    cargaEnCurso = true;
+    resetCargarUI();
+
+    const btn = document.getElementById('btn-cargar');
+    botonesDeCarga(true);
+
+    loteFilas = pdfFiles.map((f) => ({ file: f, archivo: f.name, estado: 'pendiente' }));
+    const conflictos = [];
+
+    for (let i = 0; i < loteFilas.length; i++) {
+      const fila = loteFilas[i];
+      btn.textContent = `Cargando ${i + 1} de ${loteFilas.length}…`;
+      try {
+        fila.res = await NovaAPI.facturas.cargar(fila.file, false);
+        fila.estado = 'cargada';
+      } catch (err) {
+        if (err.status === 409 || /ya fue cargada/i.test(err.message || '')) {
+          fila.estado = 'ya_estaba';
+          conflictos.push(fila);
+        } else {
+          fila.estado = 'error';
+          fila.motivo = err.message;
+        }
+      }
+      renderLote();
+    }
+
+    cargaEnCurso = false;
+    botonesDeCarga(false);
+    btn.textContent = textoBotonCargar();
+
+    if (conflictos.length > 0) {
+      loteConflictos = conflictos;
+      const n = conflictos.length;
+      document.getElementById('fac-confirm-msg').innerHTML =
+        `<strong>⚠ ${n} ${n === 1 ? 'factura ya estaba cargada' : 'facturas ya estaban cargadas'}.</strong><br>
+        ¿Querés sobreescribirlas con los valores de estos PDFs? La carga anterior de cada una se reemplaza.`;
+      show('fac-confirm');
+    } else {
+      finalizarLote();
+    }
+  }
+
+  async function continuarLoteSobreescribiendo() {
+    if (cargaEnCurso || !loteConflictos) return;
+    const pendientes = loteConflictos;
+    loteConflictos = null;
+    cargaEnCurso = true;
+    hide('fac-confirm');
+
+    const btn = document.getElementById('btn-cargar');
+    botonesDeCarga(true);
+
+    for (let i = 0; i < pendientes.length; i++) {
+      const fila = pendientes[i];
+      btn.textContent = `Sobreescribiendo ${i + 1} de ${pendientes.length}…`;
+      try {
+        fila.res = await NovaAPI.facturas.cargar(fila.file, true);
+        fila.estado = 'sobreescrita';
+      } catch (err) {
+        fila.estado = 'error';
+        fila.motivo = err.message;
+      }
+      renderLote();
+    }
+
+    cargaEnCurso = false;
+    botonesDeCarga(false);
+    btn.textContent = textoBotonCargar();
+    finalizarLote();
+  }
+
+  function cerrarLoteSinSobreescribir() {
+    hide('fac-confirm');
+    loteConflictos = null;
+    renderLote();
+    finalizarLote();
+  }
+
+  function finalizarLote() {
+    renderLote(true);
+    // Las otras pestañas quedaron viejas: que recarguen cuando se abran, y el
+    // cartelito de "Sin envío" se actualiza ya.
+    revisarLoaded = false;
+    sinEnvioLoaded = false;
+    loadSinEnvio();
+  }
+
+  const LOTE_ESTADOS = {
+    pendiente:    'En cola…',
+    cargada:      '✓ Cargada',
+    sobreescrita: '✓ Sobreescrita',
+    ya_estaba:    'Ya estaba cargada — sin tocar',
+    error:        '✗ Error',
+  };
+
+  function renderLote(final = false) {
+    const listas = loteFilas.filter((f) => f.estado === 'cargada' || f.estado === 'sobreescrita');
+    const errores = loteFilas.filter((f) => f.estado === 'error');
+    const titulo = final
+      ? `Listo: ${listas.length} de ${loteFilas.length} facturas cargadas`
+        + (errores.length ? ` · ${errores.length} con error` : '')
+      : `Cargando ${loteFilas.length} facturas…`;
+    document.getElementById('fac-lote-titulo').textContent = titulo;
+
+    document.getElementById('fac-lote-body').innerHTML = loteFilas.map((f) => {
+      const r = f.res || {};
+      const num = (v) => (v == null ? '—' : v);
+      return `
+        <tr>
+          <td class="mono">${esc(f.archivo)}</td>
+          <td class="mono">${esc(r.numero_factura || '—')}</td>
+          <td>${num(r.total_guias)}</td>
+          <td>${num(r.guardadas)}</td>
+          <td>${num(r.no_encontradas)}</td>
+          <td>${esc(LOTE_ESTADOS[f.estado] || f.estado)}${f.motivo ? ': ' + esc(f.motivo) : ''}</td>
+        </tr>`;
+    }).join('');
+    show('fac-lote');
   }
 
   function mostrarResumen(res) {

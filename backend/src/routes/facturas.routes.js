@@ -312,6 +312,8 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
 
     res.json({
       ...resumen,
+      // La pantalla de carga en lote muestra qué factura era cada PDF.
+      numero_factura,
       reconciliacion: { total_declarado, suma_guias, diferencia, cuadra },
       advertencias,
     });

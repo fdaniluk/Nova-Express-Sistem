@@ -25,7 +25,11 @@ async function request(path, options = {}) {
     } catch {
       /* ignore */
     }
-    throw new Error(msg);
+    // El código HTTP viaja con el error: hay pantallas que deciden por él (la carga
+    // de facturas en lote distingue un 409 "ya estaba cargada" de un error real).
+    const err = new Error(msg);
+    err.status = res.status;
+    throw err;
   }
 
   const ct = res.headers.get('content-type') || '';

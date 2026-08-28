@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Control de Facturas – Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260826c">
-  <link rel="stylesheet" href="../css/modules/facturas.css?v=20260826c">
+  <link rel="stylesheet" href="../css/main.css?v=20260828a">
+  <link rel="stylesheet" href="../css/modules/facturas.css?v=20260828a">
 </head>
 <body>
 <div class="app-layout">
@@ -105,7 +105,9 @@
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
               Elegir PDF
             </label>
-            <input type="file" id="fac-file-input" accept="application/pdf,.pdf">
+            <!-- multiple: se pueden elegir varios PDFs de una (pedido de Felipe, 28/08,
+                 para el caso "cargar todas las facturas del mes de una sola vez"). -->
+            <input type="file" id="fac-file-input" accept="application/pdf,.pdf" multiple>
             <span class="fac-filename" id="fac-filename">Ningún archivo seleccionado</span>
             <button class="btn btn-primary" id="btn-cargar" disabled>Cargar factura</button>
           </div>
@@ -117,6 +119,17 @@
               <button class="btn btn-primary" id="btn-sobreescribir">Sí, sobreescribir</button>
               <button class="btn btn-secondary" id="btn-omitir">No, omitir las repetidas</button>
             </div>
+          </div>
+
+          <!-- Resultado de la carga de VARIAS facturas a la vez (oculto inicialmente).
+               Una fila por PDF: qué factura era, cuántas guías cruzó y cómo terminó.
+               Reusa los estilos de la tabla de guías sin envío. -->
+          <div class="fac-no-enc hidden" id="fac-lote">
+            <div class="fac-no-enc-title" id="fac-lote-titulo"></div>
+            <table class="fac-no-enc-table">
+              <thead><tr><th>Archivo</th><th>Factura</th><th>Guías</th><th>Cruzadas</th><th>Sin envío</th><th>Resultado</th></tr></thead>
+              <tbody id="fac-lote-body"></tbody>
+            </table>
           </div>
 
           <!-- Resumen post-carga (oculto inicialmente) -->
@@ -223,9 +236,9 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260826c"></script>
-<script src="../js/api.js?v=20260826c"></script>
-<script src="../js/main.js?v=20260826c"></script>
-<script src="../js/modules/facturas.js?v=20260826c"></script>
+<script src="/js/auth-guard.js?v=20260828a"></script>
+<script src="../js/api.js?v=20260828a"></script>
+<script src="../js/main.js?v=20260828a"></script>
+<script src="../js/modules/facturas.js?v=20260828a"></script>
 </body>
 </html>
