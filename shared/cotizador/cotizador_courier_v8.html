@@ -175,7 +175,7 @@ footer{margin-top:3rem;text-align:center;font-size:12px;color:var(--text-tertiar
     <label class="check-label"><input type="checkbox" id="ex_remota" /> Área remota / difícil acceso</label>
     <label class="check-label"><input type="checkbox" id="ex_residencial" /> Entrega residencial (UPS)</label>
   </div>
-  <div style="margin-top:8px;font-size:11px;color:var(--text-tertiary)">El cargo por manejo adicional UPS (+25 kg / lado >120 cm / segundo lado >76 cm) y los extracargos por dimensión DHL se aplican automáticamente según las medidas de cada bulto.</div>
+  <div style="margin-top:8px;font-size:11px;color:var(--text-tertiary)">El cargo por manejo adicional UPS (+25 kg / lado >122 cm / segundo lado >76 cm) y los extracargos por dimensión DHL se aplican automáticamente según las medidas de cada bulto.</div>
 </div>
 
 <div class="card" id="card-impuestos" style="display:none">
@@ -183,8 +183,11 @@ footer{margin-top:3rem;text-align:center;font-size:12px;color:var(--text-tertiar
   <div style="font-size:12px;color:var(--text-secondary);margin-bottom:10px">Estimación aproximada basada en valor CIF. Solo para importaciones.</div>
   <div class="checks-grid">
     <label class="check-label"><input type="radio" name="arancel" value="0" checked style="accent-color:var(--accent-ups)"/> Sin calcular impuestos</label>
-    <label class="check-label"><input type="radio" name="arancel" value="0.20" style="accent-color:var(--accent-ups)"/> Arancel 20%</label>
-    <label class="check-label"><input type="radio" name="arancel" value="0.30" style="accent-color:var(--accent-ups)"/> Arancel 30%</label>
+    <label class="check-label"><input type="radio" name="arancel" value="0.16" style="accent-color:var(--accent-ups)"/> Arancel 16%</label>
+            <label class="check-label"><input type="radio" name="arancel" value="0.20" style="accent-color:var(--accent-ups)"/> Arancel 20%</label>
+            <label class="check-label"><input type="radio" name="arancel" value="0.30" style="accent-color:var(--accent-ups)"/> Arancel 30%</label>
+            <label class="check-label" title="El arancel depende de la mercadería: cargalo a mano si no es 16/20/30"><input type="radio" name="arancel" value="otro" style="accent-color:var(--accent-ups)"/> Otro <input type="number" id="arancel-otro-v8" min="0" max="100" step="0.5" placeholder="%" style="width:58px"></label>
+    
   </div>
 </div>
 
@@ -195,7 +198,7 @@ footer{margin-top:3rem;text-align:center;font-size:12px;color:var(--text-tertiar
 <footer>Tarifas DHL y UPS vigentes 2026 · Uso interno</footer>
 </div>
 
-<script src="cotizador-core.js?v=20260828a"></script>
+<script src="cotizador-core.js?v=20260828b"></script>
 <script>
 let bultoId=0;
 
@@ -256,7 +259,7 @@ function actualizarBulto(el){
   const infoEl=document.getElementById('info-bulto-'+id);
   if(!infoEl)return;
   let warns=[];
-  if(pr>25||dims[0]>120||dims[1]>76)warns.push('cargo manejo adicional UPS');
+  if(pr>25||dims[0]>122||dims[1]>76)warns.push('cargo manejo adicional UPS');/* 122: igual que cobra el motor (deuda 30, 28/08) */
   if(dims[0]>100)warns.push('extracargo dim. DHL lado 1 >100cm');
   if(dims[1]>80)warns.push('extracargo dim. DHL lado 2 >80cm');
   if(contorno>400)warns.push('⛔ contorno >400cm: NO APTO para UPS');
@@ -313,8 +316,7 @@ function cotizar(){
   const couriers=document.getElementById('couriers').value;
   const exR=document.getElementById('ex_remota').checked;
   const exRe=document.getElementById('ex_residencial').checked;
-  const arancelEl=document.querySelector('input[name="arancel"]:checked');
-  const arancel=arancelEl?parseFloat(arancelEl.value):0;
+  const arancelEl=document.querySelector('input[name="arancel"]:checked');let arancel=0;if(arancelEl){arancel=arancelEl.value==='otro'?((parseFloat(document.getElementById('arancel-otro-v8')?.value)||0)/100):(parseFloat(arancelEl.value)||0);}
 
   const errEl=document.getElementById('error-msg');
   errEl.style.display='none';
@@ -386,16 +388,15 @@ function cotizar(){
     let impHtml='';
     if(tipo==='import'&&arancel>0&&valor>0){
       const fleteParaCIF=subtotalConSurge+fuelMonto;
-      const imp=calcImpuestos(valor,fleteParaCIF,arancel);
-      const pct=arancel===0.20?'20%':'30%';
+      const imp=calcImpuestos(valor,fleteParaCIF,arancel,courier);const pct=(Math.round(arancel*1000)/10)+'%';const esDHLImp=String(courier).toUpperCase().includes('DHL');const gdLabel=esDHLImp?'Procesamiento de aranceles DHL (1,465% CIF)':'Gasto documental UPS (fijo USD 126)';const iibbHtml=imp.percIIBB>0?`<div class="brow"><span class="bl">Percep. IIBB (Bs.As. 4% + CABA 3%)</span><span class="br">${fmt(imp.percIIBB)}</span></div>`:'';
       impHtml=`<div style="margin-top:14px;padding-top:12px;border-top:1px dashed var(--border)">
         <div style="font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--text-tertiary);margin-bottom:6px">Impuestos en destino estimados (arancel ${pct})</div>
         <div class="brow"><span class="bl">Valor CIF</span><span class="br">${fmt(imp.CIF)}</span></div>
         <div class="brow"><span class="bl">Derechos importación (${pct})</span><span class="br">${fmt(imp.derechos)}</span></div>
         <div class="brow"><span class="bl">Tasa estadística (3%)</span><span class="br">${fmt(imp.tasaEst)}</span></div>
         <div class="brow"><span class="bl">IVA aduana (21%)</span><span class="br">${fmt(imp.ivaAduana)}</span></div>
-        <div class="brow"><span class="bl">Gasto documental (6.12%)</span><span class="br">${fmt(imp.gastoDoc)}</span></div>
-        <div class="brow"><span class="bl">IVA gasto documental (21%)</span><span class="br">${fmt(imp.ivaGastoDoc)}</span></div>
+        <div class="brow"><span class="bl">${gdLabel}</span><span class="br">${fmt(imp.gastoDoc)}</span></div>
+        <div class="brow"><span class="bl">IVA gasto documental (21%)</span><span class="br">${fmt(imp.ivaGastoDoc)}</span></div>${iibbHtml}
         <div class="brow subtotal-row"><span class="bl" style="font-weight:600">Total impuestos estimados</span><span class="br" style="font-weight:700">${fmt(imp.total)}</span></div>
       </div>`;
     }

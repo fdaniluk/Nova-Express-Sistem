@@ -161,7 +161,9 @@ console.log('\n5. Entrega residencial\n');
 const conRes = core.cotizarServicio('UPS_EXP', { ...base, pais: 'Estados Unidos', tipo: 'export',
   residencial: true });
 const filaRes = conRes.extras.find(([n]) => /residencial/i.test(n));
-check('la entrega residencial internacional cobra 5.65', filaRes && cerca(filaRes[1], 5.65),
+// 6.00 desde el 28/08/2026: las facturas reales de julio traen "Residential 6.00" en
+// todas las apariciones (50 de 50). El 5.65 que se cobraba era menor a lo que UPS cobra.
+check('la entrega residencial cobra 6.00 (lo que factura UPS)', filaRes && cerca(filaRes[1], 6.00),
   filaRes ? String(filaRes[1]) : 'no aparece');
 
 // ── 6. Lo que ya estaba bien no se movió ────────────────────────────────────

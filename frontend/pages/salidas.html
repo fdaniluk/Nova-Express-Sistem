@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Salidas – Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260828a">
-  <link rel="stylesheet" href="../css/modules/salidas.css?v=20260828a">
+  <link rel="stylesheet" href="../css/main.css?v=20260828b">
+  <link rel="stylesheet" href="../css/modules/salidas.css?v=20260828b">
   <!-- Acá se cargaba la librería xlsx desde un CDN, para el viejo botón "Exportar Excel".
        Se fue con el botón el 06/08/2026: la planilla del cierre la arma el servidor, así
        que esta pantalla ya no le pide nada a internet. Si alguna vez vuelve a hacer falta
@@ -92,6 +92,12 @@
         <button class="btn btn-sm btn-secondary btn-toggle-alertas" id="btn-solo-alertas" title="Ver solo filas con alertas">
           ⚠ Solo alertas
         </button>
+        <!-- Pedido de la oficina (28/08): en los envios multibulto el desglose de bultos
+             "contamina" la vista cuando estan revisando envios. Este boton deja UN renglon
+             por envio (el primer bulto). Es solo de vista: no toca filtros ni totales. -->
+        <button class="btn btn-sm btn-secondary btn-toggle-alertas" id="btn-primer-bulto" title="Mostrar un solo renglón por envío (el primer bulto)">
+          1º bulto
+        </button>
         <button id="btn-copiar-guias" class="btn btn-sm btn-secondary">Copiar guias</button>
         <!-- Cierre de periodo: la planilla que se archiva FUERA del sistema. Baja SIEMPRE
              el periodo completo y la arma el servidor. Se ve solo con el permiso
@@ -142,14 +148,14 @@
             <thead>
               <tr>
                 <th class="chk-cell" style="width:32px"><input type="checkbox" id="chk-all-guias" title="Seleccionar todo"></th>
-                <th data-col="numero_salida" style="width:52px"><div class="th-inner">#Sal<span class="sort-icon"></span></div></th>
+                <th data-col="numero_salida" style="width:52px"><div class="th-inner">#Sal<button class="filter-btn" data-filter="numero_salida" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
                 <th data-col="courier" style="width:70px"><div class="th-inner">Courier<button class="filter-btn" data-filter="courier" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
-                <th data-col="fecha" style="width:80px"><div class="th-inner">Fecha<span class="sort-icon"></span></div></th>
+                <th data-col="fecha" style="width:80px"><div class="th-inner">Fecha<button class="filter-btn" data-filter="fecha" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
                 <th data-col="numero_guia" style="width:160px"><div class="th-inner">Guía<span class="sort-icon"></span></div></th>
                 <th data-col="tipo_cobro" style="width:58px"><div class="th-inner">Cobro<button class="filter-btn" data-filter="tipo_cobro" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
                 <th data-col="cliente_nombre" style="width:130px"><div class="th-inner">Cliente<button class="filter-btn" data-filter="cliente_nombre" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
                 <th data-col="destino" style="width:110px"><div class="th-inner">Destino<button class="filter-btn" data-filter="destino" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
-                <th data-col="bulto" style="width:70px"><div class="th-inner">Bulto<span class="sort-icon"></span></div></th>
+                <th data-col="bulto" style="width:70px"><div class="th-inner">Bulto<button class="filter-btn" data-filter="cantidad_bultos" title="Filtrar por cantidad de bultos del envío">▼</button><span class="sort-icon"></span></div></th>
                 <th data-col="tipo_paquete" style="width:55px"><div class="th-inner">Tipo<button class="filter-btn" data-filter="tipo_paquete" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
                 <th data-col="direccion" style="width:60px"><div class="th-inner">Dir<button class="filter-btn" data-filter="direccion" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
                 <th class="num" style="width:48px"><div class="th-inner">Largo</div></th>
@@ -159,7 +165,7 @@
                 <th class="num" style="width:72px"><div class="th-inner">P.Volumétrico</div></th>
                 <th data-col="peso_facturable" class="num" style="width:62px"><div class="th-inner">P.Fact<span class="sort-icon"></span></div></th>
                 <th data-col="valor_declarado" class="num" style="width:70px"><div class="th-inner">FOB<span class="sort-icon"></span></div></th>
-                <th data-col="asegurado" style="width:52px"><div class="th-inner">Aseg</div></th>
+                <th data-col="asegurado" style="width:52px"><div class="th-inner">Aseg<button class="filter-btn" data-filter="asegurado" title="Filtrar">▼</button></div></th>
                 <th data-col="total" class="num" style="width:75px"><div class="th-inner">Venta Total<span class="sort-icon"></span></div></th>
                 <th data-col="flete" class="num" style="width:70px"><div class="th-inner">Flete<span class="sort-icon"></span></div></th>
                 <th data-col="descuento" class="num" style="width:65px"><div class="th-inner">Dscto<span class="sort-icon"></span></div></th>
@@ -175,7 +181,7 @@
                 <th class="num ups-col" style="width:62px"><div class="th-inner">Dif Costo</div></th>
                 <th data-col="peso_facturado" class="num ups-col" style="width:70px"><div class="th-inner">Peso UPS<span class="sort-icon"></span></div></th>
                 <th class="num ups-col" style="width:62px"><div class="th-inner">Dif Peso</div></th>
-                <th class="ups-col" style="width:70px"><div class="th-inner">Revisión</div></th>
+                <th class="ups-col" style="width:70px"><div class="th-inner">Revisión<button class="filter-btn" data-filter="revision" title="Filtrar">▼</button></div></th>
                 <th data-col="estado" style="width:100px"><div class="th-inner">Estado<button class="filter-btn" data-filter="estado" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
                 <th style="width:140px">Observaciones</th>
               </tr>
@@ -200,12 +206,12 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260828a"></script>
-<script src="../js/api.js?v=20260828a"></script>
-<script src="../js/main.js?v=20260828a"></script>
-<script src="/shared/cotizador/cotizador-core.js?v=20260828a"></script>
-<script src="/shared/guias/validar-guia.js?v=20260828a"></script>
-<script src="../js/cotizaciones-recientes.js?v=20260828a"></script>
-<script src="../js/modules/salidas.js?v=20260828a"></script>
+<script src="/js/auth-guard.js?v=20260828b"></script>
+<script src="../js/api.js?v=20260828b"></script>
+<script src="../js/main.js?v=20260828b"></script>
+<script src="/shared/cotizador/cotizador-core.js?v=20260828b"></script>
+<script src="/shared/guias/validar-guia.js?v=20260828b"></script>
+<script src="../js/cotizaciones-recientes.js?v=20260828b"></script>
+<script src="../js/modules/salidas.js?v=20260828b"></script>
 </body>
 </html>

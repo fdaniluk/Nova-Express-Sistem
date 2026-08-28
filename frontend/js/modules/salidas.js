@@ -9,6 +9,9 @@
   let sortDir = 'desc';
   let searchTerm = '';
   let soloAlertas = false;
+  // "1º bulto": deja UN renglón por envío (pedido de la oficina, 28/08 — el desglose de
+  // los multibulto molesta cuando revisan envíos). Solo afecta el render, no los filtros.
+  let soloPrimerBulto = false;
   let selectedMonth = null;  // mes activo de las solapas ("YYYY-MM"); null = sin datos
   const colFilters = {};     // { courier: Set(['UPS','DHL']), ... }
 
@@ -293,6 +296,16 @@
     if (col === 'estado') return estadoLabel(e, today);
     if (col === 'tipo_paquete') return e.tipo_paquete || '—';
     if (col === 'direccion') return e.direccion || 'expo';
+    // Columnas con filtro que no son texto directo de la fila (28/08, pedido de la
+    // oficina de filtrar "como en el Excel"). El valor tiene que ser EL MISMO que se ve
+    // en pantalla, para que el desplegable liste lo que la oficina reconoce.
+    if (col === 'fecha') return NovaUtils.formatDate(e.fecha) || '';
+    if (col === 'asegurado') return e.asegurado ? 'Sí' : 'No';
+    if (col === 'cantidad_bultos') return String((e.bultos && e.bultos.length) || e.cantidad_bultos || 1);
+    if (col === 'revision') {
+      const m = { revisado_ok: 'Aprobada', a_revisar: 'A revisar', reclamar: 'En reclamo', pendiente: 'Pendiente' };
+      return e.costo_facturado == null ? 'Sin factura' : (m[e.estado_revision] || 'Pendiente');
+    }
     return String(e[col] ?? '');
   }
 
@@ -314,9 +327,13 @@
     tbody.innerHTML = '';
 
     for (const e of filteredData) {
-      const bultos = (e.bultos && e.bultos.length) ? e.bultos : [null];
+      let bultos = (e.bultos && e.bultos.length) ? e.bultos : [null];
+      // "1º bulto": un renglón por envío. La celda Bulto sigue diciendo "1/3", así se ve
+      // que el envío tiene más bultos aunque no se muestren.
+      const totalBultos = bultos.length;
+      if (soloPrimerBulto && bultos.length > 1) bultos = [bultos[0]];
       bultos.forEach((bulto, idx) => {
-        fragment.appendChild(buildRow(e, bulto, idx, bultos.length, today, idx === 0));
+        fragment.appendChild(buildRow(e, bulto, idx, totalBultos, today, idx === 0));
       });
       // Re-expandir el detalle si estaba abierto: cuelga del envío completo, DESPUÉS de
       // todos sus renglones de bulto.
@@ -913,7 +930,11 @@
       return true;
     });
 
-    const uniqueVals = [...new Set(dataForDD.map((e) => String(resolveCell(e, col, today))))].sort();
+    // Orden: numérico cuando todos los valores son números (#Sal, cantidad de bultos);
+    // si no, alfabético. Sin esto el desplegable ordenaba "10" antes que "2".
+    const uniqueVals = [...new Set(dataForDD.map((e) => String(resolveCell(e, col, today))))];
+    const todosNumericos = uniqueVals.every((v) => v !== '' && !Number.isNaN(Number(v)));
+    uniqueVals.sort(todosNumericos ? (a, b) => Number(a) - Number(b) : undefined);
     const current = colFilters[col] || new Set();
     ddTempSelected = new Set(current);
 
@@ -1011,6 +1032,8 @@
     const labels = {
       courier: 'Courier', tipo_cobro: 'Cobro', cliente_nombre: 'Cliente',
       destino: 'Destino', tipo_paquete: 'Tipo', direccion: 'Dir.', estado: 'Estado',
+      fecha: 'Fecha', numero_salida: '#Sal', asegurado: 'Aseg',
+      cantidad_bultos: 'Bultos', revision: 'Revisión',
     };
     return labels[col] || col;
   }
@@ -1030,6 +1053,15 @@
       soloAlertas = !soloAlertas;
       btn.classList.toggle('active', soloAlertas);
       applyAll();
+    });
+
+    // "1º bulto" es de RENDER, no de filtro: la lista filtrada no cambia, así que
+    // alcanza con re-dibujar. El contador de envíos tampoco cambia (cuenta envíos).
+    const btnPB = document.getElementById('btn-primer-bulto');
+    if (btnPB) btnPB.addEventListener('click', () => {
+      soloPrimerBulto = !soloPrimerBulto;
+      btnPB.classList.toggle('active', soloPrimerBulto);
+      renderPage();
     });
   }
 

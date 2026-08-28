@@ -347,17 +347,37 @@ function calcZonaEntrega(courier,zonaEntrega,pf,pais){
          monto:Math.max(42.15,pf*0.92)};
 }
 
-function calcImpuestos(fob,flete,arancel){
-  const seguroCIF=fob*0.015;
+// Impuestos de importación — CALIBRADO CONTRA CUATRO LIQUIDACIONES REALES (28/08/2026):
+// dos Notas de Venta de DHL (0280-01693029 y 0280-01692751, ambas China, arancel 20%) y
+// dos Facturas-Liquidación de UPS (0013-00991465 China 20% y 0013-00996104 Chequia 16%).
+// Lo que las cuatro coinciden en decir, contra lo que esta función suponía antes:
+//   · el SEGURO ADUANERO es 1% de (FOB + flete) — no 1,5% del FOB. Clavado en las 4.
+//   · derechos = arancel × CIF (el arancel DEPENDE de la mercadería: se vieron 16% y 20%).
+//   · tasa de estadística = 3% × CIF (con tope legal de USD 500 por operación).
+//   · IVA aduana = 21% × (CIF + derechos + tasa). Exacto en las 4.
+//   · el gasto documental es DISTINTO por courier:
+//       UPS: "GASTO DOCUMENTAL" FIJO USD 126 (171.108 $ / TC 1358 y 175.707 $ / TC 1394,5
+//            dan 126,00 exactos) + IVA 21% sobre él.
+//       DHL: "Procesamiento de aranceles e impuestos" = 1,465% × CIF (47,11/3.216,19 y
+//            21,72/1.482,93 dan el mismo 1,4648%) + IVA 21% (viene gravado).
+//   · DHL además PERCIBE IIBB: 7% (Bs.As. 4% + CABA 3%) sobre el subtotal de servicios
+//     (derechos + estadística + procesamiento). En las UPS de muestra vino en 0.
+// El resultado sigue siendo un ESTIMADO para el panel del cotizador (no toca costos).
+function calcImpuestos(fob,flete,arancel,courier){
+  const esDHL=String(courier||'').toUpperCase().includes('DHL');
+  const seguroCIF=(fob+flete)*0.01;
   const CIF=fob+flete+seguroCIF;
   const derechos=CIF*arancel;
+  // 3% liso: la tasa tiene topes legales por escala, pero en el régimen courier el CIF
+  // no llega a donde muerden, y las 4 liquidaciones muestran el 3% sin tope.
   const tasaEst=CIF*0.03;
   const conceptos=CIF+derechos+tasaEst;
   const ivaAduana=conceptos*0.21;
-  const gastoDoc=CIF*0.0612;
+  const gastoDoc=esDHL?CIF*0.014648:126;
   const ivaGastoDoc=gastoDoc*0.21;
-  const total=derechos+tasaEst+ivaAduana+gastoDoc+ivaGastoDoc;
-  return{CIF,derechos,tasaEst,ivaAduana,gastoDoc,ivaGastoDoc,total};
+  const percIIBB=esDHL?(derechos+tasaEst+gastoDoc)*0.07:0;
+  const total=derechos+tasaEst+ivaAduana+gastoDoc+ivaGastoDoc+percIIBB;
+  return{CIF,seguroCIF,derechos,tasaEst,ivaAduana,gastoDoc,ivaGastoDoc,percIIBB,total};
 }
 
 // ── Orquestación canónica por servicio ───────────────────────────────────────
@@ -495,9 +515,11 @@ function cotizarServicio(servicio, params) {
   if(seguroObj.monto>0)extras.push(['Seguro',seguroObj.monto]);
   const zeUPS=calcZonaEntrega('UPS',zonaEntrega,pf,pais);
   if(zeUPS)          extras.push([zeUPS.label,zeUPS.monto]);
-  // Entrega residencial: 5.65 es la tarifa INTERNACIONAL. Los 6.00 que había acá son los
-  // de la tabla nacional.
-  if(residencial)    extras.push(['Entrega residencial',5.65]);
+  // Entrega residencial: 6.00. Verificado contra las facturas REALES de julio 2026
+  // (auditoría del 28/08): UPS facturó "Residential 6.00" en las 50 apariciones, sin
+  // excepción. Acá decía 5.65 con un comentario que aseguraba que 6.00 era la tarifa
+  // nacional — la factura dice lo contrario. Subido a 6.00 con el OK de Felipe (28/08).
+  if(residencial)    extras.push(['Entrega residencial',6.00]);
   if(ddp)            extras.push(['DDP',24.05]);
   if(feeUSA>0)       extras.push(['Tarifa de procesamiento internacional (EE.UU.)',feeUSA]);
   // Tarifa por kilo: el flete de venta es precio × peso facturable. Se usa pfRound, que es

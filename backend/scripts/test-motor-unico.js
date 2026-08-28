@@ -58,7 +58,7 @@ const VALORES = [
   ['17.50', 'mínimo del seguro DHL'],
   ['2.95', 'surge ISMEA'],
   ['3.30', 'surge Israel y E.A.U.'],
-  ['5.65', 'entrega residencial UPS'],
+  ['6.00', 'entrega residencial UPS (6.00 desde el 28/08: es lo que factura UPS)'],
 ];
 
 const sospechas = [];

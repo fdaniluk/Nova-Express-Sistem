@@ -246,7 +246,10 @@ async function importarSalidas(buffer) {
           bulto: m.bulto ? String(m.bulto).trim() : null,
           tipo_paquete: parseTipoPaquete(m.tipo_envio),
           tipo_cobro: m.tipo_cobro ? String(m.tipo_cobro).trim().toUpperCase() : null,
-          asegurado: parseFloat(m.fob) > 100 ? 1 : 0,
+          // >= 100: la regla del motor y de la tilde automatica es que USD 100 EXACTO paga
+          // seguro (calcSeguroUPS cobra 15 desde 100 inclusive). Aca decia > 100 y un FOB de
+          // 100 justo importado por planilla quedaba sin asegurar (auditoria 28/08, deuda 38).
+          asegurado: parseFloat(m.fob) >= 100 ? 1 : 0,
           flete: parseFloat(m.flete) || null,
           descuento: parseFloat(m.descuento) || null,
           seguro: parseFloat(m.seguro) || null,
