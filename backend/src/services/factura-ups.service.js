@@ -194,7 +194,14 @@ async function extraerFacturaUPS(buffer) {
     if (!current) continue;
 
     if (state === 'columnas') {
-      const col = line.match(/^(-?[\d.,]+)\s+(-?[\d.,]+)\s+(-?[\d.,]+)\s+(-?[\d.,]+)$/);
+      // La línea de componentes trae los importes brutos y sus descuentos. Casi
+      // siempre son CUATRO (dos pares tarifa/descuento), pero cuando la guía tiene
+      // una sola tarifa son DOS ("642,90  -572,18") — visto en las facturas reales
+      // 75133 y 75129 (28/08/2026): exigir cuatro dejaba esas guías sin neto y, de
+      // rebote, TODA la factura sin percepciones repartidas (el reparto exige que
+      // la suma cuadre). Se acepta cualquier línea compuesta SOLO de importes (dos
+      // o más); el neto sigue viniendo solo, en la línea siguiente.
+      const col = line.match(/^-?[\d.,]+(\s+-?[\d.,]+)+$/);
       if (col) state = 'neto';
       continue;
     }

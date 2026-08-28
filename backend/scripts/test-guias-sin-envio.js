@@ -190,6 +190,49 @@ async function main() {
   check('la respuesta solo trae los datos de la guía facturada',
     !campos.some((c) => /posible|sugerid|parecid/i.test(c)), campos.join(', '));
 
+  // ── Sobreescribir REEMPLAZA, no duplica ────────────────────────────────────
+  //
+  // El 28/08 en producción quedaron 26 cargas para 14 facturas: cada "sobreescribir"
+  // agregaba una cabecera y un detalle nuevos sin borrar los viejos (L10), y la
+  // pestaña Sin envío listaba cada guía una vez por carga. Esta sección fija la
+  // regla: volver a cargar la MISMA factura sin sobreescribir es un 409, y con
+  // sobreescribir queda UNA sola carga (la última) con su detalle completo.
+  console.log('\n5. Sobreescribir reemplaza la carga anterior, no la duplica\n');
+
+  const recargar = async (sobre) => {
+    const f = new FormData();
+    f.append('pdf', new Blob([fs.readFileSync(PDF)], { type: 'application/pdf' }), 'factura.pdf');
+    f.append('sobreescribir', sobre);
+    const rr = await fetch(BASE + '/api/facturas/cargar', {
+      method: 'POST', headers: { Cookie: `nova_session=${TOKEN}` }, body: f });
+    return { status: rr.status, json: await rr.json().catch(() => ({})) };
+  };
+
+  const sinPermiso = await recargar('false');
+  check('recargar la misma factura sin sobreescribir es un 409', sinPermiso.status === 409,
+    `${sinPermiso.status}`);
+
+  const conPermiso = await recargar('true');
+  check('con sobreescribir la recarga entra', conPermiso.status === 200,
+    `${conPermiso.status} ${JSON.stringify(conPermiso.json).slice(0, 120)}`);
+
+  const cabeceras = await q(
+    'SELECT COUNT(*) n FROM facturas_cargadas WHERE numero_factura = ?', ['0020-00074402']);
+  check('queda UNA sola cabecera de la factura', cabeceras[0].n === 1, `hay ${cabeceras[0].n}`);
+
+  const detalleFilas = await q(`
+    SELECT COUNT(*) n FROM factura_guias fg
+    JOIN facturas_cargadas fc ON fc.id = fg.factura_id
+    WHERE fc.numero_factura = ?`, ['0020-00074402']);
+  check('el detalle queda una sola vez (una fila por guía)',
+    detalleFilas[0].n === (conPermiso.json.total_guias ?? 10),
+    `${detalleFilas[0].n} filas para ${conPermiso.json.total_guias} guías`);
+
+  const r5 = await fetch(BASE + '/api/facturas/sin-envio', { headers: H() });
+  const res5 = await r5.json().catch(() => ({}));
+  check('la pestaña Sin envío no muestra duplicados tras recargar',
+    res5.total === res.total, `${res5.total} vs ${res.total}`);
+
   // `db.close()` de sqlite3 NO es sincronico: encola el cierre en un hilo del pool y avisa
   // por un handle async de libuv. Si el proceso arranca a salir antes de que ese aviso
   // llegue, el hilo termina llamando uv_async_send sobre un handle que YA se esta cerrando

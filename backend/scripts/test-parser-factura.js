@@ -168,11 +168,38 @@ async function conTextoModificado(transform) {
   }
 }
 
-async function testUpsCambiaColumnas() {
-  console.log('\n3. UPS deja de imprimir una de las columnas de importe\n');
-  // La línea de 4 columnas pasa a 3 → la máquina de estados no puede avanzar.
+// La línea de componentes no siempre trae cuatro importes: cuando la guía tiene
+// UNA sola tarifa trae dos ("642,90  -572,18"). Caso REAL: facturas 0020-00075133
+// y 0020-00075129 (28/08/2026) — el parser viejo exigía cuatro, dejaba esas guías
+// sin neto y, de rebote, la factura ENTERA sin percepciones repartidas (el reparto
+// exige que la suma cuadre). Este test convierte todas las líneas a dos importes y
+// exige que nada se pierda: el neto viene de su propia línea, no de las columnas.
+async function testColumnasDeDos() {
+  console.log('\n3. Guía con una sola tarifa: línea de componentes de DOS importes (caso real 75133/75129)\n');
+  const base = await extraerFacturaUPS(fs.readFileSync(PDF));
   const r = await conTextoModificado((t) =>
-    t.replace(/^(\s*-?[\d.,]+)\s+(-?[\d.,]+)\s+(-?[\d.,]+)\s+(-?[\d.,]+)\s*$/gm, '$1 $2 $3')
+    t.replace(/^(\s*-?[\d.,]+)\s+(-?[\d.,]+)\s+(-?[\d.,]+)\s+(-?[\d.,]+)\s*$/gm, '$1 $2')
+  );
+
+  check('ninguna guía queda sin neto', r.guias.every((g) => g.neto != null),
+    `sin neto: ${r.guias.filter((g) => g.neto == null).map((g) => g.numero_guia).join(', ')}`);
+  check('detecta las mismas guías que la factura intacta', r.guias.length === base.guias.length,
+    `${r.guias.length} vs ${base.guias.length}`);
+  check('la suma de guías no cambia', r.suma_guias === base.suma_guias,
+    `${r.suma_guias} vs ${base.suma_guias}`);
+  check('las percepciones se siguen repartiendo',
+    r.percepciones_repartidas === base.percepciones_repartidas,
+    `repartidas=${r.percepciones_repartidas}`);
+  check('sin advertencia sin_neto', !r.advertencias.some((a) => a.tipo === 'sin_neto'));
+}
+
+// El caso defensivo de siempre: si la línea de componentes desaparece del todo,
+// el parser tiene que fallar RUIDOSAMENTE (guía sin costo + advertencia), nunca
+// degradar a 0 ni repartir percepciones sobre una suma que no cuadra.
+async function testUpsCambiaColumnas() {
+  console.log('\n3-bis. La línea de componentes desaparece del todo\n');
+  const r = await conTextoModificado((t) =>
+    t.replace(/^(\s*-?[\d.,]+)\s+(-?[\d.,]+)\s+(-?[\d.,]+)\s+(-?[\d.,]+)\s*$/gm, '')
   );
 
   const sinCosto = r.guias.filter((g) => g.costo_total == null).length;
@@ -183,6 +210,8 @@ async function testUpsCambiaColumnas() {
     'no hubo advertencia sin_neto'
   );
   check('las guías afectadas quedan con costo_total null, no 0', sinCosto > 0, `sinCosto=${sinCosto}`);
+  check('con el descuadre NO reparte percepciones', r.percepciones_repartidas === false,
+    `repartidas=${r.percepciones_repartidas}`);
   console.log(`   guías sin costo calculable: ${sinCosto} de ${r.guias.length}`);
   console.log(`   suma: ${r.suma_guias} · advertencias: ${r.advertencias.length}`);
 }
@@ -248,6 +277,7 @@ async function testGuiaPaginada() {
   testParseImporte();
   await testFacturaReal();
   await testPercepcion();
+  await testColumnasDeDos();
   await testUpsCambiaColumnas();
   await testGuiaRefacturada();
   await testGuiaPaginada();

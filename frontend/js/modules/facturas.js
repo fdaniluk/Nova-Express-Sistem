@@ -4,6 +4,10 @@
   let revisarLoaded = false;      // si la pestaña Revisar ya cargó datos
   let sinEnvioLoaded = false;     // idem para la pestaña Sin envío
   let revisarData = [];           // guías cargadas para Revisar
+  // Candado del envío en curso. El 28/08 casi todas las facturas quedaron cargadas
+  // DOS veces con segundos de diferencia: "Sobreescribir" y "Omitir" seguían vivos
+  // mientras la carga viajaba, y el segundo click disparaba otra carga entera.
+  let cargaEnCurso = false;
 
   const alertBox = document.getElementById('alert-box');
 
@@ -78,11 +82,21 @@
     hide('fac-advert');
   }
 
+  // Prende/apaga los TRES botones que pueden disparar una carga. Bloquear solo
+  // "Cargar factura" no alcanzaba: la confirmación de sobreescribir quedaba viva.
+  function botonesDeCarga(bloqueados) {
+    ['btn-cargar', 'btn-sobreescribir', 'btn-omitir'].forEach((id) => {
+      const b = document.getElementById(id);
+      if (b) b.disabled = bloqueados;
+    });
+  }
+
   async function onCargarClick() {
-    if (!pdfFile) return;
+    if (!pdfFile || cargaEnCurso) return;
+    cargaEnCurso = true;
 
     const btn = document.getElementById('btn-cargar');
-    btn.disabled = true;
+    botonesDeCarga(true);
     btn.textContent = 'Verificando…';
     resetCargarUI();
 
@@ -97,25 +111,29 @@
           ¿Querés sobreescribir los valores anteriores con los de esta factura?`;
         show('fac-confirm');
       } else {
-        // Sin duplicados → cargar directamente
+        // Sin duplicados → cargar directamente. Se suelta el candado antes:
+        // ejecutarCarga toma el suyo propio.
+        cargaEnCurso = false;
         await ejecutarCarga(false);
         return;
       }
     } catch (err) {
       NovaUtils.showAlert(alertBox, 'Error al verificar la factura: ' + err.message, 'error');
     } finally {
-      btn.disabled = false;
+      cargaEnCurso = false;
+      botonesDeCarga(false);
       btn.textContent = 'Cargar factura';
     }
   }
 
   async function ejecutarCarga(sobreescribir) {
-    if (!pdfFile) return;
+    if (!pdfFile || cargaEnCurso) return;
+    cargaEnCurso = true;
 
     hide('fac-confirm');
 
     const btn = document.getElementById('btn-cargar');
-    btn.disabled = true;
+    botonesDeCarga(true);
     btn.textContent = 'Cargando…';
 
     try {
@@ -127,7 +145,8 @@
     } catch (err) {
       NovaUtils.showAlert(alertBox, 'Error al cargar la factura: ' + err.message, 'error');
     } finally {
-      btn.disabled = false;
+      cargaEnCurso = false;
+      botonesDeCarga(false);
       btn.textContent = 'Cargar factura';
     }
   }

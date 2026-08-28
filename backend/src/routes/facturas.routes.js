@@ -158,6 +158,22 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
     const detalle = [];
 
     await db.transaction(async () => {
+      // Sobreescribir REEMPLAZA la carga anterior de la misma factura, no la
+      // duplica (L10, visto en producción el 28/08: 26 filas para 14 facturas y la
+      // pestaña "Sin envío" mostrando 62 guías donde eran 43). Se borran la
+      // cabecera y el detalle viejos ANTES de insertar los nuevos, adentro de la
+      // misma transacción: si algo falla, la carga anterior queda intacta.
+      // Los costos ya escritos en `envios` no se tocan acá — los pisa (o no) el
+      // recorrido de guías de abajo, con la misma regla de siempre.
+      if (sobreescribir && numero_factura) {
+        await db.prepare(`
+          DELETE FROM factura_guias WHERE factura_id IN
+            (SELECT id FROM facturas_cargadas WHERE numero_factura = ?)
+        `).run(numero_factura);
+        await db.prepare('DELETE FROM facturas_cargadas WHERE numero_factura = ?')
+          .run(numero_factura);
+      }
+
       for (const guia of guias) {
         // Guía sin importe legible (el parser no pudo leer el neto). NO se escribe
         // costo 0 en el envío: un costo cero hace que la comparación de margen ni
