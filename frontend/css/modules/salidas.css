@@ -322,6 +322,38 @@ th:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: '⇅'; }
   padding: 8px;
 }
 
+/* Selector de criterio del desplegable de filtro. Solo lo usa la columna Bulto, que se
+   filtra de dos formas: por el número del bulto (ver solo los 1/x) y por la cantidad de
+   bultos del envío. Dos botones chicos, el activo en el color de la marca. */
+.dd-criterios {
+  display: flex;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+
+.dd-criterios.hidden { display: none; }
+
+.dd-criterios button {
+  flex: 1;
+  padding: 4px 6px;
+  font-size: 11px;
+  line-height: 1.2;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--color-muted);
+  cursor: pointer;
+}
+
+.dd-criterios button:hover { background: #f1f5f9; }
+
+.dd-criterios button.active {
+  background: var(--color-primary, #403754);
+  border-color: var(--color-primary, #403754);
+  color: #fff;
+  font-weight: 600;
+}
+
 .filter-dropdown .dd-search {
   padding: 5px 8px;
   font-size: 12px;

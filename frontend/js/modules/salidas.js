@@ -29,6 +29,19 @@
   let ddColumn = null;
   let ddTempSelected = new Set();
 
+  // Columnas que se pueden filtrar de más de una forma. La celda Bulto dice "2/3": la
+  // oficina a veces quiere el NÚMERO de bulto (ver solo los 1/x y sacar de la vista los
+  // 2/3, 3/3 — pedido del 31/08) y a veces la CANTIDAD de bultos del envío (ver solo los
+  // de una caja — pedido del 28/08). Son dos preguntas distintas sobre la misma celda.
+  const CRITERIOS = {
+    numero_bulto: [
+      { col: 'numero_bulto', label: 'Bulto n°' },
+      { col: 'cantidad_bultos', label: 'Cant. bultos' },
+    ],
+  };
+  // Filtros que NO se resuelven sobre el envío sino sobre cada RENGLÓN (un bulto).
+  const FILTROS_DE_BULTO = new Set(['numero_bulto']);
+
   // caché de resultados de tracking (por sesión)
 
   // Clientes para el select del modal de edición. Se cargan una vez en init y se
@@ -277,6 +290,13 @@
       // Filtros por columna
       for (const [col, vals] of Object.entries(colFilters)) {
         if (!vals || vals.size === 0) continue;
+        // Filtro de RENGLÓN (número de bulto): el envío entra si le queda al menos un
+        // bulto visible. Los renglones que sobran los saca renderPage. Sin esto, filtrar
+        // "bulto 2" dejaría en la lista envíos de una sola caja, sin ningún renglón.
+        if (FILTROS_DE_BULTO.has(col)) {
+          if (!bultosVisibles(e, vals).length) return false;
+          continue;
+        }
         const cell = resolveCell(e, col, today);
         if (!vals.has(String(cell))) return false;
       }
@@ -289,6 +309,17 @@
 
       return true;
     });
+  }
+
+  // Los bultos del envío que pasan el filtro por número de bulto. Sin filtro, todos.
+  // Devuelve pares [bulto, índiceOriginal] para que el renglón siga sabiendo su posición
+  // real: filtrando el bulto 2 de un envío de tres, la celda tiene que decir "2/3" y no
+  // "1/1" — el total y el número son del envío, no de lo que quedó a la vista.
+  function bultosVisibles(e, vals) {
+    const lista = (e.bultos && e.bultos.length) ? e.bultos : [null];
+    const conIdx = lista.map((b, i) => [b, i]);
+    if (!vals || vals.size === 0) return conIdx;
+    return conIdx.filter(([b, i]) => vals.has(String((b && b.numero_bulto) ?? (i + 1))));
   }
 
   // Devuelve el valor de la celda que se usa para filtrar/mostrar
@@ -327,13 +358,18 @@
     tbody.innerHTML = '';
 
     for (const e of filteredData) {
-      let bultos = (e.bultos && e.bultos.length) ? e.bultos : [null];
+      const todos = (e.bultos && e.bultos.length) ? e.bultos : [null];
+      const totalBultos = todos.length;
+      // El filtro por número de bulto (columna Bulto) saca renglones, no envíos: acá se
+      // aplica. Cada par conserva el índice ORIGINAL, así la celda sigue diciendo "2/3".
+      let visibles = bultosVisibles(e, colFilters.numero_bulto);
       // "1º bulto": un renglón por envío. La celda Bulto sigue diciendo "1/3", así se ve
       // que el envío tiene más bultos aunque no se muestren.
-      const totalBultos = bultos.length;
-      if (soloPrimerBulto && bultos.length > 1) bultos = [bultos[0]];
-      bultos.forEach((bulto, idx) => {
-        fragment.appendChild(buildRow(e, bulto, idx, totalBultos, today, idx === 0));
+      if (soloPrimerBulto && visibles.length > 1) visibles = [visibles[0]];
+      visibles.forEach(([bulto, idxOriginal], pos) => {
+        // isFirst = es el PRIMER renglón que se dibuja de este envío. Los datos del envío
+        // (cliente, plata, iconos) van ahí, aunque el bulto que quedó a la vista sea el 2.
+        fragment.appendChild(buildRow(e, bulto, idxOriginal, totalBultos, today, pos === 0));
       });
       // Re-expandir el detalle si estaba abierto: cuelga del envío completo, DESPUÉS de
       // todos sus renglones de bulto.
@@ -916,29 +952,19 @@
 
   function openDropdown(triggerBtn, col) {
     const dd = document.getElementById('col-filter-dropdown');
-    ddColumn = col;
+    // Si la columna tiene varios criterios (hoy Bulto), se abre en el que ya esté
+    // aplicado; si no hay ninguno, en el primero.
+    const alternativas = CRITERIOS[col];
+    if (alternativas) {
+      const aplicado = alternativas.find((a) => colFilters[a.col] && colFilters[a.col].size > 0);
+      ddColumn = (aplicado || alternativas[0]).col;
+    } else {
+      ddColumn = col;
+    }
 
-    // Valores únicos de esa columna en los datos completos (no filtrados por ella misma)
-    const today = todayStr();
-    const dataForDD = allData.filter((e) => {
-      for (const [c, vals] of Object.entries(colFilters)) {
-        if (c === col) continue;
-        if (!vals || vals.size === 0) continue;
-        const cell = resolveCell(e, c, today);
-        if (!vals.has(String(cell))) return false;
-      }
-      return true;
-    });
-
-    // Orden: numérico cuando todos los valores son números (#Sal, cantidad de bultos);
-    // si no, alfabético. Sin esto el desplegable ordenaba "10" antes que "2".
-    const uniqueVals = [...new Set(dataForDD.map((e) => String(resolveCell(e, col, today))))];
-    const todosNumericos = uniqueVals.every((v) => v !== '' && !Number.isNaN(Number(v)));
-    uniqueVals.sort(todosNumericos ? (a, b) => Number(a) - Number(b) : undefined);
-    const current = colFilters[col] || new Set();
-    ddTempSelected = new Set(current);
-
-    buildDropdownList(uniqueVals, ddTempSelected);
+    // Armar el contenido (criterios + lista de valores). Es lo mismo que hace falta al
+    // cambiar de criterio con el menú ya abierto, así que vive en una sola función.
+    redibujarDropdown(col);
 
     // Posicionar
     const rect = triggerBtn.getBoundingClientRect();
@@ -946,8 +972,78 @@
     dd.style.top = `${rect.bottom + window.scrollY + 2}px`;
     dd.style.left = `${rect.left + window.scrollX}px`;
 
-    document.getElementById('dd-search-input').value = '';
     document.getElementById('dd-search-input').focus();
+  }
+
+  // Los botoncitos de criterio arriba del desplegable. `colBoton` es la columna de la
+  // cabecera (la que abrió el menú); ddColumn es el criterio activo.
+  function pintarCriterios(colBoton) {
+    const cont = document.getElementById('dd-criterios');
+    if (!cont) return;
+    const alternativas = CRITERIOS[colBoton];
+    if (!alternativas) {
+      cont.classList.add('hidden');
+      cont.innerHTML = '';
+      return;
+    }
+    cont.classList.remove('hidden');
+    cont.innerHTML = alternativas.map((a) => `
+      <button type="button" data-criterio="${a.col}" class="${a.col === ddColumn ? 'active' : ''}">
+        ${esc(a.label)}${colFilters[a.col] && colFilters[a.col].size > 0 ? ' •' : ''}
+      </button>`).join('');
+    cont.querySelectorAll('button[data-criterio]').forEach((b) => {
+      b.addEventListener('click', (ev) => {
+        ev.stopPropagation();
+        // Cambiar de criterio NO borra el otro filtro: son independientes y se pueden
+        // combinar (bulto n° 1 de los envíos de 3 cajas, por ejemplo).
+        ddColumn = b.dataset.criterio;
+        redibujarDropdown(colBoton);
+      });
+    });
+  }
+
+  // Vuelve a armar la lista de valores del desplegable para el criterio activo, sin
+  // moverlo de lugar (el usuario ya lo tiene abierto donde lo abrió).
+  function redibujarDropdown(colBoton) {
+    const today = todayStr();
+    pintarCriterios(colBoton);
+    const dataForDD = allData.filter((e) => {
+      for (const [c, vals] of Object.entries(colFilters)) {
+        if (c === ddColumn) continue;
+        if (!vals || vals.size === 0) continue;
+        if (FILTROS_DE_BULTO.has(c)) {
+          if (!bultosVisibles(e, vals).length) return false;
+          continue;
+        }
+        if (!vals.has(String(resolveCell(e, c, today)))) return false;
+      }
+      return true;
+    });
+    const uniqueVals = valoresDeColumna(dataForDD, ddColumn, today);
+    ddTempSelected = new Set(colFilters[ddColumn] || []);
+    buildDropdownList(uniqueVals, ddTempSelected);
+    const inp = document.getElementById('dd-search-input');
+    if (inp) inp.value = '';
+  }
+
+  // Los valores únicos que ofrece una columna. El número de bulto no sale del envío sino
+  // de sus bultos, así que tiene su propio camino.
+  function valoresDeColumna(envios, col, today) {
+    let vals;
+    if (col === 'numero_bulto') {
+      const set = new Set();
+      for (const e of envios) {
+        const lista = (e.bultos && e.bultos.length) ? e.bultos : [null];
+        lista.forEach((b, i) => set.add(String((b && b.numero_bulto) ?? (i + 1))));
+      }
+      vals = [...set];
+    } else {
+      vals = [...new Set(envios.map((e) => String(resolveCell(e, col, today))))];
+    }
+    // Orden numérico cuando todos los valores son números (#Sal, bultos); si no,
+    // alfabético. Sin esto el desplegable ordenaba "10" antes que "2".
+    const todosNumericos = vals.every((v) => v !== '' && !Number.isNaN(Number(v)));
+    return vals.sort(todosNumericos ? (a, b) => Number(a) - Number(b) : undefined);
   }
 
   function buildDropdownList(vals, selected) {
@@ -1002,10 +1098,18 @@
     });
   }
 
+  // Prende/apaga el ▼ de la cabecera. Ojo con las columnas de varios criterios: el botón
+  // de Bulto lleva data-filter="numero_bulto", así que al aplicar "cantidad_bultos" hay
+  // que encontrarlo igual, y queda encendido si CUALQUIERA de sus dos criterios está puesto.
   function updateFilterBtnState(col) {
-    const btn = document.querySelector(`.filter-btn[data-filter="${col}"]`);
+    let botonCol = col;
+    for (const [base, alts] of Object.entries(CRITERIOS)) {
+      if (alts.some((a) => a.col === col)) { botonCol = base; break; }
+    }
+    const btn = document.querySelector(`.filter-btn[data-filter="${botonCol}"]`);
     if (!btn) return;
-    btn.classList.toggle('active', colFilters[col] && colFilters[col].size > 0);
+    const cols = CRITERIOS[botonCol] ? CRITERIOS[botonCol].map((a) => a.col) : [botonCol];
+    btn.classList.toggle('active', cols.some((c) => colFilters[c] && colFilters[c].size > 0));
   }
 
   // ── Filter chips ─────────────────────────────────────────────────────────────
@@ -1033,7 +1137,7 @@
       courier: 'Courier', tipo_cobro: 'Cobro', cliente_nombre: 'Cliente',
       destino: 'Destino', tipo_paquete: 'Tipo', direccion: 'Dir.', estado: 'Estado',
       fecha: 'Fecha', numero_salida: '#Sal', asegurado: 'Aseg',
-      cantidad_bultos: 'Bultos', revision: 'Revisión',
+      cantidad_bultos: 'Cant. bultos', numero_bulto: 'Bulto n°', revision: 'Revisión',
     };
     return labels[col] || col;
   }

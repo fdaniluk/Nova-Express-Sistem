@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Salidas – Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260828b">
-  <link rel="stylesheet" href="../css/modules/salidas.css?v=20260828b">
+  <link rel="stylesheet" href="../css/main.css?v=20260831a">
+  <link rel="stylesheet" href="../css/modules/salidas.css?v=20260831a">
   <!-- Acá se cargaba la librería xlsx desde un CDN, para el viejo botón "Exportar Excel".
        Se fue con el botón el 06/08/2026: la planilla del cierre la arma el servidor, así
        que esta pantalla ya no le pide nada a internet. Si alguna vez vuelve a hacer falta
@@ -155,7 +155,7 @@
                 <th data-col="tipo_cobro" style="width:58px"><div class="th-inner">Cobro<button class="filter-btn" data-filter="tipo_cobro" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
                 <th data-col="cliente_nombre" style="width:130px"><div class="th-inner">Cliente<button class="filter-btn" data-filter="cliente_nombre" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
                 <th data-col="destino" style="width:110px"><div class="th-inner">Destino<button class="filter-btn" data-filter="destino" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
-                <th data-col="bulto" style="width:70px"><div class="th-inner">Bulto<button class="filter-btn" data-filter="cantidad_bultos" title="Filtrar por cantidad de bultos del envío">▼</button><span class="sort-icon"></span></div></th>
+                <th data-col="bulto" style="width:70px"><div class="th-inner">Bulto<button class="filter-btn" data-filter="numero_bulto" title="Filtrar por número de bulto (ver solo los 1/x) o por cantidad de bultos">▼</button><span class="sort-icon"></span></div></th>
                 <th data-col="tipo_paquete" style="width:55px"><div class="th-inner">Tipo<button class="filter-btn" data-filter="tipo_paquete" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
                 <th data-col="direccion" style="width:60px"><div class="th-inner">Dir<button class="filter-btn" data-filter="direccion" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
                 <th class="num" style="width:48px"><div class="th-inner">Largo</div></th>
@@ -198,6 +198,9 @@
 
 <!-- Dropdown de filtro por columna (flotante) -->
 <div class="filter-dropdown" id="col-filter-dropdown" style="display:none">
+  <!-- Selector de criterio: la columna Bulto se puede filtrar de dos maneras y la oficina
+       usa las dos (28 y 31/08). Solo aparece donde hay más de un criterio. -->
+  <div class="dd-criterios hidden" id="dd-criterios"></div>
   <input type="text" class="dd-search" placeholder="Buscar…" id="dd-search-input">
   <div class="dd-list" id="dd-list"></div>
   <div class="dd-actions">
@@ -206,12 +209,12 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260828b"></script>
-<script src="../js/api.js?v=20260828b"></script>
-<script src="../js/main.js?v=20260828b"></script>
-<script src="/shared/cotizador/cotizador-core.js?v=20260828b"></script>
-<script src="/shared/guias/validar-guia.js?v=20260828b"></script>
-<script src="../js/cotizaciones-recientes.js?v=20260828b"></script>
-<script src="../js/modules/salidas.js?v=20260828b"></script>
+<script src="/js/auth-guard.js?v=20260831a"></script>
+<script src="../js/api.js?v=20260831a"></script>
+<script src="../js/main.js?v=20260831a"></script>
+<script src="/shared/cotizador/cotizador-core.js?v=20260831a"></script>
+<script src="/shared/guias/validar-guia.js?v=20260831a"></script>
+<script src="../js/cotizaciones-recientes.js?v=20260831a"></script>
+<script src="../js/modules/salidas.js?v=20260831a"></script>
 </body>
 </html>

@@ -109,7 +109,7 @@ async function main() {
   await page.goto(BASE + '/pages/salidas.html', { waitUntil: 'networkidle' });
   await esperar(1200);
 
-  for (const col of ['fecha', 'numero_salida', 'cantidad_bultos', 'asegurado', 'revision']) {
+  for (const col of ['fecha', 'numero_salida', 'numero_bulto', 'asegurado', 'revision']) {
     check(`hay filtro de columna para ${col}`,
       await page.evaluate((c) => !!document.querySelector(`.filter-btn[data-filter="${c}"]`), col));
   }
@@ -135,7 +135,9 @@ async function main() {
   check('al apagarlo vuelven los 3 renglones', (await filasDe(multi.id)) === 3);
 
   console.log('\n3. El filtro por cantidad de bultos (el caso del Excel de la oficina)\n');
-  await page.click('.filter-btn[data-filter="cantidad_bultos"]');
+  await page.click('.filter-btn[data-filter="numero_bulto"]');
+  await esperar(300);
+  await page.click('#dd-criterios button[data-criterio="cantidad_bultos"]');
   await esperar(300);
   const valores = await page.evaluate(() =>
     [...document.querySelectorAll('#dd-list label')].map((l) => l.textContent.trim()));
@@ -149,8 +151,9 @@ async function main() {
   await esperar(400);
   check('filtrando "1" el multibulto desaparece', (await filasDe(multi.id)) === 0);
   check('y el de un bulto queda', (await filasDe(simple.id)) === 1);
-  check('el chip del filtro dice Bultos: 1',
-    await page.evaluate(() => /Bultos:\s*1/.test(document.getElementById('filter-chips')?.textContent || '')));
+  check('el chip del filtro dice Cant. bultos: 1',
+    await page.evaluate(() => /Cant\. bultos:\s*1/.test(document.getElementById('filter-chips')?.textContent || '')),
+    await page.evaluate(() => document.getElementById('filter-chips')?.textContent));
 
   console.log('\n4. El filtro de asegurado\n');
   await page.evaluate(() => document.querySelector('.chip-remove')?.click());
@@ -170,7 +173,81 @@ async function main() {
   check('filtrando "Sí" queda el envío con FOB 120 (asegurado solo)', (await filasDe(simple.id)) === 1);
   check('y el de FOB 50 se va', (await filasDe(multi.id)) === 0);
 
-  console.log('\n5. Sin errores de JavaScript\n');
+  // ── El filtro que faltaba (31/08): por NÚMERO de bulto ─────────────────────
+  //
+  // "poder filtrar todos los bultos 1/1 1/2 1/3, para los casos en los que no interesa
+  // ver los 2/2 2/3". Es un filtro de RENGLÓN, no de envío: el mismo envío aporta
+  // renglones que entran y renglones que no.
+  console.log('\n5. El filtro por número de bulto\n');
+  await page.evaluate(() => document.querySelectorAll('.chip-remove').forEach((b) => b.click()));
+  await esperar(400);
+
+  await page.click('.filter-btn[data-filter="numero_bulto"]');
+  await esperar(300);
+  check('el desplegable abre en "Bulto n°"',
+    await page.evaluate(() => document.querySelector('#dd-criterios button.active')?.dataset.criterio === 'numero_bulto'),
+    await page.evaluate(() => document.querySelector('#dd-criterios button.active')?.textContent.trim()));
+  const valsNum = await page.evaluate(() =>
+    [...document.querySelectorAll('#dd-list label')].map((l) => l.textContent.trim()));
+  check('ofrece los números de bulto que existen (1, 2 y 3)',
+    ['1', '2', '3'].every((v) => valsNum.includes(v)), valsNum.join('|'));
+
+  await page.evaluate(() => {
+    const cb = [...document.querySelectorAll('#dd-list input[type=checkbox]')].find((c) => c.value === '1');
+    cb.click();
+  });
+  await page.click('#dd-apply');
+  await esperar(400);
+
+  check('del multibulto queda UN renglón (el 1 de 3)', (await filasDe(multi.id)) === 1,
+    String(await filasDe(multi.id)));
+  check('y sigue diciendo 1/3: el total es el del envío, no el de lo que se ve',
+    await page.evaluate((i) => /1\/3/.test(
+      document.querySelector(`#salidas-body tr[data-envio-id="${i}"]`)?.textContent || ''), multi.id));
+  check('el envío de un solo bulto no se va (su bulto TAMBIÉN es el 1)',
+    (await filasDe(simple.id)) === 1);
+  check('el chip dice Bulto n°: 1',
+    await page.evaluate(() => /Bulto n°:\s*1/.test(document.getElementById('filter-chips')?.textContent || '')));
+
+  // El caso inverso: pedir el bulto 3 deja SOLO el multibulto, y el de una caja se va.
+  await page.click('.filter-btn[data-filter="numero_bulto"]');
+  await esperar(300);
+  await page.evaluate(() => {
+    document.querySelectorAll('#dd-list input[type=checkbox]').forEach((c) => { if (c.checked) c.click(); });
+    const cb = [...document.querySelectorAll('#dd-list input[type=checkbox]')].find((c) => c.value === '3');
+    cb.click();
+  });
+  await page.click('#dd-apply');
+  await esperar(400);
+  check('filtrando el bulto 3 queda solo el renglón 3/3', (await filasDe(multi.id)) === 1);
+  check('y el envío de un bulto desaparece (no tiene bulto 3)', (await filasDe(simple.id)) === 0);
+  check('el renglón visible es el 3/3, con los datos del envío igual',
+    await page.evaluate((i) => {
+      const tr = document.querySelector(`#salidas-body tr[data-envio-id="${i}"]`);
+      return /3\/3/.test(tr?.textContent || '') && /FILTROS PANTALLA/.test(tr?.textContent || '');
+    }, multi.id));
+
+  // Los dos criterios de la columna Bulto conviven.
+  await page.click('.filter-btn[data-filter="numero_bulto"]');
+  await esperar(300);
+  check('el desplegable vuelve a abrir en el criterio aplicado',
+    await page.evaluate(() => document.querySelector('#dd-criterios button.active')?.dataset.criterio === 'numero_bulto'));
+  await page.click('#dd-criterios button[data-criterio="cantidad_bultos"]');
+  await esperar(300);
+  check('al cambiar de criterio la lista pasa a las cantidades',
+    await page.evaluate(() => document.querySelector('#dd-criterios button.active')?.dataset.criterio === 'cantidad_bultos'));
+  await page.click('#dd-clear');
+  await esperar(400);
+  check('el ▼ de Bulto sigue encendido: el filtro por número sigue puesto',
+    await page.evaluate(() => document.querySelector('.filter-btn[data-filter="numero_bulto"]')?.classList.contains('active')));
+
+  await page.evaluate(() => document.querySelectorAll('.chip-remove').forEach((b) => b.click()));
+  await esperar(400);
+  check('quitados los chips, vuelven los cuatro renglones',
+    (await filasDe(multi.id)) === 3 && (await filasDe(simple.id)) === 1,
+    `${await filasDe(multi.id)} + ${await filasDe(simple.id)}`);
+
+  console.log('\n6. Sin errores de JavaScript\n');
   check('ningún error en la pantalla', errores.length === 0, errores.slice(0, 2).join(' | '));
 
   await browser.close();
