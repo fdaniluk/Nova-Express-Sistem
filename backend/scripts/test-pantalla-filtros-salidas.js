@@ -92,6 +92,15 @@ async function main() {
   check('se cargaron los dos envíos de prueba', !!multi.id && !!simple.id,
     JSON.stringify({ m: multi.id, s: simple.id }));
 
+  // Semáforo para la sección 7: en el multibulto, bultos 1 y 2 amarillos (en tránsito)
+  // y bulto 3 verde (entregada); el envío simple queda sin estado (= rojo en la lectura).
+  const sqlite3 = require('sqlite3');
+  const dbRaw = new sqlite3.Database(DB);
+  const sql = (q, p = []) => new Promise((res, rej) => dbRaw.run(q, p, (e) => (e ? rej(e) : res())));
+  await sql("UPDATE envio_bultos SET estado_caja = 'amarillo' WHERE envio_id = ? AND numero_bulto IN (1, 2)", [multi.id]);
+  await sql("UPDATE envio_bultos SET estado_caja = 'verde' WHERE envio_id = ? AND numero_bulto = 3", [multi.id]);
+  await new Promise((res) => dbRaw.close(() => res()));
+
   const cand = [process.env.CHROME_PATH, '/opt/pw-browsers/chromium/chrome-linux/chrome',
     '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'].filter(Boolean);
   const exe = cand.find((p) => fs.existsSync(p));
@@ -247,7 +256,81 @@ async function main() {
     (await filasDe(multi.id)) === 3 && (await filasDe(simple.id)) === 1,
     `${await filasDe(multi.id)} + ${await filasDe(simple.id)}`);
 
-  console.log('\n6. Sin errores de JavaScript\n');
+  // ── El filtro del SEMÁFORO (31/08, con el semáforo automático ya andando) ──
+  console.log('\n7. El filtro por color del semáforo\n');
+  await page.click('.filter-btn[data-filter="numero_bulto"]');
+  await esperar(300);
+  await page.click('#dd-criterios button[data-criterio="estado_semaforo"]');
+  await esperar(300);
+  const valsSem = await page.evaluate(() =>
+    [...document.querySelectorAll('#dd-list label')].map((l) => l.textContent.trim()));
+  check('el criterio Semáforo existe y lista los estados presentes',
+    valsSem.includes('En tránsito') && valsSem.includes('Entregada') && valsSem.includes('No escaneada'),
+    valsSem.join('|'));
+  check('en orden de semáforo (rojo primero), no alfabético',
+    valsSem[0] === 'No escaneada', valsSem.join('|'));
+
+  await page.evaluate(() => {
+    const cb = [...document.querySelectorAll('#dd-list input[type=checkbox]')].find((c) => c.value === 'En tránsito');
+    cb.click();
+  });
+  await page.click('#dd-apply');
+  await esperar(400);
+  check('"En tránsito" deja los renglones amarillos del multibulto (1 y 2)',
+    (await filasDe(multi.id)) === 2, String(await filasDe(multi.id)));
+  check('el bulto 3 (entregado) no está: la celda visible no dice 3/3',
+    await page.evaluate((i) => ![...document.querySelectorAll(`#salidas-body tr[data-envio-id="${i}"]`)]
+      .some((tr) => /3\/3/.test(tr.textContent)), multi.id));
+  check('el envío sin escanear se va entero', (await filasDe(simple.id)) === 0);
+  check('el chip dice Semáforo: En tránsito',
+    await page.evaluate(() => /Semáforo:\s*En tránsito/.test(document.getElementById('filter-chips')?.textContent || '')));
+
+  // Combinado con el número de bulto: renglón que cumpla LOS DOS.
+  await page.click('.filter-btn[data-filter="numero_bulto"]');
+  await esperar(300);
+  await page.click('#dd-criterios button[data-criterio="numero_bulto"]');
+  await esperar(300);
+  await page.evaluate(() => {
+    const cb = [...document.querySelectorAll('#dd-list input[type=checkbox]')].find((c) => c.value === '3');
+    cb.click();
+  });
+  await page.click('#dd-apply');
+  await esperar(400);
+  check('bulto n° 3 + En tránsito no lo cumple ningún renglón (el 3 está entregado)',
+    (await filasDe(multi.id)) === 0 && (await filasDe(simple.id)) === 0,
+    `${await filasDe(multi.id)} + ${await filasDe(simple.id)}`);
+
+  // ── El botón "Limpiar filtros" (31/08) ─────────────────────────────────────
+  console.log('\n8. Limpiar filtros: un golpe y la tabla de siempre\n');
+  check('el botón existe', await page.evaluate(() => !!document.getElementById('btn-limpiar-filtros')));
+  // Ensuciar un poco más: búsqueda y "1º bulto" prendidos.
+  await page.fill('#buscador', 'FILTROS');
+  await page.click('#btn-primer-bulto');
+  await esperar(400);
+
+  await page.click('#btn-limpiar-filtros');
+  await esperar(400);
+  check('vuelven TODOS los renglones (3 + 1)',
+    (await filasDe(multi.id)) === 3 && (await filasDe(simple.id)) === 1,
+    `${await filasDe(multi.id)} + ${await filasDe(simple.id)}`);
+  check('no queda ningún chip',
+    await page.evaluate(() => (document.getElementById('filter-chips')?.textContent || '').trim() === ''));
+  check('el buscador quedó vacío',
+    await page.evaluate(() => document.getElementById('buscador').value === ''));
+  check('"1º bulto" quedó apagado',
+    await page.evaluate(() => !document.getElementById('btn-primer-bulto').classList.contains('active')));
+  check('ningún ▼ de columna queda encendido',
+    await page.evaluate(() => document.querySelectorAll('.filter-btn.active').length === 0));
+  check('la cabecera # Sal quedó marcada descendente',
+    await page.evaluate(() => document.querySelector('.salidas-table th[data-col="numero_salida"]')?.classList.contains('sort-desc')));
+  check('y la tabla quedó de mayor a menor: el primer # Sal visible es el más alto',
+    await page.evaluate(() => {
+      const nums = [...document.querySelectorAll('#salidas-body td[data-col="numero_salida"]')]
+        .map((td) => Number(td.textContent)).filter((n) => Number.isFinite(n) && n > 0);
+      return nums.length >= 2 && nums[0] >= nums[nums.length - 1] && nums[0] === Math.max(...nums);
+    }));
+
+  console.log('\n9. Sin errores de JavaScript\n');
   check('ningún error en la pantalla', errores.length === 0, errores.slice(0, 2).join(' | '));
 
   await browser.close();

@@ -37,10 +37,17 @@
     numero_bulto: [
       { col: 'numero_bulto', label: 'Bulto n°' },
       { col: 'cantidad_bultos', label: 'Cant. bultos' },
+      // Con el semáforo automático (31/08) el color pasó a ser DATO y no adorno: la
+      // oficina quiere "ver todas las amarillas" para saber qué está en tránsito.
+      { col: 'estado_semaforo', label: 'Semáforo' },
     ],
   };
   // Filtros que NO se resuelven sobre el envío sino sobre cada RENGLÓN (un bulto).
-  const FILTROS_DE_BULTO = new Set(['numero_bulto']);
+  const FILTROS_DE_BULTO = new Set(['numero_bulto', 'estado_semaforo']);
+  // Lo que el filtro de semáforo muestra por cada color: EL MISMO texto que el tooltip
+  // del puntito (regla de los filtros del 28/08: se filtra por lo que se ve).
+  const SEMAFORO_LABEL = { rojo: 'No escaneada', amarillo: 'En tránsito', verde: 'Entregada' };
+  const semaforoDeBulto = (b) => SEMAFORO_LABEL[b && b.estado_caja] || SEMAFORO_LABEL.rojo;
 
   // caché de resultados de tracking (por sesión)
 
@@ -290,16 +297,17 @@
       // Filtros por columna
       for (const [col, vals] of Object.entries(colFilters)) {
         if (!vals || vals.size === 0) continue;
-        // Filtro de RENGLÓN (número de bulto): el envío entra si le queda al menos un
-        // bulto visible. Los renglones que sobran los saca renderPage. Sin esto, filtrar
-        // "bulto 2" dejaría en la lista envíos de una sola caja, sin ningún renglón.
-        if (FILTROS_DE_BULTO.has(col)) {
-          if (!bultosVisibles(e, vals).length) return false;
-          continue;
-        }
+        // Los de RENGLÓN (número de bulto, semáforo) se resuelven juntos más abajo.
+        if (FILTROS_DE_BULTO.has(col)) continue;
         const cell = resolveCell(e, col, today);
         if (!vals.has(String(cell))) return false;
       }
+
+      // Filtros de RENGLÓN, aplicados JUNTOS: el envío entra si le queda al menos un
+      // bulto que cumpla todos (bulto n° 1 Y amarillo, por ejemplo). Los renglones que
+      // sobran los saca renderPage con la misma función — así lo que se lista y lo que
+      // se dibuja no pueden discrepar.
+      if (!bultosVisibles(e, colFilters).length) return false;
 
       // Solo alertas
       if (soloAlertas) {
@@ -311,15 +319,22 @@
     });
   }
 
-  // Los bultos del envío que pasan el filtro por número de bulto. Sin filtro, todos.
+  // Los bultos del envío que pasan los filtros DE RENGLÓN (número de bulto y semáforo),
+  // aplicados juntos: un renglón queda solo si cumple TODOS. Recibe el objeto de filtros
+  // entero (colFilters o una copia); ignora los que no son de renglón y los vacíos.
   // Devuelve pares [bulto, índiceOriginal] para que el renglón siga sabiendo su posición
   // real: filtrando el bulto 2 de un envío de tres, la celda tiene que decir "2/3" y no
   // "1/1" — el total y el número son del envío, no de lo que quedó a la vista.
-  function bultosVisibles(e, vals) {
+  function bultosVisibles(e, filtros) {
     const lista = (e.bultos && e.bultos.length) ? e.bultos : [null];
     const conIdx = lista.map((b, i) => [b, i]);
-    if (!vals || vals.size === 0) return conIdx;
-    return conIdx.filter(([b, i]) => vals.has(String((b && b.numero_bulto) ?? (i + 1))));
+    const fNum = filtros && filtros.numero_bulto;
+    const fSem = filtros && filtros.estado_semaforo;
+    return conIdx.filter(([b, i]) => {
+      if (fNum && fNum.size > 0 && !fNum.has(String((b && b.numero_bulto) ?? (i + 1)))) return false;
+      if (fSem && fSem.size > 0 && !fSem.has(semaforoDeBulto(b))) return false;
+      return true;
+    });
   }
 
   // Devuelve el valor de la celda que se usa para filtrar/mostrar
@@ -362,7 +377,7 @@
       const totalBultos = todos.length;
       // El filtro por número de bulto (columna Bulto) saca renglones, no envíos: acá se
       // aplica. Cada par conserva el índice ORIGINAL, así la celda sigue diciendo "2/3".
-      let visibles = bultosVisibles(e, colFilters.numero_bulto);
+      let visibles = bultosVisibles(e, colFilters);
       // "1º bulto": un renglón por envío. La celda Bulto sigue diciendo "1/3", así se ve
       // que el envío tiene más bultos aunque no se muestren.
       if (soloPrimerBulto && visibles.length > 1) visibles = [visibles[0]];
@@ -1007,17 +1022,17 @@
   function redibujarDropdown(colBoton) {
     const today = todayStr();
     pintarCriterios(colBoton);
+    // El criterio activo se excluye de los filtros al armar su propia lista (para que
+    // ofrezca TODOS sus valores), pero los demás — incluidos los otros de renglón — sí
+    // recortan.
+    const sinActivo = { ...colFilters, [ddColumn]: null };
     const dataForDD = allData.filter((e) => {
-      for (const [c, vals] of Object.entries(colFilters)) {
-        if (c === ddColumn) continue;
+      for (const [c, vals] of Object.entries(sinActivo)) {
         if (!vals || vals.size === 0) continue;
-        if (FILTROS_DE_BULTO.has(c)) {
-          if (!bultosVisibles(e, vals).length) return false;
-          continue;
-        }
+        if (FILTROS_DE_BULTO.has(c)) continue;
         if (!vals.has(String(resolveCell(e, c, today)))) return false;
       }
-      return true;
+      return bultosVisibles(e, sinActivo).length > 0;
     });
     const uniqueVals = valoresDeColumna(dataForDD, ddColumn, today);
     ddTempSelected = new Set(colFilters[ddColumn] || []);
@@ -1037,6 +1052,14 @@
         lista.forEach((b, i) => set.add(String((b && b.numero_bulto) ?? (i + 1))));
       }
       vals = [...set];
+    } else if (col === 'estado_semaforo') {
+      const set = new Set();
+      for (const e of envios) {
+        const lista = (e.bultos && e.bultos.length) ? e.bultos : [null];
+        lista.forEach((b) => set.add(semaforoDeBulto(b)));
+      }
+      // Orden del semáforo, no alfabético: rojo (lo urgente) arriba.
+      return Object.values(SEMAFORO_LABEL).filter((l) => set.has(l));
     } else {
       vals = [...new Set(envios.map((e) => String(resolveCell(e, col, today))))];
     }
@@ -1138,6 +1161,7 @@
       destino: 'Destino', tipo_paquete: 'Tipo', direccion: 'Dir.', estado: 'Estado',
       fecha: 'Fecha', numero_salida: '#Sal', asegurado: 'Aseg',
       cantidad_bultos: 'Cant. bultos', numero_bulto: 'Bulto n°', revision: 'Revisión',
+      estado_semaforo: 'Semáforo',
     };
     return labels[col] || col;
   }
@@ -1166,6 +1190,35 @@
       soloPrimerBulto = !soloPrimerBulto;
       btnPB.classList.toggle('active', soloPrimerBulto);
       renderPage();
+    });
+
+    // "Limpiar filtros" (31/08): un golpe y la tabla queda "como la usamos siempre" —
+    // sin filtros de columna, sin búsqueda, sin toggles, ordenada por número de salida
+    // de MAYOR a menor. La solapa de mes NO se toca: el mes no es un filtro, es el
+    // período que se está mirando.
+    const btnLimpiar = document.getElementById('btn-limpiar-filtros');
+    if (btnLimpiar) btnLimpiar.addEventListener('click', () => {
+      for (const c of Object.keys(colFilters)) delete colFilters[c];
+      document.querySelectorAll('.filter-btn.active').forEach((b) => b.classList.remove('active'));
+      searchTerm = '';
+      const inp = document.getElementById('buscador');
+      if (inp) inp.value = '';
+      const clearBtn = document.getElementById('btn-clear-search');
+      if (clearBtn) clearBtn.classList.remove('visible');
+      soloAlertas = false;
+      const bA = document.getElementById('btn-solo-alertas');
+      if (bA) bA.classList.remove('active');
+      soloPrimerBulto = false;
+      btnPB.classList.remove('active');
+      // El orden de siempre: # de salida descendente (los "sin numerar" quedan arriba
+      // igual: sortData los prioriza se ordene por lo que se ordene).
+      sortCol = 'numero_salida';
+      sortDir = 'desc';
+      document.querySelectorAll('.salidas-table th').forEach((t) => t.classList.remove('sort-asc', 'sort-desc'));
+      const th = document.querySelector('.salidas-table th[data-col="numero_salida"]');
+      if (th) th.classList.add('sort-desc');
+      sortData();
+      applyAll();
     });
   }
 
