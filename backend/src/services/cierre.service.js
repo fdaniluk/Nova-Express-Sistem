@@ -32,48 +32,69 @@ const MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio',
 
 // Las mismas columnas, en el mismo orden y con los mismos títulos que venía sacando el
 // botón de Salidas. La oficina ya conoce esta planilla; no es momento de estrenar formato.
+// Las columnas, en el mismo orden y con los mismos títulos que ve la oficina en pantalla.
+//
+// El 5º dato es el ÁMBITO, y es lo que hace que un envío de tres bultos salga bien:
+//   'bulto' → la celda tiene un valor PROPIO en cada renglón (medidas, peso, guía)
+//   'envio' → la celda va SOLO en el primer renglón del envío y en blanco en los demás
+// Es exactamente lo que hace la pantalla (el helper `env()` de salidas.js), y no es
+// cosmético: si los importes se repitieran en cada bulto, la fila de TOTALES contaría el
+// mismo flete tres veces y la planilla mentiría.
 const COLUMNAS = [
-  ['# Salida', 'numero_salida', 'texto', 10],
-  ['Courier', 'courier', 'texto', 10],
-  ['Fecha', 'fecha', 'fecha', 12],
-  ['Guía', 'numero_guia', 'texto', 20],
-  ['Cobro', 'tipo_cobro', 'texto', 10],
-  ['Cliente', 'cliente_nombre', 'texto', 26],
-  ['Destino', 'destino', 'texto', 20],
-  ['Dest. original', 'destino_raw', 'texto', 18],
-  ['Dirección', 'direccion', 'texto', 12],
-  ['Bulto', 'bulto', 'texto', 8],
-  ['Tipo', 'tipo_paquete', 'texto', 8],
-  ['Peso (kg)', 'peso', 'peso', 11],
-  ['P. Fact (kg)', 'peso_facturable', 'peso', 12],
-  ['Vol. (kg)', 'peso_volumetrico', 'peso', 11],
-  ['FOB (USD)', 'valor_declarado', 'plata', 12],
-  ['Asegurado', '_asegurado', 'texto', 11],
-  ['Flete (USD)', 'flete', 'plata', 12],
-  ['Dscto (USD)', 'descuento', 'plata', 12],
-  ['Seguro (USD)', 'seguro', 'plata', 12],
-  ['Fuel (USD)', 'fuel', 'plata', 12],
-  ['Derechos (USD)', 'derechos', 'plata', 13],
-  ['Adic. (USD)', 'adicionales', 'plata', 12],
-  ['Otros (USD)', 'otros', 'plata', 12],
-  ['Total (USD)', 'total', 'plata', 13],
-  ['Profit (USD)', 'profit', 'plata', 12],
-  ['% Profit', 'porcentaje', 'peso', 10],
-  ['Costo UPS (USD)', 'costo_facturado', 'plata', 14],
-  ['Dif Costo %', '_dif_costo', 'peso', 12],
-  ['Peso UPS (kg)', '_peso_ups', 'peso', 13],
-  ['Dif Peso %', '_dif_peso', 'peso', 12],
-  ['Estado', '_estado', 'texto', 16],
-  ['Observaciones', 'observaciones', 'texto', 32],
+  ['# Salida', '_num_sal', 'entero', 10, 'envio'],
+  ['Courier', 'courier', 'texto', 10, 'envio'],
+  ['Fecha', 'fecha', 'fecha', 12, 'envio'],
+  ['Guía', '_guia', 'texto', 20, 'bulto'],
+  ['Cobro', 'tipo_cobro', 'texto', 10, 'envio'],
+  ['Cliente', 'cliente_nombre', 'texto', 26, 'envio'],
+  ['Destino', 'destino', 'texto', 20, 'envio'],
+  ['Dest. original', 'destino_raw', 'texto', 18, 'envio'],
+  ['Dirección', 'direccion', 'texto', 12, 'envio'],
+  ['Bulto', '_bulto', 'texto', 8, 'bulto'],
+  ['Tipo', 'tipo_paquete', 'texto', 8, 'envio'],
+  ['Largo (cm)', '_largo', 'medida', 10, 'bulto'],
+  ['Ancho (cm)', '_ancho', 'medida', 10, 'bulto'],
+  ['Alto (cm)', '_alto', 'medida', 10, 'bulto'],
+  ['Peso (kg)', '_peso', 'peso', 11, 'bulto'],
+  ['Vol. (kg)', '_vol', 'peso', 11, 'bulto'],
+  ['P. Fact (kg)', 'peso_facturable', 'peso', 12, 'envio'],
+  ['FOB (USD)', 'valor_declarado', 'plata', 12, 'envio'],
+  ['Asegurado', '_asegurado', 'texto', 11, 'envio'],
+  ['Flete (USD)', 'flete', 'plata', 12, 'envio'],
+  ['Dscto (USD)', 'descuento', 'plata', 12, 'envio'],
+  ['Seguro (USD)', 'seguro', 'plata', 12, 'envio'],
+  ['Fuel (USD)', 'fuel', 'plata', 12, 'envio'],
+  ['Derechos (USD)', 'derechos', 'plata', 13, 'envio'],
+  ['Adic. (USD)', 'adicionales', 'plata', 12, 'envio'],
+  ['Otros (USD)', 'otros', 'plata', 12, 'envio'],
+  ['Total (USD)', 'total', 'plata', 13, 'envio'],
+  ['Compra Total (USD)', 'compra_total', 'plata', 15, 'envio'],
+  ['Profit (USD)', 'profit', 'plata', 12, 'envio'],
+  ['% Profit', 'porcentaje', 'peso', 10, 'envio'],
+  ['Costo UPS (USD)', 'costo_facturado', 'plata', 14, 'envio'],
+  ['Dif Costo %', '_dif_costo', 'peso', 12, 'envio'],
+  ['Peso UPS (kg)', '_peso_ups', 'peso', 13, 'envio'],
+  ['Dif Peso %', '_dif_peso', 'peso', 12, 'envio'],
+  ['Revisión', '_revision', 'texto', 12, 'envio'],
+  ['Estado', '_estado', 'texto', 16, 'envio'],
+  ['Observaciones', 'observaciones', 'texto', 32, 'envio'],
 ];
 
 // Las columnas que se suman abajo de todo. Un total al pie es lo que hace que la planilla
 // sirva para controlar contra otra cosa sin tener que armar la fórmula a mano.
-const SUMABLES = new Set(['peso', 'peso_facturable', 'valor_declarado', 'flete', 'descuento',
-  'seguro', 'fuel', 'derechos', 'adicionales', 'otros', 'total', 'profit']);
+// Las columnas que se suman abajo de todo. `_peso` y `_vol` son de ámbito bulto: suman
+// renglón por renglón y el total da el peso del envío, porque el peso del envío ES la suma
+// de sus bultos (verificado sobre los 93 multibulto de producción, 28/08/2026). El resto
+// son de ámbito envío: como solo tienen valor en el primer renglón, se suman una vez sola
+// sin necesidad de contar nada aparte.
+const SUMABLES = new Set(['_peso', '_vol', 'peso_facturable', 'valor_declarado', 'flete',
+  'descuento', 'seguro', 'fuel', 'derechos', 'adicionales', 'otros', 'total',
+  'compra_total', 'profit']);
 
 const FMT_PLATA = '#,##0.00';
 const FMT_PESO = '#,##0.00';
+const FMT_MEDIDA = '#,##0';   // las medidas van en cm enteros, como en la pantalla
+const FMT_ENTERO = '0';       // el # de salida: número pelado, para que Excel lo ordene bien
 const FMT_FECHA = 'dd/mm/yyyy';
 
 // ── Períodos ────────────────────────────────────────────────────────────────
@@ -173,10 +194,57 @@ function estadoLabel(e, hoy) {
   return `Pendiente · ${dias}d`;
 }
 
-function valorDe(e, campo, hoy) {
+// Estado de revisión contra la factura del courier. Mismo criterio que la columna
+// Revisión de la pantalla: sin factura cruzada no hay nada que revisar.
+const REVISION_LABEL = {
+  revisado_ok: 'Aprobada',
+  a_revisar: 'A revisar',
+  reclamar: 'En reclamo',
+  pendiente: 'Pendiente',
+};
+
+/**
+ * El valor de una celda.
+ *
+ * @param {Object} e     el envío
+ * @param {String} campo la clave de COLUMNAS
+ * @param {String} hoy   fecha local (para la antigüedad del estado)
+ * @param {Object} b     el bulto de ESTE renglón (nunca null: el envío de un solo bulto
+ *                       trae uno sintético armado con sus propios campos)
+ * @param {Number} nb    cuántos bultos tiene el envío (para el "1/3")
+ * @param {Number} idx   posición del bulto (0-based), por si no trae numero_bulto
+ */
+function valorDe(e, campo, hoy, b = {}, nb = 1, idx = 0) {
+  // Los campos del bulto caen a los del envío cuando el bulto no los tiene: es el mismo
+  // fallback que hace la pantalla para el envío de un solo bulto.
+  const delBulto = (campoBulto, campoEnvio) => {
+    const v = b[campoBulto];
+    return v !== undefined && v !== null ? v : (e[campoEnvio] ?? null);
+  };
+
   switch (campo) {
+    // El número que la oficina llama "el envío 27": correlativo del MES, no la columna
+    // `numero_salida` de la base, que está vacía en 346 de 347 envíos (nadie la carga) y
+    // era la que dejaba la planilla sin números.
+    case '_num_sal': return e.num_sal_mes ?? e.num_sal ?? null;
+    // La guía del bulto si la tiene PROPIA (los multibulto de UPS traen una por caja);
+    // si la hereda del envío se escribe solo en el primer renglón. Repetir diez veces el
+    // mismo número en un envío de diez cajas no agrega nada y ensucia la planilla que se
+    // archiva — se vio al mirar el Excel de una semana real (28/08).
+    case '_guia':
+      if (b.numero_guia) return b.numero_guia;
+      return idx === 0 ? (e.numero_guia || null) : null;
+    case '_bulto': return `${b.numero_bulto ?? (idx + 1)}/${nb}`;
+    case '_largo': return delBulto('largo', 'largo');
+    case '_ancho': return delBulto('ancho', 'ancho');
+    case '_alto': return delBulto('alto', 'alto');
+    case '_peso': return delBulto('peso_real', 'peso');
+    case '_vol': return delBulto('peso_volumetrico', 'peso_volumetrico');
     case '_asegurado': return e.asegurado ? 'Sí' : 'No';
     case '_estado': return estadoLabel(e, hoy);
+    case '_revision':
+      if (e.costo_facturado == null) return '';
+      return REVISION_LABEL[e.estado_revision] || 'Pendiente';
     case '_dif_costo': return e.costo_facturado != null ? difPct(e.costo_facturado, e.compra_total) : null;
     case '_peso_ups': return e.costo_facturado != null ? (e.peso_facturado ?? null) : null;
     case '_dif_peso': return e.costo_facturado != null ? difPct(e.peso_facturado, e.peso_facturable) : null;
@@ -207,10 +275,28 @@ async function construirExcel(filas, rango, usuario) {
   ws.getCell(2, 1).value = `Período: ${rango.etiqueta} (${fmtDia(rango.desde)} a ${fmtDia(rango.hasta)})`;
   ws.getCell(3, 1).value = `Emitido: ${fmtDia(hoy)}${usuario ? ` por ${usuario}` : ''}`;
   const noVolaron = filas.filter((f) => f.no_volo).length;
+  // Cuántos ENVÍOS y cuántos RENGLONES: desde que cada bulto tiene el suyo, los dos
+  // números son distintos y conviene decirlo, para que nadie cuente filas creyendo que
+  // cuenta envíos.
+  const totalBultos = filas.reduce(
+    (acc, f) => acc + Math.max(1, (f.bultos && f.bultos.length) || 1), 0);
+  const detalleBultos = totalBultos > filas.length
+    ? ` en ${totalBultos} renglón(es), uno por bulto`
+    : '';
   ws.getCell(4, 1).value = noVolaron === 0
-    ? `${filas.length} envío(s)`
-    : `${filas.length} envío(s) — ${noVolaron} marcado(s) NO VOLO, en rojo, que NO suman en el total`;
-  for (const f of [2, 3, 4]) ws.getCell(f, 1).font = { name: 'Calibri', size: 10, color: { argb: 'FF555555' } };
+    ? `${filas.length} envío(s)${detalleBultos}`
+    : `${filas.length} envío(s)${detalleBultos} — ${noVolaron} marcado(s) NO VOLO, en rojo, que NO suman en el total`;
+  // Aviso de lectura: en un período normal hay envíos cargados sin precio de venta
+  // todavía. Su COSTO igual suma en Compra Total, así que al pie la compra puede quedar
+  // MUY por encima de la venta y parecer una pérdida enorme que no existe. Decirlo acá es
+  // más barato que explicarlo cada vez (visto al mirar la planilla real: 24 de 31 envíos
+  // de esa semana no tenían venta cargada).
+  const sinVenta = filas.filter((f) => !f.no_volo && !(Number(f.total) > 0)).length;
+  if (sinVenta > 0) {
+    ws.getCell(5, 1).value = `${sinVenta} envío(s) todavía sin precio de venta cargado: su costo `
+      + 'suma en Compra Total, pero no aportan a Total ni a Profit.';
+  }
+  for (const f of [2, 3, 4, 5]) ws.getCell(f, 1).font = { name: 'Calibri', size: 10, color: { argb: 'FF555555' } };
 
   const FILA_ENC = 6;
   const enc = ws.getRow(FILA_ENC);
@@ -230,40 +316,60 @@ async function construirExcel(filas, rango, usuario) {
 
   for (let idx = 0; idx < filas.length; idx++) {
     const e = filas[idx];
-    const row = ws.getRow(fila);
     // NO VOLO: renglon pintado y AFUERA de la fila de totales, igual que lo hacia la
     // oficina a mano en el Excel. Los numeros se dejan a la vista (no se borran: son el
     // registro de lo que se habia cargado), pero no suman: la planilla tiene que poder
     // usarse como estadistica del mes sin restar nada de cabeza.
     const noVolo = Boolean(e.no_volo);
+    // El zebrado va POR ENVÍO, no por renglón: los tres bultos de un envío comparten
+    // color y se leen como una unidad, igual que en la pantalla.
     const fondo = noVolo
       ? { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF3E0E0' } }
       : idx % 2 === 0
         ? { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } }
         : { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF2F5FA' } };
 
-    COLUMNAS.forEach(([, campo, tipo], i) => {
-      const celda = row.getCell(i + 1);
-      const v = valorDe(e, campo, hoy);
-      if (tipo === 'fecha' && v) {
-        const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v));
-        celda.value = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : v;
-        celda.numFmt = FMT_FECHA;
-      } else if (tipo === 'plata' || tipo === 'peso') {
-        celda.value = (v === null || v === '' || v === undefined) ? null : Number(v);
-        celda.numFmt = tipo === 'plata' ? FMT_PLATA : FMT_PESO;
-      } else {
-        celda.value = v === null ? '' : v;
-      }
-      celda.fill = fondo;
-      celda.font = noVolo
-        ? { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF8C2F26' } }
-        : { name: 'Calibri', size: 10 };
-      if (!noVolo && SUMABLES.has(campo) && typeof celda.value === 'number') {
-        totales.set(campo, (totales.get(campo) || 0) + celda.value);
-      }
+    // UN RENGLÓN POR BULTO, como en la pantalla. `bultos` siempre trae al menos uno: el
+    // envío de un solo bulto llega con uno sintético armado desde sus propios campos
+    // (ver bultosDe() en salidas.routes.js). Antes salía una sola fila por envío con las
+    // medidas del envío, así que de un envío de tres cajas la planilla mostraba una.
+    const bultos = (Array.isArray(e.bultos) && e.bultos.length > 0) ? e.bultos : [{}];
+
+    bultos.forEach((b, iB) => {
+      const esPrimero = iB === 0;
+      const row = ws.getRow(fila);
+
+      COLUMNAS.forEach(([, campo, tipo, , ambito], i) => {
+        const celda = row.getCell(i + 1);
+        // Las columnas del ENVÍO solo se escriben en su primer renglón: repetirlas por
+        // bulto duplicaría los importes en la fila de TOTALES.
+        const escribe = ambito === 'bulto' || esPrimero;
+        const v = escribe ? valorDe(e, campo, hoy, b, bultos.length, iB) : null;
+
+        if (tipo === 'fecha' && v) {
+          const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(v));
+          celda.value = m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : v;
+          celda.numFmt = FMT_FECHA;
+        } else if (tipo === 'plata' || tipo === 'peso' || tipo === 'medida' || tipo === 'entero') {
+          celda.value = (v === null || v === '' || v === undefined) ? null : Number(v);
+          celda.numFmt = tipo === 'plata' ? FMT_PLATA
+            : tipo === 'medida' ? FMT_MEDIDA
+              : tipo === 'entero' ? FMT_ENTERO : FMT_PESO;
+        } else {
+          celda.value = (v === null || v === undefined) ? '' : v;
+        }
+        celda.fill = fondo;
+        celda.font = noVolo
+          ? { name: 'Calibri', size: 10, italic: true, color: { argb: 'FF8C2F26' } }
+          : { name: 'Calibri', size: 10 };
+        // Las celdas de ámbito envío ya vienen en null cuando no es el primer renglón,
+        // así que la condición de número alcanza para no sumar nada dos veces.
+        if (!noVolo && SUMABLES.has(campo) && typeof celda.value === 'number') {
+          totales.set(campo, (totales.get(campo) || 0) + celda.value);
+        }
+      });
+      fila++;
     });
-    fila++;
   }
 
   // Fila de totales. Va aunque no haya ninguna fila: un cierre vacío es un dato, no un error.
@@ -273,7 +379,7 @@ async function construirExcel(filas, rango, usuario) {
     if (i === 0) c.value = 'TOTAL';
     else if (SUMABLES.has(campo)) {
       c.value = Math.round((totales.get(campo) || 0) * 100) / 100;
-      c.numFmt = tipo === 'plata' ? FMT_PLATA : FMT_PESO;
+      c.numFmt = tipo === 'plata' ? FMT_PLATA : (tipo === 'medida' ? FMT_MEDIDA : FMT_PESO);
     }
     c.font = { name: 'Calibri', size: 10, bold: true };
     c.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFE8EDF5' } };

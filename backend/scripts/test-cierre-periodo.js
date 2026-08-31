@@ -184,15 +184,23 @@ async function main() {
     String(ws.getCell(4, 1).value));
 
   const encabezados = ws.getRow(6).values.slice(1).map(String);
+  // Las columnas se buscan POR NOMBRE, nunca por número: el 28/08 se sumaron las medidas,
+  // Compra Total y Revisión, y un test atado a "la columna 24" se rompe con cada agregado
+  // sin que nada esté mal.
+  const col = (titulo) => encabezados.indexOf(titulo) + 1;
   check('están las columnas de siempre', encabezados.includes('Guía')
     && encabezados.includes('Cliente') && encabezados.includes('Total (USD)'),
     encabezados.slice(0, 6).join('|'));
-  check('son las 32 columnas del Excel que ya usaba la oficina', encabezados.length === 32,
-    String(encabezados.length));
+  check('están las que la oficina echaba de menos (# Salida, Bulto, medidas)',
+    ['# Salida', 'Bulto', 'Largo (cm)', 'Ancho (cm)', 'Alto (cm)'].every((t) => encabezados.includes(t)),
+    encabezados.join('|'));
+  check('y las que faltaban contra la pantalla (Compra Total, Revisión)',
+    encabezados.includes('Compra Total (USD)') && encabezados.includes('Revisión'),
+    encabezados.join('|'));
 
   const guias = [];
   for (let f = 7; f <= ws.rowCount; f++) {
-    const v = ws.getRow(f).getCell(4).value;
+    const v = ws.getRow(f).getCell(col('Guía')).value;
     if (v && String(v).startsWith('1Z')) guias.push(String(v));
   }
   check('las guías del archivo son las tres de julio', guias.length === 3
@@ -204,8 +212,9 @@ async function main() {
   const filaTotal = ws.getRow(ws.rowCount);
   check('hay una fila de TOTAL al pie', String(filaTotal.getCell(1).value) === 'TOTAL',
     String(filaTotal.getCell(1).value));
-  check('el total suma de verdad', Number(filaTotal.getCell(24).value) >= 0);
-  check('la fecha va como fecha y no como texto', ws.getRow(7).getCell(3).value instanceof Date);
+  check('el total suma de verdad', Number(filaTotal.getCell(col('Total (USD)')).value) >= 0);
+  check('la fecha va como fecha y no como texto',
+    ws.getRow(7).getCell(col('Fecha')).value instanceof Date);
 
   console.log('\n4. Un mes vacío sale igual, y avisa\n');
 
@@ -303,6 +312,210 @@ async function main() {
     { headers: H() })).json();
   check('el filtro por fecha del listado sigue andando', filtrado.length === 3,
     String(filtrado.length));
+
+  // ── 9. Los dos reclamos de la oficina (28/08/2026) ─────────────────────────
+  //
+  //  1. "no marca el número de salida de cada envío": la planilla leía la columna
+  //     `numero_salida` de la base, que está vacía en 346 de 347 envíos porque nadie la
+  //     carga. El número que la oficina usa —"el envío 27"— es el correlativo POR MES que
+  //     se calcula al vuelo.
+  //  2. "los envíos con más de un bulto tampoco lo muestra": salía UNA fila por envío con
+  //     las medidas del envío. Ahora va un renglón por bulto, como en la pantalla.
+  //
+  // Y el riesgo que aparece al arreglar el 1: si el correlativo se calculara sobre las
+  // filas del período, el respaldo de UNA SEMANA numeraría 1, 2, 3 en vez de 27, 28, 29.
+  console.log('\n9. El número de salida y los envíos de varios bultos\n');
+
+  const hoyISO = new Date().toISOString().slice(0, 10);
+  const mesActual = hoyISO.slice(0, 7);
+
+  // Un envío de TRES bultos con medidas distintas, para reconocerlas una por una.
+  const multi = await (await fetch(BASE + '/api/envios', {
+    method: 'POST', headers: H(),
+    body: JSON.stringify({
+      cliente_id: cli.id, fecha: hoyISO, courier: 'UPS', tipo_envio: 'exportacion',
+      numero_guia: '1Z000CIERRE0000010', pais_destino: 'Estados Unidos', servicio_ups: 'UPS_EXP',
+      total_cobrado: 300,
+      bultos: [
+        { peso_real: 5, largo: 30, ancho: 20, alto: 10 },
+        { peso_real: 6, largo: 40, ancho: 25, alto: 15 },
+        { peso_real: 7, largo: 50, ancho: 30, alto: 20 },
+      ],
+    }),
+  })).json();
+  const simple = await (await fetch(BASE + '/api/envios', {
+    method: 'POST', headers: H(),
+    body: JSON.stringify({
+      cliente_id: cli.id, fecha: hoyISO, courier: 'UPS', tipo_envio: 'exportacion',
+      numero_guia: '1Z000CIERRE0000011', pais_destino: 'Estados Unidos', servicio_ups: 'UPS_EXP',
+      total_cobrado: 100, peso_real: 3, largo: 20, ancho: 15, alto: 10,
+    }),
+  })).json();
+  check('se cargaron el multibulto y el de un bulto', !!multi.id && !!simple.id);
+
+  const rSem = await bajar('tipo=semana');
+  check('el respaldo semanal baja bien', rSem.status === 200, String(rSem.status));
+  const wbS = new ExcelJS.Workbook();
+  await wbS.xlsx.load(Buffer.from(await rSem.arrayBuffer()));
+  const wsS = wbS.getWorksheet('Salidas');
+  const encS = wsS.getRow(6).values.slice(1).map(String);
+  const colS = (t) => encS.indexOf(t) + 1;
+
+  // Los renglones de cada envío, encontrados por su guía.
+  const renglonesDe = (guia) => {
+    const out = [];
+    for (let f = 7; f < wsS.rowCount; f++) {
+      if (String(wsS.getRow(f).getCell(colS('Guía')).value || '') === guia) out.push(wsS.getRow(f));
+    }
+    return out;
+  };
+
+  // renglonesDe() busca por guía y solo el primer renglón la lleva (los bultos sin guía
+  // propia no la repiten), así que para el multibulto se toman sus filas por posición.
+  const filaGuia = (guia) => {
+    for (let f = 7; f < wsS.rowCount; f++) {
+      if (String(wsS.getRow(f).getCell(colS('Guía')).value || '') === guia) return f;
+    }
+    return -1;
+  };
+  const fMulti = filaGuia('1Z000CIERRE0000010');
+  const rMultiTodas = [wsS.getRow(fMulti), wsS.getRow(fMulti + 1), wsS.getRow(fMulti + 2)];
+
+  const rMulti = renglonesDe('1Z000CIERRE0000010');
+  const rSimple = renglonesDe('1Z000CIERRE0000011');
+
+  console.log('   · el envío de tres bultos');
+  check('ocupa TRES renglones, uno por bulto',
+    rMultiTodas.every((r) => String(r.getCell(colS('Bulto')).value).endsWith('/3')),
+    rMultiTodas.map((r) => r.getCell(colS('Bulto')).value).join(' '));
+  check('numerados 1/3, 2/3 y 3/3',
+    rMultiTodas.map((r) => String(r.getCell(colS('Bulto')).value)).join(' ') === '1/3 2/3 3/3',
+    rMultiTodas.map((r) => String(r.getCell(colS('Bulto')).value)).join(' '));
+  check('cada renglón trae SUS medidas',
+    rMultiTodas.map((r) => Number(r.getCell(colS('Largo (cm)')).value)).join(',') === '30,40,50',
+    rMultiTodas.map((r) => r.getCell(colS('Largo (cm)')).value).join(','));
+  check('y SU peso de balanza',
+    rMultiTodas.map((r) => Number(r.getCell(colS('Peso (kg)')).value)).join(',') === '5,6,7',
+    rMultiTodas.map((r) => r.getCell(colS('Peso (kg)')).value).join(','));
+  check('la guía heredada NO se repite en cada bulto (una sola vez)',
+    rMulti.length === 1, `aparece ${rMulti.length} veces`);
+
+  // Lo que hace que los totales no mientan: la plata va UNA sola vez.
+  const ventas = rMultiTodas.map((r) => r.getCell(colS('Total (USD)')).value);
+  check('la venta figura solo en el primer renglón (no se triplica)',
+    Number(ventas[0]) === 300 && ventas[1] === null && ventas[2] === null,
+    JSON.stringify(ventas));
+  check('el envío de un bulto sigue ocupando un renglón', rSimple.length === 1,
+    String(rSimple.length));
+  check('y ese renglón dice 1/1', String(rSimple[0].getCell(colS('Bulto')).value) === '1/1',
+    String(rSimple[0].getCell(colS('Bulto')).value));
+
+  const totalSem = wsS.getRow(wsS.rowCount);
+  check('el TOTAL de venta no cuenta el multibulto tres veces',
+    Number(totalSem.getCell(colS('Total (USD)')).value) === 400,
+    String(totalSem.getCell(colS('Total (USD)')).value));
+  check('y el TOTAL de peso suma los tres bultos (5+6+7+3 = 21)',
+    Number(totalSem.getCell(colS('Peso (kg)')).value) === 21,
+    String(totalSem.getCell(colS('Peso (kg)')).value));
+  check('el encabezado aclara envíos y renglones',
+    /2 envío\(s\) en 4 renglón/.test(String(wsS.getCell(4, 1).value)),
+    String(wsS.getCell(4, 1).value));
+
+  // El aviso del pie es condicional: solo aparece si hay envíos sin venta cargada, que es
+  // lo que hace que Compra Total quede muy por encima de Total y parezca una pérdida.
+  check('con todos los envíos vendidos NO hay aviso de más', wsS.getCell(5, 1).value == null,
+    String(wsS.getCell(5, 1).value));
+
+  await fetch(BASE + '/api/envios', {
+    method: 'POST', headers: H(),
+    body: JSON.stringify({
+      cliente_id: cli.id, fecha: hoyISO, courier: 'UPS', tipo_envio: 'exportacion',
+      numero_guia: '1Z000CIERRE0000012', pais_destino: 'Estados Unidos', servicio_ups: 'UPS_EXP',
+      peso_real: 4, largo: 20, ancho: 20, alto: 20,
+    }),
+  });
+  const wbS2 = new ExcelJS.Workbook();
+  await wbS2.xlsx.load(Buffer.from(await (await bajar('tipo=semana')).arrayBuffer()));
+  check('con un envío sin precio de venta, la planilla lo aclara al pie',
+    /1 envío\(s\) todavía sin precio de venta/.test(String(wbS2.getWorksheet('Salidas').getCell(5, 1).value || '')),
+    String(wbS2.getWorksheet('Salidas').getCell(5, 1).value));
+
+  // El cruce de las dos cosas: un envío NO VOLÓ que además tiene varios bultos. Sus TRES
+  // renglones van pintados y NINGUNO suma — ni la plata del primero ni los pesos de los
+  // otros dos. Es el caso donde una expansión mal hecha metería kilos fantasma en el mes.
+  console.log('   · NO VOLÓ con varios bultos');
+  await fetch(`${BASE}/api/salidas/${multi.id}/no-volo`, {
+    method: 'PATCH', headers: H(), body: JSON.stringify({ no_volo: true }),
+  });
+  const wbNV = new ExcelJS.Workbook();
+  await wbNV.xlsx.load(Buffer.from(await (await bajar('tipo=semana')).arrayBuffer()));
+  const wsNV = wbNV.getWorksheet('Salidas');
+  const encNV = wsNV.getRow(6).values.slice(1).map(String);
+  const colNV = (x) => encNV.indexOf(x) + 1;
+  const totNV = wsNV.getRow(wsNV.rowCount);
+  check('el multibulto NO VOLÓ deja de sumar su venta (400 → 100)',
+    Number(totNV.getCell(colNV('Total (USD)')).value) === 100,
+    String(totNV.getCell(colNV('Total (USD)')).value));
+  check('y tampoco suman los kilos de sus tres bultos (21 → 7)',
+    Number(totNV.getCell(colNV('Peso (kg)')).value) === 7,
+    String(totNV.getCell(colNV('Peso (kg)')).value));
+  check('pero sigue en la planilla, con sus renglones y su número',
+    Number(wsNV.getRow(filaGuia('1Z000CIERRE0000010')).getCell(colNV('# Salida')).value) > 0);
+  check('y el encabezado lo cuenta como NO VOLO',
+    /1 marcado\(s\) NO VOLO/.test(String(wsNV.getCell(4, 1).value)), String(wsNV.getCell(4, 1).value));
+
+  console.log('   · el número de salida');
+  const listaAPI = await (await fetch(`${BASE}/api/salidas`, { headers: H() })).json();
+  const apiDe = (guia) => listaAPI.find((e) => e.numero_guia === guia);
+  check('la API manda el correlativo del mes (num_sal_mes)',
+    apiDe('1Z000CIERRE0000010').num_sal_mes > 0,
+    String(apiDe('1Z000CIERRE0000010').num_sal_mes));
+  check('el Excel escribe un número de salida, no una celda vacía',
+    Number(rMultiTodas[0].getCell(colS('# Salida')).value) > 0,
+    String(rMultiTodas[0].getCell(colS('# Salida')).value));
+  check('y es EL MISMO que muestra la pantalla',
+    Number(rMultiTodas[0].getCell(colS('# Salida')).value) === apiDe('1Z000CIERRE0000010').num_sal_mes,
+    `excel=${rMultiTodas[0].getCell(colS('# Salida')).value} api=${apiDe('1Z000CIERRE0000010').num_sal_mes}`);
+  check('el número va solo en el primer renglón del envío',
+    rMultiTodas[1].getCell(colS('# Salida')).value == null,
+    JSON.stringify(rMultiTodas[1].getCell(colS('# Salida')).value));
+  check('y va como NÚMERO, para que Excel lo ordene bien',
+    typeof rMultiTodas[0].getCell(colS('# Salida')).value === 'number',
+    typeof rMultiTodas[0].getCell(colS('# Salida')).value);
+
+  // El correlativo del MES, no del período pedido. Este es el que se rompe si alguien
+  // "simplifica" el cálculo numerando las filas del Excel.
+  const delMes = listaAPI
+    .filter((e) => (e.fecha || '').slice(0, 7) === mesActual)
+    .sort((a, b) => (a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : a.id - b.id));
+  const esperadoMulti = delMes.findIndex((e) => e.id === multi.id) + 1;
+  check('en el respaldo SEMANAL el número sigue siendo el del mes, no 1,2,3',
+    Number(rMultiTodas[0].getCell(colS('# Salida')).value) === esperadoMulti,
+    `excel=${rMultiTodas[0].getCell(colS('# Salida')).value} esperado=${esperadoMulti}`);
+
+  // Las dos implementaciones de la MISMA regla: la del backend (listarSalidas) y la que
+  // recalcula la pantalla al vuelo (recomputeNumSalMes en salidas.js). Si alguien toca una
+  // sola, esto se pone rojo.
+  const comoLaPantalla = (envios) => {
+    const byMonth = {};
+    for (const e of envios) {
+      const m = (e.fecha || '').slice(0, 7);
+      (byMonth[m] || (byMonth[m] = [])).push(e);
+    }
+    const out = new Map();
+    for (const m of Object.keys(byMonth)) {
+      let n = 0;
+      byMonth[m]
+        .sort((a, b) => (a.fecha < b.fecha ? -1 : a.fecha > b.fecha ? 1 : (a.id || 0) - (b.id || 0)))
+        .forEach((e) => out.set(e.id, e.num_sal_cero ? 0 : ++n));
+    }
+    return out;
+  };
+  const dePantalla = comoLaPantalla(listaAPI);
+  const desviados = listaAPI.filter((e) => dePantalla.get(e.id) !== e.num_sal_mes);
+  check('el correlativo del backend coincide con el que calcula la pantalla',
+    desviados.length === 0,
+    JSON.stringify(desviados.map((e) => [e.id, e.num_sal_mes, dePantalla.get(e.id)])).slice(0, 140));
 
   console.log('\n' + '─'.repeat(60));
   console.log(`${ok} pasaron · ${fail} fallaron`);
