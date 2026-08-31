@@ -94,6 +94,23 @@ check('lado de 123 cm sí paga manejo', r.manejoCount === 1);
 r = dim(bulto(100, 80, 10, 10));
 check('segundo lado de 80 cm paga manejo', r.manejoCount === 1, JSON.stringify(r));
 
+// La regla del promedio (31/08, hoja de la oficina + guía UPS 2026): en un envío de
+// varios paquetes cuyo peso promedio REAL excede los 32 kg, el manejo se cobra en CADA
+// paquete, también en los que solos no llegan a 25 kg.
+r = dim(bulto(50, 40, 30, 60), bulto(50, 40, 30, 10));
+check('60+10 kg: promedio 35 → el manejo va en LOS DOS paquetes', r.manejoCount === 2, JSON.stringify(r));
+r = dim(bulto(50, 40, 30, 60), bulto(50, 40, 30, 10), bulto(50, 40, 30, 10));
+check('60+10+10: promedio 26,7 → solo el de 60 paga', r.manejoCount === 1, JSON.stringify(r));
+r = dim(bulto(50, 40, 30, 32), bulto(50, 40, 30, 32));
+check('32+32: el promedio no EXCEDE 32, pero cada uno pasa 25 → dos manejos igual', r.manejoCount === 2);
+r = dim(bulto(50, 40, 30, 20), bulto(50, 40, 30, 20));
+check('20+20: promedio 20 y nadie pasa 25 → sin manejo', r.manejoCount === 0);
+r = dim(bulto(50, 40, 30, 33));
+check('un solo paquete de 33 kg: paga por sus 25, no por "promedio" (la regla es de multibulto)', r.manejoCount === 1);
+r = dim(bulto(150, 90, 20, 100), bulto(50, 40, 30, 5));
+check('promedio alto + un bulto de Mayor Tamaño: ese sigue exento del manejo, el chico lo paga',
+  r.manejoCount === 1 && cerca(r.contornoExtra, 120.10), JSON.stringify(r));
+
 // contorno = mayor + 2×segundo + 2×menor
 r = dim(bulto(140, 60, 40, 10));   // 140 + 120 + 80 = 340 → mayor tamaño
 check('contorno de 340 cm cobra Paquete de Mayor Tamaño', cerca(r.contornoExtra, 120.10), r.contornoExtra);

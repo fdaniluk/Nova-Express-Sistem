@@ -283,12 +283,18 @@ function calcDHLExtras(bultosProc){
 
 // Extracargos UPS por bulto: manejo adicional (27.65) y Paquete de Mayor Tamaño (120.10).
 //
-// Tres reglas del tarifario 2026 que antes no estaban:
+// Cuatro reglas del tarifario 2026 que antes no estaban:
 //  1. El manejo adicional NO se cobra en un bulto que ya paga Paquete de Mayor Tamaño.
 //  2. Paquete de Mayor Tamaño tiene una tarifa MÍNIMA a facturar de 40 kg por bulto. Sin
 //     esto, una caja voluminosa y liviana se cotizaba por su peso real y UPS la facturaba
 //     por 40 kg.
 //  3. El manejo por lado largo dispara a partir de 122 cm, no de 120.
+//  4. (31/08, OK de Felipe) En un envío de VARIOS paquetes cuyo peso promedio real por
+//     paquete excede los 32 kg, el manejo se cobra en CADA paquete — también en los que
+//     solos no llegan a 25 kg. Texto de la guía: "Cada paquete, dentro de un envío de
+//     múltiples paquetes, donde el peso promedio por paquete exceda los 32 Kg." Lo
+//     destapó la hoja de extracargos de la oficina (17/04/26): 60 kg + 10 kg = promedio
+//     35 → UPS factura DOS manejos y el sistema estimaba uno.
 //
 // `minPesoExtra` son los kilos que hay que SUMAR al peso facturable del envío para llegar
 // al mínimo de 40 kg de cada bulto de mayor tamaño.
@@ -298,13 +304,17 @@ function calcUPSDimExtras(bultosProc){
   let contornoWarn=false;
   let minPesoExtra=0;
   let minPesoAplicado=false;
+  // Regla 4: el promedio se calcula sobre el peso REAL (igual que el criterio de los
+  // 25 kg por pieza) y solo existe con más de un paquete.
+  const pesoRealTotal=bultosProc.reduce((s,b)=>s+(Number(b.pr)||0),0);
+  const promedioAlto=bultosProc.length>1&&(pesoRealTotal/bultosProc.length)>32;
   bultosProc.forEach(b=>{
     const d=b.dims; // [mayor, segundo, menor]
     const contorno=d[0]+2*d[1]+2*d[2];
     let esMayorTamano=false;
     if(contorno>400){contornoWarn=true;}
     else if(contorno>300){contornoExtra+=120.10;esMayorTamano=true;}
-    const needsManejo=b.pr>25||d[0]>122||d[1]>76;
+    const needsManejo=b.pr>25||d[0]>122||d[1]>76||promedioAlto;
     if(needsManejo&&!esMayorTamano)manejoCount++;
     if(esMayorTamano){
       // Peso facturable del bulto: lo trae el cotizador; el backend manda solo dims y peso
@@ -318,6 +328,47 @@ function calcUPSDimExtras(bultosProc){
   contornoExtra=parseFloat(contornoExtra.toFixed(2));
   minPesoExtra=parseFloat(minPesoExtra.toFixed(3));
   return{manejoCount,contornoExtra,contornoWarn,minPesoExtra,minPesoAplicado};
+}
+
+// ── Topes de aceptación por pieza (deuda 29) ─────────────────────────────────
+// AVISOS, NO BLOQUEOS. No mueven ni un centavo del precio: el motor cotiza igual. Lo
+// único que hacen es decirle a la oficina, ANTES de pasar el precio, que esa pieza el
+// courier no la despacha como está. Nació del caso "alfombras a Australia" (27/08): una
+// alfombra de 2,80 m pasaba el cotizador entera y UPS no la toma.
+//
+//   UPS — lado más largo 274 cm · contorno (largo + 2×ancho + 2×alto) 400 cm · 70 kg
+//         reales por pieza. Los tres son topes de aceptación: arriba de ahí no viaja.
+//   DHL — pieza estándar de 120 × 80 × 80 cm. Ojo: el PESO no es tope en DHL — arriba
+//         de 70 kg la toma y cobra el sobrepeso de 125 USD, que el motor ya cobra.
+const TOPES_PIEZA={
+  UPS:{lado:274,contorno:400,peso:70},
+  DHL:{lado:120,segundo:80},
+};
+
+const MSG_CONTORNO_UPS='⚠ Uno o más bultos superan el contorno máximo de 400 cm y no pueden enviarse por UPS.';
+
+// Devuelve { ups:[textos], dhl:[textos] }. Se agrupa por regla, no por bulto: con 22
+// cajas iguales fuera de tope, un renglón que dice "22 bultos", no 22 renglones.
+function calcTopesPieza(bultosProc){
+  let upsLado=0,upsContorno=0,upsPeso=0,dhlPieza=0;
+  let maxLado=0,maxContorno=0,maxPeso=0;
+  (bultosProc||[]).forEach(b=>{
+    const d=b.dims||[0,0,0];
+    const contorno=d[0]+2*d[1]+2*d[2];
+    const pr=Number(b.pr)||0;
+    if(d[0]>TOPES_PIEZA.UPS.lado){upsLado++;maxLado=Math.max(maxLado,d[0]);}
+    if(contorno>TOPES_PIEZA.UPS.contorno){upsContorno++;maxContorno=Math.max(maxContorno,contorno);}
+    if(pr>TOPES_PIEZA.UPS.peso){upsPeso++;maxPeso=Math.max(maxPeso,pr);}
+    // d[2] <= d[1], así que con mirar los dos primeros alcanza.
+    if(d[0]>TOPES_PIEZA.DHL.lado||d[1]>TOPES_PIEZA.DHL.segundo)dhlPieza++;
+  });
+  const plural=(n)=>n===1?'bulto':'bultos';
+  const ups=[],dhl=[];
+  if(upsLado>0)    ups.push(`⛔ ${upsLado} ${plural(upsLado)} con el lado más largo de más de 274 cm (el mayor mide ${maxLado} cm): UPS no acepta piezas así.`);
+  if(upsContorno>0)ups.push(MSG_CONTORNO_UPS);
+  if(upsPeso>0)    ups.push(`⛔ ${upsPeso} ${plural(upsPeso)} de más de 70 kg reales (el mayor pesa ${maxPeso} kg): UPS no acepta piezas de más de 70 kg.`);
+  if(dhlPieza>0)   dhl.push(`⚠ ${dhlPieza} ${plural(dhlPieza)} ${dhlPieza===1?'supera':'superan'} la pieza estándar de DHL (120 × 80 × 80 cm): confirmar con DHL antes de cerrar el precio.`);
+  return{ups,dhl};
 }
 
 // Traduce lo que mande el caller a 'normal' | 'extendida' | 'remota'.
@@ -440,6 +491,7 @@ function cotizarServicio(servicio, params) {
     const aplicaGoGreen=!(tipo==='import'&&pf>50);
     const goGreen=aplicaGoGreen?parseFloat((pf*0.98).toFixed(2)):0;
     const{sobrepesoTotal,excesoTotal,noConvencionalTotal}=calcDHLExtras(bultosProc);
+    const topesDHL=calcTopesPieza(bultosProc).dhl;
     const seguroObj=calcSeguroDHL(fob,seguroPropio);
     const extras=[];
     if(goGreen>0)           extras.push([`GoGreen (${Number(pf.toFixed(3))} kg × USD 0.98)`,goGreen]);
@@ -465,7 +517,7 @@ function cotizarServicio(servicio, params) {
       conGan,subtotalConSurge,fuelMonto,extras,extrasTotal,total,
       goGreen,sobrepesoTotal,excesoTotal,noConvencionalTotal,seguro:seguroObj.monto,
       manejoCount:0,contornoExtra:0,contornoWarn:false,manejo:0,
-      minPesoAplicado:false,
+      minPesoAplicado:false,avisosTope:topesDHL,
       modoVenta:usaPorKg?'por_kg':'porcentaje',
       precioKgVenta:usaPorKg?kgVenta:null,
       pfVenta:usaPorKg?pf:null,
@@ -478,6 +530,7 @@ function cotizarServicio(servicio, params) {
   // Los extras dimensionales se resuelven ANTES de buscar la tarifa, porque el Paquete de
   // Mayor Tamaño impone un mínimo de 40 kg facturables por bulto y eso cambia el flete.
   const{manejoCount,contornoExtra,contornoWarn,minPesoExtra,minPesoAplicado}=calcUPSDimExtras(bultosProc);
+  const topesUPS=calcTopesPieza(bultosProc).ups;
   const pfRound=Math.ceil((pf+minPesoExtra)*2)/2;
   // IPF (International Processing Fee): 2.50 USD por envío. Es un cargo de la aduana de
   // ESTADOS UNIDOS para los envíos que llegan allá. Antes acá también se le cobraba a
@@ -536,7 +589,7 @@ function cotizarServicio(servicio, params) {
     conGan,subtotalConSurge,fuelMonto,extras,extrasTotal,total,
     manejoCount,contornoExtra,contornoWarn,manejo,
     seguro:seguroObj.monto,goGreen:0,dhlDimExtra:0,
-    minPesoAplicado,minPesoExtra,
+    minPesoAplicado,minPesoExtra,avisosTope:topesUPS,
     modoVenta:usaPorKg?'por_kg':'porcentaje',
     precioKgVenta:usaPorKg?kgVenta:null,
     pfVenta:usaPorKg?pfRound:null,
@@ -557,6 +610,7 @@ if(typeof module!=='undefined'&&module.exports){
     resolverZona,
     getPesoVol,getDHL,getDHLBig,getUPS,getUPSSaverEsIt,
     getSurge,calcSeguroUPS,calcSeguroDHL,seguroPropioMonto,DHL_PROTECCION_DOC,calcDHLExtras,calcUPSDimExtras,calcImpuestos,calcZonaEntrega,normalizarEntrega,
+    TOPES_PIEZA,calcTopesPieza,MSG_CONTORNO_UPS,
     cotizarServicio,
   };
 }

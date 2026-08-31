@@ -175,7 +175,7 @@ footer{margin-top:3rem;text-align:center;font-size:12px;color:var(--text-tertiar
     <label class="check-label"><input type="checkbox" id="ex_remota" /> Área remota / difícil acceso</label>
     <label class="check-label"><input type="checkbox" id="ex_residencial" /> Entrega residencial (UPS)</label>
   </div>
-  <div style="margin-top:8px;font-size:11px;color:var(--text-tertiary)">El cargo por manejo adicional UPS (+25 kg / lado >122 cm / segundo lado >76 cm) y los extracargos por dimensión DHL se aplican automáticamente según las medidas de cada bulto.</div>
+  <div style="margin-top:8px;font-size:11px;color:var(--text-tertiary)">El cargo por manejo adicional UPS (+25 kg / lado >122 cm / segundo lado >76 cm / promedio del envío >32 kg: lo pagan todos los bultos) y los extracargos por dimensión DHL se aplican automáticamente según las medidas de cada bulto.</div>
 </div>
 
 <div class="card" id="card-impuestos" style="display:none">
@@ -198,7 +198,7 @@ footer{margin-top:3rem;text-align:center;font-size:12px;color:var(--text-tertiar
 <footer>Tarifas DHL y UPS vigentes 2026 · Uso interno</footer>
 </div>
 
-<script src="cotizador-core.js?v=20260828b"></script>
+<script src="cotizador-core.js?v=20260831c"></script>
 <script>
 let bultoId=0;
 
@@ -262,6 +262,9 @@ function actualizarBulto(el){
   if(pr>25||dims[0]>122||dims[1]>76)warns.push('cargo manejo adicional UPS');/* 122: igual que cobra el motor (deuda 30, 28/08) */
   if(dims[0]>100)warns.push('extracargo dim. DHL lado 1 >100cm');
   if(dims[1]>80)warns.push('extracargo dim. DHL lado 2 >80cm');
+  if(dims[0]>274)warns.push('⛔ lado >274cm: NO APTO para UPS');
+  if(pr>70)warns.push('⛔ +70kg reales: NO APTO para UPS');
+  if(dims[0]>120||dims[1]>80)warns.push('⛔ supera la pieza de DHL (120x80x80): confirmar con DHL');
   if(contorno>400)warns.push('⛔ contorno >400cm: NO APTO para UPS');
   else if(contorno>300)warns.push('paquete mayor tamaño UPS (contorno >300cm)');
   let txt=`Vol: ${pv.toFixed(1)} kg  ·  Facturable: ${pf.toFixed(1)} kg  ·  Contorno: ${contorno} cm`;
@@ -359,7 +362,7 @@ function cotizar(){
     const r=cotizarServicio('UPS_EXP',_params);
     if(!r){errEl.textContent='País no encontrado en UPS Expedited.';errEl.style.display='block';}
     else{
-      if(r.contornoWarn){errEl.textContent='⚠ Uno o más bultos superan el contorno máximo de 400 cm y no pueden enviarse por UPS.';errEl.style.display='block';}
+      if(r.avisosTope&&r.avisosTope.length){errEl.textContent=r.avisosTope.join('  ·  ');errEl.style.display='block';}
       totalExp=r.total;
       results.push({...r,courier:r.servicio,extraRows:r.extras,tag:'ups'});
     }
