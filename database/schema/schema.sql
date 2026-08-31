@@ -209,6 +209,15 @@ CREATE TABLE IF NOT EXISTS envios (
   decision_precio     TEXT,
   decision_usuario    TEXT,
   decision_en         TEXT,
+  -- Semaforo automatico de tracking (31/08/2026): lo escribe el job de
+  -- tracking-auto.service cada 4 horas preguntandole a UPS por cada envio en curso.
+  --   tracking_estado   'rojo' (sin escanear) | 'amarillo' (en transito) | 'verde' (entregada)
+  --   tracking_detalle  el estado en palabras (o el error de la consulta, a la vista)
+  --   tracking_fecha    cuando se consulto por ultima vez
+  -- Pinta envio_bultos.estado_caja (gana UPS siempre); DHL sigue manual.
+  tracking_estado     TEXT,
+  tracking_detalle    TEXT,
+  tracking_fecha      TEXT,
   FOREIGN KEY (cliente_id) REFERENCES clientes(id),
   FOREIGN KEY (liquidacion_id) REFERENCES liquidaciones(id)
 );

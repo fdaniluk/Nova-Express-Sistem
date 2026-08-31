@@ -294,6 +294,14 @@ async function migrateEnvios() {
     ['decision_precio',   'TEXT'],
     ['decision_usuario',  'TEXT'],
     ['decision_en',       'TEXT'],
+    // Semáforo automático (31/08): la última palabra de UPS sobre este envío.
+    //   tracking_estado   'rojo' | 'amarillo' | 'verde' (lo que pintó el job)
+    //   tracking_detalle  descripción humana (estado — ubicación, o el error)
+    //   tracking_fecha    cuándo se consultó por última vez (hora local)
+    // Todas NULL en lo ya cargado; las llena el job de tracking-auto.service.
+    ['tracking_estado',   'TEXT'],
+    ['tracking_detalle',  'TEXT'],
+    ['tracking_fecha',    'TEXT'],
   ];
   for (const [col, def] of toAdd) {
     if (!cols.includes(col)) {

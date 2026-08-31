@@ -4,7 +4,7 @@ const cookieParser = require('cookie-parser');
 const path = require('path');
 const config = require('./config');
 const routes = require('./routes');
-const { initDb } = require('./db');
+const { initDb, getDb } = require('./db');
 const { migrarColumnas: migrarColumnasliquidacion } = require('./models/liquidacion.model');
 const { hacerBackup } = require('./services/backup.service');
 const { borrarSesionesExpiradas } = require('./models/auth.model');
@@ -56,6 +56,26 @@ initDb()
     };
     await purgarSesiones();
     setInterval(purgarSesiones, 24 * 60 * 60 * 1000);
+
+    // Semáforo automático de Salidas (31/08): cada 4 horas le pregunta a UPS por los
+    // envíos en curso y pinta rojo/amarillo/verde solo. Sin credenciales UPS queda
+    // apagado (los tests y cualquier entorno sin .env de UPS caen acá y no tocan la
+    // red). La primera pasada espera un minuto para no pisar el arranque.
+    if ((process.env.UPS_CLIENT_ID || '').trim()) {
+      const { refrescarSemaforo } = require('./services/tracking-auto.service');
+      const correrSemaforo = async () => {
+        try {
+          const r = await refrescarSemaforo(getDb());
+          console.log(`[tracking-auto] consultados ${r.consultados} · pintados ${r.pintados} · errores ${r.errores} · omitidos ${r.omitidos}`);
+        } catch (err) {
+          console.error('[tracking-auto] la pasada falló entera:', err.message);
+        }
+      };
+      setTimeout(correrSemaforo, 60 * 1000);
+      setInterval(correrSemaforo, 4 * 60 * 60 * 1000);
+    } else {
+      console.log('[tracking-auto] sin credenciales UPS: el semáforo automático queda apagado');
+    }
     app.listen(config.port, () => {
       console.log(`Nova Express API en http://localhost:${config.port}`);
       console.log(`Base de datos: ${config.dbPath}`);

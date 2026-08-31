@@ -565,7 +565,7 @@
       <td data-col="tipo_cobro">${env(cobroBadge(e.tipo_cobro))}</td>
       <td data-col="cliente_nombre">${env(`<a href="clientes-perfil.html?id=${e.cliente_id}">${esc(e.cliente_nombre)}</a>`)}</td>
       <td data-col="destino">${env(esc(e.destino))}</td>
-      <td>${estadoCajaDotHtml(b.estado_caja)}${numBulto}/${totalBultos}</td>
+      <td>${estadoCajaDotHtml(b.estado_caja, e)}${numBulto}/${totalBultos}</td>
       <td>${env(tipoBadge(e.tipo_paquete))}</td>
       <td>${env(dirBadge(e.direccion))}</td>
       <td class="num">${fmtDim(largo)}</td>
@@ -1753,9 +1753,19 @@
   };
 
   // Punto de color para la celda de bulto. Cualquier valor no reconocido (incl. null) → rojo.
-  function estadoCajaDotHtml(estado) {
+  // Si el semáforo automático ya miró este envío (envios.tracking_*), el tooltip cuenta
+  // qué dijo UPS y cuándo se consultó — así un estado viejo o un error de rastreo nunca
+  // se disfraza de dato fresco.
+  function estadoCajaDotHtml(estado, envio) {
     const info = ESTADO_CAJA_INFO[estado] || ESTADO_CAJA_INFO.rojo;
-    return `<span class="bulto-estado-dot ${info.cls}" title="${info.label}"></span>`;
+    let title = info.label;
+    if (envio && (envio.tracking_detalle || envio.tracking_fecha)) {
+      const partes = [info.label];
+      if (envio.tracking_detalle) partes.push('UPS: ' + envio.tracking_detalle);
+      if (envio.tracking_fecha) partes.push('consultado ' + envio.tracking_fecha);
+      title = partes.join('\n');
+    }
+    return `<span class="bulto-estado-dot ${info.cls}" title="${esc(title)}"></span>`;
   }
 
   // ── Modal de edición ────────────────────────────────────────────────────────

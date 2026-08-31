@@ -25,5 +25,22 @@ router.get('/ups/:guia', async (req, res, next) => {
   }
 });
 
+// Una pasada del semáforo automático A PEDIDO (el job corre solo cada 4 horas; esto es
+// para no esperar: después de cargar las salidas del día, o probando). Devuelve el
+// resumen de la pasada. Requiere credenciales UPS en el servidor, como el job.
+router.post('/refrescar', async (req, res, next) => {
+  try {
+    if (!(process.env.UPS_CLIENT_ID || '').trim()) {
+      return res.status(503).json({ error: 'El servidor no tiene credenciales UPS configuradas' });
+    }
+    const { getDb } = require('../db');
+    const { refrescarSemaforo } = require('../services/tracking-auto.service');
+    const resumen = await refrescarSemaforo(getDb());
+    res.json(resumen);
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
 module.exports.esGuiaUpsValida = esGuiaUpsValida;

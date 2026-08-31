@@ -101,6 +101,11 @@ async function getTracking(numeroGuia) {
   return {
     guia: numeroGuia,
     estado: activity?.status?.description || 'Sin información',
+    // Código de tipo de la actividad más reciente, tal como lo manda UPS:
+    //   M/MV = manifest (la etiqueta existe pero nadie la escaneó) · I = en tránsito ·
+    //   P = pickup · O = out for delivery · X = excepción · D = entregado · RS = devuelto
+    // Es lo que usa el semáforo automático; la descripción es solo para humanos.
+    tipo: activity?.status?.type || null,
     ubicacion,
     fecha,
     servicio,
@@ -140,4 +145,18 @@ function fmtHora(t) {
   return `${t.slice(0, 2)}:${t.slice(2, 4)}`;
 }
 
-module.exports = { getToken, getTracking };
+// El semáforo de Salidas a partir del tipo de estado de UPS (pedido de Felipe, 31/08):
+//   rojo     = sin escanear (la guía existe, UPS todavía no la tocó)
+//   amarillo = en tránsito (cualquier escaneo real que no sea la entrega)
+//   verde    = entregada
+// Un tipo desconocido o vacío cae en amarillo SOLO si hay descripción (algo pasó); si no
+// hay nada de nada, null: el que llama decide no tocar el semáforo.
+function semaforoDeEstado(tipo, descripcion) {
+  const t = String(tipo || '').toUpperCase();
+  if (t === 'M' || t === 'MV') return 'rojo';
+  if (t === 'D') return 'verde';
+  if (t) return 'amarillo';
+  return descripcion ? 'amarillo' : null;
+}
+
+module.exports = { getToken, getTracking, semaforoDeEstado };

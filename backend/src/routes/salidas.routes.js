@@ -97,6 +97,9 @@ async function listarSalidas({ desde, hasta } = {}) {
       e.no_volo,
       e.no_volo_usuario,
       e.no_volo_en,
+      e.tracking_estado,
+      e.tracking_detalle,
+      e.tracking_fecha,
       e.liquidado,
       e.fecha_liquidacion,
       e.liquidacion_id,
@@ -238,9 +241,10 @@ async function listarSalidas({ desde, hasta } = {}) {
       alto: row.alto,
       peso_volumetrico: row.peso_volumetrico,
       numero_guia: null,
-      // Bulto único sin fila propia: nunca tiene estado materializado. NULL = rojo en
-      // la lectura. Para fijarle estado el front llama al endpoint que materializa la fila.
-      estado_caja: null,
+      // Bulto único sin fila propia: no tiene estado materializado. Cae al semáforo
+      // automático del envío (tracking_estado) si el job ya lo pintó; NULL = rojo en la
+      // lectura. Para fijarle estado a mano el front materializa la fila.
+      estado_caja: row.tracking_estado ?? null,
     }];
   };
 
@@ -283,6 +287,9 @@ async function listarSalidas({ desde, hasta } = {}) {
     courier: row.courier,
     fecha: row.fecha,
     numero_guia: row.numero_guia,
+    tracking_estado: row.tracking_estado ?? null,
+    tracking_detalle: row.tracking_detalle ?? null,
+    tracking_fecha: row.tracking_fecha ?? null,
     tipo_cobro: row.tipo_cobro,
     cliente_id: row.cliente_id,
     cliente_nombre: row.cliente_nombre,
@@ -1067,3 +1074,6 @@ router.delete('/:id', async (req, res, next) => {
 });
 
 module.exports = router;
+// listarSalidas se exporta para el cierre de período (cierre.service) y para que la
+// tanda de tracking-auto pruebe el fallback del bulto sintético contra el GET real.
+module.exports.listarSalidas = listarSalidas;
