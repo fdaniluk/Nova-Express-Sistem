@@ -20,7 +20,7 @@ const { spawn } = require('child_process');
 // Ver scripts/_base-test.js para por qué hace falta.
 const { prepararDb, abrirSesion, esperarServidor } = require('./_base-test');
 
-const PORT = process.env.PORT_TEST || 3999;
+const PORT = process.env.PORT_TEST || 3941;
 const BASE = `http://localhost:${PORT}`;
 const DB = process.env.DB_PATH_TEST || '/tmp/test_sin_envio.db';
 const TOKEN = 'token-test-sin-envio';

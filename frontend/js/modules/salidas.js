@@ -2141,9 +2141,17 @@
     document.getElementById('saled-cliente').disabled = liquidado;
     document.getElementById('saled-lock-note').classList.toggle('hidden', !liquidado);
 
-    for (const f of ['flete', 'descuento', 'seguro', 'fuel', 'derechos', 'adicionales', 'otros', 'profit', 'porcentaje']) {
+    for (const f of ['flete', 'descuento', 'seguro', 'fuel', 'derechos', 'adicionales', 'otros']) {
       document.getElementById(`saled-${f}`).value = envio[f] ?? '';
     }
+    // Profit y % del modal: SIEMPRE el estimado (punto A4, cerrado el 01/09). `envio.profit`
+    // lo resuelve deriveProfit y en un envío ya conciliado y aprobado trae el profit REAL —
+    // así que el modal mostraba un número y la columna Profit otro, y al guardar se
+    // persistía el real encima del estimado. Los campos del modal editan NUESTRO desglose
+    // (costo estimado + venta), así que el número que les corresponde es el estimado; el
+    // real vive en su propia columna y no se edita a mano.
+    document.getElementById('saled-profit').value = envio.profit_estimado ?? envio.profit ?? '';
+    document.getElementById('saled-porcentaje').value = envio.porcentaje_estimado ?? envio.porcentaje ?? '';
     document.getElementById('saled-total').value = envio.total ?? '';
     // El aviso de venta desfasada es de la sesion de edicion, no del envio: al abrir otro
     // se limpia, si no arrastraria el cartel del anterior.
@@ -2819,6 +2827,32 @@
         + 'Si no, cancela y toca "Calcular venta".\n\n'
         + 'Guardar igual?');
       if (!ok) return;
+    }
+
+    // Campos numéricos en estado INVÁLIDO: el navegador devuelve '' cuando lo tipeado no
+    // es un número (el caso clásico es "1250,50" con coma), así que el valor viajaba como
+    // null y borraba el dato sin que nadie se enterara. `validity.badInput` es justamente
+    // "hay algo escrito pero no es un número": si aparece, no se guarda nada (punto A5).
+    {
+      const ETIQUETAS_NUM = {
+        'saled-numero-salida': 'Nro. Salida', 'saled-fob': 'Valor declarado',
+        'saled-peso-real': 'Peso balanza', 'saled-largo': 'Largo', 'saled-ancho': 'Ancho',
+        'saled-alto': 'Alto', 'saled-peso-facturable': 'Peso facturable',
+        'saled-flete': 'Flete', 'saled-descuento': 'Descuento', 'saled-seguro': 'Seguro',
+        'saled-fuel': 'Fuel', 'saled-derechos': 'Derechos', 'saled-adicionales': 'Adicionales',
+        'saled-otros': 'Otros', 'saled-total': 'Venta total', 'saled-profit': 'Profit',
+        'saled-porcentaje': '%',
+      };
+      const malos = [];
+      document.querySelectorAll('#sal-edit-overlay input[type="number"]').forEach((inp) => {
+        if (inp.validity && inp.validity.badInput) malos.push(ETIQUETAS_NUM[inp.id] || inp.id);
+      });
+      if (malos.length) {
+        alert('Hay campos con un número mal escrito y no se puede guardar:\n\n  · '
+          + malos.join('\n  · ')
+          + '\n\nLos decimales van con PUNTO (1250.50), no con coma.');
+        return;
+      }
     }
 
     saveBtn.disabled = true;

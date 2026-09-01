@@ -57,6 +57,22 @@ async function crear(req, res, next) {
       }
     }
     // peso_real es NOT NULL en la base: sin pesar se guarda 0, que es el marcador.
+    // Valores de lista: la base los tiene con CHECK, asi que un valor invalido reventaba
+    // con un 500 y el error crudo de SQLite en la cara del usuario (punto E6). Se validan
+    // aca para devolver un 400 que se entienda y que diga que llego.
+    const tipoEnvio = String(req.body.tipo_envio ?? '').trim();
+    if (tipoEnvio !== 'exportacion' && tipoEnvio !== 'importacion') {
+      return res.status(400).json({
+        error: `El tipo de envio debe ser "exportacion" o "importacion" (se recibio "${tipoEnvio}").`,
+      });
+    }
+    const courierNuevo = String(req.body.courier ?? '').trim();
+    if (courierNuevo !== 'DHL' && courierNuevo !== 'UPS') {
+      return res.status(400).json({
+        error: `El courier debe ser "DHL" o "UPS" (se recibio "${courierNuevo}").`,
+      });
+    }
+
     const body = { ...req.body };
     if (body.peso_real === undefined || body.peso_real === '' || body.peso_real === null) {
       body.peso_real = 0;

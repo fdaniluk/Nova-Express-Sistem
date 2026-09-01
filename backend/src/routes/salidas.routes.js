@@ -750,6 +750,50 @@ router.patch('/:id', async (req, res, next) => {
       return res.status(400).json({ error: 'num_sal_cero debe ser 0 o 1.' });
     }
 
+    // NÚMEROS DE PLATA Y DE PESO: que un valor tipeado mal no entre nunca (punto A5).
+    //
+    // El caso real: en el modal los campos son <input type="number">; si alguien tipea
+    // "1250,50" con coma, el navegador considera el valor INVÁLIDO y devuelve cadena
+    // vacía, así que el front mandaba `null` y el envío se guardaba con el flete (o el
+    // total) BORRADO. Nadie se enteraba salvo por el profit, que saltaba solo.
+    // Ahora el front no deja guardar (avisa cuál campo está mal) y acá se rechaza
+    // cualquier cosa que no sea un número: la última línea de defensa está en el
+    // servidor, que es el que ve todo lo que entra (importador, API, front viejo).
+    //
+    // `null` sigue siendo válido: es "vaciar el campo" y hay pantallas que lo usan.
+    // profit y porcentaje admiten negativos (un envío puede dar pérdida y hay que verlo);
+    // el resto no: un flete o un peso negativo no existe.
+    {
+      const NUMERICOS_NO_NEGATIVOS = [
+        'peso_real', 'largo', 'ancho', 'alto', 'peso_facturable', 'peso_volumetrico',
+        'flete', 'descuento', 'seguro', 'fuel', 'fuel_pct', 'derechos', 'adicionales',
+        'otros', 'total_cobrado', 'numero_salida',
+      ];
+      const NUMERICOS_CON_SIGNO = ['profit', 'porcentaje'];
+      const ETIQUETAS = {
+        peso_real: 'peso de balanza', peso_facturable: 'peso facturable',
+        peso_volumetrico: 'peso volumétrico', total_cobrado: 'venta total',
+        fuel_pct: 'fuel %', numero_salida: 'número de salida',
+      };
+      for (const campo of [...NUMERICOS_NO_NEGATIVOS, ...NUMERICOS_CON_SIGNO]) {
+        if (!Object.prototype.hasOwnProperty.call(picked, campo)) continue;
+        const v = picked[campo];
+        if (v === null || v === '') { picked[campo] = null; continue; }
+        const n = Number(v);
+        const nombre = ETIQUETAS[campo] || campo;
+        if (!Number.isFinite(n)) {
+          return res.status(400).json({
+            error: `El campo "${nombre}" no es un número válido (llegó "${v}"). `
+              + 'Los decimales van con punto, no con coma.',
+          });
+        }
+        if (n < 0 && !NUMERICOS_CON_SIGNO.includes(campo)) {
+          return res.status(400).json({ error: `El campo "${nombre}" no puede ser negativo.` });
+        }
+        picked[campo] = n;
+      }
+    }
+
     // ZONA: si cambia el país, re-resolver la zona con la MISMA lógica del alta
     // (calcularDesgloseAlCosto → motor). La zona la resuelve el motor desde el país; el
     // POST /:id/recalcular posterior toma pais/zona ya guardados, así que dejarla al día
@@ -1030,8 +1074,34 @@ router.delete('/:id', async (req, res, next) => {
     const id = parseInt(req.params.id, 10);
     if (!Number.isFinite(id)) return res.status(400).json({ error: 'ID inválido' });
 
-    const existing = await db.prepare('SELECT id FROM envios WHERE id = ?').get(id);
+    const existing = await db.prepare('SELECT id, liquidado FROM envios WHERE id = ?').get(id);
     if (!existing) return res.status(404).json({ error: 'Envío no encontrado' });
+
+    // FRENO DE SEGURIDAD (01/09) — LA OTRA PUERTA A LA PLATA DE UNA LIQUIDACIÓN.
+    //
+    // El 13/08 se tapó el PATCH: un envío liquidado no puede cambiar de cliente, de fecha
+    // ni de plata, porque descuadraría una liquidación confirmada. Pero el botón Borrar
+    // seguía abierto: restaba el importe del total, borraba el ítem y, si era el único,
+    // BORRABA LA LIQUIDACIÓN CONFIRMADA ENTERA. Sin confirmación, sin rol de admin y sin
+    // papelera, al alcance de cualquiera de los 9 usuarios. Era el punto A1 del listado.
+    //
+    // Regla: un envío que está en una liquidación CONFIRMADA no se borra. Los borradores
+    // sí se pueden borrar (es lo que permite limpiar un borrador equivocado); para sacar
+    // un envío de una confirmada hay que anular esa liquidación primero, que es una
+    // decisión consciente y con su propia pantalla.
+    const enConfirmada = await db.prepare(`
+      SELECT l.id
+      FROM liquidacion_items li
+      JOIN liquidaciones l ON l.id = li.liquidacion_id
+      WHERE li.envio_id = ? AND l.estado = 'confirmada'
+      LIMIT 1`).get(id);
+    if (enConfirmada || existing.liquidado) {
+      const cual = enConfirmada ? ` (liquidación #${enConfirmada.id})` : '';
+      return res.status(409).json({
+        error: `El envío está liquidado: no se puede borrar porque descuadraría una `
+          + `liquidación confirmada${cual}. Para sacarlo, primero hay que anular esa liquidación.`,
+      });
+    }
 
     await db.transaction(async () => {
       // Normalmente a lo sumo un item por envío, pero manejamos varios por robustez.
