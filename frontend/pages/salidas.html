@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Salidas – Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260831e">
-  <link rel="stylesheet" href="../css/modules/salidas.css?v=20260831e">
+  <link rel="stylesheet" href="../css/main.css?v=20260831f">
+  <link rel="stylesheet" href="../css/modules/salidas.css?v=20260831f">
   <!-- Acá se cargaba la librería xlsx desde un CDN, para el viejo botón "Exportar Excel".
        Se fue con el botón el 06/08/2026: la planilla del cierre la arma el servidor, así
        que esta pantalla ya no le pide nada a internet. Si alguna vez vuelve a hacer falta
@@ -184,6 +184,9 @@
                 <th data-col="porcentaje" class="num" style="width:52px"><div class="th-inner">%<span class="sort-icon"></span></div></th>
                 <th data-col="costo_facturado" class="num ups-col" style="width:78px"><div class="th-inner">Costo UPS<span class="sort-icon"></span></div></th>
                 <th class="num ups-col" style="width:62px"><div class="th-inner">Dif Costo</div></th>
+                <!-- La doble vista (31/08): el profit contra la factura REAL del courier, al lado
+                     del estimado de siempre. Ninguno pisa al otro. -->
+                <th class="num ups-col" style="width:80px"><div class="th-inner">Profit Real</div></th>
                 <th data-col="peso_facturado" class="num ups-col" style="width:70px"><div class="th-inner">Peso UPS<span class="sort-icon"></span></div></th>
                 <th class="num ups-col" style="width:62px"><div class="th-inner">Dif Peso</div></th>
                 <th class="ups-col" style="width:70px"><div class="th-inner">Revisión<button class="filter-btn" data-filter="revision" title="Filtrar">▼</button></div></th>
@@ -214,12 +217,12 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260831e"></script>
-<script src="../js/api.js?v=20260831e"></script>
-<script src="../js/main.js?v=20260831e"></script>
-<script src="/shared/cotizador/cotizador-core.js?v=20260831e"></script>
-<script src="/shared/guias/validar-guia.js?v=20260831e"></script>
-<script src="../js/cotizaciones-recientes.js?v=20260831e"></script>
-<script src="../js/modules/salidas.js?v=20260831e"></script>
+<script src="/js/auth-guard.js?v=20260831f"></script>
+<script src="../js/api.js?v=20260831f"></script>
+<script src="../js/main.js?v=20260831f"></script>
+<script src="/shared/cotizador/cotizador-core.js?v=20260831f"></script>
+<script src="/shared/guias/validar-guia.js?v=20260831f"></script>
+<script src="../js/cotizaciones-recientes.js?v=20260831f"></script>
+<script src="../js/modules/salidas.js?v=20260831f"></script>
 </body>
 </html>

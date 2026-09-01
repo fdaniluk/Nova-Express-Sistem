@@ -334,7 +334,73 @@ async function main() {
     Math.abs((conFob.precioFinal - sinFob.precioFinal) - 15) < 0.02,
     `con fob ${conFob.precioFinal} · sin fob ${sinFob.precioFinal}`);
 
-  console.log('\n9. Sin errores de JavaScript\n');
+  // ── La doble vista del profit (31/08, pedido de la oficina) ────────────────
+  //
+  // Antes la columna Profit cambiaba de fórmula SOLA al aprobar la revisión (pasaba del
+  // estimado al real) y la oficina lo leía como "me sobrescribió el profit". Ahora:
+  // Profit/% y Compra Total muestran SIEMPRE la estimación nuestra, y el real contra la
+  // factura de UPS tiene su columna propia (Profit Real), visible desde que la factura
+  // se cruza y sin esperar el tilde.
+  console.log('\n9. La doble vista: profit estimado y profit real, cada uno en su columna\n');
+
+  // Un envío con venta y desglose conocidos + la "factura de UPS" puesta por SQL.
+  const dv = await (await fetch(BASE + '/api/envios', {
+    method: 'POST', headers: H,
+    body: JSON.stringify({
+      cliente_id: cli.id, fecha: hoy, courier: 'UPS', tipo_envio: 'exportacion',
+      numero_guia: '1Z000DOBLEVISTA01', pais_destino: 'Estados Unidos', servicio_ups: 'UPS_EXP',
+      peso_real: 10, largo: 30, ancho: 30, alto: 30, fob: 0,
+      total_cobrado: 300, flete: 150, seguro: 0, fuel: 50, adicionales: 0, otros: 0,
+    }),
+  })).json();
+  // Compra estimada 200 → profit estimado 100. UPS facturó 160 → profit real 140.
+  const sqlite3dv = require('sqlite3');
+  const dbdv = new sqlite3dv.Database(DB);
+  const sqldv = (q, pr = []) => new Promise((res, rej) => dbdv.run(q, pr, (er) => (er ? rej(er) : res())));
+  await sqldv("UPDATE envios SET costo_facturado = 160, peso_facturado = 11, courier_facturado = 'UPS', fecha_facturado = ?, estado_revision = 'pendiente' WHERE id = ?", [hoy, dv.id]);
+
+  await page.goto(`${BASE}/pages/salidas.html`);
+  await esperar(3000);
+  const filaDV = () => page.evaluate((id) => {
+    const tr = document.querySelector(`#salidas-body tr[data-envio-id="${id}"]`);
+    if (!tr) return null;
+    const celda = (col) => tr.querySelector(`td[data-col="${col}"]`)?.textContent.trim();
+    return {
+      compra: celda('compra_total'), profit: celda('profit'), pct: celda('porcentaje'),
+      costoUps: celda('costo_ups'), profitReal: celda('profit_real'),
+      titleReal: tr.querySelector('td[data-col="profit_real"] span')?.title || '',
+    };
+  }, dv.id);
+
+  // OJO: al crear el envío, el backend congela el desglose AL COSTO con el motor (no
+  // toma el flete/fuel del POST), así que la compra estimada no es un número elegido por
+  // el test. Lo que se afirma es la RELACIÓN: estimado = venta − compra estimada, real =
+  // venta − costo UPS, y que el estimado no se mueva al aprobar.
+  const num = (t) => Number(String(t || '').replace(/[^0-9.-]/g, ''));
+  let f = await filaDV();
+  check('la columna Profit muestra el ESTIMADO (venta − Compra Total, al centavo)',
+    f && Math.abs((num(f.compra) + num(f.profit)) - 300) < 0.02, JSON.stringify(f));
+  check('Profit Real muestra el real (300 − 160 = 140) SIN esperar el tilde', f && num(f.profitReal) === 140, f && f.profitReal);
+  check('y son DOS números distintos, cada uno en su columna', f && Math.abs(num(f.profit) - num(f.profitReal)) > 1,
+    f && `${f.profit} vs ${f.profitReal}`);
+  check('el tooltip del real avisa que la factura aún no está aprobada', /no está aprobada/.test(f.titleReal), f.titleReal);
+  const estimadoAntes = num(f.profit);
+  const compraAntes = num(f.compra);
+
+  // Se aprueba la revisión: el estimado NO se mueve (antes acá se "sobrescribía").
+  await sqldv("UPDATE envios SET estado_revision = 'revisado_ok' WHERE id = ?", [dv.id]);
+  await new Promise((res) => dbdv.close(() => res()));
+  await page.goto(`${BASE}/pages/salidas.html`);
+  await esperar(3000);
+  f = await filaDV();
+  check('aprobada la revisión, Profit SIGUE mostrando el mismo estimado (no se "sobrescribe")',
+    f && num(f.profit) === estimadoAntes, f && `${f.profit} vs ${estimadoAntes}`);
+  check('Compra Total sigue en la estimación, no salta al costo real (160)',
+    f && num(f.compra) === compraAntes && num(f.compra) !== 160, f && f.compra);
+  check('y Profit Real sigue en 140, ahora sin la advertencia',
+    f && num(f.profitReal) === 140 && !/no está aprobada/.test(f.titleReal), f && f.titleReal);
+
+  console.log('\n10. Sin errores de JavaScript\n');
   check('ningún error en la pantalla', errores.length === 0, errores.slice(0, 3).join(' | '));
 
   console.log('\n' + '─'.repeat(60));

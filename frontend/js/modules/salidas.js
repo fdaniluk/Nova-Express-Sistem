@@ -72,7 +72,7 @@
   // El re-render destruye los td, por eso se guardan índices y se vuelve a resolver el td.
   // La columna 0 es el checkbox de selección: NO se navega con flechas (índices 1..36).
   const GRID_MIN_COL = 1;    // columna 0 = checkbox "copiar guías", no navegable
-  const GRID_MAX_COL = 36;   // 37 columnas fijas → índices 0..36; navegables 1..36
+  const GRID_MAX_COL = 37;   // 38 columnas fijas → índices 0..37; navegables 1..37
   let activeCell = null;
 
   // ── Bloque desplegable de columnas UPS (Costo UPS, Dif Costo, Peso UPS, Dif Peso, Revisión)
@@ -80,8 +80,8 @@
   // con la clase .ups-collapsed en la tabla (CSS: .ups-col{display:none}). Frontend puro: la
   // exportación a Excel las incluye SIEMPRE, este el bloque plegado o no.
   const UPS_COL_START = 30;  // Costo UPS
-  const UPS_COL_END = 34;    // Revisión
-  const UPS_BLOCK_COLS = UPS_COL_END - UPS_COL_START + 1;   // 5 columnas ocultables
+  const UPS_COL_END = 35;    // Revisión (el bloque sumó Profit Real el 31/08)
+  const UPS_BLOCK_COLS = UPS_COL_END - UPS_COL_START + 1;   // 6 columnas ocultables
 
   // Override manual del bloque, guardado en sessionStorage (dura la sesión y después vuelve al
   // comportamiento automático). null = auto (según haya pendientes); true/false = forzado.
@@ -437,12 +437,12 @@
   // Colspan de la celda de CONTENIDO de la sub-fila de detalle (arranca en Venta Total, col 19,
   // y llega hasta Observaciones, col 36). Plegado → restar las 5 columnas del bloque.
   function detailContentColspan() {
-    return upsVisible ? 18 : 18 - UPS_BLOCK_COLS;
+    return upsVisible ? 19 : 19 - UPS_BLOCK_COLS;
   }
 
   // Colspan de las filas de estado vacío / cargando / error (abarcan toda la tabla).
   function emptyColspan() {
-    return upsVisible ? 37 : 37 - UPS_BLOCK_COLS;
+    return upsVisible ? 38 : 38 - UPS_BLOCK_COLS;
   }
 
   // Aplica la visibilidad efectiva al "chrome": clase de la tabla (CSS oculta .ups-col) y
@@ -568,7 +568,7 @@
     // Columnas de comparación contra la factura del courier (Costo/Peso UPS + sus desvíos).
     // Solo datos de UPS: no repiten venta/peso nuestros, que ya están en la fila. El desvío
     // se pinta rojo solo si va en contra nuestra (positivo) y supera la tolerancia del courier.
-    const difCosto = difEval(e, isFirst, e.costo_facturado, e.compra_total, 'costo');
+    const difCosto = difEval(e, isFirst, e.costo_facturado, e.compra_estimada ?? e.compra_total, 'costo');
     const difPeso = difEval(e, isFirst, e.peso_facturado, e.peso_facturable, 'peso');
 
     tr.innerHTML = `
@@ -599,11 +599,12 @@
       <td class="num" data-col="derechos">${env(fmtUSD(e.derechos))}</td>
       <td class="num adic-cell${adicExp ? ' adic-expandable detail-expandable' : ''}"${adicExp ? ` data-detail-envio="${e.id}"` : ''}>${adicCellHtml(e, isFirst)}</td>
       <td class="num" data-col="otros">${env(fmtUSD(e.otros))}</td>
-      <td class="num${isRevisionPendiente(e, isFirst) ? ' cell-compra-pendiente' : ''}" data-col="compra_total">${env(fmtUSD(e.compra_total))}</td>
+      <td class="num${isRevisionPendiente(e, isFirst) ? ' cell-compra-pendiente' : ''}" data-col="compra_total">${env(fmtUSD(e.compra_estimada ?? e.compra_total))}</td>
       <td class="num" data-col="profit">${env(profitCell(e))}</td>
       <td class="num" data-col="porcentaje">${env(pctCell(e))}</td>
       <td class="num ups-col" data-col="costo_ups">${costoUpsCellHtml(e, isFirst)}</td>
       <td class="num ups-col${difCosto.rojo ? ' cell-desvio-rojo' : ''}" data-col="dif_costo">${difCosto.html}</td>
+      <td class="num ups-col" data-col="profit_real">${profitRealCellHtml(e, isFirst)}</td>
       <td class="num ups-col" data-col="peso_ups">${pesoUpsCellHtml(e, isFirst)}</td>
       <td class="num ups-col${difPeso.rojo ? ' cell-desvio-rojo' : ''}" data-col="dif_peso">${difPeso.html}</td>
       <td class="revision-cell ups-col">${revisionCellHtml(e, isFirst)}</td>
@@ -1761,15 +1762,35 @@
     return String(v);
   }
 
+  // La columna Profit muestra SIEMPRE el estimado nuestro (venta − compra estimada),
+  // sin importar el estado de revisión. El real vive en su propia columna (Profit Real).
+  // Antes esta celda cambiaba de fórmula sola al aprobar la revisión y la oficina lo
+  // leía como "me sobrescribió el profit" (31/08).
   function profitCell(e) {
-    if (e.profit == null) return '<span class="em">—</span>';
-    const color = e.profit < 0 ? '#dc2626' : e.profit === 0 ? '#d97706' : '#15803d';
-    return `<span style="color:${color}">$${Number(e.profit).toFixed(2)}</span>`;
+    const v = e.profit_estimado ?? e.profit;
+    if (v == null) return '<span class="em">—</span>';
+    const color = v < 0 ? '#dc2626' : v === 0 ? '#d97706' : '#15803d';
+    return `<span style="color:${color}" title="Estimado por nosotros: venta − compra estimada">$${Number(v).toFixed(2)}</span>`;
+  }
+
+  // Profit contra la factura REAL del courier (venta − Costo UPS). Aparece apenas se
+  // cruza la factura, sin esperar el tilde de Revisión (es informativo). Solo en el
+  // primer renglón del envío, como el resto del bloque UPS.
+  function profitRealCellHtml(e, isFirst) {
+    if (!isFirst) return '<span class="em">—</span>';
+    if (e.profit_real_monto == null) return '<span class="em">—</span>';
+    const v = e.profit_real_monto;
+    const color = v < 0 ? '#dc2626' : v === 0 ? '#d97706' : '#15803d';
+    const pct = e.porcentaje_real != null ? ` (${e.porcentaje_real}%)` : '';
+    const aprobada = e.estado_revision === 'revisado_ok';
+    const title = `Venta − Costo UPS facturado${pct}` + (aprobada ? '' : ' · la factura aún no está aprobada en Revisión');
+    return `<span style="color:${color}" title="${escAttr(title)}">$${Number(v).toFixed(2)}</span>`;
   }
 
   function pctCell(e) {
-    if (e.porcentaje == null) return '<span class="em">—</span>';
-    return `${Number(e.porcentaje).toFixed(1)}%`;
+    const v = e.porcentaje_estimado ?? e.porcentaje;
+    if (v == null) return '<span class="em">—</span>';
+    return `${Number(v).toFixed(1)}%`;
   }
 
   function courierBadge(c) {
@@ -2902,6 +2923,17 @@
         if (cliSel) d.cliente_nombre = cliSel.nombre_nova || cliSel.nombre;
         d.compra_total = (payload.flete || 0) - (payload.descuento || 0) + (payload.seguro || 0)
           + (payload.fuel || 0) + (payload.derechos || 0) + (payload.adicionales || 0) + (payload.otros || 0);
+        // La doble vista se refresca igual que la simple, o quedaría mostrando la
+        // estimación vieja hasta el próximo GET (los campos *_estimado son los que pinta
+        // la tabla desde el 31/08).
+        d.compra_estimada = d.compra_total;
+        d.profit_estimado = payload.profit ?? d.profit_estimado;
+        d.porcentaje_estimado = payload.porcentaje ?? d.porcentaje_estimado;
+        if (d.costo_facturado != null && d.total != null) {
+          d.profit_real_monto = Math.round((d.total - d.costo_facturado) * 100) / 100;
+          d.porcentaje_real = d.costo_facturado !== 0
+            ? Math.round((d.profit_real_monto / d.costo_facturado) * 10000) / 100 : null;
+        }
         if (editMulti && Array.isArray(d.bultos)) {
           for (const eb of bultosPayload) {
             const target = d.bultos.find((x) => x.id === eb.id);

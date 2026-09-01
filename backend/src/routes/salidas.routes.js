@@ -2,7 +2,7 @@ const { Router } = require('express');
 const { getDb } = require('../db');
 const { buildPesos, calcularDesgloseAlCosto, calcularSeguroVenta } = require('../models/envio.model');
 const { pesoVolumetricoBulto } = require('../services/calculos.service');
-const { deriveProfit } = require('../utils/profit');
+const { deriveProfit, profitDoble } = require('../utils/profit');
 const { descomponerVenta } = require('../utils/desgloseVenta');
 const configuracionModel = require('../models/configuracion.model');
 const cierreService = require('../services/cierre.service');
@@ -325,6 +325,9 @@ async function listarSalidas({ desde, hasta } = {}) {
     total: row.total,
     venta_desglose: ventaDesgloseDe(row),
     ...deriveProfit(row),
+    // La doble vista de la oficina (31/08): el estimado SIEMPRE y el real cuando hay
+    // factura, cada uno en su campo. Ninguno pisa al otro; deriveProfit queda igual.
+    ...profitDoble(row),
     observaciones: row.observaciones,
     estado_revision: row.estado_revision ?? null,
     // Datos de lo que el courier facturó por este envío (módulo Control de Facturas).

@@ -63,4 +63,41 @@ function deriveProfit(row) {
   return { compra_total: costo, profit, porcentaje, profit_real: false };
 }
 
-module.exports = { deriveProfit, costoEstimado };
+// LA DOBLE VISTA (31/08, pedido de la oficina): los DOS profits a la vez, siempre.
+//
+// deriveProfit devuelve UN solo número que cambia de fórmula cuando la revisión se
+// aprueba — y ese cambio silencioso fue lo que confundió a la oficina ("me sobrescribió
+// el profit"). Esto devuelve los dos por separado, para que la pantalla los muestre
+// lado a lado y ninguno pise al otro:
+//   - profit_estimado / porcentaje_estimado / compra_estimada: SIEMPRE la estimación
+//     nuestra (venta − compra estimada del desglose congelado), sin importar el estado
+//     de revisión. Es deriveProfit con la rama real enmascarada.
+//   - profit_real_monto / porcentaje_real: venta − costo_facturado, disponible desde el
+//     momento en que la factura del courier se cruza (no espera el tilde de revisión:
+//     es informativo). null si no hay factura o no hay venta.
+// La venta de la rama real es la misma que usa deriveProfit: la congelada de la
+// liquidación si existe (venta_liq), si no total_cobrado.
+// deriveProfit NO cambia: el Dashboard y las alertas siguen agregando con su
+// precedencia de siempre (real aprobado > liquidación > estimado).
+function profitDoble(row) {
+  const est = deriveProfit({ ...row, estado_revision: null });
+  const out = {
+    compra_estimada: est.compra_total,
+    profit_estimado: est.profit,
+    porcentaje_estimado: est.porcentaje,
+    profit_real_monto: null,
+    porcentaje_real: null,
+  };
+  if (row.costo_facturado != null) {
+    const venta = row.venta_liq != null ? row.venta_liq : row.total;
+    if (venta != null) {
+      out.profit_real_monto = Math.round((venta - row.costo_facturado) * 100) / 100;
+      out.porcentaje_real = row.costo_facturado !== 0
+        ? Math.round((out.profit_real_monto / row.costo_facturado) * 10000) / 100
+        : null;
+    }
+  }
+  return out;
+}
+
+module.exports = { deriveProfit, costoEstimado, profitDoble };
