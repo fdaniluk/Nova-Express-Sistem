@@ -218,6 +218,12 @@ CREATE TABLE IF NOT EXISTS envios (
   tracking_estado     TEXT,
   tracking_detalle    TEXT,
   tracking_fecha      TEXT,
+  -- Tarifa DHL "MAS 50 KGS" (01/09/2026): en 1 cuando el envio se despacha por la OTRA
+  -- cuenta de DHL. Arriba de 50 kg en exportacion el motor compara costo completo
+  -- (flete + fuel + GoGreen) contra esa tarifa, que no cobra GoGreen, y se queda con la
+  -- mas barata. Se congela con el costo porque decide contra que cuenta se emite la guia.
+  -- En 0 todo lo cargado antes: hasta hoy se cotizaba todo por la cuenta de siempre.
+  tarifa_50           INTEGER NOT NULL DEFAULT 0,
   FOREIGN KEY (cliente_id) REFERENCES clientes(id),
   FOREIGN KEY (liquidacion_id) REFERENCES liquidaciones(id)
 );
