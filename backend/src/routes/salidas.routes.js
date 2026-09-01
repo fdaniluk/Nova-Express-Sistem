@@ -579,6 +579,12 @@ router.post('/:id/recalcular', async (req, res, next) => {
       peso_facturable: pesoFacturable,
       peso_volumetrico: pesoVolumetrico,
       zona: desglose.zona,
+      // Tarifa DHL +50 kg: el recálculo puede CAMBIARLA (subir un envío de 40 a 70 kg lo
+      // pasa a la otra cuenta de DHL). Si no viajara acá, el costo se guardaría con la
+      // tarifa nueva y la marca quedaría con la vieja: la fila de Salidas no mostraría el
+      // chip y la guía se emitiría contra la cuenta equivocada. Regla siete del proyecto:
+      // un guardado de dos pasos se olvida siempre.
+      tarifa_50: desglose.tarifa_50,
     });
   } catch (err) {
     next(err);
@@ -598,6 +604,9 @@ const SALIDAS_EDITABLE = [
   'peso_real', 'largo', 'ancho', 'alto', 'peso_facturable', 'peso_volumetrico',
   'flete', 'descuento', 'seguro', 'fuel', 'fuel_pct', 'derechos', 'adicionales', 'otros',
   'total_cobrado', 'profit', 'porcentaje', 'observaciones', 'extras_json',
+  // tarifa_50 viaja junto al desglose, y SOLO después de un Recalcular (igual que
+  // extras_json): es parte de la misma foto del costo, no un campo que se tipee.
+  'tarifa_50',
 ];
 
 // Fecha en formato ISO estricto YYYY-MM-DD y que sea un día de calendario real.
@@ -635,6 +644,17 @@ router.patch('/:id', async (req, res, next) => {
         picked.extras_json = JSON.stringify(picked.extras_json);
       } else {
         delete picked.extras_json;
+      }
+    }
+
+    // tarifa_50 es 0 o 1 y la columna es NOT NULL. Cualquier otra cosa se descarta en vez
+    // de romper el guardado o de dejar la marca en un estado que no significa nada.
+    if (Object.prototype.hasOwnProperty.call(picked, 'tarifa_50')) {
+      const v = picked.tarifa_50;
+      if (v === 0 || v === 1 || v === true || v === false || v === '0' || v === '1') {
+        picked.tarifa_50 = (v === 1 || v === true || v === '1') ? 1 : 0;
+      } else {
+        delete picked.tarifa_50;
       }
     }
 
@@ -694,7 +714,9 @@ router.patch('/:id', async (req, res, next) => {
       // envío liquidado movería la plata de una liquidación confirmada por la puerta de atrás.
       const CAMPOS_PLATA = ['total_cobrado', 'flete', 'seguro', 'fuel', 'fuel_pct',
         'adicionales', 'otros', 'derechos', 'descuento', 'profit', 'porcentaje',
-        'peso_facturable', 'fob'];
+        // tarifa_50 va acá porque dice con qué tarifa se calculó el flete congelado: si el
+        // flete de un envío liquidado no se puede tocar, la tarifa que lo produjo tampoco.
+        'peso_facturable', 'fob', 'tarifa_50'];
       const cambiaPlata = CAMPOS_PLATA.filter((c) =>
         Object.prototype.hasOwnProperty.call(picked, c)
         && Number(picked[c]) !== Number(existing[c]));

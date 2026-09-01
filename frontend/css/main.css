@@ -678,6 +678,10 @@ tr:hover td {
   color: #78350f; font-size: 13px; font-weight: 600;
   padding: 8px 12px; border-radius: 6px; margin-bottom: 10px;
 }
+/* Hoy .hidden es !important y alcanza, pero este cartel usa display:flex y está definido
+   MÁS ABAJO en el archivo: el día que alguien saque ese !important, sin esta línea el
+   cartel quedaría visible siempre. */
+.aviso-tarifa50.hidden { display: none; }
 .chip-tarifa50 {
   display: inline-block; background: #fef3c7; border: 1px solid #f59e0b;
   color: #78350f; font-size: 10px; font-weight: 700; line-height: 1;

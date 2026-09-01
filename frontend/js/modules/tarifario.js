@@ -73,7 +73,18 @@
     if (anonimo && (hayDHL || hayUPS)) {
       n.push('Las tarifas <b>no incluyen los recargos del courier</b> (procesamiento, sostenibilidad y cargos por pieza), que se informan al cotizar cada envío.');
     } else {
-      if (hayDHL) n.push('<b>GoGreen:</b> USD 0,98 por kilo facturable, aplicado a todas las exportaciones.');
+      // El GoGreen NO se cobra arriba de 50 kg en exportación: de ahí para arriba el
+      // envío sale por la tarifa +50, que no lo incluye (01/09/2026). Si el tarifario
+      // llega más allá de los 50 kg, la nota tiene que decirlo — es una nota que lee el
+      // cliente y prometía un cargo que no se le va a facturar.
+      if (hayDHL) {
+        // Vale para las dos direcciones: en importación el GoGreen ya no se cobraba
+        // arriba de 50 kg desde antes.
+        const pasa50 = Number(data.rango.hasta) > 50;
+        n.push(pasa50
+          ? '<b>GoGreen:</b> USD 0,98 por kilo facturable, en envíos de hasta 50 kg.'
+          : '<b>GoGreen:</b> USD 0,98 por kilo facturable, aplicado a todas las exportaciones.');
+      }
       if (hayUPS) n.push('<b>Cargos de procesamiento:</b> se informan al cotizar cada envío.');
     }
     n.push('Para <b>destinos remotos</b> se adiciona un cargo por envío o por kilo, el que sea mayor.');

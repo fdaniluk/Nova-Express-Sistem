@@ -1997,6 +1997,9 @@
             <div id="saled-venta-panel" class="saled-venta-panel hidden"></div>
           </div>
           <div id="saled-costos-block">
+            <!-- Tarifa DHL +50 kg: dice contra que cuenta se emite la guia. Va arriba de
+                 los costos porque es una instruccion operativa, no un numero mas. -->
+            <div id="saled-tarifa50-aviso" class="aviso-tarifa50 hidden"></div>
             <div class="sal-section-title">Costos (USD)</div>
             <div class="sal-form-grid sal-form-grid--nums">
               <div class="form-group"><label>Flete</label><input type="number" id="saled-flete" step="0.01"></div>
@@ -2174,6 +2177,11 @@
     // que el chequeo del cartelito lea el total actual.
     editExtras = Array.isArray(envio.extras) ? envio.extras.map((x) => ({ ...x })) : [];
     editExtrasDirty = false;
+    // Tarifa +50 kg: al abrir se muestra la marca CONGELADA del envío, sin recalcular nada.
+    // No queda "dirty": solo un Recalcular de esta sesión puede cambiarla.
+    editTarifa50 = envio.tarifa_50 ? 1 : 0;
+    editTarifa50Dirty = false;
+    pintarAvisoTarifa50();
     renderExtrasBlock();
 
     // Peso y medidas. Multi-bulto = más de un bulto: las medidas salen de cada bulto y el
@@ -2527,6 +2535,13 @@
       // total y la suma vuelven a cuadrar, así que el cartelito desaparece solo.
       editExtras = Array.isArray(r.extras) ? r.extras.map((x) => ({ ...x })) : [];
       editExtrasDirty = true;
+      // Tarifa DHL +50 kg: el recálculo la puede cambiar en las dos direcciones (subir el
+      // peso arriba de 50 kg mete el envío en la otra cuenta; bajarlo lo saca). Viaja con
+      // el desglose y se persiste con él, o el costo quedaría calculado con una tarifa y
+      // la marca de la fila con la otra.
+      editTarifa50 = r.tarifa_50 ? 1 : 0;
+      editTarifa50Dirty = true;
+      pintarAvisoTarifa50();
       renderExtrasBlock();
       recalcProfit();
       status.className = 'saled-recalc-status saled-recalc-ok';
@@ -2547,6 +2562,20 @@
     } finally {
       btn.disabled = false;
     }
+  }
+
+  // ── Tarifa DHL +50 kg ───────────────────────────────────────────────────────
+  // Qué tarifa usó el último Recalcular. Se persiste con el desglose (mismo criterio que
+  // editExtras): solo si viene de un Recalcular de esta sesión.
+  let editTarifa50 = 0;
+  let editTarifa50Dirty = false;
+
+  function pintarAvisoTarifa50() {
+    const cont = document.getElementById('saled-tarifa50-aviso');
+    if (!cont) return;
+    if (!editTarifa50) { cont.classList.add('hidden'); cont.innerHTML = ''; return; }
+    cont.classList.remove('hidden');
+    cont.innerHTML = '⚑ Tarifa +50 kg — este envío se despacha por la OTRA cuenta de DHL';
   }
 
   // ── Aviso de venta desfasada ────────────────────────────────────────────────
@@ -2760,11 +2789,17 @@
     const aviso = r.advertencia
       ? `<div class="saled-venta-aviso">${esc(r.advertencia)}</div>`
       : '';
+    // Tarifa DHL +50 kg: este recálculo es el que mira la oficina antes de emitir la guía,
+    // así que acá también tiene que decir por qué cuenta va. Arriba del todo, no al final:
+    // define contra qué cuenta se emite, no es un detalle del precio.
+    const aviso50 = r.tarifa50
+      ? `<div class="aviso-tarifa50">⚑ ${esc(r.avisoTarifa50 || 'Tarifa +50 kg — se despacha por la OTRA cuenta de DHL')}</div>`
+      : '';
     const avisoPisar = yaTenia
       ? `<div class="saled-venta-aviso">Este envío ya tiene una venta cargada. Si reemplazás, se pierde el número anterior.</div>`
       : '';
 
-    panel.innerHTML = filas.join('') + aviso + avisoPisar + `
+    panel.innerHTML = aviso50 + filas.join('') + aviso + avisoPisar + `
       <div class="saled-venta-acciones">
         <button type="button" class="btn btn-primary btn-sm" id="saled-venta-aplicar">
           ${yaTenia ? 'Reemplazar por el sugerido' : 'Usar este precio'}
@@ -2930,6 +2965,9 @@
     // Desglose: solo se persiste si proviene de un Recalcular de esta sesión. Si el usuario
     // solo editó el total a mano, no se manda y el backend no pisa la columna (UX acordada).
     if (editExtrasDirty) payload.extras_json = editExtras;
+    // Misma regla que extras_json: la marca de tarifa +50 solo se persiste si salió de un
+    // Recalcular de esta sesión. Editar el total a mano no puede cambiar de cuenta.
+    if (editTarifa50Dirty) payload.tarifa_50 = editTarifa50;
 
     // Valores previos para detectar qué cambió: la tarifa (país/courier) queda
     // desactualizada y hay que avisar; la fecha puede mover el envío a otro mes/solapa.

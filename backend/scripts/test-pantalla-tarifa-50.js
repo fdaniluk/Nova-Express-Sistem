@@ -108,7 +108,50 @@ async function main() {
   check('bajar de 60 a 20 kg lo saca de la +50', bajo.tarifa_50 === 0, String(bajo.tarifa_50));
   check('y le devuelve el GoGreen', /gogreen/i.test(bajo.extras_json || ''), String(bajo.extras_json));
 
-  console.log('\n3. Llega a Salidas\n');
+  console.log('\n3. El Recalcular del modal de Salidas\n');
+  // El agujero que esto cuida: el modal de Salidas recalcula el COSTO por su propia ruta
+  // (POST /salidas/:id/recalcular) y lo guarda con el PATCH, que NO recotiza. Si la marca
+  // de tarifa +50 no viaja por ahí, subir un envío de 40 a 70 kg le deja el costo de la
+  // cuenta nueva y el chip de la vieja: la guía se emite contra la cuenta equivocada.
+  const chico2 = await alta({ peso_real: 40, total_cobrado: 800 });
+  const rec70 = await (await fetch(`${BASE}/api/salidas/${chico2.id}/recalcular`, {
+    method: 'POST', headers: H, body: JSON.stringify({ peso_real: 70, largo: 50, ancho: 40, alto: 30 }),
+  })).json();
+  check('recalcular a 70 kg devuelve tarifa_50 = 1', rec70.tarifa_50 === 1, JSON.stringify(rec70.tarifa_50));
+  check('con el flete de la +50', Math.abs(rec70.flete - 70 * 6.6) < 0.02, String(rec70.flete));
+
+  await fetch(`${BASE}/api/salidas/${chico2.id}`, {
+    method: 'PATCH', headers: H,
+    body: JSON.stringify({
+      peso_real: 70, peso_facturable: rec70.peso_facturable, flete: rec70.flete,
+      seguro: rec70.seguro, fuel: rec70.fuel, adicionales: rec70.adicionales,
+      extras_json: rec70.extras, tarifa_50: rec70.tarifa_50,
+    }),
+  });
+  const tras = await get('SELECT tarifa_50, flete FROM envios WHERE id = ?', [chico2.id]);
+  check('y el PATCH lo persiste', tras.tarifa_50 === 1, String(tras.tarifa_50));
+  check('junto con el flete nuevo', Math.abs(tras.flete - 70 * 6.6) < 0.02, String(tras.flete));
+
+  const rec20 = await (await fetch(`${BASE}/api/salidas/${chico2.id}/recalcular`, {
+    method: 'POST', headers: H, body: JSON.stringify({ peso_real: 20, largo: 50, ancho: 40, alto: 30 }),
+  })).json();
+  check('bajar a 20 kg devuelve tarifa_50 = 0', rec20.tarifa_50 === 0, String(rec20.tarifa_50));
+  await fetch(`${BASE}/api/salidas/${chico2.id}`, {
+    method: 'PATCH', headers: H,
+    body: JSON.stringify({ peso_real: 20, flete: rec20.flete, adicionales: rec20.adicionales, tarifa_50: rec20.tarifa_50 }),
+  });
+  const vuelta = await get('SELECT tarifa_50 FROM envios WHERE id = ?', [chico2.id]);
+  check('y vuelve a 0', vuelta.tarifa_50 === 0, String(vuelta.tarifa_50));
+
+  const basura = await fetch(`${BASE}/api/salidas/${chico2.id}`, {
+    method: 'PATCH', headers: H, body: JSON.stringify({ tarifa_50: 'si', observaciones: 'x' }),
+  });
+  const trasBasura = await get('SELECT tarifa_50, observaciones FROM envios WHERE id = ?', [chico2.id]);
+  check('un tarifa_50 basura se descarta sin romper el guardado',
+    basura.status === 200 && trasBasura.tarifa_50 === 0 && trasBasura.observaciones === 'x',
+    `${basura.status} / ${trasBasura.tarifa_50}`);
+
+  console.log('\n4. Llega a Salidas\n');
   const salidas = await (await fetch(`${BASE}/api/salidas?desde=${hoy}&hasta=${hoy}`, { headers: H })).json();
   const filas = Array.isArray(salidas) ? salidas : (salidas.envios || salidas.data || []);
   const fila70 = filas.find((f) => f.id === chico.id);
@@ -117,7 +160,7 @@ async function main() {
   check('en 1 para el de 70 kg', fila70 && fila70.tarifa_50 === 1, String(fila70 && fila70.tarifa_50));
   check('y en 0 para el de 20 kg', fila20 && fila20.tarifa_50 === 0, String(fila20 && fila20.tarifa_50));
 
-  console.log('\n4. El cotizador del alta de envío lo avisa\n');
+  console.log('\n5. El cotizador del alta de envío lo avisa\n');
   const cot = await (await fetch(`${BASE}/api/liquidaciones/cotizar`, {
     method: 'POST', headers: H,
     body: JSON.stringify({
@@ -140,7 +183,7 @@ async function main() {
   check('la de 20 kg no avisa nada', !cotChico.tarifa50 && !cotChico.avisoTarifa50,
     `${cotChico.tarifa50} / ${cotChico.avisoTarifa50}`);
 
-  console.log('\n5. Dónde se muestra (y dónde NO)\n');
+  console.log('\n6. Dónde se muestra (y dónde NO)\n');
   const salidasJs = leer('frontend/js/modules/salidas.js');
   check('Salidas dibuja el chip +50 en la fila', /tarifa50Chip\(e\)/.test(salidasJs));
   check('leyéndolo de la columna congelada, no del peso',
@@ -160,6 +203,23 @@ async function main() {
 
   const enviosJs = leer('frontend/js/modules/envios.js');
   check('el panel de Cargar envío muestra el cartel', /res\.tarifa50/.test(enviosJs) && /aviso-tarifa50/.test(enviosJs));
+  check('el modal de Salidas tiene su cartel', /saled-tarifa50-aviso/.test(salidasJs));
+  check('que se pinta al abrir con la marca congelada del envío',
+    /editTarifa50 = envio\.tarifa_50 \? 1 : 0/.test(salidasJs));
+  check('y que el Recalcular actualiza', /editTarifa50 = r\.tarifa_50 \? 1 : 0/.test(salidasJs));
+  check('el guardado lo manda solo si vino de un Recalcular',
+    /if \(editTarifa50Dirty\) payload\.tarifa_50 = editTarifa50/.test(salidasJs));
+  check('el panel de Calcular venta también avisa', /aviso50/.test(salidasJs) && /r\.tarifa50/.test(salidasJs));
+  check('el cartel se esconde de verdad (.hidden le gana al display:flex)',
+    /\.aviso-tarifa50\.hidden/.test(mainCss));
+
+  // La nota del tarifario que se le manda al cliente: prometía el GoGreen en TODAS las
+  // exportaciones, y arriba de 50 kg ya no se cobra. Es una nota que lee el cliente.
+  const tarifarioJs = leer('frontend/js/modules/tarifario.js');
+  check('la nota del tarifario ya no promete GoGreen en todo el rango',
+    /en env[ií]os de hasta 50 kg/.test(tarifarioJs), 'no encontré la nota nueva');
+  check('y solo lo aclara cuando el tarifario pasa de 50 kg',
+    /Number\(data\.rango\.hasta\) > 50/.test(tarifarioJs));
 
   console.log('\n' + '─'.repeat(60));
   console.log(`${ok} pasaron · ${fail} fallaron`);
