@@ -100,6 +100,7 @@ async function listarSalidas({ desde, hasta } = {}) {
       e.tracking_estado,
       e.tracking_detalle,
       e.tracking_fecha,
+      e.tarifa_50,
       e.liquidado,
       e.fecha_liquidacion,
       e.liquidacion_id,
@@ -290,6 +291,9 @@ async function listarSalidas({ desde, hasta } = {}) {
     tracking_estado: row.tracking_estado ?? null,
     tracking_detalle: row.tracking_detalle ?? null,
     tracking_fecha: row.tracking_fecha ?? null,
+    // Tarifa DHL +50 kg: este envío se despacha por la OTRA cuenta de DHL. La grilla lo
+    // marca para que la oficina sepa contra qué cuenta emitir la guía.
+    tarifa_50: row.tarifa_50 ? 1 : 0,
     tipo_cobro: row.tipo_cobro,
     cliente_id: row.cliente_id,
     cliente_nombre: row.cliente_nombre,

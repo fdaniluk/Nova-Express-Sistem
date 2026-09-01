@@ -574,7 +574,7 @@
     tr.innerHTML = `
       <td class="chk-cell">${chkCell}</td>
       <td data-col="numero_salida" class="numsal-cell" title="Marcar fila">${fmtNum(e.num_sal_mes)}</td>
-      <td data-col="courier">${env(courierBadge(e.courier))}</td>
+      <td data-col="courier">${env(courierBadge(e.courier) + tarifa50Chip(e))}</td>
       <td data-col="fecha">${env(NovaUtils.formatDate(e.fecha))}</td>
       <td class="mono${guiaMalaAttrs(e.courier, bultoGuia)}" data-col="numero_guia"><span class="bulto-guia-text">${esc(bultoGuia)}</span>${bultoGuiaEdit}${guiaIcons}</td>
       <td data-col="tipo_cobro">${env(cobroBadge(e.tipo_cobro))}</td>
@@ -1797,6 +1797,16 @@
     if (!c) return '<span class="em">—</span>';
     const cls = c === 'UPS' ? 'badge-ups' : c === 'DHL' ? 'badge-dhl' : 'badge-fx';
     return `<span class="badge ${cls}">${esc(c)}</span>`;
+  }
+
+  // Tarifa DHL "MAS 50 KGS" (01/09/2026): arriba de 50 kg en exportación el motor eligió
+  // esa tarifa, que vive en OTRA CUENTA de DHL. La oficina tiene que verlo en la grilla
+  // porque es lo que decide contra qué cuenta se emite la guía. Se lee de la columna
+  // congelada `tarifa_50` del envío, no se recalcula: lo cargado antes del 01/09 salió por
+  // la cuenta de siempre y tiene que seguir mostrándose así.
+  function tarifa50Chip(e) {
+    if (!e.tarifa_50) return '';
+    return ' <span class="chip-tarifa50" title="Tarifa DHL +50 kg — la guía se emite por la OTRA cuenta de DHL">+50</span>';
   }
 
   function cobroBadge(c) {

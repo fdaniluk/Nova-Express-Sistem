@@ -198,7 +198,7 @@ footer{margin-top:3rem;text-align:center;font-size:12px;color:var(--text-tertiar
 <footer>Tarifas DHL y UPS vigentes 2026 · Uso interno</footer>
 </div>
 
-<script src="cotizador-core.js?v=20260901a"></script>
+<script src="cotizador-core.js?v=20260901b"></script>
 <script>
 let bultoId=0;
 
@@ -353,7 +353,12 @@ function cotizar(){
   if(mostrarDHL){
     const r=cotizarServicio('DHL',_params);
     if(!r){errEl.textContent='País no encontrado en DHL.';errEl.style.display='block';}
-    else results.push({...r,courier:r.servicio,extraRows:r.extras,tag:'dhl'});
+    else{
+      // Tarifa +50 kg: el envío se despacha por OTRA cuenta de DHL, y eso hay que saberlo
+      // antes de emitir la guía. Se avisa acá arriba, no adentro de la tarjeta.
+      if(r.tarifa50){errEl.textContent='⚑ '+(r.avisoTarifa50||'Tarifa +50 kg — otra cuenta de DHL');errEl.style.display='block';}
+      results.push({...r,courier:r.servicio,extraRows:r.extras,tag:'dhl'});
+    }
   }
 
   // ── UPS Expedited ──

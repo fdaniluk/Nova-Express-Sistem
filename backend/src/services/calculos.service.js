@@ -238,6 +238,9 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
       precioFinal: redondear2(r.total),
       zona: r.zona,
       servicio: 'DHL Express',
+      // Avisa que este precio sale de la tarifa +50 kg (otra cuenta de DHL).
+      tarifa50: !!r.tarifa50,
+      avisoTarifa50: r.avisoTarifa50 || null,
       extras: r.extras,
       modo_venta: r.modoVenta,
       precio_kg: r.precioKgVenta,
@@ -320,7 +323,10 @@ function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zo
 
   // El fuel% efectivamente usado se devuelve para congelarlo por envío (columna fuel_pct).
   // No altera ningún monto: es el mismo valor que entró por el parámetro fuelPct.
-  return { flete, seguro, fuel, fuel_pct: Number(fuelPct) || 0, adicionales, derechos: 0, descuento: 0, otros: 0, total, zona: r.zona, extras };
+  // tarifa_50: el motor eligió la tarifa DHL "MAS 50 KGS" para este envío, que se despacha
+  // por OTRA CUENTA de DHL. Se congela con el resto del costo porque es lo que decide contra
+  // qué cuenta se emite la guía, y porque la elección depende de las tarifas del día del alta.
+  return { flete, seguro, fuel, fuel_pct: Number(fuelPct) || 0, adicionales, derechos: 0, descuento: 0, otros: 0, total, zona: r.zona, extras, tarifa_50: r.tarifa50 ? 1 : 0 };
 }
 
 module.exports = {

@@ -233,8 +233,8 @@ async function crear(data) {
           peso_volumetrico, peso_facturable, fob, total_cobrado, observaciones,
           numero_salida, bulto, tipo_paquete, asegurado, ddp, proteccion_doc, remota, entrega,
           flete, descuento, seguro, fuel, fuel_pct, fuel_origen, derechos, adicionales, otros, profit, porcentaje,
-          extras_json, servicio_ups, num_sal_cero, seguro_venta
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          extras_json, servicio_ups, num_sal_cero, seguro_venta, tarifa_50
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         data.cliente_id,
@@ -284,7 +284,10 @@ async function crear(data) {
         // "Sin numerar" (salida 0): desde el 14/08 se puede marcar ya en el alta, en vez
         // de cargar el envío y después entrar a Salidas a corregirlo.
         data.num_sal_cero ? 1 : 0,
-        seguroVenta
+        seguroVenta,
+        // Tarifa +50 kg de DHL: se congela con el costo porque decide contra qué cuenta se
+        // emite la guía. Sin desglose (país que el motor no reconoce) queda en 0.
+        desglose ? desglose.tarifa_50 : 0
       );
     const envioId = result.lastInsertRowid;
     if (hasBultos) await saveBultos(envioId, data.bultos);
@@ -374,11 +377,12 @@ async function actualizar(id, data) {
   const limpiarCosto = cambioElCosto && sinPesar(pesoFacturable);
   const costoSet = limpiarCosto
     ? `flete = ?, descuento = ?, seguro = ?, fuel = ?,
-        derechos = ?, adicionales = ?, otros = ?, extras_json = ?`
+        derechos = ?, adicionales = ?, otros = ?, extras_json = ?, tarifa_50 = ?`
     : `flete = COALESCE(?, flete), descuento = COALESCE(?, descuento),
         seguro = COALESCE(?, seguro), fuel = COALESCE(?, fuel),
         derechos = COALESCE(?, derechos), adicionales = COALESCE(?, adicionales),
-        otros = COALESCE(?, otros), extras_json = COALESCE(?, extras_json)`;
+        otros = COALESCE(?, otros), extras_json = COALESCE(?, extras_json),
+        tarifa_50 = COALESCE(?, tarifa_50)`;
 
   // Si la edición CAMBIA el tipo de envío y no trae direccion explícita, la direccion lo
   // sigue (misma regla que el alta). Si el tipo no se toca, la direccion tampoco: lo que
@@ -433,7 +437,7 @@ async function actualizar(id, data) {
       data.entrega !== undefined ? data.entrega : actual.entrega,
       data.num_sal_cero !== undefined ? (data.num_sal_cero ? 1 : 0) : actual.num_sal_cero,
       seguroVenta,
-      // Los ocho de abajo son siempre los mismos parámetros; lo que cambia es el SQL de
+      // Los nueve de abajo son siempre los mismos parámetros; lo que cambia es el SQL de
       // arriba. Sin recálculo van todos NULL y el COALESCE deja la columna como estaba;
       // con el envío sin pesar, esos mismos NULL la vacían.
       desglose ? desglose.flete : null,
@@ -444,6 +448,9 @@ async function actualizar(id, data) {
       desglose ? desglose.adicionales : null,
       desglose ? desglose.otros : null,
       desglose && desglose.extras && desglose.extras.length ? JSON.stringify(desglose.extras) : null,
+      // tarifa_50 es NOT NULL, así que el caso "sin pesar" manda 0 explícito en vez del
+      // NULL que vacía a las demás: un envío sin peso no va por la cuenta +50.
+      limpiarCosto ? 0 : (desglose ? desglose.tarifa_50 : null),
       id
     );
     if (data.bultos !== undefined) {

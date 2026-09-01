@@ -86,6 +86,27 @@ const DHL_I_PKG_MED=[[10.5,82.32,113.86,140.23,188.92,233.3,276.81],[11,84.64,11
 // Valor por kilo arriba de 300 kg (exportación), del mismo PDF.
 const DHL_E_PK_300=[4.27,5.45,6.19,7.50,8.68,9.41];
 
+// DHL exportación arriba de 50 kg — TARIFA "MAS 50 KGS" (2026). Es una CUENTA DHL DISTINTA,
+// por eso cuando se usa hay que avisarlo: la guía se emite contra otra cuenta.
+// Arriba de 50 kg el tarifario es exactamente LINEAL: precio = kilos × valor por kilo.
+// Verificado celda por celda contra "TARIFARIO DHL EXPO MAS 50 KGS.pdf" (01/09/2026): las
+// 250 filas de 51 a 300 kg × 6 zonas dan kg × rate al centavo, sin una sola excepción.
+// El mismo PDF trae la tabla de importación, que coincide al centavo con DHL_I_BIG — o sea
+// que la de impo ya cargada y esta son la misma familia de tarifa.
+// Debajo de 51 kg esta tarifa tiene tabla propia y es MUCHO más cara (0,5 kg zona 1: 71,18
+// contra 24,91 de la de siempre), así que ahí no se mira nunca.
+// Y la ventaja grande no es el flete: ESTA CUENTA NO COBRA GoGreen (0,98 USD por kilo
+// facturable). En 60 kg son 58,80 USD, más que toda la diferencia de flete. Confirmado por
+// Felipe el 01/09; es la misma regla que ya regía en importación arriba de 50 kg.
+const DHL_E_50_PK=[4.38,4.98,6.00,6.60,7.50,8.40];
+const MSG_TARIFA_50='Tarifa +50 kg — se despacha por la OTRA cuenta de DHL';
+function getDHLE50(zona,pf){
+  if(!(pf>50))return null;          // debajo de 51 kg esta tarifa nunca compite
+  // DHL redondea el peso para arriba al kilo. Arriba de 300 kg la fórmula sigue valiendo:
+  // el tarifario corta ahí pero el valor por kilo es el mismo en todo el rango.
+  return parseFloat((Math.ceil(pf)*DHL_E_50_PK[zona-1]).toFixed(2));
+}
+
 // DHL importación >50 kg (tarifa 2026)
 const DHL_I_BIG_PK=[4.56,5.82,6.75,8.10,9.96,11.76];
 const DHL_I_BIG=[
@@ -481,14 +502,31 @@ function cotizarServicio(servicio, params) {
     if(!zona)return null;
     const esDoc=contenido==='documento'&&pf<=2;
     let fleteBase;
+    // tarifa50: el envío se despacha por la cuenta "MAS 50 KGS", que es OTRA cuenta de DHL.
+    // Viaja hasta la pantalla para que la oficina sepa contra qué cuenta emitir la guía.
+    let tarifa50=false;
     if(tipo==='import'&&!esDoc&&pf>50){
       fleteBase=getDHLBig(zona,pf);
     } else {
       const tabla=esDoc?(tipo==='export'?DHL_E_DOC:DHL_I_DOC):(tipo==='export'?DHL_E_PKG:DHL_I_PKG);
       fleteBase=getDHL(tabla,zona,pf);
+      // Exportación arriba de 50 kg: hay DOS tarifas y se elige la más barata.
+      // Se comparan COSTOS COMPLETOS, no fletes pelados: la de siempre paga GoGreen y la
+      // +50 no, y el GoGreen (0,98/kg) pesa más que la diferencia de flete. Criterio de
+      // Felipe (01/09): "siempre hacemos lo más barato". Con las tarifas de hoy la +50 gana
+      // en las SEIS zonas en todo el rango 51–300 kg; la comparación queda igual escrita
+      // para que la regla siga siendo cierta el día que cambie alguna de las dos tablas.
+      if(tipo==='export'&&!esDoc&&pf>50){
+        const flete50=getDHLE50(zona,pf);
+        if(flete50){
+          const costoNormal=fleteBase*(1+fuel)+parseFloat((pf*0.98).toFixed(2));
+          const costo50    =flete50*(1+fuel);
+          if(costo50<costoNormal){fleteBase=flete50;tarifa50=true;}
+        }
+      }
     }
     if(!fleteBase)return null;
-    const aplicaGoGreen=!(tipo==='import'&&pf>50);
+    const aplicaGoGreen=!tarifa50&&!(tipo==='import'&&pf>50);
     const goGreen=aplicaGoGreen?parseFloat((pf*0.98).toFixed(2)):0;
     const{sobrepesoTotal,excesoTotal,noConvencionalTotal}=calcDHLExtras(bultosProc);
     const topesDHL=calcTopesPieza(bultosProc).dhl;
@@ -518,6 +556,7 @@ function cotizarServicio(servicio, params) {
       goGreen,sobrepesoTotal,excesoTotal,noConvencionalTotal,seguro:seguroObj.monto,
       manejoCount:0,contornoExtra:0,contornoWarn:false,manejo:0,
       minPesoAplicado:false,avisosTope:topesDHL,
+      tarifa50,avisoTarifa50:tarifa50?MSG_TARIFA_50:null,
       modoVenta:usaPorKg?'por_kg':'porcentaje',
       precioKgVenta:usaPorKg?kgVenta:null,
       pfVenta:usaPorKg?pf:null,
@@ -602,13 +641,14 @@ if(typeof module!=='undefined'&&module.exports){
     ZONAS_DHL,ZONAS_UPS,ZONAS_UPS_I,
     INDIA,ISMEA,CHINA_HK_MACAO,
     DHL_E_PKG,DHL_E_DOC,DHL_I_PKG,DHL_I_DOC,DHL_I_BIG_PK,DHL_I_BIG,
+    DHL_E_50_PK,MSG_TARIFA_50,
     UPS_E_LIQD,UPS_E_PK,UPS_E_MN,
     UPS_I_LIQD,UPS_I_PK,UPS_I_MN,
     UPS_SE_LIQD,UPS_SE_PK,UPS_SE_MN,
     UPS_SI_LIQD,UPS_SI_PK,UPS_SI_MN,
     UPS_SAVER_ES_IT,UPS_SAVER_ES_PK,UPS_SAVER_IT_PK,
     resolverZona,
-    getPesoVol,getDHL,getDHLBig,getUPS,getUPSSaverEsIt,
+    getPesoVol,getDHL,getDHLBig,getDHLE50,getUPS,getUPSSaverEsIt,
     getSurge,calcSeguroUPS,calcSeguroDHL,seguroPropioMonto,DHL_PROTECCION_DOC,calcDHLExtras,calcUPSDimExtras,calcImpuestos,calcZonaEntrega,normalizarEntrega,
     TOPES_PIEZA,calcTopesPieza,MSG_CONTORNO_UPS,
     cotizarServicio,

@@ -302,6 +302,10 @@ async function migrateEnvios() {
     ['tracking_estado',   'TEXT'],
     ['tracking_detalle',  'TEXT'],
     ['tracking_fecha',    'TEXT'],
+    // Tarifa DHL "MAS 50 KGS" (01/09): 1 cuando el envío se despacha por la OTRA cuenta de
+    // DHL. Se congela con el costo. En 0 todo lo ya cargado, que es la verdad: hasta hoy
+    // el sistema cotizaba todo por la cuenta de siempre.
+    ['tarifa_50',         'INTEGER NOT NULL DEFAULT 0'],
   ];
   for (const [col, def] of toAdd) {
     if (!cols.includes(col)) {

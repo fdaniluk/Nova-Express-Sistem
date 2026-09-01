@@ -538,7 +538,14 @@
       panel.classList.remove('hidden');
       panel.classList.remove('cot-aplicado');
 
+      // Tarifa DHL +50 kg: la guía se emite contra OTRA cuenta de DHL. Es la primera
+      // línea del panel a propósito — el operador tiene que verlo antes que el precio.
+      const cartel50 = res.tarifa50
+        ? `<div class="aviso-tarifa50">⚑ ${res.avisoTarifa50 || 'Tarifa +50 kg — se despacha por la OTRA cuenta de DHL'}</div>`
+        : '';
+
       resultado.innerHTML = `
+        ${cartel50}
         <div class="cot-desglose">
           <div class="cot-fila">
             <span>Servicio</span>

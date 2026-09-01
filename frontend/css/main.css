@@ -664,3 +664,22 @@ tr:hover td {
 .ctzr-estado.ctzr-aceptada { background: #dcfce7; color: #166534; }
 .ctzr-estado.ctzr-vencida, .ctzr-estado.ctzr-rechazada { background: #f3f4f6; color: #9ca3af; }
 .ctzr-vacio { font-size: 12.5px; color: #8a8494; padding: 6px 2px; }
+
+/* ── Tarifa DHL "MAS 50 KGS" (01/09/2026) ────────────────────────────────────
+   Arriba de 50 kg en exportación el motor elige la tarifa +50 cuando sale más
+   barata (hoy: siempre). Esa tarifa vive en OTRA CUENTA de DHL, así que la
+   guía se emite contra esa cuenta. Por eso el aviso: no es un error ni un
+   problema de precio, es una instrucción operativa — de ahí el ámbar.
+   `.aviso-tarifa50` es el cartel (cotizador y Cargar envío);
+   `.chip-tarifa50` es la versión chica para la grilla de Salidas. */
+.aviso-tarifa50 {
+  display: flex; align-items: center; gap: 8px;
+  background: #fef3c7; border: 1px solid #f59e0b; border-left: 4px solid #f59e0b;
+  color: #78350f; font-size: 13px; font-weight: 600;
+  padding: 8px 12px; border-radius: 6px; margin-bottom: 10px;
+}
+.chip-tarifa50 {
+  display: inline-block; background: #fef3c7; border: 1px solid #f59e0b;
+  color: #78350f; font-size: 10px; font-weight: 700; line-height: 1;
+  padding: 2px 5px; border-radius: 4px; white-space: nowrap; cursor: help;
+}
