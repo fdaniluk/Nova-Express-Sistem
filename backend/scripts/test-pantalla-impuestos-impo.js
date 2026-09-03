@@ -105,6 +105,16 @@ async function main() {
   check('UPS muestra su gasto documental FIJO de USD 126', /Gasto documental UPS \(fijo USD 126\)/.test(texto));
   check('DHL muestra su procesamiento (1,465% CIF)', /Procesamiento de aranceles DHL/.test(texto));
   check('DHL muestra la percepción IIBB', /Percep\. IIBB \(Bs\.As\. 4% \+ CABA 3%\)/.test(texto));
+  // EL CIF SE VALORA CON EL FLETE AFORADO (2,50 USD/kg), NO CON EL FLETE DE VENTA (02/09).
+  // 100 kg reales, 60×50×50 = 30 kg volumétricos → facturable 100 kg → flete aforado 250,00.
+  // CIF = (2.900 + 250) × 1,01 = 3.181,50. Con el flete de venta (cientos de dólares con
+  // fuel) daba muchísimo más: eso es lo que la oficina vio mal.
+  check('muestra el flete aforado: 100,0 kg × USD 2,50 = 250,00',
+    /Flete aforado \(100\.0 kg × USD 2,50\)USD 250\.00/.test(texto), (texto.match(/Flete aforado[^U]*USD [\d.]+/) || [])[0]);
+  check('y el CIF sale de FOB + flete aforado + 1%: 3.181,50',
+    /Valor CIF[^U]*USD 3181\.50/.test(texto), (texto.match(/Valor CIF[^U]*USD [\d.]+/) || [])[0]);
+  check('el CIF es el MISMO para UPS y DHL (el flete de venta no entra)',
+    (texto.match(/USD 3181\.50/g) || []).length >= 2, String((texto.match(/USD 3181\.50/g) || []).length));
 
   console.log('\n2. El arancel "Otro %" (el 16% real de la factura de UPS)\n');
   await page.click('input[name="arancel"][value="otro"]');

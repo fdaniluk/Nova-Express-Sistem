@@ -435,8 +435,19 @@ function calcZonaEntrega(courier,zonaEntrega,pf,pais){
 //   · DHL además PERCIBE IIBB: 7% (Bs.As. 4% + CABA 3%) sobre el subtotal de servicios
 //     (derechos + estadística + procesamiento). En las UPS de muestra vino en 0.
 // El resultado sigue siendo un ESTIMADO para el panel del cotizador (no toca costos).
-function calcImpuestos(fob,flete,arancel,courier){
+//
+// EL FLETE DEL CIF NO ES EL FLETE QUE COBRA NOVA (02/09/2026, regla de Felipe). Para
+// valorar en aduana, UPS y DHL toman un flete AFORADO de USD 2,50 por kilo facturable, sea
+// cual sea el precio del envío. Las cuatro liquidaciones lo confirman: 284,35 / 113,74 kg,
+// 317,75 / 127,10 kg y 6,25 / 2,5 kg dan 2,50 exacto. Hasta hoy la función recibía "el
+// flete" y el cotizador le mandaba el flete DE VENTA con fuel: para 63 kg eran 600 y pico
+// en vez de 157,50, y el CIF —y todo lo que cuelga de él— salía inflado. La oficina lo vio
+// probando la pantalla. Ahora la función recibe los KILOS y calcula el flete aforado ella
+// misma, así ninguna pantalla puede volver a mandarle otra cosa.
+const FLETE_AFORADO_KG=2.50;
+function calcImpuestos(fob,pf,arancel,courier){
   const esDHL=String(courier||'').toUpperCase().includes('DHL');
+  const flete=FLETE_AFORADO_KG*(Number(pf)||0);
   const seguroCIF=(fob+flete)*0.01;
   const CIF=fob+flete+seguroCIF;
   const derechos=CIF*arancel;
@@ -449,7 +460,7 @@ function calcImpuestos(fob,flete,arancel,courier){
   const ivaGastoDoc=gastoDoc*0.21;
   const percIIBB=esDHL?(derechos+tasaEst+gastoDoc)*0.07:0;
   const total=derechos+tasaEst+ivaAduana+gastoDoc+ivaGastoDoc+percIIBB;
-  return{CIF,seguroCIF,derechos,tasaEst,ivaAduana,gastoDoc,ivaGastoDoc,percIIBB,total};
+  return{CIF,flete,seguroCIF,derechos,tasaEst,ivaAduana,gastoDoc,ivaGastoDoc,percIIBB,total};
 }
 
 // ── Orquestación canónica por servicio ───────────────────────────────────────
@@ -641,7 +652,7 @@ if(typeof module!=='undefined'&&module.exports){
     ZONAS_DHL,ZONAS_UPS,ZONAS_UPS_I,
     INDIA,ISMEA,CHINA_HK_MACAO,
     DHL_E_PKG,DHL_E_DOC,DHL_I_PKG,DHL_I_DOC,DHL_I_BIG_PK,DHL_I_BIG,
-    DHL_E_50_PK,MSG_TARIFA_50,
+    DHL_E_50_PK,MSG_TARIFA_50,FLETE_AFORADO_KG,
     UPS_E_LIQD,UPS_E_PK,UPS_E_MN,
     UPS_I_LIQD,UPS_I_PK,UPS_I_MN,
     UPS_SE_LIQD,UPS_SE_PK,UPS_SE_MN,
