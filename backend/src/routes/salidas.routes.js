@@ -664,10 +664,21 @@ router.patch('/:id', async (req, res, next) => {
     // Bultos editados (multi-bulto): se persisten aparte del UPDATE plano de envios.
     // Cada bulto se identifica por su id (fila de envio_bultos). El bulto sintético del
     // bulto único no tiene fila (id null) y se ignora: su peso/medidas viajan en `picked`.
-    const bultosEdit = (Array.isArray(req.body.bultos) ? req.body.bultos : [])
-      .filter((b) => b && b.id != null);
+    const bultosBody = (Array.isArray(req.body.bultos) ? req.body.bultos : []).filter((b) => b);
+    const bultosEdit = bultosBody.filter((b) => b.id != null);
+    // Bultos NUEVOS (03/09/2026): el modal de Salidas puede agregar bultos a un envío ya
+    // cargado. Caso de la oficina: se carga como de un bulto y después resultan ser dos, y
+    // hasta hoy no había forma de sumarlo desde Salidas. Vienen sin id; se insertan.
+    const bultosNuevos = bultosBody.filter((b) => b.id == null);
+    for (const b of bultosNuevos) {
+      const tienePeso = Number(b.peso_real) > 0;
+      const tieneMedidas = Number(b.largo) > 0 && Number(b.ancho) > 0 && Number(b.alto) > 0;
+      if (!tienePeso && !tieneMedidas) {
+        return res.status(400).json({ error: 'Un bulto nuevo necesita al menos el peso o las tres medidas.' });
+      }
+    }
 
-    if (Object.keys(picked).length === 0 && bultosEdit.length === 0) {
+    if (Object.keys(picked).length === 0 && bultosEdit.length === 0 && bultosNuevos.length === 0) {
       return res.status(400).json({ error: 'No hay campos para actualizar' });
     }
 
@@ -715,6 +726,13 @@ router.patch('/:id', async (req, res, next) => {
       // monetarios quedan congelados igual que en el PUT. Solo se rechaza si CAMBIA.
       // fob está acá aunque no sea un cargo: el seguro sale de él, así que cambiarlo en un
       // envío liquidado movería la plata de una liquidación confirmada por la puerta de atrás.
+      // Agregar un bulto cambia el peso facturable y el costo: en un envío liquidado es
+      // la misma plata congelada que los campos de abajo.
+      if (bultosNuevos.length) {
+        return res.status(409).json({
+          error: 'El envío está liquidado: no se le pueden agregar bultos (cambiaría el costo de una liquidación confirmada).',
+        });
+      }
       const CAMPOS_PLATA = ['total_cobrado', 'flete', 'seguro', 'fuel', 'fuel_pct',
         'adicionales', 'otros', 'derechos', 'descuento', 'profit', 'porcentaje',
         // tarifa_50 va acá porque dice con qué tarifa se calculó el flete congelado: si el
@@ -887,6 +905,34 @@ router.patch('/:id', async (req, res, next) => {
              WHERE id = ? AND envio_id = ?`
           )
           .run(b.peso_real ?? null, b.largo ?? null, b.ancho ?? null, b.alto ?? null, pv, b.id, id);
+      }
+
+      if (bultosNuevos.length) {
+        // El número de bulto sigue al último que exista. Un envío de bulto único no tiene
+        // filas en envio_bultos (su bulto vive en los campos del envío): en ese caso el
+        // modal manda TODOS los bultos sin id, el primero con los datos del que ya estaba,
+        // y acá se crean todas las filas desde 1. Las medidas son NOT NULL en la tabla:
+        // un bulto pesado sin medir se guarda con 0 (volumétrico 0, factura por su peso).
+        const ultimo = await db
+          .prepare('SELECT COALESCE(MAX(numero_bulto), 0) AS n FROM envio_bultos WHERE envio_id = ?')
+          .get(id);
+        let numero = Number(ultimo.n) || 0;
+        for (const b of bultosNuevos) {
+          numero += 1;
+          const pv = Math.round(pesoVolumetricoBulto(b.largo, b.ancho, b.alto) * 1000) / 1000;
+          await db
+            .prepare(
+              `INSERT INTO envio_bultos (envio_id, numero_bulto, peso_real, largo, ancho, alto, peso_volumetrico)
+               VALUES (?, ?, ?, ?, ?, ?, ?)`
+            )
+            .run(id, numero, b.peso_real ?? null, Number(b.largo) || 0, Number(b.ancho) || 0, Number(b.alto) || 0, pv);
+        }
+        // cantidad_bultos es lo que muestra la grilla y el Excel del cierre: se lee de las
+        // filas, no del body, para que no pueda quedar desfasado.
+        await db
+          .prepare(`UPDATE envios SET cantidad_bultos = (SELECT COUNT(*) FROM envio_bultos WHERE envio_id = ?),
+                    updated_at = datetime('now', 'localtime') WHERE id = ?`)
+          .run(id, id);
       }
     });
 

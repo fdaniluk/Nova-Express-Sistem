@@ -1002,6 +1002,20 @@ td.detail-expandable { cursor: pointer; }
   font-size: 0.8rem;
 }
 
+/* Agregar bultos desde Salidas (03/09/2026). La fila de un bulto NUEVO lleva una sexta
+   columna con la ✕ para quitarlo antes de guardar; las filas de bultos existentes no. */
+.saled-bulto-row:has(.saled-bulto-quitar) {
+  grid-template-columns: auto 1fr 1fr 1fr 1fr auto;
+}
+.saled-bulto-quitar {
+  border: 1px solid #e5e7eb; background: #fff; color: #9ca3af;
+  border-radius: 4px; width: 26px; height: 26px; cursor: pointer; font-size: 12px; line-height: 1;
+}
+.saled-bulto-quitar:hover { color: #b91c1c; border-color: #fca5a5; }
+.saled-bultos-add {
+  display: flex; align-items: center; gap: 0.7rem; margin-top: 0.5rem;
+}
+
 .saled-recalc-bar {
   display: flex;
   align-items: center;

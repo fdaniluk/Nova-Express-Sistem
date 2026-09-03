@@ -63,6 +63,7 @@
   // estado del modal de edición
   let editEnvio = null;
   let editBultos = [];      // bultos del envío en edición (multi-bulto)
+  let bultosAgregados = false; // true si en esta edición se sumaron bultos nuevos (sin id)
   let editMulti = false;    // true si el envío tiene más de un bulto
   let editExtras = [];      // desglose de adicionales [{ tipo, label, monto }]
   let editExtrasDirty = false; // true solo si el desglose viene de un Recalcular de esta sesión
@@ -1979,6 +1980,13 @@
               <div class="saled-bultos-label">Dimensiones por bulto</div>
               <div id="saled-bultos-container"></div>
             </div>
+            <!-- Agregar bultos desde Salidas (03/09/2026). Caso de la oficina: el envío se
+                 carga como de un bulto y después resultan ser dos. Con un bulto único el
+                 botón convierte los campos sueltos en la fila 1 y agrega la 2. -->
+            <div class="saled-bultos-add">
+              <button type="button" class="btn btn-secondary btn-sm" id="saled-agregar-bulto">+ Agregar bulto</button>
+              <span id="saled-bultos-add-aviso" class="saled-recalc-status"></span>
+            </div>
             <div class="saled-recalc-bar">
               <button type="button" class="btn btn-secondary" id="saled-recalcular">Recalcular</button>
               <span id="saled-recalc-status" class="saled-recalc-status"></span>
@@ -2044,6 +2052,7 @@
     document.getElementById('sal-modal-delete').addEventListener('click', deleteEditModal);
     document.getElementById('sal-modal-no-volo').addEventListener('click', toggleNoVolo);
     document.getElementById('saled-recalcular').addEventListener('click', recalcularDesglose);
+    document.getElementById('saled-agregar-bulto').addEventListener('click', agregarBultoModal);
     document.getElementById('saled-calcular-venta').addEventListener('click', calcularVenta);
     document.getElementById('saled-courier').addEventListener('change', () => toggleProtDocVisible(true));
     document.getElementById('saled-tipo-paquete').addEventListener('change', () => toggleProtDocVisible(true));
@@ -2188,6 +2197,9 @@
     // peso balanza es la suma (no editable arriba). Bulto único = campos sueltos editables.
     editBultos = (envio.bultos || []).map((b) => ({ ...b }));
     editMulti = editBultos.length > 1;
+    bultosAgregados = false;
+    const avisoAdd = document.getElementById('saled-bultos-add-aviso');
+    if (avisoAdd) avisoAdd.textContent = '';
 
     document.getElementById('saled-peso-real').value = envio.peso ?? '';
     document.getElementById('saled-largo').value = envio.largo ?? '';
@@ -2293,14 +2305,73 @@
         <input type="number" data-bidx="${i}" data-field="ancho" placeholder="Ancho" step="0.1" min="0" value="${b.ancho ?? ''}">
         <input type="number" data-bidx="${i}" data-field="alto" placeholder="Alto" step="0.1" min="0" value="${b.alto ?? ''}">
         <input type="number" data-bidx="${i}" data-field="peso_real" placeholder="Peso (kg)" step="0.001" min="0" value="${b.peso_real ?? ''}">
+        ${b.nuevo ? `<button type="button" class="saled-bulto-quitar" data-bidx="${i}" title="Quitar este bulto (todavía no está guardado)">✕</button>` : ''}
       `;
       container.appendChild(row);
+    });
+    // Solo los bultos NUEVOS se pueden quitar acá: los que ya existen tienen guía y
+    // semáforo propios, y sacarlos es otra decisión (hoy no se hace desde el modal).
+    container.querySelectorAll('.saled-bulto-quitar').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const i = Number(btn.dataset.bidx);
+        editBultos.splice(i, 1);
+        editBultos.forEach((b, k) => { if (b.nuevo) b.numero_bulto = k + 1; });
+        bultosAgregados = editBultos.some((b) => b.nuevo);
+        if (editBultos.length === 1 && !editBultos[0].id) {
+          // Volvió a bulto único: los campos sueltos recuperan el mando.
+          editMulti = false;
+          const u = editBultos[0];
+          document.getElementById('saled-peso-real').value = u.peso_real ?? '';
+          document.getElementById('saled-largo').value = u.largo ?? '';
+          document.getElementById('saled-ancho').value = u.ancho ?? '';
+          document.getElementById('saled-alto').value = u.alto ?? '';
+        }
+        renderEditBultos();
+        renderEstadoCajaSection();
+      });
     });
     // El peso balanza de arriba = suma de los pesos de bulto, recalculada en vivo.
     container.querySelectorAll('[data-field="peso_real"]').forEach((inp) => {
       inp.addEventListener('input', recalcEditPesoBalanza);
     });
     recalcEditPesoBalanza();
+  }
+
+  // "+ Agregar bulto" (03/09/2026). Con bulto único, primero convierte lo que hay en los
+  // campos sueltos en la fila 1 (el bulto único no tiene fila propia en la base: vive en el
+  // envío) y recién ahí suma la fila 2. Los nuevos van sin id: el guardado los inserta y el
+  // Recalcular ya los toma por peso y medidas. Un envío liquidado no puede sumar bultos —
+  // cambiaría el costo — y el servidor lo rechaza; acá se avisa antes de que pierda el viaje.
+  function agregarBultoModal() {
+    const aviso = document.getElementById('saled-bultos-add-aviso');
+    if (editEnvio && editEnvio.liquidado) {
+      aviso.textContent = 'El envío está liquidado: no se le pueden agregar bultos.';
+      return;
+    }
+    aviso.textContent = '';
+    if (!editMulti) {
+      const num = (id) => { const v = document.getElementById(id).value; return v !== '' ? Number(v) : null; };
+      const unico = editBultos[0] || { id: null, numero_bulto: 1 };
+      editBultos = [{
+        ...unico,
+        numero_bulto: 1,
+        peso_real: num('saled-peso-real'),
+        largo: num('saled-largo'),
+        ancho: num('saled-ancho'),
+        alto: num('saled-alto'),
+      }];
+      editMulti = true;
+    }
+    editBultos.push({
+      id: null, nuevo: true, numero_bulto: editBultos.length + 1,
+      peso_real: null, largo: null, ancho: null, alto: null, estado_caja: null, numero_guia: null,
+    });
+    bultosAgregados = true;
+    renderEditBultos();
+    renderEstadoCajaSection();
+    const ultimo = document.querySelector(`#saled-bultos-container [data-bidx="${editBultos.length - 1}"][data-field="peso_real"]`);
+    if (ultimo) ultimo.focus();
+    aviso.textContent = 'Cargá peso y medidas del bulto nuevo, tocá Recalcular y después Guardar.';
   }
 
   // Suma de los pesos de bulto → peso balanza (solo lectura) en multi-bulto.
@@ -2346,6 +2417,12 @@
       const labelHtml = multi
         ? `<span class="saled-estado-label">Bulto ${b.numero_bulto != null ? b.numero_bulto : i + 1}</span>`
         : '';
+      if (b.nuevo) {
+        // Sin fila en la base no hay dónde guardar el estado. Se marca después de Guardar.
+        row.innerHTML = `${labelHtml}<span class="saled-recalc-status">Guardá el envío para poder marcar el estado de este bulto.</span>`;
+        container.appendChild(row);
+        return;
+      }
       const actual = b.estado_caja || 'rojo';   // null/undefined → rojo
       const btns = ['rojo', 'amarillo', 'verde'].map((est) => {
         const info = ESTADO_CAJA_INFO[est];
@@ -3027,6 +3104,12 @@
             peso_real: payload.peso_real, largo: payload.largo, ancho: payload.ancho, alto: payload.alto,
           });
         }
+      }
+      // Con bultos NUEVOS el merge en memoria no alcanza: las filas recién insertadas
+      // tienen id y renglón propio en la grilla, y eso solo lo sabe el servidor.
+      if (bultosAgregados) {
+        bultosAgregados = false;
+        await loadData();
       }
       // Renumerar y reordenar con los datos nuevos. Si la fecha movió el envío a otro mes,
       // saltar la solapa activa a ese mes para que el usuario vea dónde quedó en vez de que
