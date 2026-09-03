@@ -26,6 +26,8 @@
 >
 > ⚠️ **ESTE DOCUMENTO NO ES LA REALIDAD, ES UNA FOTO VIEJA.** El repo: `git status`/`git log` primero. Producción: verificar o preguntar antes de afirmar.
 >
+> ⚠️ **ESTE DOCUMENTO Y LOS OTROS 44 TIENEN COPIA EN EL REPO (`docs/claude/`, desde el 03/09).** Regla: cada vez que se actualiza un documento con `project_write`, se escribe también en `/root/nova/docs/claude/<nombre>.md`, se incluye en el paquete de entrega y se commitea. La copia del proyecto de claude.ai es la de trabajo; la del repo es el resguardo (lo pidió Felipe el 03/09: *"si el día de mañana pasa algo con Claude, ¿dónde va a estar todo esto?"*). Los manuales Word van en `docs/manuales/`. Lo explica `docs/README.md`.
+>
 > ⚠️ **LOS TESTS NUNCA EN EL SERVIDOR** — siempre "en PowerShell", y **dentro de `backend/`** (pasarle el `cd` también).
 >
 > Documentos, en orden: 1. **`claude/PENDIENTES.md`** · 2. este archivo · 3. **`MANUAL-CONTROL-FACTURAS.md`** (01/09, el primero de los manuales + cómo se generan) · 4. **`AUDITORIA-NUMEROS-28-08.md`** y **`AUDITORIA-FACTURAS-JULIO.md`** · 5. **`RESPALDO-SALIDAS-EXCEL.md`** · 6. **`DIAGNOSTICO-26-08.md`** · 7. **`COTIZACIONES-EN-LA-CARGA-DEL-ENVIO.md`** · 8. **`ENVIOS-SIN-PICKUP-Y-RESUMEN.md`**, **`NO-VOLO.md`**, **`CABECERA-DE-LA-COTIZACION.md`** · 9. **`claude/TRAMOS-POR-CLIENTE.md`** · 10. **`TARIFA-DHL-MAS-50.md`** (01/09, la cuenta de arriba de 50 kg — **deja superado a `TARIFARIO-DHL-UNIFICADO.md`**, que comparaba fletes pelados sin el GoGreen) + **`TARIFARIO-FORMATO-NOVA.md`** + **`TARIFARIO-EN-EL-SISTEMA.md`** + `PROPUESTA-TARIFARIO-CLIENTE.md` · 11. **`IDEAS-COTIZACIONES-Y-BOT.md`** · 12. `BACKLOG.md` · 13. `CANALES.md` · 14. `MOTOR-UNICO.md` · 15. `PANEL-DE-SALUD.md` · 16. `TARIFA-POR-KILO.md` + `PANTALLA-TARIFA-POR-KILO.md` + `MATRIZ-DE-TARIFAS.md` · 17. lo del 04/08 · 18. lo del 06-07/08 (`COPIA-DE-SEGURIDAD` — **L2 CERRADO 28/08**, `RECUPERACION`, `CIERRE-DE-MES`) · 19. `CAMBIOS-27-07` / `AUDITORIA` / `AUDITORIA-PRODUCCION` / `CONTROL-DE-FACTURAS` / `RECARGOS-UPS-DHL-VERIFICACION`.
@@ -118,6 +120,9 @@ commitea (baile de locks) → **Felipe** `git push` → **Felipe** PARA EL SERVI
 `cd /root/Nova-Express-Sistem && bash scripts/desplegar.sh`.
 - Git: identidad `-c user.name=fdaniluk -c user.email=fdaniluk01@gmail.com` · sin red ·
   `timeout_ms` máx 45000 y es un NÚMERO · verificar con `git log --oneline -1`.
+- **Los documentos del proyecto que se actualizaron en la sesión van en el paquete, en
+  `docs/claude/`** (desde el 03/09): `project_write` + copia en `/root/nova/docs/claude/`
+  + tarball + commit. Los manuales Word, en `docs/manuales/`.
 - ⚠️ **Al armar el paquete, incluir SIEMPRE `shared/cotizador/cotizador_courier_v8.html`
   si se tocó el cache busting**: vive fuera de `frontend/` y es fácil de olvidar. El
   01/09 quedó con la versión vieja y `test-motor-unico` lo agarró en el verificar.
@@ -223,7 +228,9 @@ App de gestión de **Nova Express** (courier DHL/UPS, Buenos Aires). VPS
 `sistema.novaexpress.com.ar`, repo privado `fdaniluk/Nova-Express-Sistem`. **Node +
 Express + SQLite, frontend vanilla.** 9 usuarios. `backend/src` · `backend/scripts`
 (**59 tandas en el verificar — 62 archivos `test-*.js`**) · `frontend/pages+js/modules`
-· `shared/cotizador` · `database`.
+· `shared/cotizador` · `database` · **`docs/`** (la memoria del proyecto — los 45
+documentos en `docs/claude/` — + los manuales Word en `docs/manuales/`; desde el 03/09,
+`e56ea5c`).
 Colores Nova `#403754`/`#EE6C52`.
 
 ### Negocio (lo que no cambia)
@@ -273,9 +280,10 @@ Colores Nova `#403754`/`#EE6C52`.
   (el surge viaja CON su fuel, leído de `extras_json`), y el flete de la liquidación es
   kg × precio EXACTO.** Los dos callers (liquidación y bloque Venta de Salidas) reparten
   igual; los ítems confirmados no se recalculan.
-- **Impuestos de impo:** `calcImpuestos(fob, flete, arancel, courier)`, calibrado contra 4
-  liquidaciones reales. ⚠️ **POSPUESTO por Felipe (31/08)**: los "aspectos que no te
-  conté" siguen sin validar.
+- **Impuestos de impo:** `calcImpuestos(fob, pf, arancel, courier)`, calibrado contra 4
+  liquidaciones reales. **El CIF se valora con flete AFORADO de 2,50 USD/kg facturable
+  (NO el flete de venta) + 1% de seguro** — regla de Felipe del 02/09 (era el "aspecto
+  que no te conté" del 31/08; las 4 liquidaciones lo confirman), aplicada en `e01dc83`.
 - **Tramos:** por cliente. `TRAMOS_POR_DEFECTO` = 9. `precio_kg = 0` SE COBRA.
 - **NO VOLÓ:** fuera de estadísticas, no liquidable, conserva número y valores.
 - **Facturas UPS:** parser acepta líneas de 2+ importes · percepciones IIBB SON COSTO y
@@ -293,10 +301,16 @@ Colores Nova `#403754`/`#EE6C52`.
 
 ---
 
-## 3. Dónde estamos (02-09-2026)
+## 3. Dónde estamos (03-09-2026)
 
-- **Último commit `3db83cf`** (las 22 tandas que esperaban 12 s al servidor pasan a
-  `esperarServidor`, 60 s), antes **`cc65125`** (liquidación: el flete es kg × precio; el
+- **Último commit `e56ea5c`** (la carpeta `docs/` en el repo: los 45 documentos del
+  proyecto en `docs/claude/`, los manuales Word en `docs/manuales/` y el `docs/README.md`
+  que lo explica), antes **`e01dc83`** (impuestos de impo: el CIF se valora con flete
+  aforado de 2,50 USD/kg facturable, no el de venta — regla de Felipe del 02/09, las 4
+  liquidaciones lo confirman; el seguro CIF queda en 1%). **Según Felipe, los dos
+  pusheados — confirmar con `git status -sb`.**
+- Antes, **`3db83cf`** (las 22 tandas que esperaban 12 s al servidor pasan a
+  `esperarServidor`, 60 s) y **`cc65125`** (liquidación: el flete es kg × precio; el
   fuel del surge va con el surge en Adicional). **Según Felipe, los dos subidos y
   desplegados — confirmar con `git status -sb`** (no pegó la salida).
   - **`cc65125`:** caso de la oficina — liquidaron a cueros (cliente por kilo) y el flete
@@ -379,5 +393,6 @@ desplegar. La imagen de la cotización se dibuja en canvas.
 
 ## 5. Mantenimiento
 
-Al cerrar cada sesión: actualizar este archivo y `PENDIENTES.md` con `project_write`.
-Si se corta: el disco manda; producción se pregunta.
+Al cerrar cada sesión: actualizar este archivo y `PENDIENTES.md` con `project_write`, **y
+volcar los docs tocados a `docs/claude/` en el repo** (`/root/nova/docs/claude/<nombre>.md`,
+paquete y commit). Si se corta: el disco manda; producción se pregunta.
