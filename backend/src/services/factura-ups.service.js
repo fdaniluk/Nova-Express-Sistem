@@ -130,8 +130,22 @@ function repartirProporcional(importe, guias) {
 }
 
 async function extraerFacturaUPS(buffer) {
-  const data = await pdfParse(buffer);
-  const lines = data.text.split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
+  // Copia limpia en un Uint8Array, NO el Buffer de Node. El pdf.js viejo que trae
+  // pdf-parse lee `data.buffer` con el offset equivocado cuando le llega un Buffer que
+  // vive en el pool compartido de Node (los de menos de 4 KB): revienta con un
+  // "bad XRef entry" que no tiene nada que ver con el archivo. Con las facturas de UPS
+  // (30-40 KB) nunca pasó porque quedan fuera del pool; se encontró el 03/09/2026 armando
+  // PDFs chicos para las tandas. La copia cuesta nada y saca la bomba de tiempo.
+  const data = await pdfParse(Uint8Array.from(buffer));
+  return extraerFacturaUPSDesdeTexto(data.text);
+}
+
+// El lector, separado de la lectura del PDF. Recibe el texto tal como lo devuelve pdf-parse
+// (una línea por renglón). Existe para poder probar el lector con texto armado a mano, sin
+// tener que fabricar un PDF: las tandas usan esta función con las líneas de las facturas
+// reales y, si los PDFs están en facturas-ejemplo/, también el camino completo.
+function extraerFacturaUPSDesdeTexto(texto) {
+  const lines = String(texto || '').split('\n').map((l) => l.trim()).filter((l) => l.length > 0);
 
   // Todo lo que el parser no pudo resolver se acumula acá y viaja al que llama.
   // Antes esto no existía: los problemas se degradaban a 0 o se descartaban en
@@ -164,6 +178,21 @@ async function extraerFacturaUPS(buffer) {
       tipo: 'sin_fecha_factura',
       detalle: 'No se pudo leer la fecha de la factura del PDF.',
     });
+  }
+
+  // ─── Facturas de IMPUESTOS DDP (03/09/2026) ─────────────────────────────────
+  //
+  // Cuando un envío sale DDP, UPS le factura a Nova los impuestos de destino en una
+  // factura APARTE, uno o dos meses después de la entrega, con un solo concepto:
+  //   GASTOS DE IMPORTACION EN DESTINO
+  //   146,95     GUIA 1Z327W096797194442
+  // Sin peso, sin país, sin desglose, no gravada y sin percepciones (seis facturas reales
+  // del 24/08/2026, todas del punto de venta 0001, una guía por factura). Se reconoce por
+  // el concepto y se devuelve con LA MISMA forma que una factura de flete —una guía con
+  // su costo_total y un único cargo— para que el resto del circuito (chequear, cargar,
+  // reconciliar contra el total del pie) sea el mismo. `tipo` dice cuál es cuál.
+  if (lines.some((l) => /GASTOS DE IMPORTACION EN DESTINO/i.test(l))) {
+    return extraerImpuestosDestino(lines, { numero_factura, fecha_factura, advertencias });
   }
 
   // Máquina de estados: tracking → línea de 4 columnas → neto → cargos.
@@ -390,6 +419,7 @@ async function extraerFacturaUPS(buffer) {
   }
 
   return {
+    tipo: 'flete',
     numero_factura,
     fecha_factura,
     guias: resultado,
@@ -406,4 +436,80 @@ async function extraerFacturaUPS(buffer) {
   };
 }
 
-module.exports = { extraerFacturaUPS, parseImporte };
+const CONCEPTO_IMPUESTOS = 'Gastos de importación en destino';
+
+function extraerImpuestosDestino(lines, { numero_factura, fecha_factura, advertencias }) {
+  const guias = [];
+  for (const line of lines) {
+    // "146,95     GUIA 1Z327W096797194442" — pdf-parse pone el importe adelante. Por si
+    // alguna vez viene al revés, se buscan la guía y el importe por separado en la línea.
+    const g = line.match(/GUIA\s+(1Z\w{16})/i);
+    if (!g) continue;
+    const resto = line.replace(g[0], ' ');
+    const imp = resto.match(/(-?[\d.]*\d,\d{2})/);
+    const monto = imp ? parseImporte(imp[1]) : null;
+    if (monto == null) {
+      advertencias.push({
+        tipo: 'guia_sin_importe',
+        detalle: `La guía ${g[1]} aparece en la factura de impuestos pero no se pudo leer su importe.`,
+      });
+    }
+    guias.push({
+      tracking: g[1],
+      numero_guia: g[1],
+      peso: null,
+      pais: null,
+      neto: null,
+      total_recargos: 0,
+      percepcion: null,
+      costo_total: monto,
+      cargos: monto != null ? [{ nombre: CONCEPTO_IMPUESTOS, monto }] : [],
+    });
+  }
+
+  const total_declarado = leerTotalDeclarado(lines);
+  const conCosto = guias.filter((g) => g.costo_total != null);
+  const suma_guias = r2(conCosto.reduce((s, g) => s + g.costo_total, 0));
+  let diferencia = null;
+  let cuadra = null;
+  if (total_declarado != null) {
+    diferencia = r2(total_declarado - suma_guias);
+    cuadra = Math.abs(diferencia) < 0.05;
+    if (!cuadra) {
+      advertencias.push({
+        tipo: 'total_no_cuadra',
+        detalle: `La suma de las guías (USD ${suma_guias.toFixed(2)}) no coincide con el total de la `
+          + `factura de impuestos (USD ${total_declarado.toFixed(2)}). Diferencia: USD ${diferencia.toFixed(2)}. Revisá la factura.`,
+      });
+    }
+  } else {
+    advertencias.push({
+      tipo: 'sin_total_declarado',
+      detalle: 'No se pudo leer el total de la factura del PDF, así que no se pudo verificar que la suma de las guías cuadre.',
+    });
+  }
+  if (guias.length === 0) {
+    advertencias.push({
+      tipo: 'sin_guias',
+      detalle: 'La factura dice "Gastos de importación en destino" pero no se encontró ninguna guía.',
+    });
+  }
+
+  return {
+    tipo: 'impuestos',
+    numero_factura,
+    fecha_factura,
+    guias,
+    total_declarado,
+    subtotal_factura: suma_guias,
+    suma_guias,
+    diferencia,
+    cuadra,
+    percepciones: null,
+    percepciones_repartidas: false,
+    suma_guias_final: suma_guias,
+    advertencias,
+  };
+}
+
+module.exports = { extraerFacturaUPS, extraerFacturaUPSDesdeTexto, parseImporte, CONCEPTO_IMPUESTOS };

@@ -30,6 +30,8 @@ router.post('/chequear', upload.single('pdf'), async (req, res, next) => {
 
     const extraido = await extraerFacturaUPS(req.file.buffer);
     const { guias, advertencias, total_declarado, suma_guias, diferencia, cuadra } = extraido;
+    const tipo = extraido.tipo || 'flete';
+    const esImpuestos = tipo === 'impuestos';
 
     // La reconciliación y las advertencias viajan SIEMPRE, también cuando no hay guías.
     // El punto de /chequear es que el operador vea los problemas ANTES de cargar.
@@ -37,6 +39,7 @@ router.post('/chequear', upload.single('pdf'), async (req, res, next) => {
 
     if (guias.length === 0) {
       return res.json({
+        tipo,
         guias_total: 0,
         guias_ya_cargadas: [],
         conteo_ya_cargadas: 0,
@@ -47,6 +50,37 @@ router.post('/chequear', upload.single('pdf'), async (req, res, next) => {
 
     const db = getDb();
     const guias_ya_cargadas = [];
+    // Solo impuestos: guías cuyo envío NO está marcado DDP. Es o un envío mal cargado o
+    // un cobro indebido del courier; en los dos casos hay que verlo antes de cargar.
+    const guias_no_ddp = [];
+
+    if (esImpuestos) {
+      for (const guia of guias) {
+        const envio = await db
+          .prepare('SELECT id, ddp, impuestos_facturados, impuestos_fecha FROM envios WHERE numero_guia = ?')
+          .get(normalizarGuia(guia.numero_guia));
+        if (!envio) continue;
+        if (!envio.ddp) guias_no_ddp.push({ numero_guia: guia.numero_guia, envio_id: envio.id, importe: guia.costo_total });
+        if (envio.impuestos_facturados != null) {
+          guias_ya_cargadas.push({
+            numero_guia: guia.numero_guia,
+            costo_facturado_anterior: envio.impuestos_facturados,
+            fecha_facturado_anterior: envio.impuestos_fecha,
+            costo_nuevo: guia.costo_total,
+          });
+        }
+      }
+      return res.json({
+        tipo,
+        guias_total: guias.length,
+        conteo_ya_cargadas: guias_ya_cargadas.length,
+        guias_ya_cargadas,
+        guias_no_ddp,
+        guias_sin_costo: guias.filter((g) => g.costo_total == null).map((g) => g.numero_guia),
+        reconciliacion,
+        advertencias,
+      });
+    }
 
     for (const guia of guias) {
       // UPPER(numero_guia) en el WHERE anulaba el índice único idx_envios_numero_guia:
@@ -69,6 +103,7 @@ router.post('/chequear', upload.single('pdf'), async (req, res, next) => {
     }
 
     res.json({
+      tipo,
       guias_total: guias.length,
       conteo_ya_cargadas: guias_ya_cargadas.length,
       guias_ya_cargadas,
@@ -97,6 +132,8 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
       advertencias, total_declarado, suma_guias, diferencia, cuadra,
       subtotal_factura, percepciones,
     } = extraido;
+    const tipo = extraido.tipo || 'flete';
+    const esImpuestos = tipo === 'impuestos';
 
     const db = getDb();
 
@@ -150,7 +187,13 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
       no_encontradas_lista: [],
       sin_costo_lista: [],
       errores_lista: [],
+      // Solo impuestos: envíos que recibieron factura de impuestos sin estar marcados DDP.
+      no_ddp: 0,
+      no_ddp_lista: [],
     };
+    // Solo impuestos: ids de envíos a los que hay que pegarles el id de la factura, que
+    // recién existe después de insertar la cabecera (más abajo).
+    const enviosConImpuestos = [];
 
     // Detalle por guía a persistir en factura_guias (encabezado primero para el id).
     // Se registra TODA guía de la factura, matchee o no un envío, para tener el
@@ -190,7 +233,7 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
         try {
           // Igual que en /chequear: igualdad directa para que entre por el índice único.
           const envio = await db
-            .prepare('SELECT id, total_cobrado, costo_facturado FROM envios WHERE numero_guia = ?')
+            .prepare('SELECT id, total_cobrado, costo_facturado, ddp, impuestos_facturados FROM envios WHERE numero_guia = ?')
             .get(normalizarGuia(guia.numero_guia));
 
           detalle.push({ guia, envio_id: envio ? envio.id : null, encontrada: envio ? 1 : 0 });
@@ -202,6 +245,34 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
               pais: guia.pais,
               costo_total: guia.costo_total,
             });
+            await db.exec('RELEASE SAVEPOINT factura_row');
+            continue;
+          }
+
+          // ── Factura de IMPUESTOS DDP: otra columna, otra regla ──────────────────
+          // No toca costo_facturado ni la revisión del flete: los impuestos de destino
+          // son plata aparte, que se liquida al cliente en su propio documento.
+          if (esImpuestos) {
+            if (envio.impuestos_facturados != null && !sobreescribir) {
+              resumen.omitidas_duplicado++;
+              await db.exec('RELEASE SAVEPOINT factura_row');
+              continue;
+            }
+            if (!envio.ddp) {
+              // Se guarda igual —UPS lo cobró, es un hecho— pero a la vista: o el envío
+              // se cargó sin la tilde DDP, o el courier cobró algo que no correspondía.
+              resumen.no_ddp++;
+              resumen.no_ddp_lista.push({ numero_guia: guia.numero_guia, envio_id: envio.id, importe: guia.costo_total });
+            }
+            await db.prepare(`
+              UPDATE envios
+              SET impuestos_facturados = ?,
+                  impuestos_fecha      = ?,
+                  updated_at           = datetime('now', 'localtime')
+              WHERE id = ?
+            `).run(guia.costo_total, fecha_factura || hoy, envio.id);
+            enviosConImpuestos.push(envio.id);
+            resumen.guardadas++;
             await db.exec('RELEASE SAVEPOINT factura_row');
             continue;
           }
@@ -262,14 +333,19 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
       const header = await db.prepare(`
         INSERT INTO facturas_cargadas
           (courier, numero_factura, fecha_factura, cantidad_guias, guias_cruzadas, guias_no_encontradas, usuario,
-           total_declarado, subtotal_factura, percepciones)
-        VALUES ('UPS', ?, ?, ?, ?, ?, NULL, ?, ?, ?)
+           total_declarado, subtotal_factura, percepciones, tipo)
+        VALUES ('UPS', ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)
       `).run(
         numero_factura, fecha_factura, guias.length, resumen.guardadas, resumen.no_encontradas,
-        total_declarado ?? null, subtotal_factura ?? null, percepciones ?? null
+        total_declarado ?? null, subtotal_factura ?? null, percepciones ?? null, tipo
       );
 
       const facturaId = header.lastInsertRowid;
+
+      // Impuestos: recién ahora existe la cabecera para colgarle el id al envío.
+      for (const envioId of enviosConImpuestos) {
+        await db.prepare('UPDATE envios SET impuestos_factura_id = ? WHERE id = ?').run(facturaId, envioId);
+      }
 
       // Detalle por guía (peso, neto, recargos desglosados y costo) para los cruces
       // de peso y de recargos facturados vs cobrados.
@@ -310,8 +386,18 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
         + 'Hay guías sin clasificar: revisar.';
     }
 
+    if (esImpuestos && resumen.no_ddp > 0) {
+      advertencias.push({
+        tipo: 'envio_no_ddp',
+        detalle: `${resumen.no_ddp} ${resumen.no_ddp === 1 ? 'envío recibió' : 'envíos recibieron'} factura de impuestos `
+          + 'sin estar marcado como DDP: o se cargó sin la tilde, o UPS cobró algo que no correspondía. '
+          + 'Revisalo en Salidas (queda marcado en rojo).',
+      });
+    }
+
     res.json({
       ...resumen,
+      tipo,
       // La pantalla de carga en lote muestra qué factura era cada PDF.
       numero_factura,
       reconciliacion: { total_declarado, suma_guias, diferencia, cuadra },
@@ -396,7 +482,7 @@ router.get('/sin-envio', async (req, res, next) => {
     const rows = await db.prepare(`
       SELECT
         fg.id, fg.numero_guia, fg.pais, fg.peso_facturado, fg.costo_total, fg.percepcion,
-        f.numero_factura, f.fecha_factura, f.fecha_carga, f.courier
+        f.numero_factura, f.fecha_factura, f.fecha_carga, f.courier, f.tipo
       FROM factura_guias fg
       JOIN facturas_cargadas f ON f.id = fg.factura_id
       WHERE fg.encontrada = 0
@@ -414,6 +500,10 @@ router.get('/sin-envio', async (req, res, next) => {
       fecha_factura: r.fecha_factura,
       fecha_carga: r.fecha_carga,
       courier: r.courier,
+      // 'flete' o 'impuestos': una guía de impuestos DDP sin envío es otra cosa que una
+      // de flete sin envío (la primera es un DDP que nadie cargó; la segunda, un envío
+      // que no está en el sistema).
+      tipo: r.tipo || 'flete',
     }));
 
     // NO se sugiere "¿quisiste decir X?". Se probó y se sacó a pedido de Felipe (29/07):

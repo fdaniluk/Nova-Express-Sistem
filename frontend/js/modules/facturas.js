@@ -134,8 +134,9 @@
       if (check.conteo_ya_cargadas > 0) {
         // Mostrar panel de confirmación
         const n = check.conteo_ya_cargadas;
+        const que = check.tipo === 'impuestos' ? 'impuestos DDP cargados' : 'costo cargado';
         document.getElementById('fac-confirm-msg').innerHTML =
-          `<strong>⚠ ${n} ${n === 1 ? 'guía' : 'guías'} de esta factura ya ${n === 1 ? 'tenía' : 'tenían'} costo cargado.</strong><br>
+          `<strong>⚠ ${n} ${n === 1 ? 'guía' : 'guías'} de esta factura ya ${n === 1 ? 'tenía' : 'tenían'} ${que}.</strong><br>
           ¿Querés sobreescribir los valores anteriores con los de esta factura?`;
         show('fac-confirm');
       } else {
@@ -299,7 +300,7 @@
       return `
         <tr>
           <td class="mono">${esc(f.archivo)}</td>
-          <td class="mono">${esc(r.numero_factura || '—')}</td>
+          <td class="mono">${esc(r.numero_factura || '—')}${r.tipo === 'impuestos' ? ' <span class="fac-chip-imp">impuestos DDP</span>' : ''}</td>
           <td>${num(r.total_guias)}</td>
           <td>${num(r.guardadas)}</td>
           <td>${num(r.no_encontradas)}</td>
@@ -309,9 +310,22 @@
     show('fac-lote');
   }
 
+  // Factura de IMPUESTOS DDP (03/09/2026): UPS factura aparte los impuestos de destino de
+  // los envíos DDP, 1-2 meses después. El sistema la reconoce por el contenido y la cruza
+  // por guía contra el envío, en columnas separadas del costo del flete. Acá se dice con
+  // todas las letras qué tipo de factura entró, porque el resumen se lee igual y no es lo
+  // mismo: una pisa costo_facturado, la otra no toca la revisión del flete.
+  function bannerTipo(res) {
+    if (res.tipo !== 'impuestos') return '';
+    return `<div class="fac-tipo-banner">
+      <strong>Factura de IMPUESTOS DDP</strong> — gastos de importación en destino.
+      Se cruzó con ${res.guardadas === 1 ? 'su envío' : 'sus envíos'} por guía. No toca el costo del flete ni la revisión.
+    </div>`;
+  }
+
   function mostrarResumen(res) {
     const nums = document.getElementById('fac-resumen-nums');
-    nums.innerHTML = `
+    nums.innerHTML = bannerTipo(res) + `
       <div class="fac-resumen-item">
         <div class="fac-resumen-val">${res.total_guias}</div>
         <div class="fac-resumen-lbl">Total guías</div>
@@ -334,6 +348,7 @@
       </div>
       ${contadorExtra(res.sin_costo, 'Sin costo')}
       ${contadorExtra(res.errores, 'Con error')}
+      ${contadorExtra(res.no_ddp, 'Sin tilde DDP')}
     `;
     show('fac-resumen');
 
@@ -448,7 +463,7 @@
 
       tbody.innerHTML = guias.map((g) => `<tr>
         <td class="mono">${esc(g.numero_guia)}</td>
-        <td>${esc(g.factura || '')}<div class="em" style="font-size:11px">${esc(g.fecha_factura || '')}</div></td>
+        <td>${esc(g.factura || '')}${g.tipo === 'impuestos' ? ' <span class="fac-chip-imp">impuestos DDP</span>' : ''}<div class="em" style="font-size:11px">${esc(g.fecha_factura || '')}</div></td>
         <td>${esc(g.pais || '')}</td>
         <td class="num">${g.peso_facturado != null ? Number(g.peso_facturado).toFixed(1) + ' kg' : '<span class="em">—</span>'}</td>
         <td class="num">${fmtUSD(g.costo_total)}</td>

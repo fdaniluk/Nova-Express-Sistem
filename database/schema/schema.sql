@@ -224,6 +224,12 @@ CREATE TABLE IF NOT EXISTS envios (
   -- mas barata. Se congela con el costo porque decide contra que cuenta se emite la guia.
   -- En 0 todo lo cargado antes: hasta hoy se cotizaba todo por la cuenta de siempre.
   tarifa_50           INTEGER NOT NULL DEFAULT 0,
+  -- Impuestos DDP (03/09/2026): los impuestos de destino que UPS le factura a Nova aparte,
+  -- 1-2 meses despues de la entrega, cruzados por guia. Separados del costo del flete
+  -- (costo_facturado) porque se liquidan al cliente en un documento propio.
+  impuestos_facturados REAL,
+  impuestos_factura_id INTEGER,
+  impuestos_fecha      TEXT,
   FOREIGN KEY (cliente_id) REFERENCES clientes(id),
   FOREIGN KEY (liquidacion_id) REFERENCES liquidaciones(id)
 );
@@ -357,7 +363,9 @@ CREATE TABLE IF NOT EXISTS facturas_cargadas (
   -- cargo de cabecera) queda sin rastro una vez cargada la factura.
   total_declarado       REAL,
   subtotal_factura      REAL,
-  percepciones          REAL
+  percepciones          REAL,
+  -- 'flete' (costo del envio) o 'impuestos' (DDP: impuestos de destino, 03/09/2026).
+  tipo                  TEXT NOT NULL DEFAULT 'flete'
 );
 
 -- Detalle por guía de cada factura cargada (módulo Control de Facturas).

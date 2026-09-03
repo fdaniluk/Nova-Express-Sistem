@@ -346,3 +346,15 @@
 }
 .fac-advert-list li { margin-bottom: 0.3rem; }
 .fac-advert-list li:last-child { margin-bottom: 0; }
+
+/* Facturas de IMPUESTOS DDP (03/09/2026): el resumen lleva un banner que dice qué tipo
+   de factura entró, y la tabla del lote un chip. La misma pantalla carga las dos. */
+.fac-tipo-banner {
+  grid-column: 1 / -1; width: 100%;
+  background: #eef2ff; border: 1px solid #c7d2fe; border-left: 4px solid #4f46e5;
+  color: #312e81; font-size: 13px; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px;
+}
+.fac-chip-imp {
+  display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px;
+  background: #eef2ff; color: #4338ca; font-size: 10px; font-weight: 700; vertical-align: middle;
+}

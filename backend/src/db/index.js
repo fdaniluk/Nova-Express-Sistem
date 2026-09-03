@@ -306,6 +306,16 @@ async function migrateEnvios() {
     // DHL. Se congela con el costo. En 0 todo lo ya cargado, que es la verdad: hasta hoy
     // el sistema cotizaba todo por la cuenta de siempre.
     ['tarifa_50',         'INTEGER NOT NULL DEFAULT 0'],
+    // Impuestos DDP (03/09/2026): cuando un envío sale DDP, UPS le factura a Nova los
+    // impuestos de destino en una factura aparte, 1-2 meses después. Se cruzan por guía
+    // y quedan acá, SEPARADOS del costo del flete (costo_facturado), porque se liquidan
+    // al cliente en un documento propio.
+    //   impuestos_facturados  USD que UPS facturó por impuestos de destino
+    //   impuestos_factura_id  la factura (facturas_cargadas) de donde salió
+    //   impuestos_fecha       fecha de esa factura
+    ['impuestos_facturados', 'REAL'],
+    ['impuestos_factura_id', 'INTEGER'],
+    ['impuestos_fecha',      'TEXT'],
   ];
   for (const [col, def] of toAdd) {
     if (!cols.includes(col)) {
@@ -493,6 +503,10 @@ async function migrateFacturaGuias() {
     ['total_declarado', 'REAL'],
     ['subtotal_factura', 'REAL'],
     ['percepciones', 'REAL'],
+    // 'flete' (la de siempre, con el costo del envío) o 'impuestos' (DDP: los impuestos
+    // de destino que UPS le factura a Nova aparte, 03/09/2026). Todo lo cargado antes
+    // era de flete.
+    ['tipo', "TEXT NOT NULL DEFAULT 'flete'"],
   ]) {
     if (!colsF.includes(col)) {
       await dbApi.exec(`ALTER TABLE facturas_cargadas ADD COLUMN ${col} ${def}`);

@@ -575,7 +575,7 @@
     tr.innerHTML = `
       <td class="chk-cell">${chkCell}</td>
       <td data-col="numero_salida" class="numsal-cell" title="Marcar fila">${fmtNum(e.num_sal_mes)}</td>
-      <td data-col="courier">${env(courierBadge(e.courier) + tarifa50Chip(e))}</td>
+      <td data-col="courier">${env(courierBadge(e.courier) + tarifa50Chip(e) + ddpChip(e))}</td>
       <td data-col="fecha">${env(NovaUtils.formatDate(e.fecha))}</td>
       <td class="mono${guiaMalaAttrs(e.courier, bultoGuia)}" data-col="numero_guia"><span class="bulto-guia-text">${esc(bultoGuia)}</span>${bultoGuiaEdit}${guiaIcons}</td>
       <td data-col="tipo_cobro">${env(cobroBadge(e.tipo_cobro))}</td>
@@ -1810,6 +1810,25 @@
     return ' <span class="chip-tarifa50" title="Tarifa DHL +50 kg — la guía se emite por la OTRA cuenta de DHL">+50</span>';
   }
 
+  // DDP e impuestos de destino (03/09/2026). Cuando el envío sale DDP, UPS le factura a
+  // Nova los impuestos de destino en una factura aparte, 1-2 meses después de la entrega,
+  // y Nova se los liquida al cliente en un documento propio. El chip cuenta esa historia:
+  //   gris   DDP sin factura de impuestos todavía
+  //   azul   impuestos facturados (con el monto y la fecha de la factura)
+  //   rojo   llegó factura de impuestos para un envío que NO está marcado DDP
+  function ddpChip(e) {
+    const imp = e.impuestos_facturados;
+    const fecha = e.impuestos_fecha ? NovaUtils.formatDate(e.impuestos_fecha) : '';
+    if (imp != null && !e.ddp) {
+      return ` <span class="chip-ddp chip-ddp-alerta" title="UPS facturó USD ${Number(imp).toFixed(2)} de impuestos de destino${fecha ? ' el ' + fecha : ''}, pero el envío NO está marcado como DDP. O se cargó sin la tilde, o UPS cobró algo que no correspondía.">¡Imp. sin DDP!</span>`;
+    }
+    if (!e.ddp) return '';
+    if (imp == null) {
+      return ` <span class="chip-ddp chip-ddp-espera" title="Envío DDP: los impuestos de destino los paga Nova y se le liquidan al cliente aparte. La factura de impuestos de UPS todavía no llegó (suele tardar 1 a 2 meses).">DDP</span>`;
+    }
+    return ` <span class="chip-ddp chip-ddp-facturado" title="Envío DDP. UPS facturó USD ${Number(imp).toFixed(2)} de impuestos de destino${fecha ? ' el ' + fecha : ''}. Pendiente de liquidar al cliente.">DDP ${fmtUSD(imp)}</span>`;
+  }
+
   function cobroBadge(c) {
     if (!c) return '<span class="em">—</span>';
     const map = { D: 'badge-cobro-d', S: 'badge-cobro-s', Q: 'badge-cobro-q', CC: 'badge-cobro-cc' };
@@ -1950,6 +1969,10 @@
                   <input type="checkbox" id="saled-ddp" style="width:auto;margin:0">
                   DDP
                 </label>
+                <!-- Impuestos de destino facturados por UPS (solo lectura): llegan en una
+                     factura aparte, 1-2 meses después, y se liquidan al cliente en su
+                     propio documento. Se llena en abrirModal. -->
+                <span id="saled-impuestos-ddp" class="saled-recalc-status" style="margin-left:4px"></span>
                 <!-- Proteccion de Documentos de DHL: USD 7,50 por envio, a pedido. Se
                      esconde en UPS porque es un servicio que solo existe en DHL. -->
                 <label id="saled-prot-doc-label" style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px" title="Protección de documentos de DHL — USD 7,50 por envío">
@@ -2141,6 +2164,19 @@
     document.getElementById('saled-asegurado').checked = Boolean(envio.asegurado);
     document.getElementById('saled-entrega').value = envio.entrega || (envio.remota ? 'extendida' : 'normal');
     document.getElementById('saled-ddp').checked = Boolean(envio.ddp);
+    {
+      const impEl = document.getElementById('saled-impuestos-ddp');
+      const imp = envio.impuestos_facturados;
+      if (imp != null) {
+        const f = envio.impuestos_fecha ? ` (factura del ${NovaUtils.formatDate(envio.impuestos_fecha)})` : '';
+        impEl.textContent = `Impuestos de destino facturados por UPS: USD ${Number(imp).toFixed(2)}${f}`;
+        impEl.style.color = envio.ddp ? '' : '#b91c1c';
+        if (!envio.ddp) impEl.textContent += ' — ¡el envío no está marcado DDP!';
+      } else {
+        impEl.textContent = envio.ddp ? 'Impuestos de destino: la factura de UPS todavía no llegó.' : '';
+        impEl.style.color = '';
+      }
+    }
     document.getElementById('saled-proteccion-doc').checked = Boolean(envio.proteccion_doc);
 
     // Identidad editable: fecha, cliente, courier, país destino y "sin numerar".

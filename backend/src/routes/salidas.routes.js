@@ -101,6 +101,9 @@ async function listarSalidas({ desde, hasta } = {}) {
       e.tracking_detalle,
       e.tracking_fecha,
       e.tarifa_50,
+      e.impuestos_facturados,
+      e.impuestos_factura_id,
+      e.impuestos_fecha,
       e.liquidado,
       e.fecha_liquidacion,
       e.liquidacion_id,
@@ -297,6 +300,11 @@ async function listarSalidas({ desde, hasta } = {}) {
     // Tarifa DHL +50 kg: este envío se despacha por la OTRA cuenta de DHL. La grilla lo
     // marca para que la oficina sepa contra qué cuenta emitir la guía.
     tarifa_50: row.tarifa_50 ? 1 : 0,
+    // Impuestos DDP facturados por UPS (aparte del costo del flete). NULL = todavía no
+    // llegó la factura de impuestos; llega 1-2 meses después de la entrega.
+    impuestos_facturados: row.impuestos_facturados ?? null,
+    impuestos_factura_id: row.impuestos_factura_id ?? null,
+    impuestos_fecha: row.impuestos_fecha ?? null,
     tipo_cobro: row.tipo_cobro,
     cliente_id: row.cliente_id,
     cliente_nombre: row.cliente_nombre,

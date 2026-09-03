@@ -687,3 +687,15 @@ tr:hover td {
   color: #78350f; font-size: 10px; font-weight: 700; line-height: 1;
   padding: 2px 5px; border-radius: 4px; white-space: nowrap; cursor: help;
 }
+
+/* ── DDP e impuestos de destino (03/09/2026) ──────────────────────────────────
+   Chip al lado del courier en Salidas. Gris: DDP a la espera de la factura de
+   impuestos de UPS. Azul: impuestos facturados (con el monto). Rojo: llegó
+   factura de impuestos para un envío que NO está marcado DDP. */
+.chip-ddp {
+  display: inline-block; font-size: 10px; font-weight: 700; line-height: 1;
+  padding: 2px 5px; border-radius: 4px; white-space: nowrap; cursor: help; border: 1px solid transparent;
+}
+.chip-ddp-espera    { background: #f3f4f6; border-color: #d1d5db; color: #6b7280; }
+.chip-ddp-facturado { background: #eef2ff; border-color: #a5b4fc; color: #3730a3; }
+.chip-ddp-alerta    { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
