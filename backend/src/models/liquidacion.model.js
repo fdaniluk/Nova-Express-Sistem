@@ -73,6 +73,9 @@ async function calcularItem(envio, adicional = 0) {
     derechos: envio.derechos,
     otros: envio.otros,
     fuel_pct: fuelPct,
+    // El desglose por tipo del alta: con él, el fuel del surge va a Adicional y el flete
+    // queda en kg × precio (ver utils/desgloseVenta.js). Sin él, reparto histórico.
+    extras: envio.extras_json,
   });
   const totalCobrado = venta.total;   // = redondear2(envio.total_cobrado || 0)
   const seguro = venta.seguro;

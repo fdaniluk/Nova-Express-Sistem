@@ -274,6 +274,9 @@ async function listarSalidas({ desde, hasta } = {}) {
       derechos: row.derechos,
       otros: row.otros,
       fuel_pct: resolverFuelPct(row),
+      // Mismo dato que le pasa la liquidación: así el bloque Venta de Salidas y el Excel
+      // del cliente reparten igual (el fuel del surge en Adicional, el flete en kg × precio).
+      extras: row.extras_json,
     });
   };
 

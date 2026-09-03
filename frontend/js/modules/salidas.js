@@ -721,7 +721,7 @@
           <span class="venta-item"><span class="venta-label">Flete</span> <b>${fmtUSD(vd.flete)}</b></span>
           <span class="venta-item"><span class="venta-label">Fuel</span> <b>${fmtUSD(vd.fuel)}</b></span>
           <span class="venta-item"><span class="venta-label">Seguro</span> <b>${fmtUSD(vd.seguro)}</b></span>
-          <span class="venta-item"><span class="venta-label">Adicionales</span> <b>${fmtUSD(vd.adicional)}</b></span>
+          <span class="venta-item"${(e.extras || []).some((x) => x.tipo === 'surge') ? ' title="Incluye el combustible sobre el surge: UPS lo factura con fuel y al cliente se le cobra igual. Por eso puede no coincidir con la suma de extracargos de compra."' : ''}><span class="venta-label">Adicionales</span> <b>${fmtUSD(vd.adicional)}</b></span>
           <span class="venta-item venta-item-total"><span class="venta-label">Total</span> <b>${fmtUSD(vd.total)}</b></span>
         </div>
       </div>` : '';
