@@ -31,7 +31,7 @@
 
 const path = require('path');
 const { spawn } = require('child_process');
-const { prepararDb, abrirSesion } = require('./_base-test');
+const { prepararDb, abrirSesion, esperarServidor } = require('./_base-test');
 
 const PORT = process.env.PORT_TEST || 3945, BASE = `http://localhost:${PORT}`, DB = process.env.DB_PATH_TEST || '/tmp/test_cruce_50.db', TOKEN = 'token-test-cruce50';
 let ok = 0, fail = 0;
@@ -54,9 +54,15 @@ async function main() {
     env: { ...process.env, DB_PATH: DB, PORT: String(PORT), NODE_ENV: 'production' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  srv.stdout.on('data', () => {}); srv.stderr.on('data', d => process.stderr.write('[s]' + d));
+  let logOut = '', logErr = '';
+  srv.stdout.on('data', (d) => { logOut += d; });
+  srv.stderr.on('data', (d) => { logErr += d; process.stderr.write('[server] ' + d); });
   process.on('exit', () => { try { srv.kill(); } catch {} });
-  for (let i = 0; i < 40; i++) { try { const r = await fetch(BASE + '/api/health'); if (r.ok) break; } catch {} await esperar(300); }
+  // Espera la línea de "listo" que imprime NUESTRO servidor (no un /api/health que puede
+  // contestar otro node vivo en el puerto), hasta 60 s: en Windows el primer arranque de
+  // node del día tarda y con 12 s el test reventaba con un ECONNREFUSED que parecía del
+  // cortafuegos. Ver scripts/_base-test.js.
+  await esperarServidor(srv, BASE, () => logErr, () => logOut);
   await abrirSesion(DB, TOKEN);
   const H = { 'Content-Type': 'application/json', Cookie: `nova_session=${TOKEN}` };
   const hoy = new Date().toISOString().slice(0, 10);

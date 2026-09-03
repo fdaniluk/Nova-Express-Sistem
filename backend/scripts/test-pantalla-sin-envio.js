@@ -22,7 +22,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 // Arranque común: base de test fresca (copia de producción) y sesión válida.
 // Ver scripts/_base-test.js para por qué hace falta.
-const { prepararDb, abrirSesion } = require('./_base-test');
+const { prepararDb, abrirSesion, esperarServidor } = require('./_base-test');
 
 const PORT = process.env.PORT_TEST || 3990;
 const BASE = `http://localhost:${PORT}`;
@@ -45,8 +45,9 @@ async function main() {
     env: { ...process.env, DB_PATH: DB, PORT: String(PORT), NODE_ENV: 'production' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  srv.stdout.on('data', () => {});
-  srv.stderr.on('data', (d) => process.stderr.write('[server] ' + d));
+  let logOut = '', logErr = '';
+  srv.stdout.on('data', (d) => { logOut += d; });
+  srv.stderr.on('data', (d) => { logErr += d; process.stderr.write('[server] ' + d); });
   // Si el test se corta por un error, el servidor tiene que morir igual: si queda vivo se
   // queda con el puerto y la corrida siguiente le habla al servidor VIEJO, con la base
   // vieja, y falla con 401 sin motivo aparente.
@@ -72,10 +73,11 @@ async function main() {
     setTimeout(res, 2000);
   });
 
-  for (let i = 0; i < 40; i++) {
-    try { const r = await fetch(BASE + '/api/health'); if (r.ok) break; } catch {}
-    await esperar(300);
-  }
+  // Espera la línea de "listo" que imprime NUESTRO servidor (no un /api/health que puede
+  // contestar otro node vivo en el puerto), hasta 60 s: en Windows el primer arranque de
+  // node del día tarda y con 12 s el test reventaba con un ECONNREFUSED que parecía del
+  // cortafuegos. Ver scripts/_base-test.js.
+  await esperarServidor(srv, BASE, () => logErr, () => logOut);
 
   const sqlite3 = require('sqlite3');
   const db = new sqlite3.Database(DB);

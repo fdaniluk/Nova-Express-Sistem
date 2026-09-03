@@ -21,7 +21,7 @@
 
 const path = require('path');
 const { spawn } = require('child_process');
-const { prepararDb, abrirSesion } = require('./_base-test');
+const { prepararDb, abrirSesion, esperarServidor } = require('./_base-test');
 const { descomponerVenta, surgeDe } = require('../src/utils/desgloseVenta');
 const core = require('../../shared/cotizador/cotizador-core');
 
@@ -73,8 +73,9 @@ async function main() {
     env: { ...process.env, DB_PATH: DB, PORT: String(PORT), NODE_ENV: 'production' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  srv.stdout.on('data', () => {});
-  srv.stderr.on('data', (d) => process.stderr.write('[server] ' + d));
+  let logOut = '', logErr = '';
+  srv.stdout.on('data', (d) => { logOut += d; });
+  srv.stderr.on('data', (d) => { logErr += d; process.stderr.write('[server] ' + d); });
   let muerto = false;
   const matar = () => { if (muerto) return; muerto = true; try { srv.kill(); } catch {} };
   process.on('exit', matar);
@@ -82,18 +83,11 @@ async function main() {
   // (el antivirus escanea node_modules la primera vez que se carga), y con 12 s el test
   // reventaba con un ECONNREFUSED que parecía del cortafuegos. Si igual no llega, se dice
   // en una línea, no con un stack de fetch.
-  let arranco = false;
-  for (let i = 0; i < 200; i++) {
-    try { const r = await fetch(BASE + '/api/health'); if (r.ok) { arranco = true; break; } } catch {}
-    await esperar(300);
-  }
-  if (!arranco) {
-    console.log(`\n  ✗ el servidor de prueba no llegó a escuchar en el puerto ${PORT} en 60 segundos.`);
-    console.log('    Levantalo una vez a mano y volvé a correr la tanda:');
-    console.log(`    $env:DB_PATH="C:\\dev\\_prueba.db"; $env:PORT="${PORT}"; node src/server.js`);
-    matar();
-    process.exit(1);
-  }
+  // Espera la línea de "listo" que imprime NUESTRO servidor (no un /api/health que puede
+  // contestar otro node vivo en el puerto), hasta 60 s: en Windows el primer arranque de
+  // node del día tarda y con 12 s el test reventaba con un ECONNREFUSED que parecía del
+  // cortafuegos. Ver scripts/_base-test.js.
+  await esperarServidor(srv, BASE, () => logErr, () => logOut);
   await abrirSesion(DB, TOKEN);
   const H = { 'Content-Type': 'application/json', Cookie: `nova_session=${TOKEN}` };
   const hoy = new Date().toISOString().slice(0, 10);

@@ -22,7 +22,7 @@ catch {
 const fs = require('fs');
 const path = require('path');
 const { spawn } = require('child_process');
-const { prepararDb, abrirSesion } = require('./_base-test');
+const { prepararDb, abrirSesion, esperarServidor } = require('./_base-test');
 
 const PORT = process.env.PORT_TEST || 3971;
 const BASE = `http://localhost:${PORT}`;
@@ -42,8 +42,9 @@ async function main() {
     env: { ...process.env, DB_PATH: DB, PORT: String(PORT), NODE_ENV: 'production' },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
-  srv.stdout.on('data', () => {});
-  srv.stderr.on('data', (d) => process.stderr.write('[server] ' + d));
+  let logOut = '', logErr = '';
+  srv.stdout.on('data', (d) => { logOut += d; });
+  srv.stderr.on('data', (d) => { logErr += d; process.stderr.write('[server] ' + d); });
   let srvMuerto = false;
   const matarSrv = () => { if (srvMuerto) return; srvMuerto = true; try { srv.kill(); } catch {} };
   process.on('exit', matarSrv);
@@ -54,10 +55,11 @@ async function main() {
     setTimeout(res, 2000);
   });
 
-  for (let i = 0; i < 40; i++) {
-    try { const r = await fetch(BASE + '/api/health'); if (r.ok) break; } catch {}
-    await esperar(300);
-  }
+  // Espera la línea de "listo" que imprime NUESTRO servidor (no un /api/health que puede
+  // contestar otro node vivo en el puerto), hasta 60 s: en Windows el primer arranque de
+  // node del día tarda y con 12 s el test reventaba con un ECONNREFUSED que parecía del
+  // cortafuegos. Ver scripts/_base-test.js.
+  await esperarServidor(srv, BASE, () => logErr, () => logOut);
   await abrirSesion(DB, TOKEN);
   const H = { 'Content-Type': 'application/json', Cookie: `nova_session=${TOKEN}` };
 
