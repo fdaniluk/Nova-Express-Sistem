@@ -1,10 +1,10 @@
 # Pendientes
 
 **Actualizado 04/09/2026.** Última punta: **`7e1ced8`** (Liquidaciones: Pendientes muestra
-TODO lo que hay sin liquidar; "Liquidar" abarca el envío más viejo del grupo) — **pusheado,
-deploy pedido y sin confirmar**. Antes, el 03/09: **`0a98ec0`** (DDP entrega 1: facturas
-de impuestos de UPS cruzadas por guía con su envío — **agrega columnas: el `check-schema`
-del deploy tiene que dar verde**), **`094d776`** (agregar bultos desde el modal de
+TODO lo que hay sin liquidar; "Liquidar" abarca el envío más viejo del grupo) — **pusheado y
+DESPLEGADO el 04/09, check-schema verde**. Antes, el 03/09: **`0a98ec0`** (DDP entrega 1: facturas
+de impuestos de UPS cruzadas por guía con su envío — desplegado desde el 03/09, columnas nuevas en
+verde en el check-schema del 04/09), **`094d776`** (agregar bultos desde el modal de
 Salidas), `2d9b74e` + `e56ea5c` (los docs adentro del repo), `e01dc83` (CIF con flete
 aforado 2,50/kg), `3db83cf` y `cc65125`. **Todos en `origin/main`** (visto en el `git log`
 del 04/09).
@@ -15,10 +15,9 @@ Cache **`?v=20260901h`**.
 
 ## 🔵 LO PRIMERO
 
-1. **¿Se desplegó `7e1ced8` (y con él `0a98ec0` y `094d776`)?** Pedir la salida del
-   `desplegar.sh`: el `check-schema` del final tiene que estar en verde (el DDP sumó
-   `envios.impuestos_facturados/_factura_id/_fecha` y `facturas_cargadas.tipo`, en la
-   migración Y en `schema.sql`).
+1. ✅ `7e1ced8` desplegado el 04/09 (`DESPLEGADO Y SANO`, check-schema verde). Falta que
+   Felipe entre a Liquidaciones con Ctrl+Shift+R y diga si en Pendientes apareció algo
+   viejo fuera del radar.
 2. **Que la oficina cargue las 6 facturas DDP reales** (`327W09_FA_000100926785..94`) por
    Facturas y mire el chip DDP en Salidas. Con eso arranca la **entrega 2 del DDP** (la
    liquidación de impuestos al cliente): diseño listo en `DDP-IMPUESTOS.md`.

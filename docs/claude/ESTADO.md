@@ -310,8 +310,8 @@ Colores Nova `#403754`/`#EE6C52`.
   Crear con el mes en curso y los envíos viejos desaparecían de la tabla. Crear e
   Historial siguen arrancando con el mes. Tanda nueva
   `test-pantalla-liquidaciones-pendientes` (12, puerto 3952) en `test-pantallas`. Cache
-  **`?v=20260901h`**). **Pusheado (Felipe pegó la salida: `0a98ec0..7e1ced8`). Deploy:
-  pedido, sin confirmar.** Pedido textual de Felipe: *"de entrada necesito que muestre
+  **`?v=20260901h`**). **Pusheado y DESPLEGADO el 04/09 (`DESPLEGADO Y SANO · 0a98ec0 → 7e1ced8`,
+  check-schema verde, 28 tablas, sin desvíos).** Pedido textual de Felipe: *"de entrada necesito que muestre
   todo lo que hay pendiente por perfil para que no se pase nada de largo"*.
 - Antes, el 03/09 a la noche: **`0a98ec0` — DDP entrega 1** (facturas de IMPUESTOS de UPS
   — "GASTOS DE IMPORTACION EN DESTINO", una guía por factura — se cargan por Facturas, el
@@ -324,8 +324,8 @@ Colores Nova `#403754`/`#EE6C52`.
   agregar bultos desde el modal de Salidas** (botón "+ Agregar bulto"; el PATCH acepta
   bultos con `id: null`, 400 sin peso ni medidas, 409 si el envío está liquidado;
   `cantidad_bultos` se recalcula con COUNT; tanda `test-agregar-bulto` 36, puerto 3950).
-  **Los dos pusheados junto con `7e1ced8`. El deploy de `0a98ec0` agrega columnas: el
-  `check-schema` del final tiene que dar verde — pedirle la salida a Felipe.**
+  **Los dos desplegados desde el 03/09** (el `desplegar.sh` del 04/09 arrancó en
+  `0a98ec0`) y el check-schema del 04/09 dio verde con las columnas nuevas.
   Diseño y estado del DDP: **`claude/DDP-IMPUESTOS.md`** (la entrega 2, la liquidación de
   impuestos al cliente 1-2 meses después, sigue pendiente).
 - Antes, el 03/09 a la tarde: **`2d9b74e`** y **`e56ea5c`** (la carpeta `docs/` en el
@@ -398,10 +398,9 @@ Colores Nova `#403754`/`#EE6C52`.
   estas tres quedaron FUERA del verificar: `test-orden-pendientes`,
   `test-regla-documentos`, `test-tarifa-por-kg`. En el contenedor corrieron completos y en
   verde `npm test` y `npm run test-pantallas` (EXIT=0).
-- **LO PRÓXIMO:** (1) confirmar el deploy de `7e1ced8` y el `check-schema` en verde;
-  (2) **DDP entrega 2** cuando la oficina haya cargado las 6 facturas reales
-  (`DDP-IMPUESTOS.md`); (3) actualizar el **manual de Salidas** ("+ Agregar bulto", chips
-  DDP y `+50`) y el de facturas (facturas de impuestos); (4) cron del panel de salud (L11)
+- **LO PRÓXIMO:** (1) **DDP entrega 2** cuando la oficina haya cargado las 6 facturas reales
+  (`DDP-IMPUESTOS.md`); (2) actualizar el **manual de Salidas** ("+ Agregar bulto", chips
+  DDP y `+50`) y el de facturas (facturas de impuestos); (3) cron del panel de salud (L11)
   y los Excel para la oficina (L4/L17).
 - **Espera decisión de Felipe: declarar 51 kg en los envíos de 41 a 50 kg.** A 50 kg
   todavía se paga GoGreen y a 51 no, así que **un envío de 51 kg sale más barato que uno
