@@ -7,13 +7,21 @@ const RECOLECTORES = ['Juanqui', 'Felipe', 'Ricardo', 'Marcelo'];
 // guía, proforma, despachado). Se crea DESDE Operaciones y NUNCA aparece en la pantalla
 // de Pickups (el GET de pickups la excluye).
 const TIPOS_RECOLECCION = ['normal', 'cliente', 'courier', 'cobranza', 'ninguna'];
+// Entrega de una importación (04/09, pedido de Felipe): la caja YA está en el depósito y
+// hay que llevarla a lo del cliente en Buenos Aires. Es la otra punta de 'ninguna': aquella
+// es la impo vista desde Operaciones antes de que llegue; ésta es la salida del depósito.
+// Comparte la cadena de chofer del 'normal' (Ricardo → visto → en camioneta), pero el
+// último paso es 'entregado' en vez de 'en_deposito', NUNCA aparece en Operaciones y
+// no toca el estado_operativo de ningún envío. Se marca con pickups.entrega_impo = 1.
+// Solo tiene sentido con tipo 'normal' (la lleva el chofer) o 'cliente' (la retira él).
+const TIPOS_ENTREGA = ['normal', 'cliente'];
 
-function derivarEstado(confirmado_juanqui, en_deposito_at, tipo_recoleccion = 'normal') {
+function derivarEstado(confirmado_juanqui, en_deposito_at, tipo_recoleccion = 'normal', entrega_impo = 0) {
   // 'courier': lo levanta UPS/DHL. Estado terminal, sin cadena ni confirmaciones.
   if (tipo_recoleccion === 'courier') return 'courier';
   // 'ninguna': no hay recolección (impo). Terminal, igual que courier.
   if (tipo_recoleccion === 'ninguna') return 'sin_recoleccion';
-  if (en_deposito_at) return 'en_deposito';
+  if (en_deposito_at) return entrega_impo ? 'entregado' : 'en_deposito';
   // 'cliente': lo trae el cliente. Sin cadena de chofer (ricardo/visto/juanqui);
   // solo el paso de depósito lo saca de 'pendiente'.
   if (tipo_recoleccion === 'cliente') return 'pendiente';
@@ -39,6 +47,7 @@ async function procesarConfirmacion(db, id, body) {
   const updates = {};
 
   const tipo = current.tipo_recoleccion || 'normal';
+  const esEntrega = !!current.entrega_impo;
 
   // 'courier' es terminal: no admite ninguna confirmación (no tiene botones).
   if (tipo === 'courier') {
@@ -125,7 +134,7 @@ async function procesarConfirmacion(db, id, body) {
   // Estado resultante derivado de timestamps
   const nextJuanqui  = 'confirmado_juanqui' in updates ? updates.confirmado_juanqui : current.confirmado_juanqui;
   const nextDeposito = 'en_deposito_at'     in updates ? updates.en_deposito_at     : current.en_deposito_at;
-  updates.estado = derivarEstado(nextJuanqui, nextDeposito, tipo);
+  updates.estado = derivarEstado(nextJuanqui, nextDeposito, tipo, esEntrega ? 1 : 0);
 
   const wasDeposito  = !!current.en_deposito_at;
   const willDeposito = !!nextDeposito;
@@ -136,7 +145,12 @@ async function procesarConfirmacion(db, id, body) {
   // Side-effect sobre envios: solo cambia cuando el estado de depósito cambia.
   // Para tipo 'cliente' puede no haber envío nuestro asociado: el UPDATE matchea por
   // cliente_id+fecha y, si no hay filas, afecta 0 sin fallar. (courier no llega acá.)
-  if (!wasDeposito && willDeposito) {
+  // Una ENTREGA de importación no lo hace nunca: el último paso es "entregado al
+  // cliente", no "llegó al depósito", y marcaría en_deposito a una exportación del
+  // mismo cliente cargada ese día.
+  if (esEntrega) {
+    // nada que tocar en envios
+  } else if (!wasDeposito && willDeposito) {
     await db.prepare(
       `UPDATE envios SET estado_operativo = 'en_deposito'
        WHERE cliente_id = ? AND fecha = ? AND estado_operativo = 'pendiente'`
@@ -151,4 +165,4 @@ async function procesarConfirmacion(db, id, body) {
   return db.prepare('SELECT * FROM pickups WHERE id = ?').get(id);
 }
 
-module.exports = { RECOLECTORES, TIPOS_RECOLECCION, derivarEstado, procesarConfirmacion };
+module.exports = { RECOLECTORES, TIPOS_RECOLECCION, TIPOS_ENTREGA, derivarEstado, procesarConfirmacion };

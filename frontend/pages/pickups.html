@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Pickups — Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260901h">
-  <link rel="stylesheet" href="../css/modules/pickups.css?v=20260901h">
+  <link rel="stylesheet" href="../css/main.css?v=20260901i">
+  <link rel="stylesheet" href="../css/modules/pickups.css?v=20260901i">
 </head>
 <body>
 <div class="app-layout">
@@ -116,6 +116,11 @@
           <div class="resumen-card conf" id="count-conf">⚑ 0 Ricardo</div>
           <div class="resumen-card cam" id="count-cam">🚐 0 en camioneta</div>
           <div class="resumen-card dep" id="count-dep">✓ 0 en depósito</div>
+          <!-- Solo aparece si el día tiene entregas de importación: cuenta las que ya se
+               entregaron sobre el total (las que faltan siguen en sin confirmar / Ricardo /
+               camioneta, como cualquier pickup del chofer). -->
+          <div class="resumen-card ent" id="count-ent" style="display:none"
+               title="Entregas de importación del día: entregadas sobre el total">📦 0/0 entregas impo</div>
           <!-- Solo aparece si el dia tiene pickups sin cadena de chofer (los trae el
                cliente o los levanta el courier): no son "sin confirmar", son otra cosa. -->
           <div class="resumen-card gris" id="count-gris" style="display:none"
@@ -173,8 +178,19 @@
           <option value="UPS">UPS</option>
         </select>
       </div>
+      <!-- Entrega de una importación (04/09): la caja ya está en el depósito y se lleva a
+           lo del cliente. De 30 pickups, 1 o 2 son esto, por eso es un casillero apagado que
+           se pinta. Con el casillero pintado el tipo se reduce a chofer/cliente y la tarjeta
+           no va a Operaciones. -->
+      <div class="form-group cobro-check-group entrega-check-group">
+        <label class="cobro-check-label">
+          <input type="checkbox" id="m-entrega-impo">
+          Entrega de importación
+        </label>
+        <span class="cobro-hint">La caja ya está en el depósito y se lleva a lo del cliente. No pasa por Operaciones.</span>
+      </div>
       <div class="form-group">
-        <label for="m-tipo-recoleccion">Tipo de recolección</label>
+        <label for="m-tipo-recoleccion" id="m-tipo-recoleccion-label">Tipo de recolección</label>
         <select id="m-tipo-recoleccion">
           <option value="normal">Normal (lo levanta el chofer)</option>
           <option value="cliente">Lo trae el cliente</option>
@@ -195,7 +211,7 @@
           Llevar plata para pagar envío
         </label>
       </div>
-      <div class="form-group cobro-check-group">
+      <div class="form-group cobro-check-group" id="m-mostrar-operaciones-group">
         <label class="cobro-check-label">
           <input type="checkbox" id="m-mostrar-operaciones">
           Mostrar en Operaciones
@@ -318,9 +334,9 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260901h"></script>
-<script src="../js/api.js?v=20260901h"></script>
-<script src="../js/main.js?v=20260901h"></script>
-<script src="../js/modules/pickups.js?v=20260901h"></script>
+<script src="/js/auth-guard.js?v=20260901i"></script>
+<script src="../js/api.js?v=20260901i"></script>
+<script src="../js/main.js?v=20260901i"></script>
+<script src="../js/modules/pickups.js?v=20260901i"></script>
 </body>
 </html>

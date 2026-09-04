@@ -210,7 +210,13 @@
     const normales = delDia.filter(p => (p.tipo_recoleccion || 'normal') !== 'cliente'
       && (p.tipo_recoleccion || 'normal') !== 'courier');
     const grisCount = delDia.length - normales.length;
-    const depCount  = normales.filter(p => !!p.en_deposito_at).length;
+    /* Las entregas de importación van por la misma cadena de chofer, así que mientras
+       faltan cuentan en sin confirmar / Ricardo / camioneta como cualquier otra. Lo que
+       no cuentan es "en depósito": su último paso es "entregado", y va en su propia
+       cuenta (entregadas / total del día), que solo aparece si hay alguna. */
+    const entregas = delDia.filter(p => !!p.entrega_impo);
+    const entCount = entregas.filter(p => !!p.en_deposito_at).length;
+    const depCount  = normales.filter(p => !!p.en_deposito_at && !p.entrega_impo).length;
     const camCount  = normales.filter(p => !!p.confirmado_juanqui && !p.en_deposito_at).length;
     const confCount = normales.filter(p => !!p.confirmado_ricardo && !p.confirmado_juanqui).length;
     const pendCount = normales.filter(p => !p.confirmado_ricardo).length;
@@ -228,6 +234,11 @@
     if (grisEl) {
       grisEl.textContent = `◼ ${grisCount} cliente/courier`;
       grisEl.style.display = grisCount > 0 ? '' : 'none';
+    }
+    const entEl = document.getElementById('count-ent');
+    if (entEl) {
+      entEl.textContent = `📦 ${entCount}/${entregas.length} entrega${entregas.length !== 1 ? 's' : ''} impo`;
+      entEl.style.display = entregas.length > 0 ? '' : 'none';
     }
 
     const list = document.getElementById('pickups-dia-list');
@@ -277,18 +288,24 @@
     const tipo = p.tipo_recoleccion || 'normal';
     const esGris = tipo === 'cliente' || tipo === 'courier';
     const sc = estadoPickup(p);
+    /* Entrega de importación: misma cadena que un pickup normal, pero la caja va del
+       depósito a lo del cliente, así que el último paso se llama "Entregado" y la
+       tarjeta lo dice de entrada con el chip 📦 y "Entregar en:". */
+    const esEntrega = !!p.entrega_impo;
+    const textoFinal = esEntrega ? 'Entregado' : 'En depósito';
 
-    const cardExtra = esGris ? ' tipo-gris'
-      : sc === 'dep' ? ' en-deposito' : sc === 'cam' ? ' en-camioneta' : sc === 'conf' ? ' confirmado' : '';
-    const badgeText = tipo === 'cliente' ? 'lo trae el cliente'
+    const cardExtra = (esGris ? ' tipo-gris'
+      : sc === 'dep' ? ' en-deposito' : sc === 'cam' ? ' en-camioneta' : sc === 'conf' ? ' confirmado' : '')
+      + (esEntrega ? ' entrega-impo' : '');
+    const badgeText = tipo === 'cliente' ? (esEntrega ? (p.en_deposito_at ? 'retirada por el cliente' : 'la retira el cliente') : 'lo trae el cliente')
       : tipo === 'courier' ? 'lo levanta UPS/DHL'
-      : sc === 'dep' ? 'En depósito' : sc === 'cam' ? 'En camioneta'
+      : sc === 'dep' ? textoFinal : sc === 'cam' ? 'En camioneta'
       : sc === 'conf' ? (p.visto_juanqui_at ? 'Ricardo ✓ · 👁' : 'Ricardo ✓') : 'Sin confirmar';
     const stripeClass = p.recolector === 'Juanqui' ? 'stripe-juanqui' : p.recolector ? 'stripe-otro' : 'stripe-ninguno';
     /* Un 'cliente' o 'courier' no lleva chofer: decirle "Sin asignar" hacía creer que
        faltaba asignárselo a alguien (Felipe, 26/08). La tira dice quién lo mueve. */
     const stripeLabel = esGris
-      ? (tipo === 'courier' ? 'UPS/DHL' : 'Lo trae el cliente')
+      ? (tipo === 'courier' ? 'UPS/DHL' : (esEntrega ? 'La retira el cliente' : 'Lo trae el cliente'))
       : (p.recolector || 'Sin asignar');
     const stripeAttrs = (!esGris && p.confirmado_ricardo) ? ` data-action="reasignar-rec" data-id="${p.id}" style="cursor:pointer"` : '';
 
@@ -300,10 +317,12 @@
           </div>`;
     } else if (tipo === 'cliente') {
       // Solo el paso de depósito, reversible (reusa el toggle conf/desconf-deposito).
+      // En una entrega de impo ese paso es "Retirada" (el cliente la pasó a buscar).
       const horaD = p.en_deposito_at ? p.en_deposito_at.slice(11, 16) : null;
+      const textoCli = esEntrega ? 'Retirada' : 'En depósito';
       const btnDeposito = horaD
-        ? `<button class="btn-conf btn-conf-on btn-conf-deposito" data-action="desconf-deposito" data-id="${p.id}" title="En depósito a las ${horaD} — clic para deshacer">✓ En depósito ${horaD}</button>`
-        : `<button class="btn-conf btn-conf-off btn-conf-deposito" data-action="conf-deposito" data-id="${p.id}">En depósito</button>`;
+        ? `<button class="btn-conf btn-conf-on btn-conf-deposito" data-action="desconf-deposito" data-id="${p.id}" title="${textoCli} a las ${horaD} — clic para deshacer">✓ ${textoCli} ${horaD}</button>`
+        : `<button class="btn-conf btn-conf-off btn-conf-deposito" data-action="conf-deposito" data-id="${p.id}">${textoCli}</button>`;
       actionsHtml = `<div class="pickup-actions-row">
             ${btnDeposito}
             <button class="btn-detalle" data-action="detalle" data-id="${p.id}">Ver detalle</button>
@@ -328,8 +347,8 @@
         : `<button class="btn-conf btn-conf-off btn-conf-juanqui" data-action="conf-juanqui" data-id="${p.id}"${!horaR ? ' disabled' : ''}>En camioneta</button>`;
 
       const btnDeposito = horaD
-        ? `<button class="btn-conf btn-conf-on btn-conf-deposito" data-action="desconf-deposito" data-id="${p.id}" title="En depósito a las ${horaD} — clic para deshacer">✓ En depósito ${horaD}</button>`
-        : `<button class="btn-conf btn-conf-off btn-conf-deposito" data-action="conf-deposito" data-id="${p.id}"${!horaJ ? ' disabled' : ''}>Confirmar depósito</button>`;
+        ? `<button class="btn-conf btn-conf-on btn-conf-deposito" data-action="desconf-deposito" data-id="${p.id}" title="${textoFinal} a las ${horaD} — clic para deshacer">✓ ${textoFinal} ${horaD}</button>`
+        : `<button class="btn-conf btn-conf-off btn-conf-deposito" data-action="conf-deposito" data-id="${p.id}"${!horaJ ? ' disabled' : ''}>${esEntrega ? 'Entregado' : 'Confirmar depósito'}</button>`;
 
       actionsHtml = `<div class="pickup-actions-row">
             ${btnRicardo}
@@ -343,6 +362,7 @@
     }
 
     const cobroBadgeHtml = p.tiene_cobro ? '<span class="cobro-badge">$ Cobro</span>' : '';
+    const entregaBadgeHtml = esEntrega ? '<span class="entrega-badge" title="Entrega de importación: la caja ya está en el depósito y se lleva al cliente">📦 ENTREGA IMPO</span>' : '';
     const llevarPlataBadgeHtml = p.llevar_plata ? '<span class="cobro-badge">Llevar plata</span>' : '';
 
     // Botón "Cargar cobranza": aparece sólo si el pickup tiene cobro. Titila mientras
@@ -365,6 +385,7 @@
             <div class="pickup-avatar ${sc}">${escHtml(getInitials(p.cliente_nombre))}</div>
             <div class="pickup-hora">${escHtml(p.hora_inicio)} – ${escHtml(p.hora_fin)}</div>
             <div class="pickup-header-badges">
+              ${entregaBadgeHtml}
               ${courierBadgeHtml(p.courier)}
               <span class="pickup-badge ${sc}">${badgeText}</span>
               ${cobroBadgeHtml}
@@ -373,7 +394,7 @@
           </div>
           <div class="pickup-client-name">${escHtml(p.cliente_nombre)}</div>
         </div>
-        <div class="pickup-direccion">📍 ${escHtml(p.direccion)}</div>
+        <div class="pickup-direccion">📍 ${esEntrega && tipo !== 'cliente' ? 'Entregar en: ' : ''}${escHtml(p.direccion)}</div>
         <div class="pickup-actions">
           ${actionsHtml}
           ${cobranzaRowHtml}
@@ -412,14 +433,16 @@
         ? '<div class="semana-empty">Sin pickups programados</div>'
         : delDia.map(p => {
             const sc = estadoPickup(p);
-            const badgeLabel = sc === 'cliente' ? 'lo trae el cliente'
+            const badgeLabel = sc === 'cliente' ? (p.entrega_impo ? 'la retira el cliente' : 'lo trae el cliente')
               : sc === 'courier' ? 'lo levanta UPS/DHL'
-              : sc === 'dep' ? 'En depósito' : sc === 'cam' ? 'En camioneta'
+              : sc === 'dep' ? (p.entrega_impo ? 'Entregado' : 'En depósito') : sc === 'cam' ? 'En camioneta'
               : sc === 'conf' ? (p.visto_juanqui_at ? 'Ricardo ✓ · 👁' : 'Ricardo ✓') : 'Sin confirmar';
             const cobroChip = p.tiene_cobro ? '<span class="cobro-chip-sm">$</span>' : '';
+            const entregaChip = p.entrega_impo ? '<span class="entrega-chip-sm" title="Entrega de importación">📦 IMPO</span>' : '';
             return `<div class="semana-row ${sc}" data-action="goto-dia" data-ymd="${ymd}">
               <span class="semana-dot ${sc}"></span>
               <span class="semana-row-name">${escHtml(p.cliente_nombre)}</span>
+              ${entregaChip}
               ${courierBadgeHtml(p.courier)}
               ${cobroChip}
               <span class="semana-row-hora">${escHtml(p.hora_inicio)}</span>
@@ -504,13 +527,13 @@
     const horaJ = p.confirmado_juanqui ? p.confirmado_juanqui.slice(11, 16) : null;
     const horaD = p.en_deposito_at ? p.en_deposito_at.slice(11, 16) : null;
     const estadoTexto = sc === 'dep'
-      ? `✓ En depósito (${horaD})`
+      ? `✓ ${p.entrega_impo ? 'Entregado' : 'En depósito'} (${horaD})`
       : sc === 'cam'
       ? `🚐 En camioneta — Juanqui ${horaJ}`
       : sc === 'conf'
       ? `⚑ Confirmado Ricardo ${horaR} — pendiente Juanqui`
       : '● Sin confirmar';
-    document.getElementById('detalle-estado').textContent = estadoTexto;
+    document.getElementById('detalle-estado').textContent = (p.entrega_impo ? '📦 Entrega de importación · ' : '') + estadoTexto;
     const vistoWrap = document.getElementById('detalle-visto-wrap');
     if (vistoWrap) {
       if (horaV) {
@@ -625,6 +648,8 @@
     document.getElementById('m-tiene-cobro').checked = false;
     document.getElementById('m-llevar-plata').checked = false;
     document.getElementById('m-mostrar-operaciones').checked = true;
+    document.getElementById('m-entrega-impo').checked = false;
+    aplicarEntregaEnModal();
     document.getElementById('m-notas').value = '';
     const primerCliente = clientes[0];
     if (primerCliente) cargarDirecciones(primerCliente.id);
@@ -648,6 +673,8 @@
     document.getElementById('m-tiene-cobro').checked = !!p.tiene_cobro;
     document.getElementById('m-llevar-plata').checked = !!p.llevar_plata;
     document.getElementById('m-mostrar-operaciones').checked = !!p.mostrar_en_operaciones;
+    document.getElementById('m-entrega-impo').checked = !!p.entrega_impo;
+    aplicarEntregaEnModal();
     document.getElementById('m-notas').value = p.notas || '';
     await cargarDirecciones(p.cliente_id);
     setDireccionEnModal(p.direccion);
@@ -657,6 +684,33 @@
   function cerrarModal() {
     modalOverlay.classList.add('hidden');
     pickupEditandoId = null;
+  }
+
+  /* El casillero "Entrega de importación" pintado cambia el modal: el tipo se reduce a
+     "la lleva el chofer" / "la retira el cliente" (courier y cobranza no significan nada
+     para una caja que ya está en el depósito), y "Mostrar en Operaciones" se apaga y se
+     esconde, porque la entrega no pasa por ahí. Al despintarlo vuelve todo como estaba. */
+  const TIPOS_ENTREGA_LABEL = { normal: 'La lleva el chofer', cliente: 'La retira el cliente en el depósito' };
+  const TIPOS_NORMAL_LABEL = {
+    normal: 'Normal (lo levanta el chofer)', cliente: 'Lo trae el cliente',
+    courier: 'Lo levanta UPS/DHL', cobranza: 'Solo cobranza (ir a buscar plata)',
+  };
+  function aplicarEntregaEnModal() {
+    const esEntrega = document.getElementById('m-entrega-impo').checked;
+    const sel = document.getElementById('m-tipo-recoleccion');
+    const label = document.getElementById('m-tipo-recoleccion-label');
+    const grupoOper = document.getElementById('m-mostrar-operaciones-group');
+    const chkOper = document.getElementById('m-mostrar-operaciones');
+    Array.from(sel.options).forEach((opt) => {
+      const permitido = !esEntrega || opt.value in TIPOS_ENTREGA_LABEL;
+      opt.hidden = !permitido;
+      opt.disabled = !permitido;
+      opt.textContent = esEntrega ? (TIPOS_ENTREGA_LABEL[opt.value] || opt.textContent) : (TIPOS_NORMAL_LABEL[opt.value] || opt.textContent);
+    });
+    if (esEntrega && !(sel.value in TIPOS_ENTREGA_LABEL)) sel.value = 'normal';
+    if (label) label.textContent = esEntrega ? 'Cómo se entrega' : 'Tipo de recolección';
+    if (esEntrega) chkOper.checked = false;
+    if (grupoOper) grupoOper.style.display = esEntrega ? 'none' : '';
   }
 
   async function guardarPickup() {
@@ -671,16 +725,18 @@
     const llevar_plata = document.getElementById('m-llevar-plata').checked ? 1 : 0;
     const mostrar_en_operaciones = document.getElementById('m-mostrar-operaciones').checked ? 1 : 0;
     const tipo_recoleccion = document.getElementById('m-tipo-recoleccion').value || 'normal';
+    const entrega_impo = document.getElementById('m-entrega-impo').checked ? 1 : 0;
     const notas = document.getElementById('m-notas').value.trim() || null;
     if (!cliente_id || !direccion || !fecha || !hora_inicio || !hora_fin) {
       NovaUtils.showAlert(alertBox, 'Completá todos los campos obligatorios.');
       return;
     }
     try {
+      const datos = { cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, tiene_cobro, llevar_plata, mostrar_en_operaciones, tipo_recoleccion, entrega_impo, notas };
       if (pickupEditandoId) {
-        await NovaAPI.pickups.editar(pickupEditandoId, { cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, tiene_cobro, llevar_plata, mostrar_en_operaciones, tipo_recoleccion, notas });
+        await NovaAPI.pickups.editar(pickupEditandoId, datos);
       } else {
-        await NovaAPI.pickups.crear({ cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, tiene_cobro, llevar_plata, mostrar_en_operaciones, tipo_recoleccion, notas });
+        await NovaAPI.pickups.crear(datos);
       }
       cerrarModal();
       await cargarPickups();
@@ -958,6 +1014,7 @@
     document.getElementById('m-cliente').addEventListener('change', e => {
       cargarDirecciones(e.target.value);
     });
+    document.getElementById('m-entrega-impo').addEventListener('change', aplicarEntregaEnModal);
 
     document.getElementById('btn-modal-cancelar').addEventListener('click', cerrarModal);
     document.getElementById('modal-close').addEventListener('click', cerrarModal);

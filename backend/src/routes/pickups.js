@@ -1,6 +1,15 @@
 const { Router } = require('express');
 const { getDb } = require('../db');
-const { RECOLECTORES, TIPOS_RECOLECCION, derivarEstado, procesarConfirmacion } = require('../services/pickups.service');
+const { RECOLECTORES, TIPOS_RECOLECCION, TIPOS_ENTREGA, derivarEstado, procesarConfirmacion } = require('../services/pickups.service');
+
+// entrega_impo llega como 0/1, true/false o '0'/'1'. Cualquier otra cosa se descarta
+// (undefined) para no pisar el dato con basura. Devuelve 0, 1 o undefined.
+function normalizarEntrega(v) {
+  if (v === undefined || v === null) return undefined;
+  if (v === true || v === 1 || v === '1') return 1;
+  if (v === false || v === 0 || v === '0' || v === '') return 0;
+  return undefined;
+}
 
 const router = Router();
 
@@ -56,6 +65,7 @@ router.post('/', async (req, res, next) => {
   try {
     const db = getDb();
     const { cliente_id, direccion, fecha, hora_inicio, hora_fin, notas, courier, recolector, tiene_cobro, tipo_recoleccion, llevar_plata, mostrar_en_operaciones } = req.body;
+    const entregaImpo = normalizarEntrega(req.body.entrega_impo) || 0;
 
     if (!cliente_id || !direccion || !fecha || !hora_inicio || !hora_fin) {
       return res
@@ -78,14 +88,21 @@ router.post('/', async (req, res, next) => {
     const clienteNombreMostrar = (cliente.nombre_nova && cliente.nombre_nova.trim()) || cliente.nombre;
 
     const tipo = tipo_recoleccion || 'normal';
+    // Una entrega de importación la lleva el chofer o la retira el cliente; con
+    // courier/cobranza/ninguna no significa nada. Y nunca va a Operaciones: la caja ya
+    // pasó por ahí cuando entró.
+    if (entregaImpo && !TIPOS_ENTREGA.includes(tipo)) {
+      return res.status(400).json({ error: 'Una entrega de importación la lleva el chofer o la retira el cliente (tipo normal o cliente)' });
+    }
+    const mostrarEnOperaciones = entregaImpo ? 0 : (mostrar_en_operaciones ? 1 : 0);
     // Estado inicial: 'courier' nace terminal; los demás nacen 'pendiente'.
-    const estadoInicial = derivarEstado(null, null, tipo);
+    const estadoInicial = derivarEstado(null, null, tipo, entregaImpo);
 
     const result = await db
       .prepare(
         `INSERT INTO pickups
-           (cliente_id, cliente_nombre, direccion, fecha, hora_inicio, hora_fin, notas, courier, recolector, tiene_cobro, tipo_recoleccion, estado, llevar_plata, mostrar_en_operaciones)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           (cliente_id, cliente_nombre, direccion, fecha, hora_inicio, hora_fin, notas, courier, recolector, tiene_cobro, tipo_recoleccion, estado, llevar_plata, mostrar_en_operaciones, entrega_impo)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         cliente_id,
@@ -101,7 +118,8 @@ router.post('/', async (req, res, next) => {
         tipo,
         estadoInicial,
         llevar_plata ? 1 : 0,
-        mostrar_en_operaciones ? 1 : 0
+        mostrarEnOperaciones,
+        entregaImpo
       );
 
     const created = await db.prepare('SELECT * FROM pickups WHERE id = ?').get(result.lastInsertRowid);
@@ -142,16 +160,26 @@ router.put('/:id', async (req, res, next) => {
     // tipo_recoleccion: si viene actualiza, si no conserva.
     const newTipo = tipo_recoleccion !== undefined ? tipo_recoleccion : existing.tipo_recoleccion;
 
+    // entrega_impo: si viene (0/1) actualiza, si no conserva. Con la marca puesta, el
+    // tipo tiene que ser normal/cliente y Operaciones no la ve.
+    const entregaBody = normalizarEntrega(req.body.entrega_impo);
+    const newEntrega = entregaBody !== undefined ? entregaBody : (existing.entrega_impo ? 1 : 0);
+    if (newEntrega && !TIPOS_ENTREGA.includes(newTipo || 'normal')) {
+      return res.status(400).json({ error: 'Una entrega de importación la lleva el chofer o la retira el cliente (tipo normal o cliente)' });
+    }
+    const newMostrar = newEntrega ? 0
+      : (mostrar_en_operaciones !== undefined ? (mostrar_en_operaciones ? 1 : 0) : existing.mostrar_en_operaciones);
+
     // El PUT no altera los timestamps de confirmación; estado se re-deriva de ellos
     // y del tipo de recolección resultante.
-    const estado = derivarEstado(existing.confirmado_juanqui, existing.en_deposito_at, newTipo);
+    const estado = derivarEstado(existing.confirmado_juanqui, existing.en_deposito_at, newTipo, newEntrega);
 
     await db
       .prepare(
         `UPDATE pickups
          SET cliente_id=?, cliente_nombre=?, direccion=?, fecha=?, hora_inicio=?, hora_fin=?,
              notas=?, estado=?, courier=?, recolector=?, tiene_cobro=?, tipo_recoleccion=?,
-             llevar_plata=?, mostrar_en_operaciones=?
+             llevar_plata=?, mostrar_en_operaciones=?, entrega_impo=?
          WHERE id=?`
       )
       .run(
@@ -168,7 +196,8 @@ router.put('/:id', async (req, res, next) => {
         tiene_cobro   !== undefined ? (tiene_cobro ? 1 : 0) : existing.tiene_cobro,
         newTipo,
         llevar_plata           !== undefined ? (llevar_plata ? 1 : 0)           : existing.llevar_plata,
-        mostrar_en_operaciones !== undefined ? (mostrar_en_operaciones ? 1 : 0) : existing.mostrar_en_operaciones,
+        newMostrar,
+        newEntrega,
         id
       );
 

@@ -11,6 +11,8 @@ router.get('/', async (req, res, next) => {
 
     const db = getDb();
 
+    // Las entregas de importación (pickups.entrega_impo = 1) no pasan por acá: la caja
+    // ya entró y solo hay que llevarla al cliente. Viven en Pickups nada más.
     const pickups = await db
       .prepare(
         `SELECT id, cliente_id, cliente_nombre, direccion, fecha, hora_inicio, hora_fin, estado, tipo_recoleccion, titulo,
@@ -19,6 +21,7 @@ router.get('/', async (req, res, next) => {
          FROM pickups
          WHERE fecha = ?
            AND (mostrar_en_operaciones = 1 OR mostrar_en_operaciones IS NULL)
+           AND COALESCE(entrega_impo, 0) = 0
          ORDER BY hora_inicio ASC`
       )
       .all(fecha);
@@ -36,6 +39,7 @@ router.get('/', async (req, res, next) => {
          WHERE (check_despachado = 0 OR check_despachado IS NULL)
            AND fecha < ?
            AND (mostrar_en_operaciones = 1 OR mostrar_en_operaciones IS NULL)
+           AND COALESCE(entrega_impo, 0) = 0
          ORDER BY fecha ASC, hora_inicio ASC`
       )
       .all(fecha);

@@ -782,6 +782,37 @@
 
 .detalle-actions button { flex: 1; min-height: 44px; }
 
+/* ── Entrega de importación (04/09): la caja ya está en el depósito y se lleva al
+   cliente. Ámbar para que se distinga de todo lo demás en una lista de 30. ──────── */
+.entrega-badge {
+  padding: 0.22rem 0.65rem;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 700;
+  flex-shrink: 0;
+  white-space: nowrap;
+  background: #FEF3C7;
+  color: #92400E;
+  border: 1.5px solid #F59E0B;
+}
+.pickup-card-v2.entrega-impo { border-left: 4px solid #F59E0B; }
+.entrega-chip-sm {
+  padding: 0.12rem 0.4rem;
+  border-radius: 20px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: #FEF3C7;
+  color: #92400E;
+  border: 1px solid #F59E0B;
+  white-space: nowrap;
+}
+.resumen-card.ent {
+  background: #FEF3C7;
+  color: #92400E;
+  border-color: #F59E0B;
+}
+.entrega-check-group .cobro-check-label { font-weight: 700; }
+
 /* ── Badge cobranza ──────────────────────────────────────── */
 .cobro-badge {
   padding: 0.22rem 0.65rem;

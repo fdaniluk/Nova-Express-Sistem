@@ -202,6 +202,9 @@ async function migratePickups() {
     ['titulo',             'TEXT'],
     ['llevar_plata',          'INTEGER DEFAULT 0'],
     ['mostrar_en_operaciones','INTEGER DEFAULT 1'],
+    // 04/09: entrega de una importación (la caja ya está en el depósito y se lleva al
+    // cliente). Misma cadena de chofer, último paso 'entregado'; nunca va a Operaciones.
+    ['entrega_impo',          'INTEGER NOT NULL DEFAULT 0'],
   ];
   for (const [col, def] of toAdd) {
     if (!cols.includes(col)) {

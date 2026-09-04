@@ -54,7 +54,7 @@
     "test-pantalla-cierre": "node scripts/test-pantalla-cierre.js",
     "test-pantalla-fuel-cotizador": "node scripts/test-pantalla-fuel-cotizador.js",
     "test-pantalla-cotizacion": "node scripts/test-pantalla-cotizacion-cliente.js && node scripts/test-pantalla-cotizaciones.js",
-    "test-pantallas": "node scripts/test-pantalla-tarifa-kg.js && node scripts/test-pantalla-salud.js && node scripts/test-pantalla-sin-envio.js && node scripts/test-pantalla-carga-multiple.js && node scripts/test-cartel-peso.js && node scripts/test-bultos-duplicar.js && node scripts/test-aviso-guia.js && node scripts/test-liquidacion-sin-cotizador.js && node scripts/test-pantalla-seguro-cliente.js && node scripts/test-pantalla-proteccion-doc.js && node scripts/test-pantalla-venta-salidas.js && node scripts/test-pantalla-filtros-salidas.js && node scripts/test-pantalla-cierre.js && node scripts/test-pantalla-fuel-cotizador.js && node scripts/test-pantalla-impuestos-impo.js && node scripts/test-pantalla-topes-medida.js && node scripts/test-pantalla-cotizacion-cliente.js && node scripts/test-pantalla-cotizaciones.js && node scripts/test-pantalla-link-publico.js && node scripts/test-pantalla-no-volo.js && node scripts/test-pantalla-cotizaciones-recientes.js && node scripts/test-pantalla-tarifa-50.js && node scripts/test-cruce-tarifa-50.js && node scripts/test-agregar-bulto.js && node scripts/test-pantalla-liquidaciones-pendientes.js",
+    "test-pantallas": "node scripts/test-pantalla-tarifa-kg.js && node scripts/test-pantalla-salud.js && node scripts/test-pantalla-sin-envio.js && node scripts/test-pantalla-carga-multiple.js && node scripts/test-cartel-peso.js && node scripts/test-bultos-duplicar.js && node scripts/test-aviso-guia.js && node scripts/test-liquidacion-sin-cotizador.js && node scripts/test-pantalla-seguro-cliente.js && node scripts/test-pantalla-proteccion-doc.js && node scripts/test-pantalla-venta-salidas.js && node scripts/test-pantalla-filtros-salidas.js && node scripts/test-pantalla-cierre.js && node scripts/test-pantalla-fuel-cotizador.js && node scripts/test-pantalla-impuestos-impo.js && node scripts/test-pantalla-topes-medida.js && node scripts/test-pantalla-cotizacion-cliente.js && node scripts/test-pantalla-cotizaciones.js && node scripts/test-pantalla-link-publico.js && node scripts/test-pantalla-no-volo.js && node scripts/test-pantalla-cotizaciones-recientes.js && node scripts/test-pantalla-tarifa-50.js && node scripts/test-cruce-tarifa-50.js && node scripts/test-agregar-bulto.js && node scripts/test-pantalla-liquidaciones-pendientes.js && node scripts/test-pantalla-entrega-impo.js",
     "test-salud": "node scripts/test-salud.js",
     "test-pantalla-salud": "node scripts/test-pantalla-salud.js",
     "test-tramos": "node scripts/test-tramos-cliente.js",
@@ -73,7 +73,8 @@
     "test-desglose-surge": "node scripts/test-desglose-venta-surge.js",
     "test-agregar-bulto": "node scripts/test-agregar-bulto.js && node scripts/test-pantalla-liquidaciones-pendientes.js",
     "test-facturas-impuestos": "node scripts/test-facturas-impuestos.js",
-    "test-pantalla-liquidaciones-pendientes": "node scripts/test-pantalla-liquidaciones-pendientes.js"
+    "test-pantalla-liquidaciones-pendientes": "node scripts/test-pantalla-liquidaciones-pendientes.js",
+    "test-pantalla-entrega-impo": "node scripts/test-pantalla-entrega-impo.js"
   },
   "keywords": [
     "nova-express",
