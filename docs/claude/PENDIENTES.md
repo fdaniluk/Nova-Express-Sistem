@@ -1,28 +1,90 @@
 # Pendientes
 
-**Actualizado 02/09/2026 (cierre).** Última punta: **`3db83cf`** (las 22 tandas que
-esperaban 12 s al servidor pasan a `esperarServidor`), antes **`cc65125`** (liquidación: el
-flete es kg × precio; el fuel del surge va con el surge en Adicional). **Según Felipe, los
-dos subidos y desplegados — confirmar con `git status -sb`.**
-Antes, el 01/09: `57e7132` (la auditoría de cruce de la tarifa +50), `1753c36`, `96eb85d`,
-`df4107d`, `b466885`, **`3d431cd`** (la tarifa DHL +50 kg de exportación) y **`8c5ea3a`**
-(schema.sql con `envios.tarifa_50`) — todo desplegado en producción y responde OK; los
-tests de la +50 los corrió Felipe en su máquina (32 de motor + 39 de pantalla + 30 del
-cruce, verdes).
-Cache **`?v=20260901d`**.
-**59 tandas en el verificar (62 archivos `test-*.js`).**
+**Actualizado 04/09/2026.** Última punta: **`7e1ced8`** (Liquidaciones: Pendientes muestra
+TODO lo que hay sin liquidar; "Liquidar" abarca el envío más viejo del grupo) — **pusheado,
+deploy pedido y sin confirmar**. Antes, el 03/09: **`0a98ec0`** (DDP entrega 1: facturas
+de impuestos de UPS cruzadas por guía con su envío — **agrega columnas: el `check-schema`
+del deploy tiene que dar verde**), **`094d776`** (agregar bultos desde el modal de
+Salidas), `2d9b74e` + `e56ea5c` (los docs adentro del repo), `e01dc83` (CIF con flete
+aforado 2,50/kg), `3db83cf` y `cc65125`. **Todos en `origin/main`** (visto en el `git log`
+del 04/09).
+Cache **`?v=20260901h`**.
+**62 tandas en el verificar (65 archivos `test-*.js`)** — contadas contra `package.json`.
 
 ---
 
 ## 🔵 LO PRIMERO
 
-1. **¿Se pushearon y desplegaron `cc65125` y `3db83cf`?** Felipe dijo que sí; confirmar
-   con `git status -sb` en `C:\dev\Nova-Express-Sistem` y preguntándole qué tiene el VPS.
-2. Sigue la consolidación: **cron del panel de salud (L11)** — 10 min en el VPS.
-3. **Los Excel para la oficina (L4/L17)** — necesitan la base de producción (circuito en
-   `ESTADO.md` §1).
-4. **Impuestos de impo: POSPUESTO por Felipe** (31/08). Los "aspectos que no me contó"
-   siguen sin revisar — no darlos por validados.
+1. **¿Se desplegó `7e1ced8` (y con él `0a98ec0` y `094d776`)?** Pedir la salida del
+   `desplegar.sh`: el `check-schema` del final tiene que estar en verde (el DDP sumó
+   `envios.impuestos_facturados/_factura_id/_fecha` y `facturas_cargadas.tipo`, en la
+   migración Y en `schema.sql`).
+2. **Que la oficina cargue las 6 facturas DDP reales** (`327W09_FA_000100926785..94`) por
+   Facturas y mire el chip DDP en Salidas. Con eso arranca la **entrega 2 del DDP** (la
+   liquidación de impuestos al cliente): diseño listo en `DDP-IMPUESTOS.md`.
+3. **Manuales:** al de Salidas sumarle "+ Agregar bulto" y los chips DDP / `+50`; al de
+   facturas, las facturas de impuestos.
+4. Sigue la consolidación: **cron del panel de salud (L11)** — 10 min en el VPS — y
+   **los Excel para la oficina (L4/L17)**.
+5. **Impuestos de impo: POSPUESTO por Felipe** (31/08). Los "aspectos que no me contó"
+   siguen sin revisar — no darlos por validados (el CIF aforado del 02/09 ya está).
+
+## 🟢 LO DEL 03-04/09 — TRES COMMITS DE SISTEMA + LOS DOCS EN EL REPO
+
+### `7e1ced8` — Liquidaciones: Pendientes muestra todo lo que hay sin liquidar (04/09)
+- Pedido de Felipe: *"de entrada necesito que muestre todo lo que hay pendiente por perfil
+  para que no se pase nada de largo"*. La pestaña Pendientes arrancaba filtrada por el mes
+  en curso: un envío de dos meses atrás sin liquidar no se veía.
+- Ahora entra con las fechas vacías ("vacío = todo"), agrupado por cliente; el filtro por
+  mes sigue para quien lo quiera; botón **"Ver todo"** para volver.
+- Segundo agujero: el botón **"Liquidar"** de un grupo saltaba a Crear con el mes en curso
+  y los envíos viejos del grupo desaparecían de la tabla. Ahora el período va desde el
+  envío más viejo del grupo hasta hoy. Crear e Historial siguen arrancando con el mes.
+- Sin cambios de backend (`listarPendientesPorCliente` ya aceptaba fechas vacías). Tanda
+  nueva `test-pantalla-liquidaciones-pendientes` (**12**, puerto 3952), en
+  `test-pantallas`; Felipe la corrió: 12 de 12. Vecinas verdes: liquidación sin cotizador
+  11, cierre de período 81, pantalla de cierre 30.
+
+### `0a98ec0` — DDP entrega 1: facturas de impuestos de UPS (03/09)
+- Las facturas de "GASTOS DE IMPORTACION EN DESTINO" (una guía por factura, 6 reales de
+  ejemplo, todas leídas al centavo) se cargan por el mismo Facturas; el servicio reconoce
+  el tipo solo; se cruzan por guía y quedan en `envios.impuestos_facturados`,
+  `impuestos_factura_id`, `impuestos_fecha` **sin tocar costo ni revisión**.
+- Salidas: chip DDP (gris "espera" con el tilde DDP y sin factura · azul "DDP $imp" ·
+  rojo "¡Imp. sin DDP!" cuando llega factura a un envío sin tilde). Facturas: banner
+  "Factura de IMPUESTOS DDP", contador "Sin tilde DDP".
+- Tanda `test-facturas-impuestos` (**44**, puerto 3951) en `test`; usa los PDFs de
+  `facturas-ejemplo/impuestos/` si están. **pdf-parse: pasar `Uint8Array.from(buffer)`**
+  (los Buffers < 4 KB salen del pool de Node y daban "bad XRef entry").
+- **Decisión pendiente de Felipe:** si una factura de impuestos llega a un envío SIN tilde
+  DDP, ¿se liquida igual al cliente?
+- Diseño de la **entrega 2** (liquidación de impuestos, 1-2 meses después, documento
+  aparte con Excel propio): `DDP-IMPUESTOS.md`.
+
+### `094d776` — Salidas: agregar bultos a un envío ya cargado (03/09)
+- Caso de Felipe: se carga con 1 bulto y resultan 2, y desde Salidas no había cómo. Botón
+  **"+ Agregar bulto"** en el modal; el PATCH acepta bultos nuevos (`id: null`), 400 sin
+  peso ni las tres medidas, **409 si el envío ya está liquidado**; `cantidad_bultos` se
+  recalcula con COUNT; ✕ solo en los nuevos antes de guardar.
+- Tanda `test-agregar-bulto` (**36**, puerto 3950) en `test-pantallas`.
+
+### `e56ea5c` + `2d9b74e` — la memoria del proyecto adentro del repo (03/09)
+Pregunta de Felipe: *"si el día de mañana pasa algo con Claude, ¿dónde va a estar todo
+esto?"*. Los 46 documentos del proyecto en `docs/claude/`, los manuales Word en
+`docs/manuales/`, `docs/README.md` lo explica. **Regla:** cada doc que se actualiza con
+`project_write` se vuelca también a `docs/claude/` y se commitea.
+
+### `e01dc83` — CIF con flete aforado (03/09)
+El CIF de los impuestos de impo se valora con **flete aforado 2,50 USD/kg facturable**, no
+con el flete de venta (regla de Felipe; 3 de 4 liquidaciones dan 2,50 exacto, la cuarta
+cierra con 59,2 kg). Seguro CIF queda en 1%. `test-impuestos-impo` 29,
+`test-pantalla-impuestos-impo` 12.
+
+### Consultas cerradas (03/09)
+- **Profit de una cotización UPS Expedited z2 8,7 kg USD 157,48 = 75% exacto.**
+- **DAP a España**, la segunda vuelta: garantizado — el cliente paga flete y todo lo del
+  envío; nacionalización, despachante e impuestos en España los paga el destinatario.
+- **Claude Code:** *"na, aun no, más adelante lo arrancamos. Por ahora sigamos así."*
 
 ## 🟢 LO DEL 02/09 — DOS COMMITS + LA AUDITORÍA
 
@@ -211,7 +273,9 @@ Real** · **que un envío liquidado ya no se puede borrar** · **que un número 
 en vez de borrar el dato** · **el aviso de tarifa +50 kg (tira interna del cotizador,
 cartel en Cargar envío, chip `+50` en Salidas)** · **el cartel del modal de Salidas cuando
 el Recalcular cambia de cuenta de DHL** · **el cartel del panel de "Calcular venta"** ·
-lo del 19-24/08 sin probar.
+**"+ Agregar bulto" en el modal de Salidas** · **cargar una factura de impuestos DDP y ver
+el chip en Salidas** · **Liquidaciones → Pendientes muestra todo, "Ver todo", y el
+"Liquidar" de un grupo trae los envíos viejos** · lo del 19-24/08 sin probar.
 ⚠️ Siempre con **Ctrl+F5 / Ctrl+Shift+R** primero. Y los dos manuales impresos.
 
 ---
@@ -277,7 +341,9 @@ decisiones de pricing (L5) · La Justina (26) y Arenasa (55) ¿van por kilo? · 
 corta en 300 kg? · ¿validez del link 30 o 15? · CTZ2268: ¿IVA de la firma exportadora? ·
 **¿parser DHL o julio DHL a mano?** · **¿qué es la cuenta UPS `F33G`?** · **los "aspectos
 que no te conté" de los impuestos de impo (POSPUESTO)** · ¿credenciales de la API de DHL
-para sumar DHL al semáforo? · **¿el logo de Exportalo sale del tarifario impreso?**
+para sumar DHL al semáforo? · **¿el logo de Exportalo sale del tarifario impreso?** ·
+**¿una factura de impuestos que llega a un envío SIN tilde DDP se liquida igual al
+cliente?** (03/09)
 
 ### ✅ Decididas el 31/08 - 01/09
 - **Seguro DHL: queda 1,5% del FOB con mínimo 17,50** (el papel decía 1%).
@@ -307,8 +373,8 @@ para sumar DHL al semáforo? · **¿el logo de Exportalo sale del tarifario impr
 | **50** | **Tres tandas quedaron FUERA del `verificar`**: `test-orden-pendientes`, `test-regla-documentos` y `test-tarifa-por-kg` (existen como archivo pero no están en las cadenas `test`/`test-pantallas`). Decidir si entran al verificar o si se borran | 20 min |
 
 **El conteo de tandas venía arrastrado mal en la documentación**: el número bueno,
-verificado contra `backend/package.json` el 01/09, es **58 tandas en el verificar sobre 61
-archivos `scripts/test-*.js`** (la última es `test-cruce-tarifa-50`).
+verificado contra `backend/package.json` el 04/09, es **62 tandas en el verificar sobre 65
+archivos `scripts/test-*.js`** (la última es `test-pantalla-liquidaciones-pendientes`).
 
 ---
 

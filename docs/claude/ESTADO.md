@@ -26,11 +26,11 @@
 >
 > ⚠️ **ESTE DOCUMENTO NO ES LA REALIDAD, ES UNA FOTO VIEJA.** El repo: `git status`/`git log` primero. Producción: verificar o preguntar antes de afirmar.
 >
-> ⚠️ **ESTE DOCUMENTO Y LOS OTROS 44 TIENEN COPIA EN EL REPO (`docs/claude/`, desde el 03/09).** Regla: cada vez que se actualiza un documento con `project_write`, se escribe también en `/root/nova/docs/claude/<nombre>.md`, se incluye en el paquete de entrega y se commitea. La copia del proyecto de claude.ai es la de trabajo; la del repo es el resguardo (lo pidió Felipe el 03/09: *"si el día de mañana pasa algo con Claude, ¿dónde va a estar todo esto?"*). Los manuales Word van en `docs/manuales/`. Lo explica `docs/README.md`.
+> ⚠️ **ESTE DOCUMENTO Y LOS OTROS 45 TIENEN COPIA EN EL REPO (`docs/claude/`, desde el 03/09).** Regla: cada vez que se actualiza un documento con `project_write`, se escribe también en `/root/nova/docs/claude/<nombre>.md`, se incluye en el paquete de entrega y se commitea. La copia del proyecto de claude.ai es la de trabajo; la del repo es el resguardo (lo pidió Felipe el 03/09: *"si el día de mañana pasa algo con Claude, ¿dónde va a estar todo esto?"*). Los manuales Word van en `docs/manuales/`. Lo explica `docs/README.md`.
 >
 > ⚠️ **LOS TESTS NUNCA EN EL SERVIDOR** — siempre "en PowerShell", y **dentro de `backend/`** (pasarle el `cd` también).
 >
-> Documentos, en orden: 1. **`claude/PENDIENTES.md`** · 2. este archivo · 3. **`MANUAL-CONTROL-FACTURAS.md`** (01/09, el primero de los manuales + cómo se generan) · 4. **`AUDITORIA-NUMEROS-28-08.md`** y **`AUDITORIA-FACTURAS-JULIO.md`** · 5. **`RESPALDO-SALIDAS-EXCEL.md`** · 6. **`DIAGNOSTICO-26-08.md`** · 7. **`COTIZACIONES-EN-LA-CARGA-DEL-ENVIO.md`** · 8. **`ENVIOS-SIN-PICKUP-Y-RESUMEN.md`**, **`NO-VOLO.md`**, **`CABECERA-DE-LA-COTIZACION.md`** · 9. **`claude/TRAMOS-POR-CLIENTE.md`** · 10. **`TARIFA-DHL-MAS-50.md`** (01/09, la cuenta de arriba de 50 kg — **deja superado a `TARIFARIO-DHL-UNIFICADO.md`**, que comparaba fletes pelados sin el GoGreen) + **`TARIFARIO-FORMATO-NOVA.md`** + **`TARIFARIO-EN-EL-SISTEMA.md`** + `PROPUESTA-TARIFARIO-CLIENTE.md` · 11. **`IDEAS-COTIZACIONES-Y-BOT.md`** · 12. `BACKLOG.md` · 13. `CANALES.md` · 14. `MOTOR-UNICO.md` · 15. `PANEL-DE-SALUD.md` · 16. `TARIFA-POR-KILO.md` + `PANTALLA-TARIFA-POR-KILO.md` + `MATRIZ-DE-TARIFAS.md` · 17. lo del 04/08 · 18. lo del 06-07/08 (`COPIA-DE-SEGURIDAD` — **L2 CERRADO 28/08**, `RECUPERACION`, `CIERRE-DE-MES`) · 19. `CAMBIOS-27-07` / `AUDITORIA` / `AUDITORIA-PRODUCCION` / `CONTROL-DE-FACTURAS` / `RECARGOS-UPS-DHL-VERIFICACION`.
+> Documentos, en orden: 1. **`claude/PENDIENTES.md`** · 2. este archivo · 3. **`MANUAL-CONTROL-FACTURAS.md`** (01/09, el primero de los manuales + cómo se generan) · 4. **`AUDITORIA-NUMEROS-28-08.md`** y **`AUDITORIA-FACTURAS-JULIO.md`** · 5. **`RESPALDO-SALIDAS-EXCEL.md`** · 6. **`DIAGNOSTICO-26-08.md`** · 7. **`COTIZACIONES-EN-LA-CARGA-DEL-ENVIO.md`** · 8. **`ENVIOS-SIN-PICKUP-Y-RESUMEN.md`**, **`NO-VOLO.md`**, **`CABECERA-DE-LA-COTIZACION.md`** · 9. **`claude/TRAMOS-POR-CLIENTE.md`** · 9-bis. **`DDP-IMPUESTOS.md`** (03/09, facturas de impuestos y la liquidación de impuestos DDP) · 10. **`TARIFA-DHL-MAS-50.md`** (01/09, la cuenta de arriba de 50 kg — **deja superado a `TARIFARIO-DHL-UNIFICADO.md`**, que comparaba fletes pelados sin el GoGreen) + **`TARIFARIO-FORMATO-NOVA.md`** + **`TARIFARIO-EN-EL-SISTEMA.md`** + `PROPUESTA-TARIFARIO-CLIENTE.md` · 11. **`IDEAS-COTIZACIONES-Y-BOT.md`** · 12. `BACKLOG.md` · 13. `CANALES.md` · 14. `MOTOR-UNICO.md` · 15. `PANEL-DE-SALUD.md` · 16. `TARIFA-POR-KILO.md` + `PANTALLA-TARIFA-POR-KILO.md` + `MATRIZ-DE-TARIFAS.md` · 17. lo del 04/08 · 18. lo del 06-07/08 (`COPIA-DE-SEGURIDAD` — **L2 CERRADO 28/08**, `RECUPERACION`, `CIERRE-DE-MES`) · 19. `CAMBIOS-27-07` / `AUDITORIA` / `AUDITORIA-PRODUCCION` / `CONTROL-DE-FACTURAS` / `RECARGOS-UPS-DHL-VERIFICACION`.
 
 ---
 
@@ -301,9 +301,40 @@ Colores Nova `#403754`/`#EE6C52`.
 
 ---
 
-## 3. Dónde estamos (03-09-2026)
+## 3. Dónde estamos (04-09-2026)
 
-- **Último commit `e56ea5c`** (la carpeta `docs/` en el repo: los 45 documentos del
+- **Último commit `7e1ced8`** (04/09 — Liquidaciones: la pestaña Pendientes arranca con
+  las fechas VACÍAS y muestra TODO lo que hay sin liquidar, agrupado por cliente; el filtro
+  por mes sigue para quien lo quiera y hay botón "Ver todo"; el botón "Liquidar" de un
+  grupo arma el período desde el envío más viejo del grupo hasta hoy — antes saltaba a
+  Crear con el mes en curso y los envíos viejos desaparecían de la tabla. Crear e
+  Historial siguen arrancando con el mes. Tanda nueva
+  `test-pantalla-liquidaciones-pendientes` (12, puerto 3952) en `test-pantallas`. Cache
+  **`?v=20260901h`**). **Pusheado (Felipe pegó la salida: `0a98ec0..7e1ced8`). Deploy:
+  pedido, sin confirmar.** Pedido textual de Felipe: *"de entrada necesito que muestre
+  todo lo que hay pendiente por perfil para que no se pase nada de largo"*.
+- Antes, el 03/09 a la noche: **`0a98ec0` — DDP entrega 1** (facturas de IMPUESTOS de UPS
+  — "GASTOS DE IMPORTACION EN DESTINO", una guía por factura — se cargan por Facturas, el
+  servicio las reconoce solas (`tipo: 'impuestos'`), se cruzan por guía con su envío y
+  quedan en `envios.impuestos_facturados / impuestos_factura_id / impuestos_fecha` SIN
+  tocar costo ni revisión; `facturas_cargadas.tipo`; chip DDP en Salidas (gris "espera" /
+  azul "DDP $imp" / rojo "¡Imp. sin DDP!"); tanda `test-facturas-impuestos` 44, lee las 6
+  facturas reales de `facturas-ejemplo/impuestos/` si están; **pdf-parse necesita
+  `Uint8Array.from(buffer)`** o con PDFs < 4 KB da "bad XRef entry") y **`094d776` —
+  agregar bultos desde el modal de Salidas** (botón "+ Agregar bulto"; el PATCH acepta
+  bultos con `id: null`, 400 sin peso ni medidas, 409 si el envío está liquidado;
+  `cantidad_bultos` se recalcula con COUNT; tanda `test-agregar-bulto` 36, puerto 3950).
+  **Los dos pusheados junto con `7e1ced8`. El deploy de `0a98ec0` agrega columnas: el
+  `check-schema` del final tiene que dar verde — pedirle la salida a Felipe.**
+  Diseño y estado del DDP: **`claude/DDP-IMPUESTOS.md`** (la entrega 2, la liquidación de
+  impuestos al cliente 1-2 meses después, sigue pendiente).
+- Antes, el 03/09 a la tarde: **`2d9b74e`** y **`e56ea5c`** (la carpeta `docs/` en el
+  repo: los 45 documentos del proyecto en `docs/claude/`, los manuales Word en
+  `docs/manuales/` y el `docs/README.md` que lo explica), **`e01dc83`** (impuestos de
+  impo: el CIF se valora con flete aforado de 2,50 USD/kg facturable, no el de venta —
+  regla de Felipe del 02/09, las 4 liquidaciones lo confirman; el seguro CIF queda en 1%).
+  **Todo pusheado (visto en el `git log` del 04/09).**
+- ANTES (02-03/09): **`e56ea5c`** (la carpeta `docs/` en el repo: los 45 documentos del
   proyecto en `docs/claude/`, los manuales Word en `docs/manuales/` y el `docs/README.md`
   que lo explica), antes **`e01dc83`** (impuestos de impo: el CIF se valora con flete
   aforado de 2,50 USD/kg facturable, no el de venta — regla de Felipe del 02/09, las 4
@@ -355,8 +386,11 @@ Colores Nova `#403754`/`#EE6C52`.
   **`test-cruce-tarifa-50`** (el mismo envío por los seis caminos del sistema).
   Detalle completo en `claude/TARIFA-DHL-MAS-50.md`, sección **"La auditoría del cruce"**.
   **Lección: REGLA NÚMERO ONCE.**
-- Cache **`?v=20260901d`** (las 17 páginas, incluido el v8 de `shared/`). **59 tandas en
-  el verificar (62 archivos `test-*.js`)**: el 02/09 se sumó `test-desglose-venta-surge`
+- Cache **`?v=20260901h`** (las 17 páginas, incluido el v8 de `shared/`). **62 tandas en
+  el verificar (65 archivos `test-*.js`)**, contadas contra `package.json` el 04/09: el
+  03-04/09 se sumaron `test-facturas-impuestos` (44, en `test`), `test-agregar-bulto` (36)
+  y `test-pantalla-liquidaciones-pendientes` (12), las dos en `test-pantallas`; el 02/09,
+  `test-desglose-venta-surge`
   (26, registrada en `test`); el 01/09, `test-tarifa-50` (controles de motor),
   `test-pantalla-tarifa-50` (punta a punta, puerto 3943) y `test-cruce-tarifa-50`
   (el cruce por los seis caminos), registradas en `test` y `test-pantallas`, así que
@@ -364,17 +398,20 @@ Colores Nova `#403754`/`#EE6C52`.
   estas tres quedaron FUERA del verificar: `test-orden-pendientes`,
   `test-regla-documentos`, `test-tarifa-por-kg`. En el contenedor corrieron completos y en
   verde `npm test` y `npm run test-pantallas` (EXIT=0).
-- **LO PRÓXIMO: cron del panel de salud (L11)**, después los Excel para la oficina
-  (L4/L17), y el **manual visual de Salidas** (ahí van el semáforo, los filtros por
-  columna y los botones de arriba, que se sacaron del de facturas).
+- **LO PRÓXIMO:** (1) confirmar el deploy de `7e1ced8` y el `check-schema` en verde;
+  (2) **DDP entrega 2** cuando la oficina haya cargado las 6 facturas reales
+  (`DDP-IMPUESTOS.md`); (3) actualizar el **manual de Salidas** ("+ Agregar bulto", chips
+  DDP y `+50`) y el de facturas (facturas de impuestos); (4) cron del panel de salud (L11)
+  y los Excel para la oficina (L4/L17).
 - **Espera decisión de Felipe: declarar 51 kg en los envíos de 41 a 50 kg.** A 50 kg
   todavía se paga GoGreen y a 51 no, así que **un envío de 51 kg sale más barato que uno
   de 50**. Conviene desde ~41-47 kg según la zona; ahorro en un envío de 50 kg: z1 39,99 ·
   z2 51,46 · z3 22,15 · z4 89,68 · z5 107,58 · z6 103,94. **NO está implementado**:
   declarar más peso del real es decisión comercial. Detalle: `TARIFA-DHL-MAS-50.md`.
 - **Falta que Felipe pase qué dice el punto "V6a"** de su listado impreso.
-- 28 tablas + `envios.tracking_*` + `envios.tarifa_50` (ya en la migración **y** en
-  `schema.sql`). Stash pendiente: `WIP: DDP en liquidaciones`.
+- 28 tablas + `envios.tracking_*` + `envios.tarifa_50` + `envios.impuestos_*` (3) +
+  `facturas_cargadas.tipo` (todo en la migración **y** en `schema.sql`). El stash `WIP: DDP
+  en liquidaciones` quedó superado por el diseño de `DDP-IMPUESTOS.md`.
 - ⏳ La oficina: Ctrl+Shift+R · la lista ÚNICA de prueba · el Excel de facturas (25 sin
   envío + 9 typos) · facturas que faltan · envío #194 / cuenta F33G · imprimir los dos
   papeles nuevos · que el semáforo se mueve solo.
@@ -388,7 +425,7 @@ ATADO a la cotización + diferencia registrada (columnas de `envios` ya existen,
 
 Commits sin acentos, describiendo el efecto. Un JS por pantalla. Sin frameworks. **Cache
 busting global única en TODAS las páginas** (`test-motor-unico` lo controla, e incluye el
-v8 de `shared/`) — hoy **`?v=20260901d`**; NO cubre los scripts inline → **Ctrl+F5** tras
+v8 de `shared/`) — hoy **`?v=20260901h`**; NO cubre los scripts inline → **Ctrl+F5** tras
 desplegar. La imagen de la cotización se dibuja en canvas.
 
 ## 5. Mantenimiento
