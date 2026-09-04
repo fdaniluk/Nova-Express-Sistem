@@ -22,13 +22,22 @@
     // hoyLocal(): con toISOString() (UTC) el período por defecto arrancaba corrido
     // un día después de las 21:00 hora local.
     const iso = (d) => NovaUtils.hoyLocal(d);
-    ['pend-desde', 'liq-desde', 'hist-desde'].forEach((id) => {
+    // Pendientes arranca SIN fechas: muestra todo lo que hay sin liquidar, de cualquier
+    // mes (03/09/2026, pedido de Felipe: "que de entrada muestre todo lo pendiente por
+    // perfil para que no se pase nada de largo"). El filtro por mes queda para quien lo
+    // quiera. Crear e Historial siguen con el mes en curso: el período de una liquidación
+    // necesita fechas, y el historial es una consulta.
+    ['liq-desde', 'hist-desde'].forEach((id) => {
       const el = document.getElementById(id);
       if (el) el.value = iso(first);
     });
-    ['pend-hasta', 'liq-hasta', 'hist-hasta'].forEach((id) => {
+    ['liq-hasta', 'hist-hasta'].forEach((id) => {
       const el = document.getElementById(id);
       if (el) el.value = iso(today);
+    });
+    ['pend-desde', 'pend-hasta'].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.value = '';
     });
   }
 
@@ -64,6 +73,11 @@
 
   function bindPendientes() {
     document.getElementById('btn-pend-filtrar').addEventListener('click', loadPendientes);
+    document.getElementById('btn-pend-todo').addEventListener('click', () => {
+      document.getElementById('pend-desde').value = '';
+      document.getElementById('pend-hasta').value = '';
+      loadPendientes();
+    });
   }
 
   async function loadPendientes() {
@@ -112,6 +126,16 @@
 
       container.querySelectorAll('[data-liq-cliente]').forEach((btn) => {
         btn.addEventListener('click', () => {
+          // El período de la liquidación tiene que ABARCAR lo que se acaba de ver en
+          // pendientes. Antes se saltaba a Crear con el mes en curso y los envíos de meses
+          // anteriores del mismo grupo desaparecían: era la segunda forma de que se pasaran
+          // de largo. Desde = el envío más viejo del grupo; hasta = hoy.
+          const grupo = grupos.find((g) => String(g.cliente_id) === String(btn.dataset.liqCliente));
+          if (grupo && grupo.envios.length) {
+            const fechas = grupo.envios.map((e) => e.fecha).filter(Boolean).sort();
+            document.getElementById('liq-desde').value = fechas[0];
+            document.getElementById('liq-hasta').value = NovaUtils.hoyLocal(new Date());
+          }
           document.querySelector('.tab[data-tab="crear"]').click();
           document.getElementById('liq-cliente').value = btn.dataset.liqCliente;
           document.getElementById('btn-cargar-envios').click();

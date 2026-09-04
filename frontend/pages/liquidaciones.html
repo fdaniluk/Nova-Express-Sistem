@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Liquidaciones – Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260901g">
-  <link rel="stylesheet" href="../css/modules/liquidaciones.css?v=20260901g">
+  <link rel="stylesheet" href="../css/main.css?v=20260901h">
+  <link rel="stylesheet" href="../css/modules/liquidaciones.css?v=20260901h">
   <style>
     .cot-panel { background: #f8f9ff; }
     .cotizador-inline { padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; border-top: 2px solid #e0e4ff; }
@@ -115,12 +115,14 @@
 
       <section id="panel-pendientes" class="card">
         <h2>Envíos sin liquidar</h2>
+        <!-- Sin fechas = TODO lo pendiente (03/09/2026, pedido de Felipe). Antes arrancaba
+             filtrado por el mes en curso y lo de meses anteriores se pasaba de largo. -->
         <div class="filters">
           <div class="form-group">
-            <label>Desde</label><input type="date" id="pend-desde">
+            <label>Desde <span class="em" style="font-weight:400">(vacío = todo)</span></label><input type="date" id="pend-desde">
           </div>
           <div class="form-group">
-            <label>Hasta</label><input type="date" id="pend-hasta">
+            <label>Hasta <span class="em" style="font-weight:400">(vacío = todo)</span></label><input type="date" id="pend-hasta">
           </div>
           <div class="form-group">
             <label>Courier</label>
@@ -141,6 +143,7 @@
             </select>
           </div>
           <button type="button" class="btn btn-primary" id="btn-pend-filtrar">Filtrar</button>
+          <button type="button" class="btn btn-secondary" id="btn-pend-todo" title="Borra las fechas y muestra todo lo pendiente">Ver todo</button>
         </div>
         <div id="pendientes-list"></div>
       </section>
@@ -239,9 +242,9 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260901g"></script>
-<script src="../js/api.js?v=20260901g"></script>
-<script src="../js/main.js?v=20260901g"></script>
-<script src="../js/modules/liquidaciones.js?v=20260901g"></script>
+<script src="/js/auth-guard.js?v=20260901h"></script>
+<script src="../js/api.js?v=20260901h"></script>
+<script src="../js/main.js?v=20260901h"></script>
+<script src="../js/modules/liquidaciones.js?v=20260901h"></script>
 </body>
 </html>
