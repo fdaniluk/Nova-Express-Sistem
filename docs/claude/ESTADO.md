@@ -303,7 +303,21 @@ Colores Nova `#403754`/`#EE6C52`.
 
 ## 3. Dónde estamos (04-09-2026)
 
-- **Último commit `7e1ced8`** (04/09 — Liquidaciones: la pestaña Pendientes arranca con
+- **Último commit `096b1b8`** (04/09 — **Pickups: entrega de una importación.** Casillero
+  "Entrega de importación" en el modal, apagado de entrada; pintado, el tipo se reduce a
+  "la lleva el chofer" / "la retira el cliente", "Mostrar en Operaciones" se apaga y se
+  esconde, y la tarjeta sale con el chip ámbar 📦 ENTREGA IMPO, "Entregar en:" y la misma
+  cadena de chofer con el último paso **"Entregado"** en vez de "Confirmar depósito"
+  (elección de Felipe entre tres opciones). Columna `pickups.entrega_impo` (migración +
+  `schema.sql`); el servidor fuerza `mostrar_en_operaciones=0` y rechaza courier/cobranza
+  con la marca; Operaciones la excluye del día y de los rezagados; marcar "Entregado" NO
+  toca el `estado_operativo` de los envíos del cliente (el pickup normal sí). Resumen del
+  día: "📦 entregadas/total entregas impo" solo si hay alguna. Tanda
+  `test-pantalla-entrega-impo` (**49**, puerto 3953) en `test-pantallas`; Felipe la corrió:
+  49 de 49. Cache **`?v=20260901i`**. **Push y deploy pedidos, sin confirmar — el
+  check-schema tiene que dar verde con la columna nueva.** Ojo: `tipo_recoleccion='ninguna'`
+  es la impo vista desde Operaciones ANTES de que llegue; la entrega es la otra punta.)
+- Antes, **`7e1ced8`** (04/09 — Liquidaciones: la pestaña Pendientes arranca con
   las fechas VACÍAS y muestra TODO lo que hay sin liquidar, agrupado por cliente; el filtro
   por mes sigue para quien lo quiera y hay botón "Ver todo"; el botón "Liquidar" de un
   grupo arma el período desde el envío más viejo del grupo hasta hoy — antes saltaba a
@@ -386,9 +400,9 @@ Colores Nova `#403754`/`#EE6C52`.
   **`test-cruce-tarifa-50`** (el mismo envío por los seis caminos del sistema).
   Detalle completo en `claude/TARIFA-DHL-MAS-50.md`, sección **"La auditoría del cruce"**.
   **Lección: REGLA NÚMERO ONCE.**
-- Cache **`?v=20260901h`** (las 17 páginas, incluido el v8 de `shared/`). **62 tandas en
-  el verificar (65 archivos `test-*.js`)**, contadas contra `package.json` el 04/09: el
-  03-04/09 se sumaron `test-facturas-impuestos` (44, en `test`), `test-agregar-bulto` (36)
+- Cache **`?v=20260901i`** (las 17 páginas, incluido el v8 de `shared/`). **63 tandas en
+  el verificar (66 archivos `test-*.js`)**, contadas contra `package.json` el 04/09: el
+  03-04/09 se sumaron `test-pantalla-entrega-impo` (49), `test-facturas-impuestos` (44, en `test`), `test-agregar-bulto` (36)
   y `test-pantalla-liquidaciones-pendientes` (12), las dos en `test-pantallas`; el 02/09,
   `test-desglose-venta-surge`
   (26, registrada en `test`); el 01/09, `test-tarifa-50` (controles de motor),
@@ -400,7 +414,8 @@ Colores Nova `#403754`/`#EE6C52`.
   verde `npm test` y `npm run test-pantallas` (EXIT=0).
 - **LO PRÓXIMO:** (1) **DDP entrega 2** cuando la oficina haya cargado las 6 facturas reales
   (`DDP-IMPUESTOS.md`); (2) actualizar el **manual de Salidas** ("+ Agregar bulto", chips
-  DDP y `+50`) y el de facturas (facturas de impuestos); (3) cron del panel de salud (L11)
+  DDP y `+50`) y el de facturas (facturas de impuestos); el de **Pickups**, cuando se
+  haga, lleva la entrega de importación; (3) cron del panel de salud (L11)
   y los Excel para la oficina (L4/L17).
 - **Espera decisión de Felipe: declarar 51 kg en los envíos de 41 a 50 kg.** A 50 kg
   todavía se paga GoGreen y a 51 no, así que **un envío de 51 kg sale más barato que uno
@@ -409,7 +424,8 @@ Colores Nova `#403754`/`#EE6C52`.
   declarar más peso del real es decisión comercial. Detalle: `TARIFA-DHL-MAS-50.md`.
 - **Falta que Felipe pase qué dice el punto "V6a"** de su listado impreso.
 - 28 tablas + `envios.tracking_*` + `envios.tarifa_50` + `envios.impuestos_*` (3) +
-  `facturas_cargadas.tipo` (todo en la migración **y** en `schema.sql`). El stash `WIP: DDP
+  `facturas_cargadas.tipo` + `pickups.entrega_impo` (todo en la migración **y** en
+  `schema.sql`). El stash `WIP: DDP
   en liquidaciones` quedó superado por el diseño de `DDP-IMPUESTOS.md`.
 - ⏳ La oficina: Ctrl+Shift+R · la lista ÚNICA de prueba · el Excel de facturas (25 sin
   envío + 9 typos) · facturas que faltan · envío #194 / cuenta F33G · imprimir los dos
@@ -424,7 +440,7 @@ ATADO a la cotización + diferencia registrada (columnas de `envios` ya existen,
 
 Commits sin acentos, describiendo el efecto. Un JS por pantalla. Sin frameworks. **Cache
 busting global única en TODAS las páginas** (`test-motor-unico` lo controla, e incluye el
-v8 de `shared/`) — hoy **`?v=20260901h`**; NO cubre los scripts inline → **Ctrl+F5** tras
+v8 de `shared/`) — hoy **`?v=20260901i`**; NO cubre los scripts inline → **Ctrl+F5** tras
 desplegar. La imagen de la cotización se dibuja en canvas.
 
 ## 5. Mantenimiento

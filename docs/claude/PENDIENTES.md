@@ -1,34 +1,64 @@
 # Pendientes
 
-**Actualizado 04/09/2026.** Última punta: **`7e1ced8`** (Liquidaciones: Pendientes muestra
-TODO lo que hay sin liquidar; "Liquidar" abarca el envío más viejo del grupo) — **pusheado y
-DESPLEGADO el 04/09, check-schema verde**. Antes, el 03/09: **`0a98ec0`** (DDP entrega 1: facturas
+**Actualizado 04/09/2026 (tarde).** Última punta: **`096b1b8`** (Pickups: entrega de una
+importación — la caja ya está en el depósito y se lleva al cliente; columna
+`pickups.entrega_impo`) — **push y deploy pedidos, sin confirmar; el check-schema tiene que
+dar verde con la columna nueva**. Antes, `4e26cd6` (docs) y **`7e1ced8`** (Liquidaciones:
+Pendientes muestra TODO lo que hay sin liquidar; "Liquidar" abarca el envío más viejo del
+grupo) — **pusheado y DESPLEGADO el 04/09, check-schema verde**. Antes, el 03/09: **`0a98ec0`** (DDP entrega 1: facturas
 de impuestos de UPS cruzadas por guía con su envío — desplegado desde el 03/09, columnas nuevas en
 verde en el check-schema del 04/09), **`094d776`** (agregar bultos desde el modal de
 Salidas), `2d9b74e` + `e56ea5c` (los docs adentro del repo), `e01dc83` (CIF con flete
 aforado 2,50/kg), `3db83cf` y `cc65125`. **Todos en `origin/main`** (visto en el `git log`
 del 04/09).
-Cache **`?v=20260901h`**.
-**62 tandas en el verificar (65 archivos `test-*.js`)** — contadas contra `package.json`.
+Cache **`?v=20260901i`**.
+**63 tandas en el verificar (66 archivos `test-*.js`)** — contadas contra `package.json`.
 
 ---
 
 ## 🔵 LO PRIMERO
 
-1. ✅ `7e1ced8` desplegado el 04/09 (`DESPLEGADO Y SANO`, check-schema verde). Falta que
+1. **¿Se pushearon y desplegaron `096b1b8` + `4e26cd6`?** Pedir la salida del
+   `desplegar.sh`: agrega `pickups.entrega_impo`, el check-schema tiene que dar verde.
+   Y que Ricardo y Juanqui sepan que hay tarjetas ámbar 📦 con el botón "Entregado".
+1-bis. ✅ `7e1ced8` desplegado el 04/09 (`DESPLEGADO Y SANO`, check-schema verde). Falta que
    Felipe entre a Liquidaciones con Ctrl+Shift+R y diga si en Pendientes apareció algo
    viejo fuera del radar.
 2. **Que la oficina cargue las 6 facturas DDP reales** (`327W09_FA_000100926785..94`) por
    Facturas y mire el chip DDP en Salidas. Con eso arranca la **entrega 2 del DDP** (la
    liquidación de impuestos al cliente): diseño listo en `DDP-IMPUESTOS.md`.
 3. **Manuales:** al de Salidas sumarle "+ Agregar bulto" y los chips DDP / `+50`; al de
-   facturas, las facturas de impuestos.
+   facturas, las facturas de impuestos; el de Pickups (cuando se haga) lleva la entrega
+   de importación.
 4. Sigue la consolidación: **cron del panel de salud (L11)** — 10 min en el VPS — y
    **los Excel para la oficina (L4/L17)**.
 5. **Impuestos de impo: POSPUESTO por Felipe** (31/08). Los "aspectos que no me contó"
    siguen sin revisar — no darlos por validados (el CIF aforado del 02/09 ya está).
 
-## 🟢 LO DEL 03-04/09 — TRES COMMITS DE SISTEMA + LOS DOCS EN EL REPO
+## 🟢 LO DEL 03-04/09 — CUATRO COMMITS DE SISTEMA + LOS DOCS EN EL REPO
+
+### `096b1b8` — Pickups: entrega de una importación (04/09)
+- Pedido de Felipe: *"desde Pickups exista la opción de cargar la entrega de una
+  importación: un envío que ya está en el depósito y se tiene que entregar en lo del
+  cliente acá en Buenos Aires, por lo tanto no pasa por Operaciones... de 30 envíos 1 o 2
+  deben ser impo: un casillero despintado que se pinta"*.
+- Casillero **"Entrega de importación"** en el modal. Pintado: el tipo se reduce a "La
+  lleva el chofer" / "La retira el cliente en el depósito"; "Mostrar en Operaciones" se
+  apaga y se esconde; la tarjeta sale con el chip ámbar **📦 ENTREGA IMPO**, "Entregar
+  en:" y la misma cadena Ricardo → Visto → En camioneta con el último botón
+  **"Entregado"** (Felipe eligió esa opción entre tres). La que retira el cliente dice
+  "Retirada". Resumen del día: "📦 1/2 entregas impo", solo si hay alguna; mientras faltan
+  cuentan en sin confirmar / Ricardo / camioneta como cualquier otra.
+- Servidor: `pickups.entrega_impo` (migración + `schema.sql`), fuerza
+  `mostrar_en_operaciones=0`, rechaza courier/cobranza con la marca (400), Operaciones la
+  excluye del día y de los rezagados, y marcar "Entregado" **no toca** el
+  `estado_operativo` de los envíos del cliente (el pickup normal sí pasa a en_deposito las
+  exportaciones del mismo cliente y día).
+- No confundir con `tipo_recoleccion='ninguna'`: esa es la impo vista desde Operaciones
+  ANTES de que llegue (checks de guía/proforma); la entrega es después.
+- Tanda `test-pantalla-entrega-impo` (**49**, puerto 3953) en `test-pantallas`; Felipe:
+  49 de 49. Vecinas: operaciones sueltos 22, motor único 28, check-schema de base de cero
+  en verde.
 
 ### `7e1ced8` — Liquidaciones: Pendientes muestra todo lo que hay sin liquidar (04/09)
 - Pedido de Felipe: *"de entrada necesito que muestre todo lo que hay pendiente por perfil
@@ -274,7 +304,8 @@ cartel en Cargar envío, chip `+50` en Salidas)** · **el cartel del modal de Sa
 el Recalcular cambia de cuenta de DHL** · **el cartel del panel de "Calcular venta"** ·
 **"+ Agregar bulto" en el modal de Salidas** · **cargar una factura de impuestos DDP y ver
 el chip en Salidas** · **Liquidaciones → Pendientes muestra todo, "Ver todo", y el
-"Liquidar" de un grupo trae los envíos viejos** · lo del 19-24/08 sin probar.
+"Liquidar" de un grupo trae los envíos viejos** · **la entrega de importación en Pickups
+(casillero, tarjeta ámbar, botón "Entregado")** · lo del 19-24/08 sin probar.
 ⚠️ Siempre con **Ctrl+F5 / Ctrl+Shift+R** primero. Y los dos manuales impresos.
 
 ---
@@ -372,8 +403,8 @@ cliente?** (03/09)
 | **50** | **Tres tandas quedaron FUERA del `verificar`**: `test-orden-pendientes`, `test-regla-documentos` y `test-tarifa-por-kg` (existen como archivo pero no están en las cadenas `test`/`test-pantallas`). Decidir si entran al verificar o si se borran | 20 min |
 
 **El conteo de tandas venía arrastrado mal en la documentación**: el número bueno,
-verificado contra `backend/package.json` el 04/09, es **62 tandas en el verificar sobre 65
-archivos `scripts/test-*.js`** (la última es `test-pantalla-liquidaciones-pendientes`).
+verificado contra `backend/package.json` el 04/09, es **63 tandas en el verificar sobre 66
+archivos `scripts/test-*.js`** (la última es `test-pantalla-entrega-impo`).
 
 ---
 
