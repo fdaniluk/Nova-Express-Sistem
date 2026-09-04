@@ -314,8 +314,8 @@ Colores Nova `#403754`/`#EE6C52`.
   toca el `estado_operativo` de los envíos del cliente (el pickup normal sí). Resumen del
   día: "📦 entregadas/total entregas impo" solo si hay alguna. Tanda
   `test-pantalla-entrega-impo` (**49**, puerto 3953) en `test-pantallas`; Felipe la corrió:
-  49 de 49. Cache **`?v=20260901i`**. **Push y deploy pedidos, sin confirmar — el
-  check-schema tiene que dar verde con la columna nueva.** Ojo: `tipo_recoleccion='ninguna'`
+  49 de 49. Cache **`?v=20260901i`**. **Pusheado y DESPLEGADO el 04/09 a las 16:27
+  (`DESPLEGADO Y SANO · 7e1ced8 → fdfc871`, check-schema verde, 28 tablas).** Ojo: `tipo_recoleccion='ninguna'`
   es la impo vista desde Operaciones ANTES de que llegue; la entrega es la otra punta.)
 - Antes, **`7e1ced8`** (04/09 — Liquidaciones: la pestaña Pendientes arranca con
   las fechas VACÍAS y muestra TODO lo que hay sin liquidar, agrupado por cliente; el filtro

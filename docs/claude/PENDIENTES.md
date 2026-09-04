@@ -2,8 +2,7 @@
 
 **Actualizado 04/09/2026 (tarde).** Última punta: **`096b1b8`** (Pickups: entrega de una
 importación — la caja ya está en el depósito y se lleva al cliente; columna
-`pickups.entrega_impo`) — **push y deploy pedidos, sin confirmar; el check-schema tiene que
-dar verde con la columna nueva**. Antes, `4e26cd6` (docs) y **`7e1ced8`** (Liquidaciones:
+`pickups.entrega_impo`) — **pusheado y DESPLEGADO el 04/09 (16:27), check-schema verde**. Antes, `4e26cd6` (docs) y **`7e1ced8`** (Liquidaciones:
 Pendientes muestra TODO lo que hay sin liquidar; "Liquidar" abarca el envío más viejo del
 grupo) — **pusheado y DESPLEGADO el 04/09, check-schema verde**. Antes, el 03/09: **`0a98ec0`** (DDP entrega 1: facturas
 de impuestos de UPS cruzadas por guía con su envío — desplegado desde el 03/09, columnas nuevas en
@@ -18,9 +17,10 @@ Cache **`?v=20260901i`**.
 
 ## 🔵 LO PRIMERO
 
-1. **¿Se pushearon y desplegaron `096b1b8` + `4e26cd6`?** Pedir la salida del
-   `desplegar.sh`: agrega `pickups.entrega_impo`, el check-schema tiene que dar verde.
-   Y que Ricardo y Juanqui sepan que hay tarjetas ámbar 📦 con el botón "Entregado".
+1. ✅ `096b1b8` desplegado el 04/09 (`DESPLEGADO Y SANO · 7e1ced8 → fdfc871`,
+   check-schema verde). Falta que Felipe cargue una entrega de prueba en Pickups
+   (Ctrl+Shift+R) y que Ricardo y Juanqui sepan que hay tarjetas ámbar 📦 con el botón
+   "Entregado".
 1-bis. ✅ `7e1ced8` desplegado el 04/09 (`DESPLEGADO Y SANO`, check-schema verde). Falta que
    Felipe entre a Liquidaciones con Ctrl+Shift+R y diga si en Pendientes apareció algo
    viejo fuera del radar.
