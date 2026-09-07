@@ -201,8 +201,8 @@ md5 de los dos lados.
 `ssh nova` lo corre Felipe. **Decir siempre "PARA EL SERVIDOR"**. Health:
 `https://sistema.novaexpress.com.ar/api/health`. **Crontab desde el 28/08:** `0 3 * * *`
 corre `scripts/copia-externa.sh`. El `.env` tiene `UPS_CLIENT_ID`/`UPS_CLIENT_SECRET` — de
-eso vive el semáforo automático (la máquina de Felipe TAMBIÉN las tiene: el 01/09 el
-`[tracking-auto]` corrió en su arranque manual).
+eso vive el semáforo automático. **La máquina de Felipe las tiene desde el 07/09** (antes su
+`.env` tenía los valores de ejemplo; se cargaron desde developer.ups.com).
 
 ### Felipe
 Resúmenes cortos · comandos SIEMPRE, de a uno, con la ruta y dónde pegarlos · nunca romper
@@ -340,8 +340,9 @@ Colores Nova `#403754`/`#EE6C52`.
   `<thead>` (clave = `data-col` o slug del rótulo) y `applyStickyCols()` emite el CSS por
   **`:nth-child`** sobre `tr[data-envio-id]`. Panel con las 37 columnas, botón "Ninguna".
   Tanda `test-pantalla-columnas-fijas` (46, puerto 3939); Felipe: 46/46.
-- **07/09 — Guías UPS:** cuentas **EXPO `327W09` · IMPO `3R6A45`** (`GUIAS-UPS.md`). Falta
-  Shipping en developer.ups.com para la Etapa 0.
+- **07/09 — Guías UPS: ETAPA 0 CERRADA.** Cuentas **EXPO `327W09` · IMPO `3R6A45`**; Shipping
+  y Rating habilitados en la app; guía de prueba 200 OK con etiqueta
+  (`scripts/ups-shipping-prueba.js`). Sigue la Etapa 1 (`GUIAS-UPS.md`).
 - **Último commit `096b1b8`** (04/09 — **Pickups: entrega de una importación.** Casillero
   "Entrega de importación" en el modal, apagado de entrada; pintado, el tipo se reduce a
   "la lleva el chofer" / "la retira el cliente", "Mostrar en Operaciones" se apaga y se

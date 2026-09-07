@@ -44,7 +44,7 @@ function armarPedido() {
         TransactionReference: { CustomerContext: `nova-prueba-${Date.now()}` },
       },
       Shipment: {
-        Description: 'Muestras sin valor comercial - prueba de integracion',
+        Description: 'Muestras sin valor comercial',
         Shipper: {
           Name: 'NOVA EXPRESS',
           AttentionName: 'Administracion',

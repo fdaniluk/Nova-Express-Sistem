@@ -33,9 +33,11 @@ mismo día: **`0e1971e`** (columnas fijas: cualquier columna — **pusheado y DE
    ahora se fija cualquier columna, el botón "Ninguna", **la columna % Real (sale Dif
    Costo)** y el selector de Servicio UPS del modal; al manual de facturas, lo mismo del
    % Real (el `.md` ya está corregido; el Word no).
-0-ter. **Guías UPS, Etapa 0:** ✅ Shipping y Rating habilitados en la app (07/09, Test y
-   Prod). Falta correr `scripts/ups-shipping-prueba.js` en la máquina de Felipe (guía de
-   prueba en wwwcie.ups.com) y leer la respuesta: `GUIAS-UPS.md`.
+0-ter. ✅ **Guías UPS, Etapa 0 CERRADA (07/09):** Shipping y Rating habilitados; la guía de
+   prueba salió 200 OK con etiqueta. Sigue la **Etapa 1** (`GUIAS-UPS.md` §4): libreta de
+   destinatarios, remitente completo por cliente, contenido. Faltan de Felipe: una proforma
+   de las que hace la oficina, la confirmación del paso 6 (facturación con/sin DDP) y con
+   qué impresora salen las etiquetas.
 0-quater. **Decisión de Felipe:** la columna DERECHOS del Excel de liquidación sale siempre
    vacía (los derechos van dentro de Adicional desde hace tiempo). ¿Se saca del Excel?
 0-c. ✅ **L1 cerrado el 07/09:** Felipe borró los borradores #12 y #30 desde Historial. Los

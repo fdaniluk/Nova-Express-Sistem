@@ -6,7 +6,16 @@ vincularía con la carga de envíos, cosa de facilitar la carga a Salidas"*. Pri
 DHL en el futuro. Cuentas UPS: una de **expo**, una de **impo**, una de **vinos** (casi no
 se usa: **afuera por ahora**).
 
-Estado: **Etapa 0 en curso (07/09).** Nada implementado todavía.
+Estado: **✅ ETAPA 0 CERRADA (07/09, 17:30).** La app emite guías: `ups-shipping-prueba.js`
+creó una guía de prueba Bella Vista → Miami en el entorno de test (200 OK, etiqueta GIF
+1400×800 "SAMPLE", guía `1ZXXXXXXXXXXXXXXXX` que es el comodín del entorno de test). Lo que
+enseñó: `Shipment.Description` **máximo 50 caracteres** (error 120503); la respuesta trae
+`ShipmentCharges` desglosado — base 452,40 + código **375 (fuel) 167,18** + **573 (IPF)
+2,50** + **434 (surge)** 2,50 = 624,58 USD, **a tarifa de lista** (el entorno de test no
+aplica la negociada) — y `BillingWeight`. Con `RequestOption: 'nonvalidate'` no pidió
+InternationalForms para AR → US con `InvoiceLineTotal` cargado. El `.env` de la máquina de
+Felipe tenía valores de ejemplo (no las credenciales): se cargaron el 07/09 desde el portal.
+Nada del módulo implementado todavía: sigue la **Etapa 1** (datos).
 
 **07/09, tarde — Shipping habilitado.** Felipe entró a developer.ups.com (la cuenta
 corporativa de Daniluk rebota a CampusShip: se entra por el link "UPS Developer Portal"
