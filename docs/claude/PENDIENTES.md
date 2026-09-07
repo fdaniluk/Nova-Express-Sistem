@@ -33,10 +33,14 @@ mismo día: **`0e1971e`** (columnas fijas: cualquier columna — **pusheado y DE
    ahora se fija cualquier columna, el botón "Ninguna", **la columna % Real (sale Dif
    Costo)** y el selector de Servicio UPS del modal; al manual de facturas, lo mismo del
    % Real (el `.md` ya está corregido; el Word no).
-0-ter. **Guías UPS, Etapa 0:** falta la captura/confirmación de **Shipping** en
-   developer.ups.com. Cuentas ya anotadas en `GUIAS-UPS.md`.
+0-ter. **Guías UPS, Etapa 0:** ✅ Shipping y Rating habilitados en la app (07/09, Test y
+   Prod). Falta correr `scripts/ups-shipping-prueba.js` en la máquina de Felipe (guía de
+   prueba en wwwcie.ups.com) y leer la respuesta: `GUIAS-UPS.md`.
 0-quater. **Decisión de Felipe:** la columna DERECHOS del Excel de liquidación sale siempre
    vacía (los derechos van dentro de Adicional desde hace tiempo). ¿Se saca del Excel?
+0-c. ✅ **L1 cerrado el 07/09:** Felipe borró los borradores #12 y #30 desde Historial. Los
+   dos pares que quedaban (Cueros #57/#58, GIANNASTACIO #44/#64) eran borrador+borrador, sin
+   plata duplicada; se borra el viejo de cada par. Pendiente 52: que el sistema avise.
 1. ✅ `096b1b8` desplegado el 04/09 (`DESPLEGADO Y SANO · 7e1ced8 → fdfc871`,
    check-schema verde). Falta que Felipe cargue una entrega de prueba en Pickups
    (Ctrl+Shift+R) y que Ricardo y Juanqui sepan que hay tarjetas ámbar 📦 con el botón
@@ -455,6 +459,7 @@ precio de venta** y el **envío #137**.
 | ~~29, 36-40, 42, 44-48~~ | cerrados 28/08-01/09 (topes, parser, sobreescribir, importador, residencial, Excel respaldo, filtro multibulto, semáforo automático, filtro semáforo + limpiar, doble vista, **A1/A5/A4/E6/E8**) | — |
 | **43** | **Punto "V6a" del listado impreso de Felipe** — los V7 (medidas) quedaron cerrados; falta que pase qué dice el V6a | de Felipe |
 | **49** | **¿Declarar 51 kg en los envíos de 41 a 50 kg?** A 50 kg todavía se paga GoGreen y a 51 no, así que **un envío de 51 kg sale MÁS BARATO que uno de 50**. Conviene desde ~41-47 kg según la zona; ahorro en un envío de 50 kg: **z1 39,99 · z2 51,46 · z3 22,15 · z4 89,68 · z5 107,58 · z6 103,94**. NO está implementado: declarar más peso del real es decisión comercial (`TARIFA-DHL-MAS-50.md`) | de Felipe |
+| **52** | **Avisar cuando se arma un borrador con envíos que ya están en OTRO borrador** (07/09). El 409 de confirmar solo frena los liquidados; hoy se puede crear un segundo borrador con los mismos envíos y el panel de salud lo marca como "envío en más de una liquidación". Pasó con Cueros Santa Cruz (#57 y #58) y GIANNASTACIO (#44 y #64); Felipe borró los viejos a mano. Propuesta: al calcular/crear, si algún envío ya está en un borrador, avisar con el número y la fecha de ese borrador (y ofrecer borrarlo) | 1 h |
 | **51** | **Tarifarios ya emitidos a clientes con destinos de zona 1 (Brasil/Chile/Uruguay) o zona 3 (EE.UU./México/Canadá) y pesos arriba de 50 kg quedaron desactualizados HACIA ARRIBA** desde la tarifa +50 (hasta **+12% a 300 kg en zona 1**): el cliente tiene impreso un precio más caro que el que hoy cotiza el sistema. Revisar `tarifario_emitidos` y decidir si se reemiten (02/09) | de Felipe |
 
 ## D. Decisiones de Felipe — no llevan código

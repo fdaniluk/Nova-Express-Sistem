@@ -52,7 +52,7 @@ commit**, y DESPUÉS — y verificar con `git log --oneline -1` que el commit en
 
 | # | Limitador | Visto | Nota | Quién |
 |---|---|---|---|---|
-| L1 | Borradores de liquidación #12 y #30 — se pueden BORRAR desde el historial. Falta que Felipe los borre. | 13/08 | Panel 1 | Felipe |
+| ~~L1~~ | ✅ Borradores #12 y #30 borrados por Felipe el 07/09. Queda el pendiente 52 (avisar al armar un borrador con envíos ya en otro borrador). | 07/09 | Panel 1 | — |
 | L3 | Parser de facturas: mitigado — una guía ilegible entra NULL con advertencia, nunca 0 | 30/07 | Panel 3 | — |
 | L4 | Clientes sin margen configurado — **51 con envíos desde julio** | 07/08 | Panel 6-7 | Oficina |
 | L5 | 7 decisiones de pricing sin responder | 27/07 | | Felipe |

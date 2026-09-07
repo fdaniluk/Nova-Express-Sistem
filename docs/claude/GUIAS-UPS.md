@@ -8,6 +8,16 @@ se usa: **afuera por ahora**).
 
 Estado: **Etapa 0 en curso (07/09).** Nada implementado todavía.
 
+**07/09, tarde — Shipping habilitado.** Felipe entró a developer.ups.com (la cuenta
+corporativa de Daniluk rebota a CampusShip: se entra por el link "UPS Developer Portal"
+del pie de CampusShip) → My Apps → **"Nova Express Tracking"** (creada 06/02/2026,
+`administracion@novaexpress.com.ar`, cuenta de facturación 327W09) → Edit App → sumó
+**Shipping** y **Rating**. Los dos quedaron **aprobados en Test y Prod al instante**. Ahora
+la app tiene Rating · Tracking · OAuth · Shipping. **Las mismas credenciales del `.env`
+sirven.** Siguiente paso: correr `backend/scripts/ups-shipping-prueba.js` en la máquina de
+Felipe (el contenedor no llega a wwwcie.ups.com): crea una guía de prueba Bella Vista →
+Miami en el entorno de test y deja pedido/respuesta/etiqueta en `backend/ups-prueba/`.
+
 **Cuentas UPS (Felipe, 07/09): EXPO `327W09` · IMPO `3R6A45`.** Van al `.env` como
 `UPS_CUENTA_EXPO` / `UPS_CUENTA_IMPO` cuando arranque el módulo. (Coinciden con los
 prefijos de guía `1Z327W09…` y `1Z3R6A45…` que ya se ven en las facturas.)
@@ -137,8 +147,7 @@ posible que se pueda absorber del armado de la guía"*.
 ## 5. Lo que necesito de Felipe para arrancar la Etapa 0
 
 1. ✅ **Números de cuenta UPS** de expo y de impo — `327W09` / `3R6A45` (07/09).
-2. Entrar a **developer.ups.com** con el usuario de la app y decirme si en la app figura
-   **Shipping** entre los productos (o darme una captura de esa pantalla).
+2. ✅ **Shipping (y Rating) habilitados en la app el 07/09**, aprobados en Test y Prod.
 3. **Una proforma de las que hace la oficina** (el archivo que mandan), para la Etapa 3.
 4. **Que la oficina confirme el paso 6**: con DDP y sin DDP, qué eligen en "gastos de
    envío a" y en "aranceles e impuestos a".
