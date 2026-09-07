@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Configuración – Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260907b">
+  <link rel="stylesheet" href="../css/main.css?v=20260907c">
   <style>
     /* Cards de configuración (mudadas desde liquidaciones.css) */
     .fuel-cards {
@@ -149,6 +149,27 @@
       </section>
 
       <section class="card">
+        <h2>Controlar desde</h2>
+        <p class="config-hint">
+          Desde esta fecha el <b>panel de salud</b> destaca problemas y las bandejas de <b>Facturas</b>
+          ("Revisar guías" y "Guías sin envío") muestran guías. Lo anterior no se borra: se puede ver
+          con "Ver anteriores" en cada bandeja, pero no se destaca. Sirve para dejar atrás el período en
+          que el sistema se usó a medias (envíos de prueba, ventas sin cargar).
+        </p>
+        <div class="fuel-cards">
+          <div class="fuel-card" id="corte-card">
+            <h4>Fecha de corte del control</h4>
+            <div class="current" id="corte-actual">—</div>
+            <div class="form-group" style="margin-top:0.75rem">
+              <label>Nueva fecha</label>
+              <input type="date" id="corte-input">
+            </div>
+            <button class="btn btn-primary btn-sm" id="btn-corte-guardar">Guardar</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
         <h2>Ganancia mínima antes de alertar (%)</h2>
         <p class="config-hint">
           Cuando se cargue la factura del courier, se marcará la guía como "a revisar" si la ganancia real es menor a este umbral.
@@ -180,9 +201,9 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260907b"></script>
-<script src="../js/api.js?v=20260907b"></script>
-<script src="../js/main.js?v=20260907b"></script>
-<script src="../js/modules/configuracion.js?v=20260907b"></script>
+<script src="/js/auth-guard.js?v=20260907c"></script>
+<script src="../js/api.js?v=20260907c"></script>
+<script src="../js/main.js?v=20260907c"></script>
+<script src="../js/modules/configuracion.js?v=20260907c"></script>
 </body>
 </html>

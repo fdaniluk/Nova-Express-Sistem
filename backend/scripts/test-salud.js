@@ -171,6 +171,12 @@ async function main() {
   // ── 2. Ahora se planta un problema de cada tipo ─────────────────────────────
   console.log('\n2. Se planta un problema de cada tipo y se exige que lo encuentre\n');
 
+  // Fecha de corte del control (07/09/2026): por defecto el panel no destaca nada anterior al
+  // 01/09/2026, y estos fixtures usan fechas relativas a hoy (hace 10 días, el mes pasado…).
+  // Acá se prueba que los chequeos ENCUENTREN cada problema, no el corte (eso lo cuida
+  // test-fecha-corte.js), así que el corte se manda bien atrás.
+  await q("UPDATE configuracion_nova SET fecha_corte_control = '2000-01-01' WHERE id = 1");
+
   await q("INSERT INTO clientes (id, nombre, tipo_cobro, activo, tarifa_pct) VALUES (1,'Cliente Uno','D',1,25)");
   await q("INSERT INTO clientes (id, nombre, tipo_cobro, activo, tarifa_pct) VALUES (2,'Cliente Dos','D',1,25)");
 

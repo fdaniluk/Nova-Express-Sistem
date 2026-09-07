@@ -50,6 +50,20 @@ Están escritas en el encabezado de `backend/src/services/salud.service.js` y ha
 2. **Un chequeo que falla no puede tapar a los demás.** Cada uno corre en su propio try/catch y, si explota, se reporta en violeta con el error a la vista. Es exactamente el problema que tenían los backups: el error se tragaba en silencio. **Un chequeo roto tiene que gritar, no desaparecer.** Y "no se pudo mirar" enciende la franja igual que un rojo, porque no es lo mismo que "está bien".
 3. **Cada alerta dice dónde se arregla.** Un aviso sin acción posible es ruido, y el ruido entrena a ignorar el panel entero.
 
+### 3-bis. La fecha de corte del control (07/09/2026)
+
+El sistema se usó a medias hasta agosto (envíos de prueba, ventas sin cargar), y recién en
+septiembre se usa en serio. Para que el panel no viva rojo por historia vieja, hay una **fecha
+de corte** (`configuracion_nova.fecha_corte_control`, default 01/09/2026, se edita en
+Configuración → "Controlar desde"). Los chequeos con fecha — guías sin envío y facturas que
+no cuadran (por fecha de FACTURA), desvíos sin revisar, fuel desfasado, envíos sin precio (por
+fecha de ENVÍO) y cierres (meses desde el del corte) — **destacan solo lo posterior**; lo
+anterior se cuenta en una nota del resumen ("Además hay N anteriores… que no se destacan") y
+no se borra ni se corrige. Los chequeos sin fecha (clientes, huérfanos, backups, borradores,
+envíos en dos liquidaciones) no cambian. `correrChequeos()` devuelve `fecha_corte` y el pie
+del panel lo dice. Las bandejas de Facturas ("Revisar guías", "Guías sin envío") usan la
+misma fecha, con "Ver anteriores". Tanda: `test-fecha-corte`.
+
 ## 4. Lo que apareció de paso: facturas cargadas dos veces
 
 Probando el panel contra la base local apareció un bug que no estaba en ninguna lista.

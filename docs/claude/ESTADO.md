@@ -187,7 +187,7 @@ md5 de los dos lados.
 - Puertos de tests: 3964-69, 3971-73, 3986-87, 3989-94, 3996-98, 3963, 3960-61, 3970,
   3959/3958, 3955/3954, 3949, **3948** (desglose surge), 3946, **3945** (cruce), 3944,
   3943, **3942**, 3941, 3940, **3939** (columnas fijas), **3938** (+50 UPS), **3937**
-  (liquidación desglose). Manual: 3975-3985 (nunca 3999).
+  (liquidación desglose), **3936** (fecha de corte). Manual: 3975-3985 (nunca 3999).
   **3981 lo usa el script de capturas de los manuales.**
 - ⚠️ `pkill -f "src/server.js"` SE MATA A SÍ MISMO: usar `pkill -9 -f "[s]rc/server.js"`.
 - **`document.body.textContent` INCLUYE el código de los scripts inline** — leer el
@@ -292,6 +292,10 @@ Colores Nova `#403754`/`#EE6C52`.
 - **Facturas UPS:** parser acepta líneas de 2+ importes · percepciones IIBB SON COSTO y
   se reparten solo si la suma cuadra · sobreescribir REEMPLAZA · carga múltiple con
   pregunta única · **solo UPS: DHL no tiene parser**.
+- **LA FECHA DE CORTE DEL CONTROL (07/09):** el sistema se usó a medias hasta agosto; desde
+  `configuracion_nova.fecha_corte_control` (01/09/2026, Configuración → "Controlar desde")
+  el panel de salud y las bandejas de Facturas destacan; lo anterior se cuenta y se ve a
+  pedido, no se corrige ni se borra.
 - **Salidas:** filtros ▼ por columna + "1º bulto" + **"✕ Limpiar filtros"**. El ▼ de
   Bulto tiene TRES criterios: **Bulto n°** (por renglón), **Cant. bultos** (por envío) y
   **Semáforo** (por renglón, con los textos del tooltip).
@@ -306,8 +310,9 @@ Colores Nova `#403754`/`#EE6C52`.
 
 ## 3. Dónde estamos (07-09-2026, tarde)
 
-- **07/09 tarde — EL PAQUETE DE LA TARDE (commit siguiente a `0e1971e`, SIN pushear ni
-  desplegar: acordado para el 08/09 a la mañana con el verificar completo).** Cuatro cosas:
+- **07/09 tarde — `8413850` EL PAQUETE DE LA TARDE — PUSHEADO Y DESPLEGADO a las 14:42
+  (`DESPLEGADO Y SANO · 0e1971e → 8413850`, check-schema verde). La migración limpió 1
+  envío UPS con la marca +50 en producción.** Cuatro cosas:
   **(1) el +50 pegado a envíos UPS** — caso de administración, reproducido por API: DHL de
   70 kg pasado a UPS desde el modal quedaba con chip +50 y sin poder recalcular (400 "sin
   servicio UPS"). Modal con selector **Servicio UPS**; PATCH acepta `servicio_ups`, lo exige
@@ -322,6 +327,14 @@ Colores Nova `#403754`/`#EE6C52`.
   `test-liquidacion-desglose` (41, puerto 3937). **(3) Salidas: "Dif Costo" → "% Real"**
   ((venta − costo UPS)/costo UPS); el desvío pasó al rojo + tooltip de Costo UPS. **(4)**
   docs. Cache **`?v=20260907b`**. **66 tandas en el verificar (69 archivos).**
+- **07/09, tercer paquete — LA FECHA DE CORTE DEL CONTROL (commiteado, pendiente de tests de
+  Felipe/push/deploy).** `configuracion_nova.fecha_corte_control` (default `2026-09-01`,
+  tarjeta "Controlar desde" en Configuración). El panel de salud y las bandejas de Facturas
+  ("Revisar guías" por fecha de envío, "Guías sin envío" por fecha de factura) muestran solo
+  lo posterior; lo anterior se cuenta ("N anteriores") y se ve con "Ver anteriores"
+  (`?todo=1`). `GET /facturas/guias` devuelve ahora `{ guias, fecha_corte, anteriores, todo }`.
+  Tanda `test-fecha-corte` (32, puerto 3936). Cache **`?v=20260907c`**. **67 tandas (70
+  archivos).** Detalle en `PENDIENTES.md`.
 - **07/09 — `0e1971e` Columnas fijas de Salidas: CUALQUIER columna — PUSHEADO Y DESPLEGADO.**
   Pedido de Felipe: *"que lo deje fijar la columna que quiera"*. `buildStickyCols()` lee el
   `<thead>` (clave = `data-col` o slug del rótulo) y `applyStickyCols()` emite el CSS por
@@ -426,10 +439,10 @@ Colores Nova `#403754`/`#EE6C52`.
   **`test-cruce-tarifa-50`** (el mismo envío por los seis caminos del sistema).
   Detalle completo en `claude/TARIFA-DHL-MAS-50.md`, sección **"La auditoría del cruce"**.
   **Lección: REGLA NÚMERO ONCE.**
-- Cache **`?v=20260907b`** (las 17 páginas, incluido el v8 de `shared/`). **66 tandas en
-  el verificar (69 archivos `test-*.js`)**, contadas contra `package.json` el 07/09 (las
+- Cache **`?v=20260907c`** (las 17 páginas, incluido el v8 de `shared/`). **67 tandas en
+  el verificar (70 archivos `test-*.js`)**, contadas contra `package.json` el 07/09 (las
   últimas: `test-pantalla-columnas-fijas` 3939, `test-tarifa-50-ups` 3938,
-  `test-liquidacion-desglose` 3937): el
+  `test-liquidacion-desglose` 3937, `test-fecha-corte` 3936): el
   03-04/09 se sumaron `test-pantalla-entrega-impo` (49), `test-facturas-impuestos` (44, en `test`), `test-agregar-bulto` (36)
   y `test-pantalla-liquidaciones-pendientes` (12), las dos en `test-pantallas`; el 02/09,
   `test-desglose-venta-surge`
@@ -468,7 +481,7 @@ ATADO a la cotización + diferencia registrada (columnas de `envios` ya existen,
 
 Commits sin acentos, describiendo el efecto. Un JS por pantalla. Sin frameworks. **Cache
 busting global única en TODAS las páginas** (`test-motor-unico` lo controla, e incluye el
-v8 de `shared/`) — hoy **`?v=20260907b`**; NO cubre los scripts inline → **Ctrl+F5** tras
+v8 de `shared/`) — hoy **`?v=20260907c`**; NO cubre los scripts inline → **Ctrl+F5** tras
 desplegar. La imagen de la cotización se dibuja en canvas.
 
 ## 5. Mantenimiento

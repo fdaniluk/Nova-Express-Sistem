@@ -144,7 +144,26 @@ async function actualizarTolerancias(req, res, next) {
   }
 }
 
+// Fecha de corte del control (ver configuracion.model.js).
+async function obtenerCorte(req, res, next) {
+  try {
+    res.json({ fecha_corte_control: await configuracionModel.obtenerFechaCorte() });
+  } catch (e) { next(e); }
+}
+
+async function actualizarCorte(req, res, next) {
+  try {
+    const { fecha_corte_control } = req.body || {};
+    const v = String(fecha_corte_control || '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v) || Number.isNaN(new Date(`${v}T12:00:00`).getTime())) {
+      return res.status(400).json({ error: 'fecha_corte_control debe ser una fecha YYYY-MM-DD válida.' });
+    }
+    res.json(await configuracionModel.actualizarFechaCorte(v));
+  } catch (e) { next(e); }
+}
+
 module.exports = {
+  obtenerCorte, actualizarCorte,
   listarFuel, actualizarFuel, historialFuel,
   listarUmbrales, actualizarUmbral, historialUmbral,
   listarTolerancias, actualizarTolerancias,

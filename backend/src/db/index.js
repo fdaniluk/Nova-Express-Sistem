@@ -628,6 +628,16 @@ async function migrateFuelNova() {
   // Arranca en 0 y NO se inventa un valor: un fuel inventado es plata mal cobrada. Con 0
   // el sistema avisa (el panel de salud lo va a marcar) hasta que Felipe cargue el real.
   await dbApi.exec('INSERT OR IGNORE INTO configuracion_nova (id, fuel_pct) VALUES (1, 0)');
+
+  // Fecha de corte del control (07/09/2026, pedido de Felipe): el sistema se usó a medias
+  // hasta agosto y hay envíos viejos sin venta, de prueba, etc. Desde esta fecha el panel de
+  // salud y las bandejas de revisión de Facturas miran en serio; lo anterior se puede ver a
+  // pedido pero no se destaca. Se edita en Configuración. Vive en la fila única de
+  // configuracion_nova (un parámetro general, no por courier).
+  const colsNova = (await dbApi.prepare('PRAGMA table_info(configuracion_nova)').all()).map((c) => c.name);
+  if (!colsNova.includes('fecha_corte_control')) {
+    await dbApi.exec("ALTER TABLE configuracion_nova ADD COLUMN fecha_corte_control TEXT NOT NULL DEFAULT '2026-09-01'");
+  }
 }
 
 // Índices que faltaban sobre las consultas que ya están en producción. Todos son

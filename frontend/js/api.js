@@ -104,6 +104,8 @@ const api = {
       const q = courier ? `?courier=${courier}` : '';
       return api.get(`/configuracion/umbral/historial${q}`);
     },
+    corte: () => api.get('/configuracion/corte'),
+    actualizarCorte: (fecha_corte_control) => api.put('/configuracion/corte', { fecha_corte_control }),
     tolerancias: () => api.get('/configuracion/tolerancias'),
     actualizarTolerancias: (
       courier, tolerancia_peso_pct, tolerancia_costo_pct,
@@ -248,9 +250,9 @@ api.facturas = {
     fd.append('sobreescribir', sobreescribir ? 'true' : 'false');
     return request('/facturas/cargar', { method: 'POST', body: fd });
   },
-  guias: () => api.get('/facturas/guias'),
+  guias: (todo = false) => api.get(`/facturas/guias${todo ? '?todo=1' : ''}`),
   // Guías que el courier facturó y que no tienen envío en el sistema.
-  sinEnvio: () => api.get('/facturas/sin-envio'),
+  sinEnvio: (todo = false) => api.get(`/facturas/sin-envio${todo ? '?todo=1' : ''}`),
   actualizarEstado: (id, estado_revision) =>
     request(`/facturas/guias/${id}/estado`, { method: 'PATCH', body: { estado_revision } }),
 };

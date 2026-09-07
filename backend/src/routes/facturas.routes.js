@@ -3,6 +3,7 @@ const multer = require('multer');
 const { getDb } = require('../db');
 const { extraerFacturaUPS } = require('../services/factura-ups.service');
 const { hoyLocal } = require('../utils/fecha');
+const configuracionModel = require('../models/configuracion.model');
 
 const router = Router();
 const upload = multer({
@@ -412,9 +413,16 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
 // Bandeja de problemas: SOLO los envíos facturados marcados como problema
 // (a_revisar o reclamar). Los revisado_ok ya están aprobados y NO aparecen acá.
 // Los a_revisar van primero.
+// Desde el 07/09 la bandeja respeta la FECHA DE CORTE del control (Configuración): los
+// envíos anteriores a esa fecha no se muestran salvo que se pida `?todo=1`. Pedido de
+// Felipe: el sistema se usó a medias hasta agosto y la bandeja se llenaba de envíos viejos
+// cargados sin venta (100 % de diferencia) que no son problemas reales. La respuesta pasó
+// de ser la lista pelada a `{ guias, fecha_corte, anteriores, todo }` (07/09).
 router.get('/guias', async (req, res, next) => {
   try {
     const db = getDb();
+    const corte = await configuracionModel.obtenerFechaCorte();
+    const todo = String(req.query.todo || '') === '1';
     const rows = await db.prepare(`
       SELECT
         e.id, e.numero_guia, e.pais_destino, e.fecha,
@@ -425,6 +433,7 @@ router.get('/guias', async (req, res, next) => {
       JOIN clientes c ON c.id = e.cliente_id
       WHERE e.costo_facturado IS NOT NULL
         AND e.estado_revision IN ('a_revisar', 'reclamar')
+        AND (? = 1 OR e.fecha >= ?)
       ORDER BY
         CASE e.estado_revision
           WHEN 'a_revisar'   THEN 0
@@ -433,7 +442,12 @@ router.get('/guias', async (req, res, next) => {
         END,
         e.fecha_facturado DESC,
         e.id DESC
-    `).all();
+    `).all(todo ? 1 : 0, corte);
+    const anteriores = todo ? 0 : (await db.prepare(`
+      SELECT COUNT(*) AS n FROM envios e
+      WHERE e.costo_facturado IS NOT NULL
+        AND e.estado_revision IN ('a_revisar', 'reclamar')
+        AND e.fecha < ?`).get(corte)).n;
 
     const result = rows.map((r) => {
       const ganancia_usd = r.total_cobrado != null
@@ -459,7 +473,7 @@ router.get('/guias', async (req, res, next) => {
       };
     });
 
-    res.json(result);
+    res.json({ guias: result, fecha_corte: corte, anteriores, todo });
   } catch (err) {
     next(err);
   }
@@ -479,6 +493,10 @@ router.get('/guias', async (req, res, next) => {
 router.get('/sin-envio', async (req, res, next) => {
   try {
     const db = getDb();
+    // Misma fecha de corte que la bandeja de revisión (07/09), acá por la fecha de la
+    // FACTURA (una guía sin envío no tiene fecha de envío). Sin fecha de factura, se muestra.
+    const corte = await configuracionModel.obtenerFechaCorte();
+    const todo = String(req.query.todo || '') === '1';
     const rows = await db.prepare(`
       SELECT
         fg.id, fg.numero_guia, fg.pais, fg.peso_facturado, fg.costo_total, fg.percepcion,
@@ -486,8 +504,13 @@ router.get('/sin-envio', async (req, res, next) => {
       FROM factura_guias fg
       JOIN facturas_cargadas f ON f.id = fg.factura_id
       WHERE fg.encontrada = 0
+        AND (? = 1 OR f.fecha_factura IS NULL OR f.fecha_factura >= ?)
       ORDER BY f.fecha_carga DESC, fg.id DESC
-    `).all();
+    `).all(todo ? 1 : 0, corte);
+    const anteriores = todo ? 0 : (await db.prepare(`
+      SELECT COUNT(*) AS n FROM factura_guias fg
+      JOIN facturas_cargadas f ON f.id = fg.factura_id
+      WHERE fg.encontrada = 0 AND f.fecha_factura IS NOT NULL AND f.fecha_factura < ?`).get(corte)).n;
 
     const resultado = rows.map((r) => ({
       id: r.id,
@@ -516,6 +539,8 @@ router.get('/sin-envio', async (req, res, next) => {
       total: resultado.length,
       costo_total: Math.round(resultado.reduce((s, g) => s + (g.costo_total || 0), 0) * 100) / 100,
       guias: resultado,
+      fecha_corte: corte,
+      anteriores,
     });
   } catch (err) {
     next(err);

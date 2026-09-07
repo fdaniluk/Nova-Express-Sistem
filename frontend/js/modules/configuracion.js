@@ -159,9 +159,40 @@
     });
   }
 
+  // Fecha de corte del control (07/09): desde cuándo el panel de salud y las bandejas de
+  // Facturas destacan cosas. Un solo click guarda (regla siete: sin dos pasos).
+  async function loadCorte() {
+    const r = await NovaAPI.configuracion.corte();
+    const actual = document.getElementById('corte-actual');
+    const input = document.getElementById('corte-input');
+    if (!actual || !input) return;
+    actual.textContent = NovaUtils.formatDate(r.fecha_corte_control);
+    input.value = r.fecha_corte_control;
+    const btn = document.getElementById('btn-corte-guardar');
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', async () => {
+      const v = input.value;
+      if (!v) { NovaUtils.showAlert(alertBox, 'Elegí una fecha', 'error'); return; }
+      btn.disabled = true;
+      try {
+        const res = await NovaAPI.configuracion.actualizarCorte(v);
+        actual.textContent = NovaUtils.formatDate(res.fecha_corte_control);
+        input.value = res.fecha_corte_control;
+        NovaUtils.showAlert(alertBox, `Desde ahora el control arranca el ${NovaUtils.formatDate(res.fecha_corte_control)}.`, 'success');
+      } catch (err) {
+        input.value = r.fecha_corte_control;   // si falla, el control vuelve a lo guardado
+        NovaUtils.showAlert(alertBox, err.message, 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  }
+
   async function init() {
     try {
       await loadFuel();
+      await loadCorte();
       await loadUmbral();
       await loadTolerancias();
     } catch (err) {

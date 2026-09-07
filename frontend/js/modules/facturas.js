@@ -438,15 +438,35 @@
   // (factura_guias.encontrada = 0) pero solo se veía en el resumen del momento de cargar
   // la factura: al salir de ahí no se volvía a ver nunca.
 
+  // Fecha de corte del control (07/09, Configuración): las dos bandejas arrancan mostrando
+  // solo lo posterior al corte; "ver anteriores" trae todo. Por pestaña, no persiste.
+  let sinEnvioTodo = false;
+  let revisarTodo = false;
+
+  function pintarNotaCorte(el, { fecha_corte, anteriores, todo }, onToggle) {
+    if (!el) return;
+    if (!fecha_corte) { el.innerHTML = ''; return; }
+    const f = NovaUtils.formatDate(fecha_corte);
+    el.innerHTML = todo
+      ? `Mostrando <b>todo</b>, incluido lo anterior al ${esc(f)}. <a data-corte-toggle>Volver a mostrar desde el ${esc(f)}</a>`
+      : `Mostrando desde el <b>${esc(f)}</b> (fecha de corte del control, en Configuración).`
+        + (anteriores > 0 ? ` Hay <b>${anteriores}</b> anterior${anteriores > 1 ? 'es' : ''} que no se muestra${anteriores > 1 ? 'n' : ''}. <a data-corte-toggle>Ver anteriores</a>` : '');
+    const a = el.querySelector('[data-corte-toggle]');
+    if (a) a.addEventListener('click', onToggle);
+  }
+
   async function loadSinEnvio() {
     const tbody = document.getElementById('fac-sinenvio-body');
     const counter = document.getElementById('fac-sinenvio-counter');
     const badge = document.getElementById('sinenvio-badge');
     tbody.innerHTML = '<tr><td colspan="5" class="empty">Cargando…</td></tr>';
     try {
-      const res = await NovaAPI.facturas.sinEnvio();
+      const res = await NovaAPI.facturas.sinEnvio(sinEnvioTodo);
       sinEnvioLoaded = true;
       const guias = res.guias || [];
+      pintarNotaCorte(document.getElementById('fac-sinenvio-corte'),
+        { fecha_corte: res.fecha_corte, anteriores: res.anteriores || 0, todo: sinEnvioTodo },
+        () => { sinEnvioTodo = !sinEnvioTodo; loadSinEnvio(); });
 
       if (badge) {
         badge.textContent = guias.length;
@@ -481,8 +501,13 @@
     counter.textContent = '';
 
     try {
-      revisarData = await NovaAPI.facturas.guias();
+      const res = await NovaAPI.facturas.guias(revisarTodo);
+      // Desde el 07/09 la API devuelve { guias, fecha_corte, anteriores, todo }.
+      revisarData = Array.isArray(res) ? res : (res.guias || []);
       revisarLoaded = true;
+      pintarNotaCorte(document.getElementById('fac-revisar-corte'),
+        { fecha_corte: res.fecha_corte, anteriores: res.anteriores || 0, todo: revisarTodo },
+        () => { revisarTodo = !revisarTodo; loadRevisar(); });
       renderRevisar();
     } catch (err) {
       tbody.innerHTML = `<tr><td colspan="10" class="empty" style="color:var(--color-danger)">Error al cargar: ${esc(err.message)}</td></tr>`;

@@ -69,7 +69,10 @@ CREATE TABLE IF NOT EXISTS configuracion (
 CREATE TABLE IF NOT EXISTS configuracion_nova (
   id                   INTEGER PRIMARY KEY CHECK (id = 1),
   fuel_pct             REAL NOT NULL DEFAULT 0,
-  fecha_actualizacion  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+  fecha_actualizacion  TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  -- Desde qué fecha el panel de salud y las bandejas de revisión de Facturas controlan en
+  -- serio (07/09/2026). Lo anterior se ve a pedido, no se destaca.
+  fecha_corte_control  TEXT NOT NULL DEFAULT '2026-09-01'
 );
 
 CREATE TABLE IF NOT EXISTS configuracion_nova_historial (

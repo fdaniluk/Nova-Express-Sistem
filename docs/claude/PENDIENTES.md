@@ -6,10 +6,11 @@ reproducido y arreglado, con selector de servicio UPS en el modal de Salidas y l
 datos al arrancar), Liquidaciones con profit en pantalla + desglose de adicionales + Excel
 con logo/colores Nova y título según el cobro del cliente, y Salidas con **"% Real"** en
 lugar de "Dif Costo". Tandas nuevas `test-tarifa-50-ups` (32), `test-liquidacion-desglose`
-(41). Cache **`?v=20260907b`**. **Commiteado; falta que Felipe corra las tandas, pushee y
-despliegue (acordado: mañana 08/09 a la mañana, con el verificar completo).** Antes, el
+(41). Cache **`?v=20260907b`**. **`8413850` — PUSHEADO Y DESPLEGADO el 07/09 a las 14:42
+(`DESPLEGADO Y SANO · 0e1971e → 8413850`, check-schema verde, 28 tablas). La migración
+encontró y limpió **1 envío UPS** con la marca +50 pegada en producción.** Antes, el
 mismo día: **`0e1971e`** (columnas fijas: cualquier columna — **pusheado y DESPLEGADO el
-07/09**). **66 tandas en el verificar (69 archivos `test-*.js`).**
+07/09**). **67 tandas en el verificar (70 archivos `test-*.js`).**
 
 **Guías UPS (Etapa 0):** Felipe pasó las cuentas — **EXPO `327W09` · IMPO `3R6A45`**
 (`GUIAS-UPS.md`). Falta que confirme en developer.ups.com si la app tiene **Shipping**.
@@ -19,12 +20,15 @@ mismo día: **`0e1971e`** (columnas fijas: cualquier columna — **pusheado y DE
 
 ## 🔵 LO PRIMERO
 
-0. **El paquete de la tarde del 07/09 (commit siguiente a `0e1971e`):** mañana 08/09 Felipe
-   corre el **verificar completo** (`cd C:\dev\Nova-Express-Sistem\backend; npm run
-   verificar`), pushea y despliega. **Al desplegar, mirar el log de pm2: la migración dice
-   `[db] tarifa_50: se sacó la marca +50 ... a N envío(s) UPS`** — ese N es cuántos envíos
-   UPS tenían la marca pegada en producción. Después: Ctrl+Shift+R, probar Liquidaciones
-   (columna Profit, desglose, Excel) y Salidas (columna % Real, modal con Servicio UPS).
+0. ✅ **`8413850` desplegado el 07/09 (14:42)**; la migración limpió **1 envío UPS** con la
+   marca +50. Falta: Ctrl+Shift+R, probar Liquidaciones (columna Profit, desglose, Excel) y
+   Salidas (columna % Real, modal con Servicio UPS); que administración vuelva a probar el
+   caso del +50. **El verificar completo del día no se corrió** (se desplegó con las tandas
+   de lo tocado, verdes en el contenedor y en la máquina de Felipe): correrlo mañana antes
+   del primer deploy.
+0-a. **La fecha de corte (tercer paquete del 07/09):** commiteada; Felipe corre
+   `test-fecha-corte` + `test-salud`, pushea, despliega. Después mirar el panel de salud y
+   "Revisar guías" con Ctrl+Shift+R: tienen que quedar solo cosas de septiembre.
 0-bis. ✅ Columnas fijas (`0e1971e`) desplegado el 07/09. Al manual de Salidas sumarle que
    ahora se fija cualquier columna, el botón "Ninguna", **la columna % Real (sale Dif
    Costo)** y el selector de Servicio UPS del modal; al manual de facturas, lo mismo del
@@ -51,7 +55,26 @@ mismo día: **`0e1971e`** (columnas fijas: cualquier columna — **pusheado y DE
 5. **Impuestos de impo: POSPUESTO por Felipe** (31/08). Los "aspectos que no me contó"
    siguen sin revisar — no darlos por validados (el CIF aforado del 02/09 ya está).
 
-## 🟢 LO DEL 07/09 — COLUMNAS FIJAS + EL PAQUETE DE LA TARDE
+## 🟢 LO DEL 07/09 — COLUMNAS FIJAS + EL PAQUETE DE LA TARDE + LA FECHA DE CORTE
+
+### La fecha de corte del control (tercer paquete del 07/09)
+- Pedido de Felipe: *"el sistema se estuvo usando a medias estos meses... estaría bien que el
+  panel de salud destaque cosas desde el primero de septiembre, y que las cosas a revisar de
+  facturas muestren solamente de este mes en adelante"* (la bandeja se llenaba de envíos
+  viejos cargados sin venta, con 100 % de diferencia).
+- **`configuracion_nova.fecha_corte_control`** (default `2026-09-01`; migración + `schema.sql`),
+  tarjeta **"Controlar desde"** en Configuración (`GET/PUT /api/configuracion/corte`).
+- **Facturas:** "Revisar guías" filtra por fecha del ENVÍO y "Guías sin envío" por fecha de la
+  FACTURA; las dos muestran la nota "Mostrando desde el 01/09/2026 · N anteriores" con
+  **"Ver anteriores"** (`?todo=1`). `GET /facturas/guias` pasó a devolver
+  `{ guias, fecha_corte, anteriores, todo }`.
+- **Panel de salud:** guías sin envío, facturas que no cuadran, desvíos sin revisar, fuel
+  desfasado, envíos sin precio y cierres respetan el corte; lo anterior se cuenta en una
+  nota del resumen ("Además hay N anteriores… que no se destacan") y el pie dice desde
+  cuándo controla. `correrChequeos()` devuelve `fecha_corte`.
+- Tanda `test-fecha-corte` (**32**, puerto 3936, en `test`). `test-salud` manda el corte a
+  2000-01-01 para sus fixtures relativos a hoy (42 verdes).
+
 
 ### `0e1971e` — Salidas: columnas fijas para cualquier columna (desplegado)
 Pedido de Felipe: *"que lo deje fijar la columna que quiera, hoy en día solo te deja elegir
@@ -473,9 +496,9 @@ cliente?** (03/09)
 | **50** | **Tres tandas quedaron FUERA del `verificar`**: `test-orden-pendientes`, `test-regla-documentos` y `test-tarifa-por-kg` (existen como archivo pero no están en las cadenas `test`/`test-pantallas`). Decidir si entran al verificar o si se borran | 20 min |
 
 **El conteo de tandas venía arrastrado mal en la documentación**: el número bueno,
-verificado contra `backend/package.json` el 07/09 (tarde), es **66 tandas en el verificar
-sobre 69 archivos `scripts/test-*.js`** (las últimas: `test-tarifa-50-ups`,
-`test-liquidacion-desglose`).
+verificado contra `backend/package.json` el 07/09 (tarde), es **67 tandas en el verificar
+sobre 70 archivos `scripts/test-*.js`** (las últimas: `test-tarifa-50-ups`,
+`test-liquidacion-desglose`, `test-fecha-corte`).
 
 ---
 

@@ -74,6 +74,16 @@ async function correr(meta, fn) {
   }
 }
 
+// Texto que se cuelga al resumen de un chequeo cuando el corte dejó cosas afuera (07/09).
+function notaCorte(anteriores, corte) {
+  if (!(anteriores > 0)) return '';
+  return ` (Además hay ${anteriores} anterior${anteriores > 1 ? 'es' : ''} al ${fechaCorta(corte)} que no se destaca${anteriores > 1 ? 'n' : ''}: el control arranca ahí.)`;
+}
+function fechaCorta(iso) {
+  const [y, m, d] = String(iso).split('-');
+  return `${d}/${m}/${y}`;
+}
+
 // Recorta el detalle al tope y deja dicho cuántas filas quedaron afuera.
 function acotar(filas) {
   if (filas.length <= MAX_DETALLE) return { detalle: filas, truncado: 0 };
@@ -146,8 +156,10 @@ async function chequeoEnvioEnVariasLiquidaciones(db) {
 // Se agrupa por numero_guia, NO por fila. Si una factura se cargo dos veces (ver el
 // chequeo `facturas_duplicadas`) la misma guia tiene dos filas en `factura_guias`, y
 // contar filas duplicaria la plata informada. La guia es la unidad real, no la fila.
-async function chequeoGuiasSinEnvio(db) {
-  const filas = await db.prepare(`
+async function chequeoGuiasSinEnvio(db, corte) {
+  // Desde el 07/09 se mira por la fecha de la FACTURA contra la fecha de corte del control
+  // (una guía sin envío no tiene fecha de envío). Sin fecha de factura, se muestra.
+  const todas = await db.prepare(`
     SELECT fg.numero_guia,
            MAX(fg.pais)           AS pais,
            MAX(fg.peso_facturado) AS peso_facturado,
@@ -161,9 +173,11 @@ async function chequeoGuiasSinEnvio(db) {
     GROUP BY fg.numero_guia
     ORDER BY MAX(fg.costo_total) DESC
   `).all();
+  const filas = todas.filter((f) => !f.fecha_factura || f.fecha_factura >= corte);
+  const anteriores = todas.length - filas.length;
 
   if (!filas.length) {
-    return { severidad: 'ok', cantidad: 0, resumen: 'Todas las guías facturadas tienen su envío cargado.', detalle: [] };
+    return { severidad: 'ok', cantidad: 0, resumen: 'Todas las guías facturadas desde el corte tienen su envío cargado.' + notaCorte(anteriores, corte), detalle: [] };
   }
 
   const total = r2(filas.reduce((a, f) => a + (f.costo_total || 0), 0));
@@ -173,7 +187,7 @@ async function chequeoGuiasSinEnvio(db) {
     monto: total,
     resumen:
       `${filas.length} guía(s) facturadas sin envío en el sistema, por USD ${total.toFixed(2)}. `
-      + 'Es plata pagada al courier que no se le facturó a ningún cliente.',
+      + 'Es plata pagada al courier que no se le facturó a ningún cliente.' + notaCorte(anteriores, corte),
     ...acotar(filas.map((f) => ({
       guia: f.numero_guia,
       pais: f.pais || '—',
@@ -192,8 +206,8 @@ async function chequeoGuiasSinEnvio(db) {
 // Depende de que la carga haya guardado `total_declarado`. Las facturas cargadas antes
 // de que existiera esa columna no se pueden verificar, y se informan aparte en vez de
 // darlas por buenas.
-async function chequeoFacturasQueNoCuadran(db) {
-  const filas = await db.prepare(`
+async function chequeoFacturasQueNoCuadran(db, corte) {
+  const todas = await db.prepare(`
     SELECT
       f.id, f.numero_factura, f.fecha_factura, f.total_declarado,
       COALESCE(SUM(fg.costo_total), 0) AS suma_guias,
@@ -205,6 +219,9 @@ async function chequeoFacturasQueNoCuadran(db) {
     GROUP BY f.id
     ORDER BY f.fecha_factura DESC
   `).all();
+  // Fecha de corte del control (07/09): las facturas anteriores no se destacan.
+  const filas = todas.filter((f) => !f.fecha_factura || f.fecha_factura >= corte);
+  const anterioresCorte = todas.length - filas.length;
 
   const sinTotal = filas.filter((f) => f.total_declarado == null);
   const descuadradas = filas
@@ -257,7 +274,7 @@ async function chequeoFacturasQueNoCuadran(db) {
     // Descuadre real = rojo (es plata). Solo "no verificable" = ámbar.
     severidad: descuadradas.length || conAgujeros.length ? 'rojo' : 'ambar',
     cantidad: detalle.length,
-    resumen: `${partes.join('. ')}.`,
+    resumen: `${partes.join('. ')}.` + notaCorte(anterioresCorte, corte),
     ...acotar(detalle),
   };
 }
@@ -267,13 +284,13 @@ async function chequeoFacturasQueNoCuadran(db) {
 // de MÁS (a favor nuestro no se pinta nunca) y supera al menos uno de los dos umbrales
 // del courier (% o absoluto). Si acá se usara otra regla, el panel y la pantalla se
 // contradirían y ganaría el que mira último.
-async function chequeoDesviosSinRevisar(db) {
+async function chequeoDesviosSinRevisar(db, corte) {
   const tolRows = await db.prepare('SELECT courier, tolerancia_costo_pct, tolerancia_costo_usd, tolerancia_peso_pct, tolerancia_peso_kg FROM configuracion').all();
   const tol = {};
   for (const t of tolRows) tol[t.courier] = t;
 
   const envios = await db.prepare(`
-    SELECT e.id, e.numero_guia, e.courier, e.estado_revision, e.costo_facturado,
+    SELECT e.id, e.numero_guia, e.fecha, e.courier, e.estado_revision, e.costo_facturado,
            e.peso_facturable, e.peso_facturado,
            e.flete, e.descuento, e.seguro, e.fuel, e.derechos, e.adicionales, e.otros,
            c.nombre AS cliente
@@ -285,6 +302,7 @@ async function chequeoDesviosSinRevisar(db) {
 
   const { costoEstimado } = require('../utils/profit');
   const filas = [];
+  let anteriores = 0;
   for (const e of envios) {
     const t = tol[e.courier] || {};
     const base = costoEstimado(e);
@@ -294,6 +312,8 @@ async function chequeoDesviosSinRevisar(db) {
     const superaPct = t.tolerancia_costo_pct != null && pct > t.tolerancia_costo_pct;
     const superaAbs = t.tolerancia_costo_usd != null && abs > t.tolerancia_costo_usd;
     if (abs > 0 && (superaPct || superaAbs)) {
+      // Fecha de corte del control (07/09): lo anterior se cuenta pero no se destaca.
+      if (e.fecha && e.fecha < corte) { anteriores++; continue; }
       filas.push({
         guia: e.numero_guia || `#${e.id}`,
         cliente: e.cliente || '—',
@@ -308,7 +328,7 @@ async function chequeoDesviosSinRevisar(db) {
   filas.sort((a, b) => b.de_mas - a.de_mas);
 
   if (!filas.length) {
-    return { severidad: 'ok', cantidad: 0, resumen: 'No hay desvíos de costo fuera de tolerancia esperando revisión.', detalle: [] };
+    return { severidad: 'ok', cantidad: 0, resumen: 'No hay desvíos de costo fuera de tolerancia esperando revisión.' + notaCorte(anteriores, corte), detalle: [] };
   }
   const total = r2(filas.reduce((a, f) => a + f.de_mas, 0));
   return {
@@ -317,7 +337,7 @@ async function chequeoDesviosSinRevisar(db) {
     monto: total,
     resumen:
       `${filas.length} envío(s) donde el courier facturó USD ${total.toFixed(2)} de más que lo estimado, `
-      + 'y nadie los revisó todavía.',
+      + 'y nadie los revisó todavía.' + notaCorte(anteriores, corte),
     ...acotar(filas),
   };
 }
@@ -328,12 +348,13 @@ async function chequeoDesviosSinRevisar(db) {
 // con 39 % cuando la configuración decía 33 %, porque el frontend tenía el 39
 // hardcodeado. Este chequeo mira solo los últimos 60 días — más atrás la diferencia es
 // legítima (el fuel cambió 5 veces en 2 meses).
-async function chequeoFuelDesfasado(db) {
+async function chequeoFuelDesfasado(db, corte) {
   const cfg = await db.prepare('SELECT courier, fuel_pct FROM configuracion').all();
   const actual = {};
   for (const c of cfg) actual[c.courier] = c.fuel_pct;
 
-  const desde = hoyLocalMas(-60);
+  // Últimos 60 días, y nunca antes de la fecha de corte del control (07/09).
+  const desde = [hoyLocalMas(-60), corte].sort()[1];
   const envios = await db.prepare(`
     SELECT e.id, e.numero_guia, e.fecha, e.courier, e.fuel_pct, c.nombre AS cliente
     FROM envios e
@@ -469,9 +490,9 @@ async function chequeoClientesDuplicados(db) {
 // Cargar el envío sin precio y ponérselo al liquidar es el flujo normal, así que el mes
 // en curso NO cuenta. Lo que no es normal es que quede así un mes que ya cerró: ese
 // envío no se le cobró a nadie.
-async function chequeoEnviosSinPrecio(db) {
+async function chequeoEnviosSinPrecio(db, corte) {
   const primerDiaMes = `${hoyLocal().slice(0, 7)}-01`;
-  const filas = await db.prepare(`
+  const todas = await db.prepare(`
     SELECT e.id, e.numero_guia, e.fecha, e.courier, c.nombre AS cliente, e.liquidacion_id
     FROM envios e
     LEFT JOIN clientes c ON c.id = e.cliente_id
@@ -482,16 +503,20 @@ async function chequeoEnviosSinPrecio(db) {
       AND e.no_volo = 0
     ORDER BY e.fecha
   `).all(primerDiaMes);
+  // Fecha de corte del control (07/09): los envíos viejos sin venta (de prueba, del período
+  // en que el sistema se usó a medias) no se destacan. Se cuentan aparte.
+  const filas = todas.filter((f) => !f.fecha || f.fecha >= corte);
+  const anteriores = todas.length - filas.length;
 
   if (!filas.length) {
-    return { severidad: 'ok', cantidad: 0, resumen: 'Todos los envíos de meses cerrados tienen precio o están liquidados.', detalle: [] };
+    return { severidad: 'ok', cantidad: 0, resumen: 'Todos los envíos de meses cerrados (desde el corte) tienen precio o están liquidados.' + notaCorte(anteriores, corte), detalle: [] };
   }
   return {
     severidad: 'ambar',
     cantidad: filas.length,
     resumen:
       `${filas.length} envío(s) de meses ya cerrados quedaron sin precio de venta y sin liquidar. `
-      + 'Son envíos que se despacharon y no se le cobraron a nadie.',
+      + 'Son envíos que se despacharon y no se le cobraron a nadie.' + notaCorte(anteriores, corte),
     ...acotar(filas.map((f) => ({
       guia: f.numero_guia || `#${f.id}`,
       cliente: f.cliente || '—',
@@ -627,17 +652,23 @@ function chequeoBackups() {
 // Los primeros días del mes no cuentan: nadie cierra julio el 1 de agosto a la mañana.
 const DIAS_GRACIA_CIERRE = 5;
 
-async function chequeoCierres(db) {
+async function chequeoCierres(db, corte) {
   const hoy = new Date(`${hoyLocal()}T12:00:00`);
   const p = (n) => String(n).padStart(2, '0');
 
   // Los meses completos hacia atrás. Si estamos dentro de la gracia, el mes recién
-  // terminado todavía no se le reclama a nadie.
+  // terminado todavía no se le reclama a nadie. Y nunca antes del mes del corte del
+  // control (07/09): los meses en que el sistema se usó a medias no se reclaman.
   const saltar = hoy.getDate() <= DIAS_GRACIA_CIERRE ? 1 : 0;
+  const mesCorte = String(corte).slice(0, 7);
   const meses = [];
   for (let i = 1 + saltar; i <= 3 + saltar; i++) {
     const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
-    meses.push(`${d.getFullYear()}-${p(d.getMonth() + 1)}`);
+    const m = `${d.getFullYear()}-${p(d.getMonth() + 1)}`;
+    if (m >= mesCorte) meses.push(m);
+  }
+  if (!meses.length) {
+    return { severidad: 'ok', cantidad: 0, resumen: `Todavía no hay meses completos desde el corte del control (${fechaCorta(corte)}) para archivar.`, detalle: [] };
   }
 
   const filas = await db.prepare(`
@@ -825,25 +856,27 @@ const GRUPOS = { plata: 'Plata', datos: 'Datos que faltan', higiene: 'Higiene de
 
 async function correrChequeos() {
   const db = getDb();
+  // Fecha de corte del control (Configuración, 07/09): desde cuándo se destacan las cosas.
+  const corte = await require('../models/configuracion.model').obtenerFechaCorte();
 
   const chequeos = await Promise.all([
     correr({ id: 'envio_en_varias_liquidaciones', grupo: 'plata', titulo: 'Envíos en más de una liquidación',
       link: { href: 'liquidaciones.html', texto: 'Ir a Liquidaciones' } }, () => chequeoEnvioEnVariasLiquidaciones(db)),
 
     correr({ id: 'guias_sin_envio', grupo: 'plata', titulo: 'Guías facturadas sin envío cargado',
-      link: { href: 'facturas.html', texto: 'Ir a Facturas' } }, () => chequeoGuiasSinEnvio(db)),
+      link: { href: 'facturas.html', texto: 'Ir a Facturas' } }, () => chequeoGuiasSinEnvio(db, corte)),
 
     correr({ id: 'facturas_no_cuadran', grupo: 'plata', titulo: 'Facturas del courier que no cuadran',
-      link: { href: 'facturas.html', texto: 'Ir a Facturas' } }, () => chequeoFacturasQueNoCuadran(db)),
+      link: { href: 'facturas.html', texto: 'Ir a Facturas' } }, () => chequeoFacturasQueNoCuadran(db, corte)),
 
     correr({ id: 'facturas_duplicadas', grupo: 'plata', titulo: 'Facturas del courier cargadas dos veces',
       link: { href: 'facturas.html', texto: 'Ir a Facturas' } }, () => chequeoFacturasDuplicadas(db)),
 
     correr({ id: 'desvios_sin_revisar', grupo: 'plata', titulo: 'Desvíos contra la factura sin revisar',
-      link: { href: 'salidas.html', texto: 'Ir a Salidas' } }, () => chequeoDesviosSinRevisar(db)),
+      link: { href: 'salidas.html', texto: 'Ir a Salidas' } }, () => chequeoDesviosSinRevisar(db, corte)),
 
     correr({ id: 'fuel_desfasado', grupo: 'plata', titulo: 'Envíos con un fuel distinto al de Configuración',
-      link: { href: 'salidas.html', texto: 'Ir a Salidas' } }, () => chequeoFuelDesfasado(db)),
+      link: { href: 'salidas.html', texto: 'Ir a Salidas' } }, () => chequeoFuelDesfasado(db, corte)),
 
     correr({ id: 'clientes_sin_margen', grupo: 'datos', titulo: 'Clientes activos sin margen configurado',
       link: { href: 'clientes.html', texto: 'Ir a Clientes' } }, () => chequeoClientesSinMargen(db)),
@@ -855,13 +888,13 @@ async function correrChequeos() {
       link: { href: 'clientes.html', texto: 'Ir a Clientes' } }, () => chequeoClientesDuplicados(db)),
 
     correr({ id: 'envios_sin_precio', grupo: 'datos', titulo: 'Envíos de meses cerrados sin precio de venta',
-      link: { href: 'salidas.html', texto: 'Ir a Salidas' } }, () => chequeoEnviosSinPrecio(db)),
+      link: { href: 'salidas.html', texto: 'Ir a Salidas' } }, () => chequeoEnviosSinPrecio(db, corte)),
 
     correr({ id: 'backups', grupo: 'higiene', titulo: 'Backups de la base',
       link: null }, async () => chequeoBackups()),
 
     correr({ id: 'cierres', grupo: 'higiene', titulo: 'Cierres de mes archivados',
-      link: { href: 'salidas.html', texto: 'Ir a Salidas' } }, () => chequeoCierres(db)),
+      link: { href: 'salidas.html', texto: 'Ir a Salidas' } }, () => chequeoCierres(db, corte)),
 
     correr({ id: 'borradores_viejos', grupo: 'higiene', titulo: 'Liquidaciones en borrador olvidadas',
       link: { href: 'liquidaciones.html', texto: 'Ir a Liquidaciones' } }, () => chequeoBorradoresViejos(db)),
@@ -875,6 +908,7 @@ async function correrChequeos() {
 
   return {
     generado_en: new Date().toISOString(),
+    fecha_corte: corte,
     dias_borrador: DIAS_BORRADOR,
     resumen,
     grupos: GRUPOS,

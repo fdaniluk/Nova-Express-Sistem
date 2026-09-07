@@ -124,6 +124,7 @@
       `Revisado el ${NovaUtils.formatDate(NovaUtils.hoyLocal(d))} a las `
       + `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}. `
       + 'Este panel solo lee: no modifica ningún dato. '
+      + (data.fecha_corte ? `Se controla desde el ${NovaUtils.formatDate(data.fecha_corte)} (fecha de corte, en Configuración): lo anterior se cuenta pero no se destaca. ` : '')
       + `Una liquidación se considera olvidada a los ${data.dias_borrador} días en borrador.`;
 
     $grupos.querySelectorAll('.chequeo-head').forEach((h) => {

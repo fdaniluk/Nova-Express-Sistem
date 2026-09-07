@@ -152,6 +152,27 @@ async function actualizarFuelNova(fuelPctNuevo) {
   return obtenerFuelNova();
 }
 
+// ── FECHA DE CORTE DEL CONTROL ──────────────────────────────────────────────
+// Desde qué fecha (YYYY-MM-DD) el panel de salud y las bandejas de Facturas destacan
+// cosas. Pedido de Felipe (07/09/2026): el sistema se usó a medias hasta agosto, y los
+// envíos viejos sin venta o de prueba llenaban "Revisar guías" de diferencias del 100 %.
+const FECHA_CORTE_DEFAULT = '2026-09-01';
+async function obtenerFechaCorte() {
+  const fila = await getDb().prepare('SELECT fecha_corte_control FROM configuracion_nova WHERE id = 1').get();
+  const v = fila && fila.fecha_corte_control;
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? v : FECHA_CORTE_DEFAULT;
+}
+
+async function actualizarFechaCorte(fecha) {
+  const db = getDb();
+  await db.prepare(
+    `INSERT INTO configuracion_nova (id, fuel_pct, fecha_corte_control)
+     VALUES (1, 0, ?)
+     ON CONFLICT(id) DO UPDATE SET fecha_corte_control = excluded.fecha_corte_control`
+  ).run(fecha);
+  return { fecha_corte_control: await obtenerFechaCorte() };
+}
+
 async function historialFuelNova() {
   return getDb()
     .prepare('SELECT * FROM configuracion_nova_historial ORDER BY fecha_cambio DESC')
@@ -170,4 +191,5 @@ module.exports = {
   obtenerFuelNova, actualizarFuelNova, historialFuelNova, listarFuelTodos,
   obtenerUmbral, listarUmbrales, actualizarUmbral, historialUmbral,
   obtenerTolerancias, listarTolerancias, actualizarTolerancias,
+  obtenerFechaCorte, actualizarFechaCorte, FECHA_CORTE_DEFAULT,
 };

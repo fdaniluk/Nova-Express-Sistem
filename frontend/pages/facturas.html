@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Control de Facturas – Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260907b">
-  <link rel="stylesheet" href="../css/modules/facturas.css?v=20260907b">
+  <link rel="stylesheet" href="../css/main.css?v=20260907c">
+  <link rel="stylesheet" href="../css/modules/facturas.css?v=20260907c">
 </head>
 <body>
 <div class="app-layout">
@@ -178,6 +178,7 @@
             O el envío nunca se cargó — y entonces no se le facturó a ningún cliente —,
             o la guía se tipeó mal al cargar el envío.
           </p>
+          <p class="fac-corte-nota" id="fac-sinenvio-corte"></p>
 
           <div class="fac-table-wrap">
             <table class="fac-table" id="fac-sinenvio-table">
@@ -207,6 +208,7 @@
               <button class="btn btn-sm btn-secondary" id="btn-revisar-reload">↺ Actualizar</button>
             </div>
           </div>
+          <p class="fac-corte-nota" id="fac-revisar-corte"></p>
 
           <div class="fac-table-wrap">
             <table class="fac-table" id="fac-table">
@@ -236,9 +238,9 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260907b"></script>
-<script src="../js/api.js?v=20260907b"></script>
-<script src="../js/main.js?v=20260907b"></script>
-<script src="../js/modules/facturas.js?v=20260907b"></script>
+<script src="/js/auth-guard.js?v=20260907c"></script>
+<script src="../js/api.js?v=20260907c"></script>
+<script src="../js/main.js?v=20260907c"></script>
+<script src="../js/modules/facturas.js?v=20260907c"></script>
 </body>
 </html>

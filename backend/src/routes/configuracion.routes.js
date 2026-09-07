@@ -16,6 +16,10 @@ router.get('/umbral', ctrl.listarUmbrales);
 router.get('/umbral/historial', ctrl.historialUmbral);
 router.put('/umbral/:courier', requireConfig, ctrl.actualizarUmbral);
 
+// Fecha desde la que el panel de salud y las bandejas de Facturas controlan (07/09).
+router.get('/corte', ctrl.obtenerCorte);
+router.put('/corte', requireConfig, ctrl.actualizarCorte);
+
 router.get('/tolerancias', ctrl.listarTolerancias);
 router.put('/tolerancias/:courier', requireConfig, ctrl.actualizarTolerancias);
 
