@@ -188,8 +188,9 @@ async function main() {
   console.log('\n6. Dónde se muestra (y dónde NO)\n');
   const salidasJs = leer('frontend/js/modules/salidas.js');
   check('Salidas dibuja el chip +50 en la fila', /tarifa50Chip\(e\)/.test(salidasJs));
-  check('leyéndolo de la columna congelada, no del peso',
-    /if \(!e\.tarifa_50\) return ''/.test(salidasJs));
+  // Desde el 07/09 la marca solo se dibuja en DHL (la +50 es de DHL y de nadie más).
+  check('leyéndolo de la columna congelada, no del peso (y solo en DHL)',
+    /if \(!e\.tarifa_50 \|\| e\.courier !== 'DHL'\) return ''/.test(salidasJs));
   const mainCss = leer('frontend/css/main.css');
   check('el chip tiene estilo', /\.chip-tarifa50/.test(mainCss));
   check('y el cartel también', /\.aviso-tarifa50/.test(mainCss));
@@ -206,8 +207,8 @@ async function main() {
   const enviosJs = leer('frontend/js/modules/envios.js');
   check('el panel de Cargar envío muestra el cartel', /res\.tarifa50/.test(enviosJs) && /aviso-tarifa50/.test(enviosJs));
   check('el modal de Salidas tiene su cartel', /saled-tarifa50-aviso/.test(salidasJs));
-  check('que se pinta al abrir con la marca congelada del envío',
-    /editTarifa50 = envio\.tarifa_50 \? 1 : 0/.test(salidasJs));
+  check('que se pinta al abrir con la marca congelada del envío (solo en DHL)',
+    /editTarifa50 = \(envio\.tarifa_50 && envio\.courier === 'DHL'\) \? 1 : 0/.test(salidasJs));
   check('y que el Recalcular actualiza', /editTarifa50 = r\.tarifa_50 \? 1 : 0/.test(salidasJs));
   check('el guardado lo manda solo si vino de un Recalcular',
     /if \(editTarifa50Dirty\) payload\.tarifa_50 = editTarifa50/.test(salidasJs));

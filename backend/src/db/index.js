@@ -325,6 +325,19 @@ async function migrateEnvios() {
       await dbApi.exec(`ALTER TABLE envios ADD COLUMN ${col} ${def}`);
     }
   }
+
+  // La tarifa +50 es de DHL y de nadie más. Hasta el 07/09 cambiar el courier a UPS desde
+  // el modal de Salidas dejaba la marca pegada (solo la actualizaba un Recalcular, que en
+  // UPS fallaba por falta de servicio): filas UPS con chip +50. Esto NO es un dato cargado
+  // por la oficina, es una marca que calcula el sistema, así que se corrige acá. Idempotente:
+  // corre en cada arranque y solo escribe si encuentra alguna.
+  const marcadas = await dbApi.prepare(
+    "SELECT COUNT(*) AS n FROM envios WHERE tarifa_50 = 1 AND courier <> 'DHL'"
+  ).get();
+  if (marcadas && marcadas.n > 0) {
+    await dbApi.exec("UPDATE envios SET tarifa_50 = 0 WHERE tarifa_50 = 1 AND courier <> 'DHL'");
+    console.log(`[db] tarifa_50: se sacó la marca +50 (que es solo de DHL) a ${marcadas.n} envío(s) UPS`);
+  }
 }
 
 async function migrateEnvioBultos() {

@@ -476,13 +476,17 @@ router.post('/:id/recalcular', async (req, res, next) => {
       return res.status(400).json({ error: 'El país de destino no puede estar vacío.' });
     }
 
-    // servicio_ups NO se edita en el modal: si el courier efectivo es UPS hace falta el
-    // guardado para resolver tarifa. Sin él, cortamos con un mensaje claro en castellano en
-    // vez de dejar que el motor explote con un error críptico.
-    if (courierEfectivo === 'UPS' && !envio.servicio_ups) {
+    // Servicio UPS (Saver / Expedited): desde el 07/09 el modal lo edita, así que se toma
+    // del body si vino y del envío si no. Caso de administración (07/09): un envío DHL al
+    // que le cambiaban el courier a UPS desde Salidas quedaba SIN servicio (DHL no tiene) y
+    // el Recalcular moría acá con 400 — y encima conservaba la marca +50 de DHL.
+    if (body.servicio_ups != null && body.servicio_ups !== 'UPS_SAV' && body.servicio_ups !== 'UPS_EXP') {
+      return res.status(400).json({ error: "El servicio UPS debe ser 'UPS_SAV' (Saver) o 'UPS_EXP' (Expedited)." });
+    }
+    const servicioUpsEfectivo = body.servicio_ups ?? envio.servicio_ups;
+    if (courierEfectivo === 'UPS' && !servicioUpsEfectivo) {
       return res.status(400).json({
-        error: 'El envío no tiene servicio UPS guardado: no se puede recalcular con courier UPS. '
-          + 'Cargá el servicio UPS desde el alta/edición y volvé a intentar.',
+        error: 'El envío no tiene servicio UPS: elegí Saver o Expedited en el modal y volvé a recalcular.',
       });
     }
 
@@ -520,7 +524,7 @@ router.post('/:id/recalcular', async (req, res, next) => {
     // Inputs editados (peso/medidas/bultos, país, courier, fob) + inputs no editables del envío.
     const data = {
       courier: courierEfectivo,
-      servicio_ups: envio.servicio_ups,
+      servicio_ups: courierEfectivo === 'UPS' ? servicioUpsEfectivo : null,
       tipo_envio: envio.tipo_envio,
       pais_destino: paisEfectivo,
       fob: body.fob !== undefined ? (body.fob ?? 0) : envio.fob,
@@ -608,6 +612,9 @@ router.post('/:id/recalcular', async (req, res, next) => {
 // persistir; además, en envíos liquidados fecha y cliente_id quedan congelados (409).
 const SALIDAS_EDITABLE = [
   'fecha', 'cliente_id', 'courier', 'pais_destino', 'num_sal_cero',
+  // servicio_ups (Saver / Expedited): editable desde el 07/09, porque cambiar el courier a
+  // UPS desde el modal dejaba el envío sin servicio y sin poder recalcular.
+  'servicio_ups',
   // fob (valor declarado): editable desde el 14/08 a pedido de administración. El seguro
   // sale de él, así que en envíos liquidados queda congelado (está en CAMPOS_PLATA).
   'fob',
@@ -766,6 +773,32 @@ router.patch('/:id', async (req, res, next) => {
     if (Object.prototype.hasOwnProperty.call(picked, 'courier')
         && picked.courier !== 'DHL' && picked.courier !== 'UPS') {
       return res.status(400).json({ error: "El courier debe ser exactamente 'DHL' o 'UPS'." });
+    }
+    // Servicio UPS: 'UPS_SAV' / 'UPS_EXP' (o null). Si el courier FINAL es UPS tiene que
+    // quedar uno; si es DHL se guarda null (DHL no tiene servicio), igual que en el alta.
+    {
+      const courierFinal = Object.prototype.hasOwnProperty.call(picked, 'courier')
+        ? picked.courier : existing.courier;
+      if (Object.prototype.hasOwnProperty.call(picked, 'servicio_ups')) {
+        const v = picked.servicio_ups;
+        if (v !== null && v !== '' && v !== 'UPS_SAV' && v !== 'UPS_EXP') {
+          return res.status(400).json({ error: "El servicio UPS debe ser 'UPS_SAV' (Saver) o 'UPS_EXP' (Expedited)." });
+        }
+        picked.servicio_ups = (v === '' ? null : v);
+      }
+      if (courierFinal === 'DHL') {
+        if (Object.prototype.hasOwnProperty.call(picked, 'courier') || Object.prototype.hasOwnProperty.call(picked, 'servicio_ups')) picked.servicio_ups = null;
+      } else if (courierFinal === 'UPS') {
+        const servicioFinal = Object.prototype.hasOwnProperty.call(picked, 'servicio_ups')
+          ? picked.servicio_ups : existing.servicio_ups;
+        if (!servicioFinal) {
+          return res.status(400).json({ error: 'Un envío UPS necesita el servicio (Saver o Expedited).' });
+        }
+        // La tarifa +50 es de DHL y de nadie más: si el envío queda en UPS, la marca se
+        // borra en el MISMO guardado (regla siete: un guardado de dos pasos se olvida).
+        // Caso de administración del 07/09: fila UPS con chip +50 y sin poder recalcular.
+        picked.tarifa_50 = 0;
+      }
     }
     // Valor declarado: número >= 0. null se acepta y se guarda 0 (envío sin valor declarado).
     if (Object.prototype.hasOwnProperty.call(picked, 'fob')) {

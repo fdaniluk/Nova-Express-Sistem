@@ -1,14 +1,15 @@
 # Pendientes
 
-**Actualizado 07/09/2026 (mediodía).** Última punta: **columnas fijas de Salidas: CUALQUIER
-columna** (pedido de Felipe del 07/09, "que lo deje fijar la columna que quiera"): el panel
-📌 ofrece las 37 columnas de la tabla en su orden, botón "Ninguna", sticky por posición
-(`:nth-child`, vale también para las celdas sin `data-col`), lo guardado antes sigue
-valiendo. Tanda nueva `test-pantalla-columnas-fijas` (**46**, puerto 3939) en
-`test-pantallas`. Cache **`?v=20260907a`**. **Commiteado; falta que Felipe corra las tandas,
-pushee y despliegue.** Antes, `00a12d0` (docs: `GUIAS-UPS.md`) pusheado el 07/09 a la
-mañana, y **`096b1b8`** (Pickups: entrega de una importación) — desplegado el 04/09.
-**64 tandas en el verificar (67 archivos `test-*.js`).**
+**Actualizado 07/09/2026 (tarde).** Última punta: **el paquete de la tarde del 07/09** (ver
+"LO DEL 07/09" abajo): el +50 que se pegaba a envíos UPS (caso de administración,
+reproducido y arreglado, con selector de servicio UPS en el modal de Salidas y limpieza de
+datos al arrancar), Liquidaciones con profit en pantalla + desglose de adicionales + Excel
+con logo/colores Nova y título según el cobro del cliente, y Salidas con **"% Real"** en
+lugar de "Dif Costo". Tandas nuevas `test-tarifa-50-ups` (32), `test-liquidacion-desglose`
+(41). Cache **`?v=20260907b`**. **Commiteado; falta que Felipe corra las tandas, pushee y
+despliegue (acordado: mañana 08/09 a la mañana, con el verificar completo).** Antes, el
+mismo día: **`0e1971e`** (columnas fijas: cualquier columna — **pusheado y DESPLEGADO el
+07/09**). **66 tandas en el verificar (69 archivos `test-*.js`).**
 
 **Guías UPS (Etapa 0):** Felipe pasó las cuentas — **EXPO `327W09` · IMPO `3R6A45`**
 (`GUIAS-UPS.md`). Falta que confirme en developer.ups.com si la app tiene **Shipping**.
@@ -18,11 +19,20 @@ mañana, y **`096b1b8`** (Pickups: entrega de una importación) — desplegado e
 
 ## 🔵 LO PRIMERO
 
-0. **Columnas fijas (07/09):** Felipe corre `test-pantalla-columnas-fijas` + vecinas, pushea y
-   despliega. Después, Ctrl+Shift+R en Salidas y probar fijar Largo / Profit Real. Al manual
-   de Salidas sumarle que ahora se fija cualquier columna y el botón "Ninguna".
-0-bis. **Guías UPS, Etapa 0:** falta la captura/confirmación de **Shipping** en
+0. **El paquete de la tarde del 07/09 (commit siguiente a `0e1971e`):** mañana 08/09 Felipe
+   corre el **verificar completo** (`cd C:\dev\Nova-Express-Sistem\backend; npm run
+   verificar`), pushea y despliega. **Al desplegar, mirar el log de pm2: la migración dice
+   `[db] tarifa_50: se sacó la marca +50 ... a N envío(s) UPS`** — ese N es cuántos envíos
+   UPS tenían la marca pegada en producción. Después: Ctrl+Shift+R, probar Liquidaciones
+   (columna Profit, desglose, Excel) y Salidas (columna % Real, modal con Servicio UPS).
+0-bis. ✅ Columnas fijas (`0e1971e`) desplegado el 07/09. Al manual de Salidas sumarle que
+   ahora se fija cualquier columna, el botón "Ninguna", **la columna % Real (sale Dif
+   Costo)** y el selector de Servicio UPS del modal; al manual de facturas, lo mismo del
+   % Real (el `.md` ya está corregido; el Word no).
+0-ter. **Guías UPS, Etapa 0:** falta la captura/confirmación de **Shipping** en
    developer.ups.com. Cuentas ya anotadas en `GUIAS-UPS.md`.
+0-quater. **Decisión de Felipe:** la columna DERECHOS del Excel de liquidación sale siempre
+   vacía (los derechos van dentro de Adicional desde hace tiempo). ¿Se saca del Excel?
 1. ✅ `096b1b8` desplegado el 04/09 (`DESPLEGADO Y SANO · 7e1ced8 → fdfc871`,
    check-schema verde). Falta que Felipe cargue una entrega de prueba en Pickups
    (Ctrl+Shift+R) y que Ricardo y Juanqui sepan que hay tarjetas ámbar 📦 con el botón
@@ -40,6 +50,60 @@ mañana, y **`096b1b8`** (Pickups: entrega de una importación) — desplegado e
    **los Excel para la oficina (L4/L17)**.
 5. **Impuestos de impo: POSPUESTO por Felipe** (31/08). Los "aspectos que no me contó"
    siguen sin revisar — no darlos por validados (el CIF aforado del 02/09 ya está).
+
+## 🟢 LO DEL 07/09 — COLUMNAS FIJAS + EL PAQUETE DE LA TARDE
+
+### `0e1971e` — Salidas: columnas fijas para cualquier columna (desplegado)
+Pedido de Felipe: *"que lo deje fijar la columna que quiera, hoy en día solo te deja elegir
+algunas"*. El panel 📌 ofrece las 37 columnas en orden de tabla, con botón "Ninguna"; el
+sticky se emite por posición (`:nth-child`) sobre `tr[data-envio-id]`, así que vale para las
+celdas sin `data-col`. Lo guardado con el formato viejo sigue valiendo. Tanda
+`test-pantalla-columnas-fijas` (46, puerto 3939). Felipe la corrió: 46/46. Desplegado.
+
+### El +50 pegado a envíos UPS — caso de administración (reproducido y arreglado)
+- Relato: *"a la hora de recalcular no las dejaba y les saltaba la leyenda del +50 de DHL
+  en un envío de UPS"*. **Reproducido por API:** alta DHL de 70 kg (`tarifa_50 = 1`) →
+  PATCH `courier = UPS` desde el modal → la fila quedaba **UPS con chip +50** (la marca solo
+  la actualizaba un Recalcular) y el Recalcular moría con **400 "no tiene servicio UPS"**
+  (DHL no tiene servicio y el modal no tenía dónde elegirlo).
+- Arreglo: el modal de Salidas suma el selector **Servicio UPS (Saver / Expedited)**, visible
+  solo con courier UPS; el PATCH acepta `servicio_ups` (validado), **exige uno si el envío
+  queda en UPS y borra `tarifa_50` en el mismo guardado** (regla siete); el Recalcular toma
+  `servicio_ups` del modal; el chip `+50` y el aviso del modal solo se dibujan en DHL; y una
+  **corrección idempotente al arrancar** (`migrateEnvios`): `UPDATE envios SET tarifa_50 = 0
+  WHERE tarifa_50 = 1 AND courier <> 'DHL'`, con log de cuántos fueron. No es dato cargado
+  por la oficina: es una marca que calcula el sistema.
+- Tanda `test-tarifa-50-ups` (**32**, puerto 3938, en `test-pantallas`): API + migración +
+  pantalla. `test-pantalla-tarifa-50` ajustada (39); cruce 30 y frenos 24 verdes.
+
+### Liquidaciones: profit en pantalla + desglose de adicionales + Excel Nova
+- **Profit por envío en la vista previa** (columna "Profit (interno)", `% · USD`, con total al
+  pie). **Solo pantalla**: el Excel no lo lleva (la tanda lo controla).
+- **Desglose del Adicional:** `detallarAdicional()` en `utils/desgloseVenta.js` lee
+  `extras_json` y arma las líneas (surge **con su fuel**, GoGreen, manejo, mayor tamaño,
+  remota, residencial, DDP, IPF, protección doc, derechos, otros) + el extra manual de la
+  liquidación con su nombre; la suma cierra al centavo en la columna (los centavos de
+  redondeo se absorben en la línea mayor). Viaja como `adicional_detalle` en el preview y en
+  `GET /liquidaciones/:id` (derivado read-only, no toca lo confirmado; ojo con la fila espejo
+  "Cargo adicional" de `cargos_adicionales`, que se ignora si no es un extra manual real).
+  En pantalla va debajo del número; en el Excel, tabla "DETALLE DE ADICIONALES".
+- **"¿Dónde va el GoGreen?"** — en **Adicional**, con el surge. Nunca en el flete. Ahora se ve.
+- **Excel:** logo `frontend/assets/logos/nova.png`, cabecera violeta `#403754`, total coral
+  `#EE6C52`, filas alternadas, bordes suaves, apaisado ajustado a una hoja. **Título
+  "LIQUIDACIÓN DIARIO / SEMANAL / QUINCENAL / CUENTA CORRIENTE" según `clientes.tipo_cobro`**
+  y archivo `SEMANAL_<Cliente>Envio<fecha>.xlsx` (antes siempre `DIARIO_`). La columna
+  DERECHOS sigue vacía como antes (decisión pendiente).
+- Tanda `test-liquidacion-desglose` (**41**, puerto 3937, en `test`): API, Excel leído con
+  exceljs (título, logo, colores, detalle, sin profit) y pantalla. Vecinas verdes:
+  sin-cotizador 11, desglose-surge 26, pendientes 12, cierre 81, pantalla cierre 30.
+
+### Salidas: "Dif Costo" → "% Real"
+Pedido de Felipe: *"sacar esa columna pero sumar una que muestre el porcentaje de ganancia
+que generó esa guía en base a lo que nos cobró UPS y lo que nosotros le cobramos al
+cliente"*. La columna **% Real** = (Venta − Costo UPS) / Costo UPS (`porcentaje_real` de
+`profitDoble()`, misma convención que el % estimado), en verde/rojo, ordenable. El desvío
+contra la estimación **no se perdió**: pinta en rojo la celda Costo UPS (misma tolerancia) y
+se lee en su tooltip. `test-pantalla-venta-salidas` 49 → **53**.
 
 ## 🟢 LO DEL 03-04/09 — CUATRO COMMITS DE SISTEMA + LOS DOCS EN EL REPO
 
@@ -409,8 +473,9 @@ cliente?** (03/09)
 | **50** | **Tres tandas quedaron FUERA del `verificar`**: `test-orden-pendientes`, `test-regla-documentos` y `test-tarifa-por-kg` (existen como archivo pero no están en las cadenas `test`/`test-pantallas`). Decidir si entran al verificar o si se borran | 20 min |
 
 **El conteo de tandas venía arrastrado mal en la documentación**: el número bueno,
-verificado contra `backend/package.json` el 07/09, es **64 tandas en el verificar sobre 67
-archivos `scripts/test-*.js`** (la última es `test-pantalla-columnas-fijas`).
+verificado contra `backend/package.json` el 07/09 (tarde), es **66 tandas en el verificar
+sobre 69 archivos `scripts/test-*.js`** (las últimas: `test-tarifa-50-ups`,
+`test-liquidacion-desglose`).
 
 ---
 

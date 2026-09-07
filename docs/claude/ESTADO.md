@@ -186,7 +186,8 @@ md5 de los dos lados.
   vieja sin migrar. El check de verdad corre en la máquina de Felipe / producción.
 - Puertos de tests: 3964-69, 3971-73, 3986-87, 3989-94, 3996-98, 3963, 3960-61, 3970,
   3959/3958, 3955/3954, 3949, **3948** (desglose surge), 3946, **3945** (cruce), 3944,
-  3943, **3942**, 3941, 3940, **3939** (columnas fijas). Manual: 3975-3985 (nunca 3999).
+  3943, **3942**, 3941, 3940, **3939** (columnas fijas), **3938** (+50 UPS), **3937**
+  (liquidación desglose). Manual: 3975-3985 (nunca 3999).
   **3981 lo usa el script de capturas de los manuales.**
 - ⚠️ `pkill -f "src/server.js"` SE MATA A SÍ MISMO: usar `pkill -9 -f "[s]rc/server.js"`.
 - **`document.body.textContent` INCLUYE el código de los scripts inline** — leer el
@@ -255,7 +256,9 @@ Colores Nova `#403754`/`#EE6C52`.
   lineal, `kg × [4,38 · 4,98 · 6,00 · 6,60 · 7,50 · 8,40]`. Se avisa en la **tira interna**
   del cotizador (**NUNCA adentro de la tarjeta**: la oficina le manda una foto de la
   tarjeta al cliente), en el panel de precio de Cargar envío y con el chip `+50` en
-  Salidas. Se congela en `envios.tarifa_50`. Detalle: `TARIFA-DHL-MAS-50.md`.
+  Salidas. Se congela en `envios.tarifa_50`. Detalle: `TARIFA-DHL-MAS-50.md`. **La +50 es
+  de DHL y de nadie más (07/09): un envío UPS de +50 kg sigue siendo UPS; si un envío pasa
+  a UPS, la marca se borra en el mismo guardado.**
 - **Topes de aceptación (AVISAN NO FRENAN):** UPS lado >274 / contorno >400 / >70 kg
   reales · DHL pieza >120×80×80. `TOPES_PIEZA` + `calcTopesPieza` → `avisosTope`.
 - **EL SEMÁFORO AUTOMÁTICO de Salidas (`db31c11`):** rojo sin escanear · amarillo en
@@ -301,18 +304,29 @@ Colores Nova `#403754`/`#EE6C52`.
 
 ---
 
-## 3. Dónde estamos (07-09-2026)
+## 3. Dónde estamos (07-09-2026, tarde)
 
-- **07/09 — Columnas fijas de Salidas: CUALQUIER columna.** Pedido de Felipe: *"que lo deje
-  fijar la columna que quiera, hoy en día solo te deja elegir algunas"*. Antes el panel 📌
-  ofrecía 7 (identificación) y el sticky iba por `data-col`; ahora `buildStickyCols()` lee el
-  `<thead>` al iniciar (clave = `data-col` o slug del rótulo, posición 1-based) y
-  `applyStickyCols()` emite el CSS por **`:nth-child`** sobre `tr[data-envio-id]` (las filas de
-  detalle con colspan no se tocan). Panel con las 37 columnas en orden de tabla, lista que
-  scrollea, botón **"Ninguna"**. Lo guardado con el formato viejo sigue valiendo. **Sin cambios
-  de backend ni de markup.** Tanda `test-pantalla-columnas-fijas` (**46**, puerto 3939, en
-  `test-pantallas`); vecinas verdes: motor único 28, filtros 48, venta 49. Cache
-  **`?v=20260907a`**. **Commiteado, pendiente de tests de Felipe, push y deploy.**
+- **07/09 tarde — EL PAQUETE DE LA TARDE (commit siguiente a `0e1971e`, SIN pushear ni
+  desplegar: acordado para el 08/09 a la mañana con el verificar completo).** Cuatro cosas:
+  **(1) el +50 pegado a envíos UPS** — caso de administración, reproducido por API: DHL de
+  70 kg pasado a UPS desde el modal quedaba con chip +50 y sin poder recalcular (400 "sin
+  servicio UPS"). Modal con selector **Servicio UPS**; PATCH acepta `servicio_ups`, lo exige
+  en UPS y **borra `tarifa_50` en el mismo guardado**; Recalcular lo toma del modal; chip y
+  aviso solo en DHL; **corrección idempotente en `migrateEnvios`** (`tarifa_50 = 0` donde
+  `courier <> 'DHL'`, con log del conteo — **mirar ese número en el deploy**). Tanda
+  `test-tarifa-50-ups` (32, puerto 3938). **(2) Liquidaciones:** columna **Profit (interno)**
+  en la vista previa (solo pantalla), **desglose del Adicional** (`detallarAdicional()` en
+  `utils/desgloseVenta.js`, `adicional_detalle` en preview y GET), **Excel con logo y colores
+  Nova** y **título/archivo según `tipo_cobro`** (DIARIO/SEMANAL/QUINCENAL/CUENTA CORRIENTE).
+  El GoGreen y el surge (con su fuel) van en Adicional y ahora se ven. Tanda
+  `test-liquidacion-desglose` (41, puerto 3937). **(3) Salidas: "Dif Costo" → "% Real"**
+  ((venta − costo UPS)/costo UPS); el desvío pasó al rojo + tooltip de Costo UPS. **(4)**
+  docs. Cache **`?v=20260907b`**. **66 tandas en el verificar (69 archivos).**
+- **07/09 — `0e1971e` Columnas fijas de Salidas: CUALQUIER columna — PUSHEADO Y DESPLEGADO.**
+  Pedido de Felipe: *"que lo deje fijar la columna que quiera"*. `buildStickyCols()` lee el
+  `<thead>` (clave = `data-col` o slug del rótulo) y `applyStickyCols()` emite el CSS por
+  **`:nth-child`** sobre `tr[data-envio-id]`. Panel con las 37 columnas, botón "Ninguna".
+  Tanda `test-pantalla-columnas-fijas` (46, puerto 3939); Felipe: 46/46.
 - **07/09 — Guías UPS:** cuentas **EXPO `327W09` · IMPO `3R6A45`** (`GUIAS-UPS.md`). Falta
   Shipping en developer.ups.com para la Etapa 0.
 - **Último commit `096b1b8`** (04/09 — **Pickups: entrega de una importación.** Casillero
@@ -412,9 +426,10 @@ Colores Nova `#403754`/`#EE6C52`.
   **`test-cruce-tarifa-50`** (el mismo envío por los seis caminos del sistema).
   Detalle completo en `claude/TARIFA-DHL-MAS-50.md`, sección **"La auditoría del cruce"**.
   **Lección: REGLA NÚMERO ONCE.**
-- Cache **`?v=20260907a`** (las 17 páginas, incluido el v8 de `shared/`). **64 tandas en
-  el verificar (67 archivos `test-*.js`)**, contadas contra `package.json` el 07/09 (la
-  última, `test-pantalla-columnas-fijas`, puerto 3939): el
+- Cache **`?v=20260907b`** (las 17 páginas, incluido el v8 de `shared/`). **66 tandas en
+  el verificar (69 archivos `test-*.js`)**, contadas contra `package.json` el 07/09 (las
+  últimas: `test-pantalla-columnas-fijas` 3939, `test-tarifa-50-ups` 3938,
+  `test-liquidacion-desglose` 3937): el
   03-04/09 se sumaron `test-pantalla-entrega-impo` (49), `test-facturas-impuestos` (44, en `test`), `test-agregar-bulto` (36)
   y `test-pantalla-liquidaciones-pendientes` (12), las dos en `test-pantallas`; el 02/09,
   `test-desglose-venta-surge`
@@ -453,7 +468,7 @@ ATADO a la cotización + diferencia registrada (columnas de `envios` ya existen,
 
 Commits sin acentos, describiendo el efecto. Un JS por pantalla. Sin frameworks. **Cache
 busting global única en TODAS las páginas** (`test-motor-unico` lo controla, e incluye el
-v8 de `shared/`) — hoy **`?v=20260907a`**; NO cubre los scripts inline → **Ctrl+F5** tras
+v8 de `shared/`) — hoy **`?v=20260907b`**; NO cubre los scripts inline → **Ctrl+F5** tras
 desplegar. La imagen de la cotización se dibuja en canvas.
 
 ## 5. Mantenimiento

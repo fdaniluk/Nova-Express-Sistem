@@ -69,4 +69,74 @@ function descomponerVenta(datos = {}) {
   return { flete, fuel, seguro, adicional, total: totalCobrado };
 }
 
-module.exports = { descomponerVenta, surgeDe };
+// Rótulos de cara al cliente para los tipos del desglose del alta (envios.extras_json).
+// El GoGreen y el surge son los que la oficina pregunta seguido: los dos van en Adicional,
+// nunca en el flete (Felipe, 07/09/2026). El surge se muestra CON su fuel, porque así lo
+// factura UPS y así lo reparte descomponerVenta.
+const LABEL_ADICIONAL = {
+  surge: 'Surge fee (con fuel)',
+  gogreen: 'GoGreen',
+  manejo: 'Manejo adicional',
+  contorno: 'Mayor tamaño',
+  remota: 'Área remota',
+  residencial: 'Entrega residencial',
+  ddp: 'DDP',
+  ipf: 'Procesamiento internacional',
+  proteccion_doc: 'Protección de documentos',
+  sobrepeso: 'Sobrepeso',
+  exceso: 'Exceso de medida',
+  no_convencional: 'Pieza no convencional',
+};
+
+function parseExtras(extras) {
+  let lista = extras;
+  if (typeof lista === 'string') {
+    try { lista = JSON.parse(lista); } catch { lista = []; }
+  }
+  return Array.isArray(lista) ? lista : [];
+}
+
+// El detalle de la columna Adicional de la venta: qué cargos la componen, uno por línea,
+// con la misma plata que descomponerVenta() pone en `adicional` (la suma cierra exacto; si
+// el redondeo desvía centavos, la diferencia va en una línea "Otros cargos"). Read-only.
+// datos: los mismos de descomponerVenta. Devuelve [{ tipo, label, monto }] en el orden del alta.
+function detallarAdicional(datos = {}) {
+  const fuelPct = datos.fuel_pct !== null && datos.fuel_pct !== undefined ? datos.fuel_pct : 0;
+  const fuelDecimal = fuelPct / 100;
+  const lineas = [];
+  for (const x of parseExtras(datos.extras)) {
+    if (!x || !(Number(x.monto) > 0)) continue;
+    const tipo = String(x.tipo || 'otro');
+    const label = LABEL_ADICIONAL[tipo] || x.label || 'Recargo';
+    // El surge va con su fuel, calculado IGUAL que en descomponerVenta (surge redondeado +
+    // fuel del surge redondeado), para que la suma cierre al centavo.
+    const monto = tipo === 'surge'
+      ? redondear2(redondear2(Number(x.monto)) + redondear2(Number(x.monto) * fuelDecimal))
+      : redondear2(Number(x.monto));
+    lineas.push({ tipo, label, monto });
+  }
+  // Envíos sin desglose por tipo (anteriores a extras_json): el bloque entero de adicionales
+  // congelado en el alta va en una sola línea, que es toda la verdad que hay.
+  if (!lineas.length && Number(datos.adicionales) > 0) {
+    lineas.push({ tipo: 'adicionales', label: 'Recargos del courier', monto: redondear2(datos.adicionales) });
+  }
+  if (Number(datos.derechos) > 0) lineas.push({ tipo: 'derechos', label: 'Derechos / impuestos', monto: redondear2(datos.derechos) });
+  if (Number(datos.otros) > 0) lineas.push({ tipo: 'otros', label: 'Otros', monto: redondear2(datos.otros) });
+
+  const objetivo = descomponerVenta(datos).adicional;
+  const suma = redondear2(lineas.reduce((s, l) => s + l.monto, 0));
+  const dif = redondear2(objetivo - suma);
+  if (Math.abs(dif) >= 0.01) {
+    // Centavos de redondeo (el residual `adicionales` del alta vs. la suma de sus extras): se
+    // absorben en la línea más grande, no merecen una línea propia. Una diferencia mayor sí.
+    if (Math.abs(dif) < 0.05 && lineas.length) {
+      const mayor = lineas.reduce((a, b) => (b.monto > a.monto ? b : a));
+      mayor.monto = redondear2(mayor.monto + dif);
+    } else {
+      lineas.push({ tipo: 'ajuste', label: 'Otros cargos', monto: dif });
+    }
+  }
+  return lineas;
+}
+
+module.exports = { descomponerVenta, surgeDe, detallarAdicional, LABEL_ADICIONAL };

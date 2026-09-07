@@ -1,3 +1,5 @@
+const fs = require('fs');
+const path = require('path');
 const XLSX = require('xlsx');
 const ExcelJS = require('exceljs');
 const envioModel = require('../models/envio.model');
@@ -301,16 +303,48 @@ const COL_HEADERS = [
   'TOTAL USD',
 ];
 
+// Colores Nova (07/09/2026, pedido de Felipe: "logo, colores de Nova y que quede bien bonito"):
+// violeta #403754 para cabeceras y título, coral #EE6C52 para el acento y el total.
+const NOVA_VIOLETA = 'FF403754';
+const NOVA_CORAL = 'FFEE6C52';
+const NOVA_VIOLETA_SUAVE = 'FFF1EFF5';
+const NOVA_GRIS = 'FF6B6478';
+const FUENTE = 'Calibri';
 const STYLES = {
-  title: { font: { bold: true, size: 16, color: { argb: 'FF1A2F4A' } } },
-  meta: { font: { size: 11 } },
-  headerFill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF1A2F4A' } },
-  headerFont: { bold: true, color: { argb: 'FFFFFFFF' } },
+  title: { font: { name: FUENTE, bold: true, size: 18, color: { argb: NOVA_VIOLETA } } },
+  subtitle: { font: { name: FUENTE, bold: true, size: 11, color: { argb: NOVA_CORAL } } },
+  meta: { font: { name: FUENTE, size: 10.5, color: { argb: NOVA_GRIS } } },
+  metaStrong: { font: { name: FUENTE, size: 10.5, bold: true, color: { argb: NOVA_VIOLETA } } },
+  headerFill: { type: 'pattern', pattern: 'solid', fgColor: { argb: NOVA_VIOLETA } },
+  headerFont: { name: FUENTE, bold: true, size: 10, color: { argb: 'FFFFFFFF' } },
   rowWhite: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFFFF' } },
-  rowAlt: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF5F5F5' } },
-  totalFill: { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFDE7' } },
-  totalFont: { bold: true },
+  rowAlt: { type: 'pattern', pattern: 'solid', fgColor: { argb: NOVA_VIOLETA_SUAVE } },
+  rowFont: { name: FUENTE, size: 10, color: { argb: 'FF2B2536' } },
+  totalFill: { type: 'pattern', pattern: 'solid', fgColor: { argb: NOVA_CORAL } },
+  totalFont: { name: FUENTE, bold: true, size: 10.5, color: { argb: 'FFFFFFFF' } },
+  subHeaderFill: { type: 'pattern', pattern: 'solid', fgColor: { argb: NOVA_VIOLETA_SUAVE } },
+  subHeaderFont: { name: FUENTE, bold: true, size: 10, color: { argb: NOVA_VIOLETA } },
+  noteFont: { name: FUENTE, italic: true, size: 9.5, color: { argb: NOVA_GRIS } },
 };
+const BORDE_SUAVE = { style: 'thin', color: { argb: 'FFDDD8E6' } };
+const BORDES = { top: BORDE_SUAVE, bottom: BORDE_SUAVE, left: BORDE_SUAVE, right: BORDE_SUAVE };
+
+// Cómo se cobra el cliente → título del documento y prefijo del archivo. Antes todo salía
+// como "DIARIO" aunque el cliente fuera semanal o de cuenta corriente (Felipe, 07/09).
+const TIPO_COBRO_LABEL = { D: 'DIARIO', S: 'SEMANAL', Q: 'QUINCENAL', CC: 'CUENTA CORRIENTE' };
+function tipoCobroLabel(tipoCobro) {
+  return TIPO_COBRO_LABEL[String(tipoCobro || '').toUpperCase()] || 'DIARIO';
+}
+
+// Logo Nova para el Excel. Se lee una sola vez; si no está, el documento sale sin logo.
+const LOGO_PATH = path.join(__dirname, '..', '..', '..', 'frontend', 'assets', 'logos', 'nova.png');
+let logoBuffer = null;
+function leerLogo() {
+  if (logoBuffer === null) {
+    try { logoBuffer = fs.readFileSync(LOGO_PATH); } catch { logoBuffer = false; }
+  }
+  return logoBuffer || null;
+}
 
 const FMT_DATE = 'dd/mm/yyyy';
 const FMT_MONEY = '"$"#,##0.00';
@@ -378,25 +412,65 @@ function autoFitColumns(worksheet, fromRow, toRow) {
 
 async function exportarLiquidacion(liquidacion) {
   const wb = new ExcelJS.Workbook();
-  const ws = wb.addWorksheet('Liquidacion', { views: [{ showGridLines: true }] });
+  wb.creator = 'Nova Express';
+  const ws = wb.addWorksheet('Liquidacion', {
+    views: [{ showGridLines: false }],
+    pageSetup: { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0, paperSize: 9 },
+  });
+  const tipoLabel = tipoCobroLabel(liquidacion.tipo_cobro);
 
-  ws.mergeCells(1, 1, 1, COL_COUNT);
-  const titleCell = ws.getCell(1, 1);
-  titleCell.value = 'Nova Express';
+  // ── Cabecera: logo a la izquierda, título y datos a la derecha ──
+  const logo = leerLogo();
+  if (logo) {
+    const imgId = wb.addImage({ buffer: logo, extension: 'png' });
+    // 1050×446 px de origen → se dibuja a 150×64 (misma proporción), pegado arriba a la izquierda.
+    ws.addImage(imgId, { tl: { col: 0.15, row: 0.3 }, ext: { width: 150, height: 64 } });
+  }
+  for (let r = 1; r <= 4; r++) ws.getRow(r).height = 18;
+
+  ws.mergeCells(1, 4, 1, COL_COUNT);
+  const titleCell = ws.getCell(1, 4);
+  titleCell.value = `LIQUIDACIÓN ${tipoLabel}`;
   titleCell.font = STYLES.title.font;
-  titleCell.alignment = { vertical: 'middle' };
+  titleCell.alignment = { vertical: 'middle', horizontal: 'left' };
+  ws.getRow(1).height = 26;
 
-  ws.getCell(2, 1).value = `Cliente: ${liquidacion.cliente_nombre || ''}`;
-  ws.getCell(2, 1).font = STYLES.meta.font;
-  ws.getCell(3, 1).value = `Período: ${formatPeriodo(
-    liquidacion.periodo_desde,
-    liquidacion.periodo_hasta
-  )}`;
-  ws.getCell(3, 1).font = STYLES.meta.font;
-  ws.getCell(4, 1).value = `Fecha: ${formatFechaDisplay(liquidacion.fecha)}`;
-  ws.getCell(4, 1).font = STYLES.meta.font;
+  ws.mergeCells(2, 4, 2, COL_COUNT);
+  ws.getCell(2, 4).value = 'Nova Express · Courier internacional';
+  ws.getCell(2, 4).font = STYLES.subtitle.font;
 
-  const headerRowNum = 6;
+  const metaRow = (r, label, value) => {
+    ws.getCell(r, 4).value = label;
+    ws.getCell(r, 4).font = STYLES.meta.font;
+    ws.getCell(r, 4).alignment = { horizontal: 'right' };
+    ws.mergeCells(r, 5, r, 8);
+    ws.getCell(r, 5).value = value;
+    ws.getCell(r, 5).font = STYLES.metaStrong.font;
+  };
+  metaRow(3, 'Cliente', liquidacion.cliente_nombre || '');
+  metaRow(4, 'Período', formatPeriodo(liquidacion.periodo_desde, liquidacion.periodo_hasta));
+  ws.getCell(3, 10).value = 'Fecha';
+  ws.getCell(3, 10).font = STYLES.meta.font;
+  ws.getCell(3, 10).alignment = { horizontal: 'right' };
+  ws.mergeCells(3, 11, 3, COL_COUNT);
+  ws.getCell(3, 11).value = formatFechaDisplay(liquidacion.fecha);
+  ws.getCell(3, 11).font = STYLES.metaStrong.font;
+  ws.getCell(4, 10).value = 'Cobro';
+  ws.getCell(4, 10).font = STYLES.meta.font;
+  ws.getCell(4, 10).alignment = { horizontal: 'right' };
+  ws.mergeCells(4, 11, 4, COL_COUNT);
+  ws.getCell(4, 11).value = tipoLabel.charAt(0) + tipoLabel.slice(1).toLowerCase();
+  ws.getCell(4, 11).font = STYLES.metaStrong.font;
+
+  // Línea coral fina debajo de la cabecera.
+  ws.getRow(5).height = 6;
+  for (let c = 1; c <= COL_COUNT; c++) {
+    ws.getCell(5, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NOVA_CORAL } };
+  }
+  ws.getRow(6).height = 8;
+
+  // ── Tabla principal ──
+  const headerRowNum = 7;
   const headerRow = ws.getRow(headerRowNum);
   COL_HEADERS.forEach((label, i) => {
     const cell = headerRow.getCell(i + 1);
@@ -404,18 +478,12 @@ async function exportarLiquidacion(liquidacion) {
     cell.fill = STYLES.headerFill;
     cell.font = STYLES.headerFont;
     cell.alignment = { horizontal: 'center', vertical: 'middle', wrapText: true };
+    cell.border = BORDES;
   });
-  headerRow.height = 22;
+  headerRow.height = 24;
 
-  const totals = {
-    peso: 0,
-    fob: 0,
-    flete: 0,
-    fuel: 0,
-    seguro: 0,
-    adicional: 0,
-    total_usd: 0,
-  };
+  const totals = { peso: 0, fob: 0, flete: 0, fuel: 0, seguro: 0, adicional: 0, total_usd: 0 };
+  const NUM_COLS = [7, 8, 9, 11, 12, 13];
 
   let dataRowNum = headerRowNum + 1;
   for (let idx = 0; idx < liquidacion.items.length; idx++) {
@@ -425,8 +493,6 @@ async function exportarLiquidacion(liquidacion) {
 
     const fechaCell = row.getCell(1);
     fechaCell.value = parseFechaExcel(item.fecha);
-    setCellStyle(fechaCell, { fill: rowFill, numFmt: FMT_DATE });
-
     row.getCell(2).value = item.numero_guia || '';
     row.getCell(3).value = item.pais_destino || '';
     row.getCell(4).value = item.zona || '';
@@ -449,14 +515,17 @@ async function exportarLiquidacion(liquidacion) {
     row.getCell(12).value = adicional;
     row.getCell(13).value = totalUsd;
 
-    setCellStyle(row.getCell(6), { fill: rowFill, numFmt: FMT_PESO });
-    for (const col of [7, 8, 9, 11, 12, 13]) {
-      setCellStyle(row.getCell(col), { fill: rowFill, numFmt: FMT_MONEY });
+    for (let c = 1; c <= COL_COUNT; c++) {
+      const cell = row.getCell(c);
+      setCellStyle(cell, { fill: rowFill, font: STYLES.rowFont });
+      cell.border = BORDES;
+      cell.alignment = { vertical: 'middle', horizontal: [1, 4, 5].includes(c) ? 'center' : (c === 2 || c === 3) ? 'left' : 'right' };
     }
-    setCellStyle(row.getCell(10), { fill: rowFill });
-    for (const col of [2, 3, 4, 5]) {
-      setCellStyle(row.getCell(col), { fill: rowFill });
-    }
+    fechaCell.numFmt = FMT_DATE;
+    row.getCell(6).numFmt = FMT_PESO;
+    for (const col of NUM_COLS) row.getCell(col).numFmt = FMT_MONEY;
+    row.getCell(13).font = { ...STYLES.rowFont, bold: true };
+    row.height = 17;
 
     totals.peso += peso;
     totals.fob += fob;
@@ -470,6 +539,7 @@ async function exportarLiquidacion(liquidacion) {
   }
 
   const totalRow = ws.getRow(dataRowNum);
+  ws.mergeCells(dataRowNum, 1, dataRowNum, 5);
   totalRow.getCell(1).value = 'TOTAL';
   totalRow.getCell(6).value = totals.peso;
   totalRow.getCell(7).value = totals.fob;
@@ -479,34 +549,91 @@ async function exportarLiquidacion(liquidacion) {
   totalRow.getCell(11).value = totals.seguro;
   totalRow.getCell(12).value = totals.adicional;
   totalRow.getCell(13).value = totals.total_usd;
-
   for (let c = 1; c <= COL_COUNT; c++) {
     const cell = totalRow.getCell(c);
-    setCellStyle(cell, {
-      fill: STYLES.totalFill,
-      font: STYLES.totalFont,
-    });
+    setCellStyle(cell, { fill: STYLES.totalFill, font: STYLES.totalFont });
+    cell.alignment = { vertical: 'middle', horizontal: c === 1 ? 'center' : 'right' };
     if (c === 6) cell.numFmt = FMT_PESO;
-    if ([7, 8, 9, 11, 12, 13].includes(c)) cell.numFmt = FMT_MONEY;
+    if (NUM_COLS.includes(c)) cell.numFmt = FMT_MONEY;
   }
+  totalRow.height = 20;
 
   autoFitColumns(ws, headerRowNum, dataRowNum);
+  // La columna de guía y la de país necesitan aire propio (el autofit las deja justas).
+  ws.getColumn(2).width = Math.max(ws.getColumn(2).width || 0, 20);
+  ws.getColumn(3).width = Math.max(ws.getColumn(3).width || 0, 16);
+  ws.getColumn(13).width = Math.max(ws.getColumn(13).width || 0, 13);
+
+  // ── Detalle de adicionales (07/09): qué compone la columna ADICIONAL, guía por guía ──
+  // Surge (con su fuel), GoGreen, manejo, remota, derechos, extras manuales… Solo se dibuja
+  // si alguna guía tiene algo que desglosar.
+  const conDetalle = liquidacion.items.filter((it) => Array.isArray(it.adicional_detalle) && it.adicional_detalle.length);
+  let r = dataRowNum + 2;
+  if (conDetalle.length) {
+    ws.mergeCells(r, 1, r, COL_COUNT);
+    ws.getCell(r, 1).value = 'DETALLE DE ADICIONALES';
+    ws.getCell(r, 1).font = STYLES.subtitle.font;
+    ws.getRow(r).height = 18;
+    r++;
+    const sub = [['Nº ENVIO', 2, 4], ['CONCEPTO', 5, 11], ['USD', 12, 13]];
+    for (const [label, c1, c2] of sub) {
+      ws.mergeCells(r, c1, r, c2);
+      const cell = ws.getCell(r, c1);
+      cell.value = label;
+      cell.fill = STYLES.subHeaderFill;
+      cell.font = STYLES.subHeaderFont;
+      cell.alignment = { horizontal: label === 'USD' ? 'right' : 'left', vertical: 'middle' };
+      for (let c = c1; c <= c2; c++) ws.getCell(r, c).border = BORDES;
+    }
+    r++;
+    let n = 0;
+    for (const it of conDetalle) {
+      for (const d of it.adicional_detalle) {
+        const fill = n % 2 === 0 ? STYLES.rowWhite : STYLES.rowAlt;
+        ws.mergeCells(r, 2, r, 4);
+        ws.mergeCells(r, 5, r, 11);
+        ws.mergeCells(r, 12, r, 13);
+        ws.getCell(r, 2).value = it.numero_guia || '';
+        ws.getCell(r, 5).value = d.label;
+        ws.getCell(r, 12).value = Number(d.monto) || 0;
+        ws.getCell(r, 12).numFmt = FMT_MONEY;
+        ws.getCell(r, 12).alignment = { horizontal: 'right' };
+        for (let c = 2; c <= COL_COUNT; c++) {
+          setCellStyle(ws.getCell(r, c), { fill, font: STYLES.rowFont });
+          ws.getCell(r, c).border = BORDES;
+        }
+        ws.getRow(r).height = 16;
+        r++;
+        n++;
+      }
+    }
+    r++;
+  }
+
+  ws.mergeCells(r, 1, r, COL_COUNT);
+  ws.getCell(r, 1).value = 'Importes en dólares estadounidenses. Gracias por confiar en Nova Express.';
+  ws.getCell(r, 1).font = STYLES.noteFont;
+  ws.getCell(r, 1).alignment = { horizontal: 'center' };
 
   return wb.xlsx.writeBuffer();
 }
 
-function nombreArchivoExport(clienteNombre, fecha) {
+// Nombre del archivo: <COBRO>_<Cliente>Envio<fecha>.xlsx, con el cobro del cliente (antes
+// salía siempre "DIARIO_"). Los espacios del cobro van con guion bajo (CUENTA_CORRIENTE).
+function nombreArchivoExport(clienteNombre, fecha, tipoCobro) {
   const safe = String(clienteNombre || 'Cliente')
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .replace(/[^\w]/g, '')
     .slice(0, 40);
   const f = (fecha || hoyLocal()).replace(/-/g, '');
-  return `DIARIO_${safe}Envio${f}.xlsx`;
+  const pref = tipoCobroLabel(tipoCobro).replace(/\s+/g, '_');
+  return `${pref}_${safe}Envio${f}.xlsx`;
 }
 
 module.exports = {
   importarSalidas,
   exportarLiquidacion,
+  tipoCobroLabel,
   nombreArchivoExport,
 };

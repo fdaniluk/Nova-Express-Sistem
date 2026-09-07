@@ -76,7 +76,7 @@
   const GRID_MAX_COL = 37;   // 38 columnas fijas → índices 0..37; navegables 1..37
   let activeCell = null;
 
-  // ── Bloque desplegable de columnas UPS (Costo UPS, Dif Costo, Peso UPS, Dif Peso, Revisión)
+  // ── Bloque desplegable de columnas UPS (Costo UPS, % Real, Profit Real, Peso UPS, Dif Peso, Revisión)
   // Cinco columnas contiguas (índices 30..34) que solo importan al cruzar facturas. Se ocultan
   // con la clase .ups-collapsed en la tabla (CSS: .ups-col{display:none}). Frontend puro: la
   // exportación a Excel las incluye SIEMPRE, este el bloque plegado o no.
@@ -603,8 +603,8 @@
       <td class="num${isRevisionPendiente(e, isFirst) ? ' cell-compra-pendiente' : ''}" data-col="compra_total">${env(fmtUSD(e.compra_estimada ?? e.compra_total))}</td>
       <td class="num" data-col="profit">${env(profitCell(e))}</td>
       <td class="num" data-col="porcentaje">${env(pctCell(e))}</td>
-      <td class="num ups-col" data-col="costo_ups">${costoUpsCellHtml(e, isFirst)}</td>
-      <td class="num ups-col${difCosto.rojo ? ' cell-desvio-rojo' : ''}" data-col="dif_costo">${difCosto.html}</td>
+      <td class="num ups-col${difCosto.rojo ? ' cell-desvio-rojo' : ''}" data-col="costo_ups"${difCosto.title ? ` title="${escAttr(difCosto.title)}"` : ''}>${costoUpsCellHtml(e, isFirst)}</td>
+      <td class="num ups-col" data-col="porcentaje_real">${pctRealCellHtml(e, isFirst)}</td>
       <td class="num ups-col" data-col="profit_real">${profitRealCellHtml(e, isFirst)}</td>
       <td class="num ups-col" data-col="peso_ups">${pesoUpsCellHtml(e, isFirst)}</td>
       <td class="num ups-col${difPeso.rojo ? ' cell-desvio-rojo' : ''}" data-col="dif_peso">${difPeso.html}</td>
@@ -693,7 +693,13 @@
     const superaAbs = tol.abs != null && abs > tol.abs;
     const rojo = abs > 0 && (superaPct || superaAbs);
     const sign = pct > 0 ? '+' : '';
-    return { html: `${sign}${pct.toFixed(1)}%`, rojo };
+    // `title` (07/09): la columna "Dif Costo" salió de la tabla a pedido de Felipe (entró
+    // "% Real" en su lugar), pero el desvío contra nuestra estimación sigue valiendo como
+    // alerta: se pinta en rojo la celda "Costo UPS" y el porcentaje va en el tooltip.
+    const title = tipo === 'costo'
+      ? `Contra nuestra compra estimada: ${sign}${pct.toFixed(1)}% (${sign}${abs.toFixed(2)} USD)${rojo ? ' · supera la tolerancia' : ''}`
+      : '';
+    return { html: `${sign}${pct.toFixed(1)}%`, rojo, title };
   }
 
   // ¿Hay algo para mostrar en la sub-fila de detalle? Venta (venta_desglose) y/o los
@@ -1836,6 +1842,20 @@
     return `<span style="color:${color}" title="${escAttr(title)}">$${Number(v).toFixed(2)}</span>`;
   }
 
+  // Celda "% Real" (07/09, pedido de Felipe): la ganancia de la guía contra lo que cobró UPS
+  // de verdad — (venta − costo UPS) / costo UPS —, con la misma convención que el % estimado.
+  // Reemplaza a "Dif Costo" en la tabla; el desvío contra la estimación pasó al tooltip y al
+  // rojo de la celda "Costo UPS".
+  function pctRealCellHtml(e, isFirst) {
+    if (!isFirst) return '<span class="em">—</span>';
+    if (e.costo_facturado == null || e.porcentaje_real == null) return '<span class="em">—</span>';
+    const v = Number(e.porcentaje_real);
+    const color = v < 0 ? '#dc2626' : v === 0 ? '#d97706' : '#15803d';
+    const aprobada = e.estado_revision === 'revisado_ok';
+    const title = '(Venta − Costo UPS) / Costo UPS' + (aprobada ? '' : ' · la factura aún no está aprobada en Revisión');
+    return `<span style="color:${color}" title="${escAttr(title)}">${v.toFixed(1)}%</span>`;
+  }
+
   function pctCell(e) {
     const v = e.porcentaje_estimado ?? e.porcentaje;
     if (v == null) return '<span class="em">—</span>';
@@ -1854,7 +1874,9 @@
   // congelada `tarifa_50` del envío, no se recalcula: lo cargado antes del 01/09 salió por
   // la cuenta de siempre y tiene que seguir mostrándose así.
   function tarifa50Chip(e) {
-    if (!e.tarifa_50) return '';
+    // La tarifa +50 es de DHL: en cualquier otro courier la marca no se dibuja aunque
+    // venga en 1 (el servidor la borra al guardar; esto es el cinturón).
+    if (!e.tarifa_50 || e.courier !== 'DHL') return '';
     return ' <span class="chip-tarifa50" title="Tarifa DHL +50 kg — la guía se emite por la OTRA cuenta de DHL">+50</span>';
   }
 
@@ -1961,6 +1983,14 @@
                 <select id="saled-courier">
                   <option value="DHL">DHL</option>
                   <option value="UPS">UPS</option>
+                </select>
+              </div>
+              <div class="form-group" id="saled-servicio-ups-group">
+                <label>Servicio UPS *</label>
+                <select id="saled-servicio-ups">
+                  <option value="">— elegir —</option>
+                  <option value="UPS_SAV">Saver</option>
+                  <option value="UPS_EXP">Expedited</option>
                 </select>
               </div>
               <div class="form-group" style="grid-column:span 2">
@@ -2125,7 +2155,7 @@
     document.getElementById('saled-recalcular').addEventListener('click', recalcularDesglose);
     document.getElementById('saled-agregar-bulto').addEventListener('click', agregarBultoModal);
     document.getElementById('saled-calcular-venta').addEventListener('click', calcularVenta);
-    document.getElementById('saled-courier').addEventListener('change', () => toggleProtDocVisible(true));
+    document.getElementById('saled-courier').addEventListener('change', () => { toggleProtDocVisible(true); onCourierModalChange(); });
     document.getElementById('saled-tipo-paquete').addEventListener('change', () => toggleProtDocVisible(true));
     document.getElementById('saled-estado-caja').addEventListener('click', onEstadoCajaClick);
 
@@ -2231,6 +2261,9 @@
     document.getElementById('saled-fecha').value = envio.fecha || '';
     fillClienteSelect(envio.cliente_id);
     document.getElementById('saled-courier').value = envio.courier || 'DHL';
+    // Servicio UPS (Saver / Expedited): editable desde el 07/09. En DHL el grupo se esconde.
+    document.getElementById('saled-servicio-ups').value = envio.servicio_ups || '';
+    toggleServicioUpsVisible();
     // Recién acá: la visibilidad de la protección de documentos mira el courier Y el tipo
     // de paquete, así que tiene que correr después de que los dos estén cargados.
     toggleProtDocVisible(false);
@@ -2272,7 +2305,7 @@
     editExtrasDirty = false;
     // Tarifa +50 kg: al abrir se muestra la marca CONGELADA del envío, sin recalcular nada.
     // No queda "dirty": solo un Recalcular de esta sesión puede cambiarla.
-    editTarifa50 = envio.tarifa_50 ? 1 : 0;
+    editTarifa50 = (envio.tarifa_50 && envio.courier === 'DHL') ? 1 : 0;
     editTarifa50Dirty = false;
     pintarAvisoTarifa50();
     renderExtrasBlock();
@@ -2337,7 +2370,7 @@
     destino:     'saled-pais-destino',
     courier:     'saled-courier',
     costo_ups: 'saled-costos-block',   // el bloque entero de Costos, no un input único
-    dif_costo: 'saled-costos-block',
+    porcentaje_real: 'saled-costos-block',
   };
 
   function resolveModalFocusTarget(col) {
@@ -2656,6 +2689,8 @@
       proteccion_doc: document.getElementById('saled-proteccion-doc').checked ? 1 : 0,
       pais_destino: document.getElementById('saled-pais-destino').value || null,
       courier: document.getElementById('saled-courier').value,
+      // Servicio UPS tal como está AHORA en el modal (null en DHL).
+      servicio_ups: servicioUpsModal(),
       // Valor declarado tal como está AHORA en el modal: el seguro del recálculo sale de él.
       fob: (() => {
         const v = document.getElementById('saled-fob').value;
@@ -2678,6 +2713,13 @@
       body.largo = num('saled-largo');
       body.ancho = num('saled-ancho');
       body.alto = num('saled-alto');
+    }
+
+    if (body.courier === 'UPS' && !body.servicio_ups) {
+      status.className = 'saled-recalc-status saled-recalc-err';
+      status.textContent = 'Elegí el servicio UPS (Saver o Expedited) antes de recalcular.';
+      document.getElementById('saled-servicio-ups').focus();
+      return;
     }
 
     btn.disabled = true;
@@ -2803,6 +2845,33 @@
     const aplica = courierEl.value === 'DHL' && tipoEl.value === 'd';
     if (!aplica && destildar) chk.checked = false;
     label.style.display = (aplica || chk.checked) ? 'flex' : 'none';
+  }
+
+  // Servicio UPS: solo tiene sentido con courier UPS. Se muestra u oculta con el courier.
+  function toggleServicioUpsVisible() {
+    const grp = document.getElementById('saled-servicio-ups-group');
+    const courierEl = document.getElementById('saled-courier');
+    if (!grp || !courierEl) return;
+    grp.style.display = courierEl.value === 'UPS' ? '' : 'none';
+  }
+
+  // Valor del servicio UPS tal como está en el modal, o null si el courier no es UPS.
+  function servicioUpsModal() {
+    if (document.getElementById('saled-courier').value !== 'UPS') return null;
+    return document.getElementById('saled-servicio-ups').value || null;
+  }
+
+  // Cambio de courier en el modal. La tarifa +50 es de DHL y de nadie más: si el envío
+  // pasa a UPS, la marca se apaga acá mismo (y el servidor la borra al guardar). Caso de
+  // administración (07/09): envío DHL de +50 kg pasado a UPS quedaba con el chip +50 y sin
+  // poder recalcular porque no tenía dónde elegir Saver/Expedited.
+  function onCourierModalChange() {
+    toggleServicioUpsVisible();
+    if (document.getElementById('saled-courier').value !== 'DHL' && editTarifa50) {
+      editTarifa50 = 0;
+      editTarifa50Dirty = true;
+      pintarAvisoTarifa50();
+    }
   }
 
   // Arma el pedido de cotizacion del envio abierto. Lo usan DOS cosas: el boton "Calcular
@@ -3018,6 +3087,12 @@
       document.getElementById('saled-guia').focus();
       return;
     }
+    // Un envío UPS necesita su servicio (Saver / Expedited): sin él no se puede recotizar.
+    if (document.getElementById('saled-courier').value === 'UPS' && !servicioUpsModal()) {
+      NovaUtils.showAlert(document.getElementById('sal-modal-alert'), 'Elegí el servicio UPS (Saver o Expedited)', 'error');
+      document.getElementById('saled-servicio-ups').focus();
+      return;
+    }
 
     // Guardar con el precio calculado para otro peso es el error que costo plata. No se
     // bloquea —hay precios negociados aparte que son legitimos— pero no se guarda callado.
@@ -3093,6 +3168,7 @@
     payload.fecha        = document.getElementById('saled-fecha').value || null;
     payload.cliente_id   = Number(document.getElementById('saled-cliente').value) || null;
     payload.courier      = document.getElementById('saled-courier').value;
+    payload.servicio_ups = servicioUpsModal();
     payload.pais_destino = document.getElementById('saled-pais-destino').value || null;
     payload.num_sal_cero = document.getElementById('saled-sin-numerar').checked ? 1 : 0;
     // Valor declarado: vacío = 0 (sin valor declarado), igual que en el alta.

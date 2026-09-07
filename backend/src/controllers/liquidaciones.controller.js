@@ -122,7 +122,7 @@ async function exportar(req, res, next) {
     const liq = await liquidacionModel.buscarPorId(req.params.id);
     if (!liq) return res.status(404).json({ error: 'Liquidación no encontrada' });
     const buffer = await excelService.exportarLiquidacion(liq);
-    const filename = excelService.nombreArchivoExport(liq.cliente_nombre, liq.fecha);
+    const filename = excelService.nombreArchivoExport(liq.cliente_nombre, liq.fecha, liq.tipo_cobro);
     res.setHeader(
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'

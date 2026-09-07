@@ -2,7 +2,7 @@ const { getDb } = require('../db');
 const configuracionModel = require('./configuracion.model');
 const envioModel = require('./envio.model');
 const { redondear2, cotizarEnvio } = require('../services/calculos.service');
-const { descomponerVenta } = require('../utils/desgloseVenta');
+const { descomponerVenta, detallarAdicional } = require('../utils/desgloseVenta');
 const { hoyLocal } = require('../utils/fecha');
 
 // Migración automática: agrega columnas nuevas si no existen
@@ -42,7 +42,9 @@ async function migrarColumnas() {
 // (la diferencia es el profit). Por eso no se pueden leer tal cual para el desglose cliente.
 // Criterio (definido por el dueño): seguro y adicionales (cargos itemizados reales) se
 // muestran tal cual; flete+fuel balancean el resto para que la suma = total_cobrado.
-async function calcularItem(envio, adicional = 0) {
+// `cargosDetalle`: los cargos manuales de esta liquidación para el envío ([{descripcion, monto}]),
+// solo para rotular el desglose; el monto que cuenta es `adicional` (la suma).
+async function calcularItem(envio, adicional = 0, cargosDetalle = []) {
   // Fuel% del desglose: si el envío tiene fuel_pct propio (congelado al cargarlo) se usa ESE
   // y NO se lee config (un envío viejo se liquida con el fuel de su época, no con el de hoy).
   // Si es NULL (envíos previos a la columna), se cae al reparto proporcional con el fuel de
@@ -62,7 +64,7 @@ async function calcularItem(envio, adicional = 0) {
   // Descomposición canónica de la venta (helper read-only compartido con Salidas). Parte
   // total_cobrado en flete/fuel/seguro/adicional con el fuel_pct ya resuelto arriba. NO
   // recotiza ni aplica profit: el profit ya está dentro de total_cobrado.
-  const venta = descomponerVenta({
+  const datosVenta = {
     total_cobrado: envio.total_cobrado,
     // Cliente con seguro propio: la línea "Seguro" de cara al cliente es el monto
     // negociado congelado en el envío (seguro_venta), no la escala de lista (seguro =
@@ -76,7 +78,12 @@ async function calcularItem(envio, adicional = 0) {
     // El desglose por tipo del alta: con él, el fuel del surge va a Adicional y el flete
     // queda en kg × precio (ver utils/desgloseVenta.js). Sin él, reparto histórico.
     extras: envio.extras_json,
-  });
+  };
+  const venta = descomponerVenta(datosVenta);
+  // Qué compone el Adicional, línea por línea (surge con su fuel, GoGreen, manejo, remota,
+  // derechos, otros…) + el extra manual de esta liquidación. Pedido de Felipe (07/09): que
+  // la liquidación desglose los adicionales, en pantalla y en el Excel.
+  const adicionalDetalle = detallarAdicional(datosVenta);
   const totalCobrado = venta.total;   // = redondear2(envio.total_cobrado || 0)
   const seguro = venta.seguro;
   const flete = venta.flete;
@@ -87,6 +94,14 @@ async function calcularItem(envio, adicional = 0) {
 
   // Columna Adicional de cara al cliente: cargos guardados + extra manual de la fila.
   const adicionalItem = redondear2(adicGuardado + adicManual);
+  if (adicManual > 0) {
+    const conNombre = (cargosDetalle || []).filter((c) => Number(c.monto) > 0);
+    if (conNombre.length) {
+      for (const c of conNombre) adicionalDetalle.push({ tipo: 'manual', label: c.descripcion || 'Adicional de esta liquidación', monto: redondear2(c.monto) });
+    } else {
+      adicionalDetalle.push({ tipo: 'manual', label: 'Adicional de esta liquidación', monto: adicManual });
+    }
+  }
   // Total = lo que el cliente pagó + el extra manual agregado en esta liquidación.
   // Invariante: flete + fuel + seguro + adicionalItem = total_cobrado + adicManual = totalUsd.
   const totalUsd = redondear2(totalCobrado + adicManual);
@@ -111,6 +126,7 @@ async function calcularItem(envio, adicional = 0) {
     fuel,
     seguro,
     adicional: adicionalItem,
+    adicional_detalle: adicionalDetalle,
     total_usd: totalUsd,
     fuel_pct_usado: fuelPct,
     precio_cotizado: totalCobrado,
@@ -138,8 +154,10 @@ async function preview({ cliente_id, envio_ids, cargos = [], cotizaciones = [] }
   }
 
   const cargoMap = {};
+  const cargosPorEnvio = {};
   for (const c of cargos) {
     cargoMap[c.envio_id] = (cargoMap[c.envio_id] || 0) + (Number(c.monto) || 0);
+    (cargosPorEnvio[c.envio_id] = cargosPorEnvio[c.envio_id] || []).push(c);
   }
 
   // `cotizaciones` se sigue aceptando para no romper la API y el botón manual "Cotizar"
@@ -148,7 +166,7 @@ async function preview({ cliente_id, envio_ids, cargos = [], cotizaciones = [] }
   void cotizaciones;
 
   const items = await Promise.all(
-    envios.map((e) => calcularItem(e, cargoMap[e.id] || 0))
+    envios.map((e) => calcularItem(e, cargoMap[e.id] || 0, cargosPorEnvio[e.id] || []))
   );
   const total = redondear2(items.reduce((s, i) => s + i.total_usd, 0));
   const utilidadTotal = redondear2(items.reduce((s, i) => s + (i.utilidad_usd || 0), 0));
@@ -338,7 +356,9 @@ async function buscarPorId(id) {
   const items = await db
     .prepare(
       `SELECT li.*, e.numero_guia, e.fecha, e.pais_destino, e.zona, e.tipo_envio,
-              e.peso_facturable, e.fob, e.courier, e.total_cobrado
+              e.peso_facturable, e.fob, e.courier, e.total_cobrado,
+              e.extras_json, e.adicionales AS envio_adicionales, e.derechos AS envio_derechos,
+              e.otros AS envio_otros, e.seguro AS envio_seguro, e.seguro_venta AS envio_seguro_venta
        FROM liquidacion_items li
        JOIN envios e ON e.id = li.envio_id
        WHERE li.liquidacion_id = ?
@@ -349,6 +369,39 @@ async function buscarPorId(id) {
   const cargos = await db
     .prepare('SELECT * FROM cargos_adicionales WHERE liquidacion_id = ?')
     .all(id);
+
+  // Detalle del Adicional de cada ítem (07/09): se deriva del envío con el MISMO helper que
+  // usó el cálculo (read-only, no toca lo confirmado). Los envíos liquidados tienen la plata
+  // congelada, así que el detalle es el de siempre. El extra manual sale de cargos_adicionales.
+  for (const it of items) {
+    const detalle = detallarAdicional({
+      total_cobrado: it.total_cobrado,
+      seguro: it.envio_seguro_venta ?? it.envio_seguro,
+      adicionales: it.envio_adicionales,
+      derechos: it.envio_derechos,
+      otros: it.envio_otros,
+      fuel_pct: it.fuel_pct_usado,
+      extras: it.extras_json,
+    });
+    // La parte MANUAL es lo que la columna guardada tiene de más respecto del desglose del
+    // envío. OJO: cargos_adicionales guarda también una fila espejo "Cargo adicional" con la
+    // columna entera cuando no hubo extras manuales (ver crear()), así que no se puede leer
+    // esa tabla a ciegas: se usa solo si sus filas suman exactamente la parte manual.
+    const derivado = redondear2(detalle.reduce((s, d) => s + d.monto, 0));
+    const manual = redondear2((Number(it.adicional) || 0) - derivado);
+    if (manual > 0.005) {
+      const filas = cargos.filter((c) => c.envio_id === it.envio_id && Number(c.monto) > 0);
+      const sumaFilas = redondear2(filas.reduce((s, c) => s + Number(c.monto), 0));
+      if (filas.length && Math.abs(sumaFilas - manual) < 0.011) {
+        for (const c of filas) detalle.push({ tipo: 'manual', label: c.descripcion || 'Adicional de esta liquidación', monto: redondear2(c.monto) });
+      } else {
+        detalle.push({ tipo: 'manual', label: 'Adicional de esta liquidación', monto: manual });
+      }
+    }
+    it.adicional_detalle = detalle;
+    delete it.extras_json; delete it.envio_adicionales; delete it.envio_derechos;
+    delete it.envio_otros; delete it.envio_seguro; delete it.envio_seguro_venta;
+  }
 
   return { ...liq, items, cargos };
 }

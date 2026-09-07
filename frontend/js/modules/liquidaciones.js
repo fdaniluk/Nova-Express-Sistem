@@ -286,17 +286,29 @@
       const tbody = document.getElementById('liq-preview-body');
       // Desglose de cara al cliente: solo lo que pagó. NO se muestran % Profit ni Utilidad
       // empresa (datos internos). El desglose cierra exacto en Total USD = total_cobrado.
+      // Profit por envío (07/09, pedido de Felipe): "solo para que vea la oficina". Va en una
+      // columna propia, marcada como interna, y NO viaja al Excel (exportarLiquidacion no lo lee).
+      // El desglose del Adicional (surge con fuel, GoGreen, manejo…) va debajo del número.
       tbody.innerHTML = preview.items.map((i) => `
         <tr>
           <td>${i.envio?.numero_guia || i.envio_id}</td>
           <td>${NovaUtils.formatMoney(i.flete)}</td>
           <td>${NovaUtils.formatMoney(i.fuel)}</td>
           <td>${NovaUtils.formatMoney(i.seguro)}</td>
-          <td>${NovaUtils.formatMoney(i.adicional)}</td>
+          <td>${NovaUtils.formatMoney(i.adicional)}${adicDetalleHtml(i.adicional_detalle)}</td>
           <td>${NovaUtils.formatMoney(i.total_usd)}</td>
+          <td class="liq-interno">${profitInternoHtml(i)}</td>
         </tr>`).join('');
 
       document.getElementById('liq-total').innerHTML = `<strong>${NovaUtils.formatMoney(preview.total)}</strong>`;
+      // Total interno: utilidad de la liquidación y % sobre el costo (misma convención que Salidas).
+      {
+        const util = preview.items.reduce((s, i) => s + (Number(i.utilidad_usd) || 0), 0);
+        const costo = preview.items.reduce((s, i) => s + ((Number(i.precio_cotizado) || 0) - (Number(i.utilidad_usd) || 0)), 0);
+        const pct = costo > 0 ? (util / costo) * 100 : null;
+        document.getElementById('liq-profit-total').innerHTML =
+          `<span class="${util < 0 ? 'neg' : ''}">${pct != null ? pct.toFixed(1) + '% · ' : ''}${NovaUtils.formatMoney(util)}</span>`;
+      }
 
       // Utilidad total empresa: dato interno, no se muestra en el documento del cliente.
       document.getElementById('liq-utilidad-total').classList.add('hidden');
@@ -435,6 +447,20 @@
     } catch (err) {
       NovaUtils.showAlert(alertBox, err.message, 'error');
     }
+  }
+
+  // ── Vista previa: profit interno y desglose del Adicional (07/09) ────────────
+  function profitInternoHtml(i) {
+    if (i.profit_pct == null && i.utilidad_usd == null) return '<span class="em">—</span>';
+    const util = Number(i.utilidad_usd) || 0;
+    const pct = i.profit_pct != null ? `${Number(i.profit_pct).toFixed(1)}% · ` : '';
+    return `<span class="${util < 0 ? 'neg' : ''}" title="Utilidad estimada del envío: venta − costo congelado en el alta">${pct}${NovaUtils.formatMoney(util)}</span>`;
+  }
+
+  function adicDetalleHtml(detalle) {
+    if (!Array.isArray(detalle) || !detalle.length) return '';
+    const esc = (t) => String(t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    return `<span class="liq-adic-detalle">${detalle.map((d) => `<span>${esc(d.label)} ${NovaUtils.formatMoney(d.monto)}</span>`).join(' · ')}</span>`;
   }
 
   init();

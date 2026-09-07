@@ -371,6 +371,9 @@ async function main() {
       compra: celda('compra_total'), profit: celda('profit'), pct: celda('porcentaje'),
       costoUps: celda('costo_ups'), profitReal: celda('profit_real'),
       titleReal: tr.querySelector('td[data-col="profit_real"] span')?.title || '',
+      pctReal: celda('porcentaje_real'),
+      titleCosto: tr.querySelector('td[data-col="costo_ups"]')?.title || '',
+      hayDifCosto: !!tr.querySelector('td[data-col="dif_costo"]'),
     };
   }, dv.id);
 
@@ -386,6 +389,14 @@ async function main() {
   check('y son DOS números distintos, cada uno en su columna', f && Math.abs(num(f.profit) - num(f.profitReal)) > 1,
     f && `${f.profit} vs ${f.profitReal}`);
   check('el tooltip del real avisa que la factura aún no está aprobada', /no está aprobada/.test(f.titleReal), f.titleReal);
+  // 07/09 (pedido de Felipe): "Dif Costo" salió de la tabla y entró "% Real" = profit real / costo UPS.
+  check('la columna "% Real" muestra (300 − 160) / 160 = 87.5%', f && num(f.pctReal) === 87.5, f && f.pctReal);
+  check('la columna "Dif Costo" ya no está en la tabla', f && !f.hayDifCosto);
+  check('la cabecera dice "% Real" y no "Dif Costo"', await page.evaluate(() => {
+    const ths = [...document.querySelectorAll('.salidas-table thead th')].map((t) => t.textContent.replace(/[▼]/g, '').trim());
+    return ths.includes('% Real') && !ths.includes('Dif Costo');
+  }));
+  check('el desvío contra la estimación quedó en el tooltip de "Costo UPS"', /Contra nuestra compra estimada/.test(f.titleCosto), f.titleCosto);
   const estimadoAntes = num(f.profit);
   const compraAntes = num(f.compra);
 

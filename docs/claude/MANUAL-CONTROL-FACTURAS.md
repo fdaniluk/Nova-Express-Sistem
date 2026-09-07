@@ -60,7 +60,7 @@ vuelo), pero visualmente "el número que yo había calculado desaparecía".
 | **Compra Total** | La estimación NUESTRA (desglose congelado) | Siempre, nunca cambia sola |
 | **Profit / %** | Venta − Compra Total (estimado) | Siempre, nunca cambia sola |
 | **Costo UPS** | Lo que UPS facturó | Desde que se cruza la factura |
-| **Dif Costo** | Costo UPS vs Compra Total (estimada), con semáforo de tolerancia | Ídem |
+| **% Real** | Ganancia real de la guía: (Venta − Costo UPS) / Costo UPS. Reemplazó a "Dif Costo" el 07/09; el desvío contra nuestra estimación sigue: pinta en rojo la celda Costo UPS y se lee en su tooltip | Ídem |
 | **Profit Real** ← NUEVA | **Venta − Costo UPS** (% real en el tooltip) | Desde que se cruza la factura, SIN esperar el tilde; el tooltip avisa si aún no está aprobada |
 | **Peso UPS / Dif Peso** | Kilos facturados vs cargados | Ídem |
 | **Revisión** | pendiente / ✓ / ✗ / sin factura | — |
