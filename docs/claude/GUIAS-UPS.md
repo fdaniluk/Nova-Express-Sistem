@@ -153,14 +153,42 @@ posible que se pueda absorber del armado de la guía"*.
   registra, no se corrige (regla cuatro). El sistema solo tiene que mostrar las dos
   cifras y no mezclarlas.
 
+## 4-ter. Lo que confirmó la oficina el 07/09 (ESPECIFICACIÓN, regla cinco)
+
+- **Paso 6 (facturación):** con **DDP**, los aranceles e impuestos se facturan a la cuenta
+  **327W09 – DANILUK MARCELO ALEJANDRO** (o sea, los paga Nova y después se le liquidan al
+  cliente: ver `DDP-IMPUESTOS.md`); **sin DDP**, "facturar al destinatario". El flete siempre
+  a 327W09. En la API: `ShipmentCharge` tipo `01` (flete) = `BillShipper 327W09` siempre;
+  tipo `02` (aranceles e impuestos) = `BillShipper 327W09` si DDP, `BillReceiver` si no.
+- **Impresión:** usan las dos. **Térmica** para la etiqueta del bulto (en CampusShip, paso
+  "Confirmación de envío" → "Imprimir documentos de envío" → tildan Etiqueta → acepta la
+  térmica). **A4** para la guía y la proforma. Hoy, en A4, la guía sale en DOS hojas (la
+  etiqueta + una hoja de leyendas de UPS) y la oficina las unifica a mano desde la
+  configuración de impresión; por eso imprimen la térmica primero y la guía después.
+  **Con la API esto se simplifica solo:** la respuesta trae la etiqueta como imagen (GIF/PNG,
+  lo que vimos en la Etapa 0) o como **ZPL** para la térmica; el sistema puede armar un PDF A4
+  de UNA hoja con la etiqueta (sin la hoja de leyendas) y ofrecer los dos botones: "Etiqueta
+  térmica" y "Guía A4".
+
+## 4-quater. La proforma de la oficina (muestra `Zappala 070926 UK.xlsx`, 07/09)
+
+Un Excel de una hoja, título **COMMERCIAL INVOICE**, con: Nº y fecha (arriba a la derecha);
+**Shipper** (nombre, CUIT/CUIL, dirección, CP, ciudad, país, teléfono, **contacto**) a la
+izquierda y **Consignee** (nombre, dirección, CP, ciudad, país, teléfono, mail) a la derecha;
+tabla de ítems **Quantity / Description of goods / Unit value / Total value** (rótulos en
+inglés y castellano, total = cantidad × unitario, hasta 4 renglones + TOTAL USD);
+**COUNTRY OF ORIGIN: ARGENTINA** y bloque **Manufacturer** (nombre, CUIT, dirección). Sin logo
+ni firma. → Es exactamente la libreta de destinatarios + remitente completo + contenido de la
+Etapa 1: con esos datos el sistema la genera igual (Etapa 3). El Nº de proforma lo pone la
+oficina; ver de dónde sale (¿correlativo propio?).
+
 ## 5. Lo que necesito de Felipe para arrancar la Etapa 0
 
 1. ✅ **Números de cuenta UPS** de expo y de impo — `327W09` / `3R6A45` (07/09).
 2. ✅ **Shipping (y Rating) habilitados en la app el 07/09**, aprobados en Test y Prod.
-3. **Una proforma de las que hace la oficina** (el archivo que mandan), para la Etapa 3.
-4. **Que la oficina confirme el paso 6**: con DDP y sin DDP, qué eligen en "gastos de
-   envío a" y en "aranceles e impuestos a".
-5. ¿Con qué se imprimen las etiquetas hoy: impresora común A4 o térmica de 10×15?
+3. ✅ Proforma recibida el 07/09 (ver 4-quater).
+4. ✅ Paso 6 confirmado (07/09): ver 4-ter.
+5. ✅ Impresión: térmica para la etiqueta, A4 para guía y proforma (07/09): ver 4-ter.
 
 ## 6. Códigos de servicio UPS (para no buscarlos después)
 

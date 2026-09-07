@@ -38,6 +38,10 @@ mismo día: **`0e1971e`** (columnas fijas: cualquier columna — **pusheado y DE
    destinatarios, remitente completo por cliente, contenido. Faltan de Felipe: una proforma
    de las que hace la oficina, la confirmación del paso 6 (facturación con/sin DDP) y con
    qué impresora salen las etiquetas.
+0-d. **Importar los ~40 liquidadores viejos a la matriz de profit (07/09, administración):**
+   plan en **`IMPORTAR-LIQUIDADORES.md`**. Falta: la lista de clientes con su courier/servicio,
+   los `.xls`, y la decisión de Felipe sobre los clientes con tabla de costo vieja (¿se respeta
+   el precio final o se fija % nuevo?). Cierra el L4.
 0-quater. **Decisión de Felipe:** la columna DERECHOS del Excel de liquidación sale siempre
    vacía (los derechos van dentro de Adicional desde hace tiempo). ¿Se saca del Excel?
 0-c. ✅ **L1 cerrado el 07/09:** Felipe borró los borradores #12 y #30 desde Historial. Los
