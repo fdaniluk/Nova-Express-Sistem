@@ -1,22 +1,28 @@
 # Pendientes
 
-**Actualizado 04/09/2026 (tarde).** Última punta: **`096b1b8`** (Pickups: entrega de una
-importación — la caja ya está en el depósito y se lleva al cliente; columna
-`pickups.entrega_impo`) — **pusheado y DESPLEGADO el 04/09 (16:27), check-schema verde**. Antes, `4e26cd6` (docs) y **`7e1ced8`** (Liquidaciones:
-Pendientes muestra TODO lo que hay sin liquidar; "Liquidar" abarca el envío más viejo del
-grupo) — **pusheado y DESPLEGADO el 04/09, check-schema verde**. Antes, el 03/09: **`0a98ec0`** (DDP entrega 1: facturas
-de impuestos de UPS cruzadas por guía con su envío — desplegado desde el 03/09, columnas nuevas en
-verde en el check-schema del 04/09), **`094d776`** (agregar bultos desde el modal de
-Salidas), `2d9b74e` + `e56ea5c` (los docs adentro del repo), `e01dc83` (CIF con flete
-aforado 2,50/kg), `3db83cf` y `cc65125`. **Todos en `origin/main`** (visto en el `git log`
-del 04/09).
-Cache **`?v=20260901i`**.
-**63 tandas en el verificar (66 archivos `test-*.js`)** — contadas contra `package.json`.
+**Actualizado 07/09/2026 (mediodía).** Última punta: **columnas fijas de Salidas: CUALQUIER
+columna** (pedido de Felipe del 07/09, "que lo deje fijar la columna que quiera"): el panel
+📌 ofrece las 37 columnas de la tabla en su orden, botón "Ninguna", sticky por posición
+(`:nth-child`, vale también para las celdas sin `data-col`), lo guardado antes sigue
+valiendo. Tanda nueva `test-pantalla-columnas-fijas` (**46**, puerto 3939) en
+`test-pantallas`. Cache **`?v=20260907a`**. **Commiteado; falta que Felipe corra las tandas,
+pushee y despliegue.** Antes, `00a12d0` (docs: `GUIAS-UPS.md`) pusheado el 07/09 a la
+mañana, y **`096b1b8`** (Pickups: entrega de una importación) — desplegado el 04/09.
+**64 tandas en el verificar (67 archivos `test-*.js`).**
+
+**Guías UPS (Etapa 0):** Felipe pasó las cuentas — **EXPO `327W09` · IMPO `3R6A45`**
+(`GUIAS-UPS.md`). Falta que confirme en developer.ups.com si la app tiene **Shipping**.
+**Felipe avisó que tiene "un par de cosas más" de Salidas para pasar.**
 
 ---
 
 ## 🔵 LO PRIMERO
 
+0. **Columnas fijas (07/09):** Felipe corre `test-pantalla-columnas-fijas` + vecinas, pushea y
+   despliega. Después, Ctrl+Shift+R en Salidas y probar fijar Largo / Profit Real. Al manual
+   de Salidas sumarle que ahora se fija cualquier columna y el botón "Ninguna".
+0-bis. **Guías UPS, Etapa 0:** falta la captura/confirmación de **Shipping** en
+   developer.ups.com. Cuentas ya anotadas en `GUIAS-UPS.md`.
 1. ✅ `096b1b8` desplegado el 04/09 (`DESPLEGADO Y SANO · 7e1ced8 → fdfc871`,
    check-schema verde). Falta que Felipe cargue una entrega de prueba en Pickups
    (Ctrl+Shift+R) y que Ricardo y Juanqui sepan que hay tarjetas ámbar 📦 con el botón
@@ -403,8 +409,8 @@ cliente?** (03/09)
 | **50** | **Tres tandas quedaron FUERA del `verificar`**: `test-orden-pendientes`, `test-regla-documentos` y `test-tarifa-por-kg` (existen como archivo pero no están en las cadenas `test`/`test-pantallas`). Decidir si entran al verificar o si se borran | 20 min |
 
 **El conteo de tandas venía arrastrado mal en la documentación**: el número bueno,
-verificado contra `backend/package.json` el 04/09, es **63 tandas en el verificar sobre 66
-archivos `scripts/test-*.js`** (la última es `test-pantalla-entrega-impo`).
+verificado contra `backend/package.json` el 07/09, es **64 tandas en el verificar sobre 67
+archivos `scripts/test-*.js`** (la última es `test-pantalla-columnas-fijas`).
 
 ---
 

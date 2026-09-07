@@ -6,7 +6,11 @@ vincularía con la carga de envíos, cosa de facilitar la carga a Salidas"*. Pri
 DHL en el futuro. Cuentas UPS: una de **expo**, una de **impo**, una de **vinos** (casi no
 se usa: **afuera por ahora**).
 
-Estado: **análisis y plan**. Nada implementado todavía. **Arranca el lunes 07/09** con la Etapa 0.
+Estado: **Etapa 0 en curso (07/09).** Nada implementado todavía.
+
+**Cuentas UPS (Felipe, 07/09): EXPO `327W09` · IMPO `3R6A45`.** Van al `.env` como
+`UPS_CUENTA_EXPO` / `UPS_CUENTA_IMPO` cuando arranque el módulo. (Coinciden con los
+prefijos de guía `1Z327W09…` y `1Z3R6A45…` que ya se ven en las facturas.)
 
 ---
 
@@ -62,7 +66,7 @@ todo registrado y es gratis.
 Lo que hay que confirmar antes de escribir una línea del módulo (**Etapa 0**):
 - Que la app de UPS de Nova tenga habilitado el producto **Shipping** (en
   developer.ups.com → la app → productos). Si no, se habilita ahí mismo.
-- Los **números de cuenta** de expo y de impo (6 caracteres) — van al `.env`.
+- ✅ Los **números de cuenta** de expo y de impo — arriba (07/09).
 - Una guía de prueba en el **entorno de test de UPS** (`wwwcie.ups.com`): no genera
   cargos ni guías reales. Con eso se ve qué campos exige para Argentina → exterior.
 
@@ -132,7 +136,7 @@ posible que se pueda absorber del armado de la guía"*.
 
 ## 5. Lo que necesito de Felipe para arrancar la Etapa 0
 
-1. **Números de cuenta UPS** de expo y de impo.
+1. ✅ **Números de cuenta UPS** de expo y de impo — `327W09` / `3R6A45` (07/09).
 2. Entrar a **developer.ups.com** con el usuario de la app y decirme si en la app figura
    **Shipping** entre los productos (o darme una captura de esa pantalla).
 3. **Una proforma de las que hace la oficina** (el archivo que mandan), para la Etapa 3.

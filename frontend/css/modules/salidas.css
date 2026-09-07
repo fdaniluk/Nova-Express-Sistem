@@ -169,8 +169,8 @@ body.salidas-page .page-body > .card { padding: 10px 12px 4px; margin-bottom: 0;
 }
 
 /* ── Columnas fijas (sticky a la izquierda) ── */
-/* La columna 0 (checkbox) queda SIEMPRE congelada. Las 7 columnas anclables reciben su
-   sticky/left/z-index desde el <style id="sticky-cols-style"> generado por salidas.js.
+/* La columna 0 (checkbox) queda SIEMPRE congelada. Cualquier otra columna fijada recibe su
+   sticky/left/z-index (por :nth-child) desde el <style id="sticky-cols-style"> de salidas.js.
    Los th ya son opacos por CSS base (#f1f5f9), así que acá solo el cuerpo necesita fondo. */
 .salidas-table th.chk-cell,
 .salidas-table td.chk-cell {
@@ -219,6 +219,17 @@ body.salidas-page .page-body > .card { padding: 10px 12px 4px; margin-bottom: 0;
 
 .sticky-cols-panel label:hover { background: #f1f5f9; }
 .sticky-cols-panel input[type="checkbox"] { cursor: pointer; margin: 0; }
+
+/* Desde el 07/09 se puede fijar CUALQUIER columna (38): la lista scrollea si no entra. */
+.sticky-cols-list {
+  max-height: 60vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-right: 2px;
+}
+.sticky-cols-panel .sticky-cols-none { margin-top: 6px; width: 100%; }
 
 .salidas-table {
   width: 100%;

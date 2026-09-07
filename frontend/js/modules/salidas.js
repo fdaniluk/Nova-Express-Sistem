@@ -91,18 +91,17 @@
   let upsVisible = true;     // estado efectivo actual del bloque (se recalcula en cada render)
 
   // ── Columnas fijas (sticky a la izquierda) ──────────────────────────────────
-  // Bloque de identificación anclable, en orden visual de izquierda a derecha. La
-  // columna 0 (checkbox) queda SIEMPRE fija por CSS estático; estas 7 son opcionales.
-  // El sticky se emite como CSS por [data-col] en un <style>, así sobrevive al
-  // re-render destructivo del tbody sin volver a tocar ningún <td>.
-  const STICKY_ANCHOR_COLS = ['numero_salida', 'courier', 'fecha', 'numero_guia', 'tipo_cobro', 'cliente_nombre', 'destino'];
-  const STICKY_LABELS = {
-    numero_salida: '#Sal', courier: 'Courier', fecha: 'Fecha', numero_guia: 'Guía',
-    tipo_cobro: 'Cobro', cliente_nombre: 'Cliente', destino: 'Destino',
-  };
+  // CUALQUIER columna de la tabla se puede fijar (pedido de Felipe, 07/09: antes eran solo
+  // las 7 de identificación). La columna 0 (checkbox) queda SIEMPRE fija por CSS estático.
+  // El registro de columnas se arma leyendo el <thead> al iniciar: cada th recibe una clave
+  // estable (su data-col si lo tiene, si no un slug de su rótulo) y su posición. El sticky se
+  // emite como CSS por POSICIÓN (`:nth-child`) en un <style>, así vale para las celdas que no
+  // tienen data-col y sobrevive al re-render destructivo del tbody. Solo aplica a las filas de
+  // datos (`tr[data-envio-id]`): las de detalle (colspan) no se tocan.
   const STICKY_LS_KEY = 'nova.salidas.stickyCols';
   const STICKY_DEFAULT = ['numero_salida', 'cliente_nombre'];
-  let stickyPins = new Set();   // data-col actualmente fijados
+  let stickyCols = [];          // [{ key, label, nth }] en orden visual izquierda→derecha
+  let stickyPins = new Set();   // claves actualmente fijadas
 
   const alertBox = document.getElementById('alert-box');
 
@@ -124,6 +123,7 @@
     bindGridNav();
     bindCopiarGuias();
     bindSelectAllGuias();
+    buildStickyCols();
     loadStickyPins();
     bindStickyCols();
     loadUpsOverride();
@@ -1420,8 +1420,39 @@
   }
 
   // ── Columnas fijas (sticky) ──────────────────────────────────────────────────
-  // Persistencia en localStorage: array de data-col fijados, en orden canónico. Primera
-  // vez sin nada guardado → STICKY_DEFAULT. Se ignoran valores que no sean anclables.
+  // Registro de columnas fijables: todas las del thead salvo el checkbox. `nth` es la
+  // posición 1-based para `:nth-child`. La clave es estable entre sesiones (data-col o slug
+  // del rótulo), así que lo guardado antes ('numero_salida', 'cliente_nombre'…) sigue valiendo.
+  function buildStickyCols() {
+    const ths = Array.from(document.querySelectorAll('.salidas-table thead th'));
+    stickyCols = [];
+    const seen = new Set();
+    ths.forEach((th, i) => {
+      if (th.classList.contains('chk-cell')) return;
+      const label = stickyLabelOf(th);
+      let key = th.dataset.col || stickySlug(label);
+      while (seen.has(key)) key += '_';   // dos rótulos iguales no pueden pisarse
+      seen.add(key);
+      stickyCols.push({ key, label, nth: i + 1 });
+    });
+  }
+
+  // Rótulo visible del th: el texto sin el ▼ del filtro ni el icono de orden.
+  function stickyLabelOf(th) {
+    const inner = th.querySelector('.th-inner') || th;
+    let txt = '';
+    inner.childNodes.forEach((n) => { if (n.nodeType === Node.TEXT_NODE) txt += n.textContent; });
+    txt = txt.trim();
+    return txt || (th.textContent || '').replace(/[▼]/g, '').trim();
+  }
+
+  function stickySlug(label) {
+    return label.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+      .replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'col';
+  }
+
+  // Persistencia en localStorage: array de claves fijadas, en orden visual. Primera vez sin
+  // nada guardado → STICKY_DEFAULT. Se ignoran claves que no correspondan a una columna.
   function loadStickyPins() {
     let arr = null;
     try {
@@ -1429,11 +1460,12 @@
       if (raw) arr = JSON.parse(raw);
     } catch (_) { arr = null; }
     if (!Array.isArray(arr)) arr = STICKY_DEFAULT.slice();
-    stickyPins = new Set(arr.filter((c) => STICKY_ANCHOR_COLS.includes(c)));
+    const keys = new Set(stickyCols.map((c) => c.key));
+    stickyPins = new Set(arr.filter((c) => keys.has(c)));
   }
 
   function saveStickyPins() {
-    const arr = STICKY_ANCHOR_COLS.filter((c) => stickyPins.has(c));   // orden izquierda→derecha
+    const arr = stickyCols.filter((c) => stickyPins.has(c.key)).map((c) => c.key);   // orden izquierda→derecha
     try { localStorage.setItem(STICKY_LS_KEY, JSON.stringify(arr)); } catch (_) {}
   }
 
@@ -1447,7 +1479,9 @@
   // Reescribe el <style id="sticky-cols-style"> con las reglas de las columnas fijadas.
   // El offset de cada columna = ancho del checkbox + suma de anchos de las columnas
   // fijadas a su izquierda (solo las fijadas: las del medio no fijadas pasan por debajo).
-  // Targetea th[data-col]/td[data-col], así que sobrevive al re-render del tbody.
+  // Targetea por posición (th/td :nth-child) dentro de las filas de datos, así que sobrevive
+  // al re-render del tbody y no depende de que la celda tenga data-col. Una columna oculta
+  // (bloque UPS plegado, display:none) mide 0 y no corre a las siguientes.
   function applyStickyCols() {
     let styleEl = document.getElementById('sticky-cols-style');
     if (!styleEl) {
@@ -1456,26 +1490,28 @@
       document.head.appendChild(styleEl);
     }
 
-    const pinned = STICKY_ANCHOR_COLS.filter((c) => stickyPins.has(c));
+    const pinned = stickyCols.filter((c) => stickyPins.has(c.key));
     let css = '';
     let offset = stickyColWidth('.salidas-table th.chk-cell');   // el bloque arranca tras el checkbox
 
     for (const col of pinned) {
-      const sel = `[data-col="${col}"]`;
+      const th = `.salidas-table thead th:nth-child(${col.nth})`;
+      const td = `.salidas-table tbody tr[data-envio-id] > td:nth-child(${col.nth})`;
       // th + td se congelan a la izquierda. z-index:1 por encima de las celdas normales.
-      css += `.salidas-table th${sel},.salidas-table td${sel}{position:sticky;left:${offset}px;z-index:1;}\n`;
+      css += `${th},${td}{position:sticky;left:${offset}px;z-index:1;}\n`;
       // Esquina (th fijado + thead sticky top, z-index:2): tiene que ir por encima del thead.
-      css += `.salidas-table thead th${sel}{z-index:3;}\n`;
-      offset += stickyColWidth(`.salidas-table th${sel}`);
+      css += `${th}{z-index:3;}\n`;
+      offset += stickyColWidth(th);
     }
 
     if (pinned.length) {
       // Fondo OPACO que matchea la fila en cada estado (los th ya son opacos por CSS base):
       // normal → #fff, sub-fila de bulto → #f8fafc, hover → #eef2ff. La celda activa gana
       // por su propia regla !important (#e0e7ff), así que no se toca acá.
-      const base = pinned.map((c) => `.salidas-table td[data-col="${c}"]`).join(',');
-      const detail = pinned.map((c) => `.salidas-table tr.bulto-detail-row td[data-col="${c}"]`).join(',');
-      const hover = pinned.map((c) => `.salidas-table tbody tr[data-envio-id]:hover td[data-col="${c}"]`).join(',');
+      // Especificidad: base (0,2,2) < sub-fila (0,3,2) < hover (0,3,3), para que cada estado gane.
+      const base = pinned.map((c) => `.salidas-table tr[data-envio-id] > td:nth-child(${c.nth})`).join(',');
+      const detail = pinned.map((c) => `.salidas-table tr.bulto-detail-row > td:nth-child(${c.nth})`).join(',');
+      const hover = pinned.map((c) => `.salidas-table tbody tr[data-envio-id]:hover > td:nth-child(${c.nth})`).join(',');
       css += `${base}{background:#fff;}\n`;
       css += `${detail}{background:#f8fafc;}\n`;
       css += `${hover}{background:#eef2ff;}\n`;
@@ -1484,8 +1520,9 @@
     styleEl.textContent = css;
   }
 
-  // Botón "Columnas fijas" + panelito flotante con los 7 checkboxes. Al tildar/destildar
-  // recalcula el sticky y persiste. El panel vive FUERA de la tabla (en el body).
+  // Botón "Columnas fijas" + panelito flotante con UN checkbox por columna de la tabla, en el
+  // orden de la tabla. Al tildar/destildar recalcula el sticky y persiste. "Ninguna" suelta
+  // todas de un golpe. El panel vive FUERA de la tabla (en el body) y scrollea si no entra.
   function bindStickyCols() {
     const btn = document.getElementById('btn-sticky-cols');
     if (!btn) return;
@@ -1496,9 +1533,12 @@
     panel.style.display = 'none';
     panel.innerHTML = `
       <div class="sticky-cols-title">Fijar columnas</div>
-      ${STICKY_ANCHOR_COLS.map((c) => `
-        <label><input type="checkbox" value="${c}" ${stickyPins.has(c) ? 'checked' : ''}> ${esc(STICKY_LABELS[c])}</label>
-      `).join('')}`;
+      <div class="sticky-cols-list">
+      ${stickyCols.map((c) => `
+        <label><input type="checkbox" value="${escAttr(c.key)}" ${stickyPins.has(c.key) ? 'checked' : ''}> ${esc(c.label)}</label>
+      `).join('')}
+      </div>
+      <button type="button" class="btn btn-sm btn-secondary sticky-cols-none">Ninguna</button>`;
     document.body.appendChild(panel);
 
     panel.querySelectorAll('input[type=checkbox]').forEach((cb) => {
@@ -1510,6 +1550,14 @@
         // Fijar/soltar columnas altera anchos → recalcular la barra flotante.
         refreshFloatingScrollbar();
       });
+    });
+
+    panel.querySelector('.sticky-cols-none').addEventListener('click', () => {
+      stickyPins.clear();
+      panel.querySelectorAll('input[type=checkbox]').forEach((cb) => { cb.checked = false; });
+      saveStickyPins();
+      applyStickyCols();
+      refreshFloatingScrollbar();
     });
 
     btn.addEventListener('click', (e) => {
