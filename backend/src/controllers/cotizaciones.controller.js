@@ -53,13 +53,13 @@ async function validar(body) {
 
 async function listar(req, res, next) {
   try {
-    const { cliente_id, estado, desde, hasta, limite } = req.query;
+    const { cliente_id, estado, desde, hasta, limite, sin_cliente } = req.query;
     // Un estado que no existe no se filtra en silencio: devolver cero filas haria pensar
     // que no hay cotizaciones cuando lo que hay es un parametro mal escrito.
     if (estado && !modelo.ESTADOS.includes(estado)) {
       return res.status(400).json({ error: `Estado inválido: ${estado}` });
     }
-    res.json(await modelo.listar({ cliente_id, estado, desde, hasta, limite }));
+    res.json(await modelo.listar({ cliente_id, estado, desde, hasta, limite, sin_cliente: sin_cliente === '1' }));
   } catch (e) { next(e); }
 }
 
@@ -159,7 +159,15 @@ async function cambiarEstado(req, res, next) {
 
 async function editar(req, res, next) {
   try {
-    const { total_acordado, notas, vence_en } = req.body || {};
+    const { total_acordado, notas, vence_en, cliente_id } = req.body || {};
+    // Asignar cliente a una cotización guardada sin cliente (o cambiarlo).
+    if (cliente_id !== undefined) {
+      const n = Number(cliente_id);
+      if (!Number.isInteger(n) || n <= 0) return res.status(400).json({ error: 'cliente_id inválido' });
+      const r = await modelo.asignarCliente(req.params.id, n, req.usuario);
+      if (!r) return res.status(404).json({ error: 'Cotización no encontrada' });
+      if (total_acordado === undefined && notas === undefined && vence_en === undefined) return res.json(r);
+    }
     if (total_acordado !== undefined
         && (typeof total_acordado !== 'number' || !Number.isFinite(total_acordado) || total_acordado <= 0)) {
       return res.status(400).json({ error: 'total_acordado tiene que ser un número mayor a cero' });
@@ -167,7 +175,10 @@ async function editar(req, res, next) {
     const r = await modelo.editarAcordado(req.params.id, { total_acordado, notas, vence_en }, req.usuario);
     if (!r) return res.status(404).json({ error: 'Cotización no encontrada' });
     res.json(r);
-  } catch (e) { next(e); }
+  } catch (e) {
+    if (e.status === 400) return res.status(400).json({ error: e.message });
+    next(e);
+  }
 }
 
 async function eliminar(req, res, next) {

@@ -310,6 +310,18 @@ Colores Nova `#403754`/`#EE6C52`.
 
 ## 3. Dónde estamos (08-09-2026, tarde)
 
+- **08/09, noche — COTIZAR SIN CLIENTE Y ELEGIR EL PERFIL AL GUARDAR (pedido del jefe de
+  Felipe).** Antes, guardar sin cliente pedía un nombre tipeado y la cotización quedaba
+  con `cliente_id NULL`: invisible en el perfil y en el panel de Cargar envío (las dos
+  buscan por cliente). Ahora: se cotiza con la ganancia manual, y al apretar "Guardar
+  este precio" sin cliente arriba se abre **"¿Para quién es?"** (desplegable de clientes +
+  "Otro (todavía sin alta)" con nombre). Queda en ese perfil, con `entrada.profit_manual`
+  y la lista (`GET /cotizaciones`) devuelve `profit: { manual, pct }` → el perfil muestra
+  el chip ámbar **"profit manual 40%"**. Huérfanas: `GET /cotizaciones?sin_cliente=1`,
+  `PATCH /cotizaciones/:id { cliente_id }` (`asignarCliente`, conserva el nombre tipeado
+  en notas, va al historial) y el script **`scripts/cotizaciones-huerfanas.js`**
+  (`--clientes`, `--asignar=id:idCliente`) para las que ya guardó el jefe. Tanda
+  `test-pantalla-cotizaciones` 38 (+12). Cache **`?v=20260908c`**.
 - **08/09 — GUÍAS UPS: ETAPAS 1 Y 2 CONSTRUIDAS (commiteadas, pendiente de tests de
   Felipe / prueba contra UPS de test / push / deploy).** Siguiendo LA REGLA de Felipe con
   administración (`GUIAS-UPS.md` 3-bis): módulo **Guías** (pantalla nueva + ítem de menú
@@ -326,7 +338,7 @@ Colores Nova `#403754`/`#EE6C52`.
   **Perfiles de remitente por cliente** (tabla `remitentes`; la ficha del cliente es el
   principal; `remitente_id` en guías y envíos): pedido de Felipe esa misma tarde.
   Tandas `test-guias-datos` (44, puerto 3935) y `test-guias-emision` (82, puerto 3933,
-  `UPS_SHIPPING_MOCK=1`). Cache **`?v=20260908b`**. **69 tandas (72 archivos).** Todo el
+  `UPS_SHIPPING_MOCK=1`). Cache **`?v=20260908c`**. **69 tandas (72 archivos).** Todo el
   detalle, lo que se le manda a UPS y lo que falta: `GUIAS-UPS.md` sección 7.
   **El verificar completo del 08/09 (69 tandas, 8,3 min) destapó dos cosas del paquete del
   07/09 que no se habían corrido:** (1) el PATCH de Salidas exigía servicio a TODO envío
@@ -465,7 +477,7 @@ Colores Nova `#403754`/`#EE6C52`.
   **`test-cruce-tarifa-50`** (el mismo envío por los seis caminos del sistema).
   Detalle completo en `claude/TARIFA-DHL-MAS-50.md`, sección **"La auditoría del cruce"**.
   **Lección: REGLA NÚMERO ONCE.**
-- Cache **`?v=20260908b`** (las 18 páginas, incluido el v8 de `shared/`). **69 tandas en
+- Cache **`?v=20260908c`** (las 18 páginas, incluido el v8 de `shared/`). **69 tandas en
   el verificar (72 archivos `test-*.js`)**, contadas contra `package.json` el 08/09 (las
   últimas: `test-guias-emision` 3933, `test-guias-datos` 3935, `test-fecha-corte` 3936,
   `test-liquidacion-desglose` 3937, `test-tarifa-50-ups` 3938, `test-pantalla-columnas-fijas` 3939): el

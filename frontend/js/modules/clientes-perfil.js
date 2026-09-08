@@ -1341,7 +1341,7 @@
                  style="border:none;background:none;cursor:pointer;font-size:13px">${abierta ? '▾' : '▸'}</button></td>
             <td style="font-weight:700">CTZ-${f.numero}</td>
             <td style="font-size:11.5px">${ctzFecha(f.creado_en)}</td>
-            <td>${f.pais}<br><span style="font-size:11px;color:#8a8494">${f.tipo_envio === 'importacion' ? 'Impo' : 'Expo'} · Zona ${f.zona || '—'}</span></td>
+            <td>${f.pais}<br><span style="font-size:11px;color:#8a8494">${f.tipo_envio === 'importacion' ? 'Impo' : 'Expo'} · Zona ${f.zona || '—'}</span>${f.profit && f.profit.manual ? `<br><span class="ctz-chip manual" title="Se cotizó sin la tarifa del cliente, con una ganancia tipeada a mano">profit manual ${f.profit.pct}%</span>` : ''}</td>
             <td>${Number(f.peso_facturable).toFixed(1)} kg</td>
             <td style="font-size:11.5px">${ops.map((o) => `${o.servicio}: ${ctzFmt(o.total)}`).join('<br>') || '—'}</td>
             <td>${f.estado === 'aceptada' ? `<b>${ctzFmt(f.total_acordado)}</b><br><span style="font-size:11px;color:#8a8494">${f.servicio_aceptado || ''}</span>` : '—'}</td>

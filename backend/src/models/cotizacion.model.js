@@ -58,7 +58,7 @@ async function vencerLasQueCorresponda() {
     .run();
 }
 
-async function listar({ cliente_id, estado, desde, hasta, limite } = {}) {
+async function listar({ cliente_id, estado, desde, hasta, limite, sin_cliente } = {}) {
   await vencerLasQueCorresponda();
   const db = getDb();
   let sql = `${SELECT_BASE} WHERE 1=1`;
@@ -67,6 +67,9 @@ async function listar({ cliente_id, estado, desde, hasta, limite } = {}) {
     sql += ' AND q.cliente_id = ?';
     params.push(cliente_id);
   }
+  // Huérfanas (08/09/2026): guardadas sin cliente, con el nombre tipeado a mano. Antes
+  // no se veían en ninguna pantalla (las dos listas buscan por cliente).
+  if (sin_cliente) sql += ' AND q.cliente_id IS NULL';
   if (estado) {
     sql += ' AND q.estado = ?';
     params.push(estado);
@@ -87,7 +90,15 @@ async function listar({ cliente_id, estado, desde, hasta, limite } = {}) {
     try {
       resumen = JSON.parse(opciones || '[]').map((o) => ({ servicio: o.servicio, total: o.total }));
     } catch { resumen = []; }
-    return { ...resto, opciones_resumen: resumen };
+    // Con qué profit se cotizó (08/09/2026): `manual` = se cotizó sin cliente arriba, con
+    // la ganancia tipeada, y se guardó en un perfil al final. La oficina tiene que ver que
+    // ese precio no salió de la matriz del cliente.
+    let profit = null;
+    try {
+      const e = JSON.parse(entrada || '{}');
+      if (e.profit_manual) profit = { manual: true, pct: Number(e.ganancia_pct) || 0 };
+    } catch { profit = null; }
+    return { ...resto, opciones_resumen: resumen, profit };
   });
 }
 
@@ -379,6 +390,37 @@ async function editarAcordado(id, { total_acordado, notas, vence_en }, usuario) 
   return obtener(id);
 }
 
+/**
+ * Asigna (o cambia) el cliente de una cotización guardada sin cliente o con uno
+ * equivocado. Para las huérfanas del jefe (08/09/2026): se cotizó con profit manual, se
+ * tipeó el nombre y quedaron invisibles. El nombre tipeado se conserva en `notas` para
+ * no perder la referencia.
+ */
+async function asignarCliente(id, clienteId, usuario) {
+  const db = getDb();
+  const antes = await obtener(id);
+  if (!antes) return null;
+  const cli = await db.prepare('SELECT id, nombre, nombre_nova FROM clientes WHERE id = ?').get(clienteId);
+  if (!cli) {
+    const err = new Error(`El cliente #${clienteId} no existe`);
+    err.status = 400;
+    throw err;
+  }
+  const nombreNuevo = cli.nombre_nova || cli.nombre;
+  const nota = antes.cliente_id == null && antes.cliente_nombre && antes.cliente_nombre !== nombreNuevo
+    ? [antes.notas, `Guardada como "${antes.cliente_nombre}"`].filter(Boolean).join(' · ')
+    : antes.notas;
+  await db
+    .prepare(
+      `UPDATE cotizaciones
+          SET cliente_id = ?, cliente_nombre = ?, notas = ?, actualizado_en = datetime('now','localtime')
+        WHERE id = ?`
+    )
+    .run(cli.id, nombreNuevo, nota, id);
+  await anotarHistorial(id, 'cliente-asignado', { cliente_id: antes.cliente_id, cliente_nombre: antes.cliente_nombre }, { cliente_id: cli.id, cliente_nombre: nombreNuevo }, usuario);
+  return obtener(id);
+}
+
 /** Ata la cotización al envío que finalmente se cargó (o la suelta con envioId null). */
 async function atarAEnvio(id, envioId, usuario) {
   const db = getDb();
@@ -402,6 +444,7 @@ async function eliminar(id) {
 }
 
 module.exports = {
+  asignarCliente,
   ESTADOS,
   listar,
   obtener,

@@ -4,7 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Cotizador — Nova Express</title>
-<link rel="stylesheet" href="../css/main.css?v=20260908b">
+<link rel="stylesheet" href="../css/main.css?v=20260908c">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 :root{--cot-bg:#f5f4f0;--cot-surface:#ffffff;--cot-border:#e2e0d8;--cot-border-strong:#c8c5bb;--cot-text:#1a1916;--cot-text-secondary:#6b6860;--cot-text-tertiary:#9c9a94;--cot-accent-dhl:#d4a017;--cot-accent-ups:#2d5fa6;--cot-accent-dhl-bg:#fdf8ec;--cot-accent-ups-bg:#eef3fb;--cot-success:#2d6a4f;--cot-success-bg:#edf7f2;--cot-danger:#c0392b;--cot-radius:10px;--cot-radius-sm:6px;--cot-shadow:0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04);--cot-shadow-md:0 4px 12px rgba(0,0,0,0.08),0 2px 4px rgba(0,0,0,0.05)}
@@ -423,9 +423,9 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260908b"></script>
-<script src="/js/api.js?v=20260908b"></script>
-<script src="/shared/cotizador/cotizador-core.js?v=20260908b"></script>
+<script src="/js/auth-guard.js?v=20260908c"></script>
+<script src="/js/api.js?v=20260908c"></script>
+<script src="/shared/cotizador/cotizador-core.js?v=20260908c"></script>
 <script>
 let bultoId=0;
 /* agregarBulto(datos, despuesDeInfo)
@@ -600,6 +600,43 @@ return`<div class="res-fila"><div class="result-card"><div class="result-header 
    siguientes (marcar otra, desmarcar) editan las marcas de la MISMA cotizacion, sin
    crear una nueva por cada dedo. Recotizar corta: la proxima marca abre otra CTZ. */
 
+/* ¿Para quien es? — el desplegable de clientes al guardar sin cliente arriba.
+   Devuelve {id, nombre} (id null = "Otro", sin alta) o null si se cancelo. */
+function ctzElegirCliente(){
+  return new Promise((resolve)=>{
+    const ov=document.getElementById('ctz-para-quien');
+    const selC=document.getElementById('pq-cliente');
+    const otro=document.getElementById('pq-otro');
+    const otroWrap=document.getElementById('pq-otro-wrap');
+    const err=document.getElementById('pq-error');
+    /* Se copian las opciones del selector de arriba (ya cargado desde la API). */
+    const arriba=document.getElementById('cliente');
+    selC.innerHTML='<option value="">Elegí el cliente…</option>'
+      +[...arriba.options].filter(o=>o.value).map(o=>`<option value="${o.value}">${o.textContent}</option>`).join('')
+      +'<option value="__otro__">Otro (todavía sin alta)</option>';
+    otro.value='';otroWrap.style.display='none';err.textContent='';
+    const gan=parseFloat(document.getElementById('ganancia').value)||0;
+    document.getElementById('pq-profit').textContent='Cotizada con ganancia manual del '+gan+'%. Queda guardada en el perfil que elijas, marcada como profit manual.';
+    ov.style.display='flex';
+    selC.focus();
+    const cerrar=(v)=>{ov.style.display='none';selC.onchange=null;ok.onclick=null;cancel.onclick=null;resolve(v);};
+    const ok=document.getElementById('pq-ok');
+    const cancel=document.getElementById('pq-cancelar');
+    selC.onchange=()=>{otroWrap.style.display=selC.value==='__otro__'?'':'none';if(selC.value==='__otro__')otro.focus();};
+    cancel.onclick=()=>cerrar(null);
+    ok.onclick=()=>{
+      if(!selC.value){err.textContent='Elegí un cliente o "Otro".';return;}
+      if(selC.value==='__otro__'){
+        const n=otro.value.trim();
+        if(!n){err.textContent='Escribí el nombre.';return;}
+        cerrar({id:null,nombre:n});
+        return;
+      }
+      cerrar({id:Number(selC.value),nombre:selC.options[selC.selectedIndex].textContent.trim()});
+    };
+  });
+}
+
 /* La cotizacion guardada de ESTA tanda de resultados: {id, numero, vence_en} o null. */
 let ctzGuardada=null;
 /* Freno de doble click: mientras hay un guardado en vuelo, los botones no responden. */
@@ -635,13 +672,22 @@ async function ctzGuardarDirecto(){
   }
 
   const sel=document.getElementById('cliente');
-  const clienteId=sel.value||null;
+  let clienteId=sel.value||null;
   let clienteNombre=clienteId?sel.options[sel.selectedIndex].textContent.trim():'';
+  /* Se cotizo SIN cliente arriba = con la ganancia manual. Queda marcado en la foto: el
+     perfil del cliente muestra "profit manual X%" para que se sepa que ese precio no salio
+     de su matriz. */
+  const profitManual=!clienteId;
   if(!clienteId){
-    /* Sin cliente elegido igual se puede guardar: la oficina cotiza a gente que todavia
-       no esta dada de alta. Se pide el nombre para que la cotizacion no quede huerfana. */
-    clienteNombre=(prompt('¿Para quién es esta cotización? (nombre del cliente)')||'').trim();
-    if(!clienteNombre){throw new Error('cancelado');}
+    /* Sin cliente elegido igual se puede guardar (pedido del jefe, 08/09/2026): se cotiza
+       con el profit que se quiera y RECIEN AL GUARDAR se elige en que perfil queda, con el
+       desplegable de clientes. Asi la cotizacion aparece en el perfil y en el panel de
+       Cargar envio de ese cliente. "Otro" es para los que todavia no estan dados de alta
+       (queda con el nombre tipeado, sin perfil). */
+    const eleccion=await ctzElegirCliente();
+    if(!eleccion){throw new Error('cancelado');}
+    clienteId=eleccion.id||null;
+    clienteNombre=eleccion.nombre;
   }
   const dias=parseInt(document.getElementById('pres_dias')?document.getElementById('pres_dias').value:15,10);
   const cuerpo={
@@ -660,6 +706,7 @@ async function ctzGuardarDirecto(){
     entrada:{
       bultos:c.bultosProc.map(b=>({pr:b.pr,l:b.l,a:b.a,al:b.al,pv:b.pv,pf:b.pf})),
       ganancia_pct:parseFloat(document.getElementById('ganancia').value)||0,
+      profit_manual:profitManual,
       fuel_fuente:document.getElementById('fuel_fuente').value,
       arancel:c.arancel,
       residencial:document.getElementById('ex_residencial').checked,
@@ -1055,5 +1102,26 @@ document.addEventListener('DOMContentLoaded',()=>{
 });
 
 </script>
+
+<!-- ¿Para quién es? (guardar sin cliente arriba, 08/09/2026) -->
+<div id="ctz-para-quien" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:3000;align-items:center;justify-content:center;padding:16px">
+  <div style="background:#fff;border-radius:12px;width:100%;max-width:440px;box-shadow:0 12px 40px rgba(0,0,0,.22);overflow:hidden;font-family:inherit">
+    <div style="padding:14px 18px;background:#eaf1f8;border-bottom:1px solid #d8dee9;font-weight:700;color:#1a3a5c">¿Para quién es esta cotización?</div>
+    <div style="padding:16px 18px;display:flex;flex-direction:column;gap:10px">
+      <div id="pq-profit" style="font-size:12.5px;color:#64748b"></div>
+      <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b">Cliente</label>
+      <select id="pq-cliente" style="width:100%;padding:8px 10px;border:1px solid #d8dee9;border-radius:6px;font:inherit"></select>
+      <div id="pq-otro-wrap" style="display:none">
+        <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b">Nombre</label>
+        <input id="pq-otro" type="text" placeholder="Nombre del cliente" style="width:100%;padding:8px 10px;border:1px solid #d8dee9;border-radius:6px;font:inherit;box-sizing:border-box">
+      </div>
+      <div id="pq-error" style="font-size:12px;color:#b91c1c;min-height:14px"></div>
+    </div>
+    <div style="padding:12px 18px;border-top:1px solid #d8dee9;display:flex;justify-content:flex-end;gap:8px">
+      <button type="button" id="pq-cancelar" style="padding:8px 14px;border:1px solid #d8dee9;background:#fff;border-radius:6px;cursor:pointer;font:inherit">Cancelar</button>
+      <button type="button" id="pq-ok" style="padding:8px 16px;border:0;background:#1a3a5c;color:#fff;border-radius:6px;cursor:pointer;font:inherit;font-weight:600">Guardar acá</button>
+    </div>
+  </div>
+</div>
 </body>
 </html>

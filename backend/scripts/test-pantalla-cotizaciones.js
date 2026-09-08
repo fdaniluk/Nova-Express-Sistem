@@ -239,6 +239,68 @@ async function main() {
   check('y filtrando por "aceptadas" vuelve la aceptada',
     (await page.$$eval('#ctz-lista .ctz-tabla tbody tr', (n) => n.length)) >= 1);
 
+  console.log('\n5-bis. Guardar SIN cliente arriba: profit manual + "¿para quién es?" (jefe, 08/09)\n');
+
+  // El jefe cotiza con la ganancia que quiere (sin elegir cliente) y recién al guardar
+  // elige en qué perfil queda. Antes: un prompt de texto y la cotización quedaba huérfana.
+  await page.goto(BASE + '/pages/cotizador.html', { waitUntil: 'networkidle' });
+  await esperar(900);
+  await page.selectOption('#pais', 'Brasil');
+  await page.selectOption('#couriers', 'dhl');
+  await page.fill('#ganancia', '40');
+  await page.fill('#valor', '300');
+  await page.fill('.bulto-row .b-peso', '3');
+  await page.fill('.bulto-row .b-largo', '30');
+  await page.fill('.bulto-row .b-ancho', '30');
+  await page.fill('.bulto-row .b-alto', '30');
+  await page.click('.btn-calc');
+  await page.waitForSelector('.result-card', { timeout: 8000 });
+  await esperar(500);
+  check('sin cliente elegido, la ganancia manual queda habilitada', !(await page.$eval('#ganancia', (e) => e.disabled)));
+  await page.click('.btn-viaja');
+  await esperar(400);
+  check('al guardar se abre "¿Para quién es?" con el desplegable de clientes', await page.evaluate(() =>
+    document.getElementById('ctz-para-quien').style.display !== 'none'
+    && [...document.querySelectorAll('#pq-cliente option')].some((o) => /PANTALLA CTZ/.test(o.textContent))
+    && [...document.querySelectorAll('#pq-cliente option')].some((o) => o.value === '__otro__')));
+  check('  dice con qué ganancia se cotizó', /40%/.test(await page.textContent('#pq-profit')));
+  await page.click('#pq-ok');
+  await esperar(200);
+  check('  sin elegir nada avisa y no guarda', /Elegí/.test(await page.textContent('#pq-error')));
+  await page.selectOption('#pq-cliente', String(cli.id));
+  await page.click('#pq-ok');
+  const guardoManual = await esperarQue(async () => /CTZ-\d+/.test(await page.textContent('.bv-estado')));
+  check('  eligiendo el cliente, guarda', guardoManual, await page.textContent('.bv-estado'));
+  const ultima = (await sql('SELECT id, cliente_id, cliente_nombre, entrada FROM cotizaciones ORDER BY id DESC LIMIT 1'))[0];
+  const entradaUlt = JSON.parse(ultima.entrada || '{}');
+  check('  quedó en el perfil de ese cliente, con profit manual 40 en la foto',
+    ultima.cliente_id === cli.id && entradaUlt.profit_manual === true && Number(entradaUlt.ganancia_pct) === 40,
+    JSON.stringify({ c: ultima.cliente_id, e: entradaUlt.profit_manual, g: entradaUlt.ganancia_pct }));
+  const listaCli = await (await fetch(`${BASE}/api/cotizaciones?cliente_id=${cli.id}`, { headers: H })).json();
+  const enLista = listaCli.find((x) => x.id === ultima.id);
+  check('  la lista del cliente la trae marcada profit manual', enLista && enLista.profit && enLista.profit.manual === true && enLista.profit.pct === 40, JSON.stringify(enLista && enLista.profit));
+  check('  y las guardadas con la tarifa del cliente NO llevan la marca', listaCli.filter((x) => x.id !== ultima.id).every((x) => !x.profit));
+
+  // "Otro": nombre tipeado, sin perfil → huérfana, visible con ?sin_cliente=1 y asignable.
+  await page.click('.btn-calc');
+  await page.waitForSelector('.result-card', { timeout: 8000 });
+  await esperar(500);
+  await page.click('.btn-viaja');
+  await esperar(300);
+  await page.selectOption('#pq-cliente', '__otro__');
+  await page.fill('#pq-otro', 'Futuro Cliente SRL');
+  await page.click('#pq-ok');
+  await esperarQue(async () => /CTZ-\d+/.test(await page.textContent('.bv-estado')));
+  const huerfanas = await (await fetch(`${BASE}/api/cotizaciones?sin_cliente=1`, { headers: H })).json();
+  check('"Otro" guarda con el nombre tipeado y sin cliente; GET ?sin_cliente=1 la lista', huerfanas.length === 1 && huerfanas[0].cliente_nombre === 'Futuro Cliente SRL' && huerfanas[0].cliente_id === null, JSON.stringify(huerfanas.map((h) => [h.cliente_id, h.cliente_nombre])));
+  let rA = await fetch(`${BASE}/api/cotizaciones/${huerfanas[0].id}`, { method: 'PATCH', headers: H, body: JSON.stringify({ cliente_id: cli.id }) });
+  const asignada = await rA.json();
+  check('PATCH con cliente_id la asigna al perfil y guarda el nombre viejo en notas', rA.status === 200 && asignada.cliente_id === cli.id && /Futuro Cliente SRL/.test(asignada.notas || ''), `${rA.status} ${JSON.stringify({ c: asignada.cliente_id, n: asignada.notas })}`);
+  check('  ya no está entre las huérfanas', (await (await fetch(`${BASE}/api/cotizaciones?sin_cliente=1`, { headers: H })).json()).length === 0);
+  rA = await fetch(`${BASE}/api/cotizaciones/${huerfanas[0].id}`, { method: 'PATCH', headers: H, body: JSON.stringify({ cliente_id: 999999 }) });
+  check('  cliente inexistente → 400', rA.status === 400, String(rA.status));
+  await page.evaluate(() => document.getElementById('ctz-para-quien').style.display = 'none');
+
   console.log('\n6. Sin errores de JavaScript\n');
   const rel = errores.filter((x) => !/favicon|net::ERR/i.test(x));
   check('ningún error en las dos pantallas', rel.length === 0, rel.slice(0, 2).join(' | '));
