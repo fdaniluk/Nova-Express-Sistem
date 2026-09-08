@@ -16,7 +16,7 @@ mismo día: **`0e1971e`** (columnas fijas: cualquier columna — **pusheado y DE
 proforma, según LA REGLA de Felipe con administración (`GUIAS-UPS.md` 3-bis y §7).
 Commiteado, **pendiente de: tandas en la máquina de Felipe, `.env` con `UPS_SHIPPER_*`,
 prueba contra UPS de test, push y deploy.** Tandas `test-guias-datos` (44) y
-`test-guias-emision` (82). Incluye los **perfiles de remitente por cliente** (tarde). Cache **`?v=20260908c`**. **69 tandas (72 archivos).**
+`test-guias-emision` (82). Incluye los **perfiles de remitente por cliente** (tarde). Cache **`?v=20260908d`**. **69 tandas (72 archivos).**
 
 ---
 
@@ -35,10 +35,10 @@ prueba contra UPS de test, push y deploy.** Tandas `test-guias-datos` (44) y
    ahora se fija cualquier columna, el botón "Ninguna", **la columna % Real (sale Dif
    Costo)** y el selector de Servicio UPS del modal; al manual de facturas, lo mismo del
    % Real (el `.md` ya está corregido; el Word no).
-0-e. **Cotizaciones huérfanas del jefe (08/09):** ya guardó cotizaciones sin cliente (nombre
-   tipeado). En el servidor: `cd /root/Nova-Express-Sistem/backend && node scripts/cotizaciones-huerfanas.js`
-   las lista; `--clientes` da los ids; `--asignar=<idCtz>:<idCliente>` las manda al perfil.
-   Desde ahora el cotizador pregunta "¿Para quién es?" al guardar sin cliente.
+0-e. ✅ **Cotizar sin cliente y elegir el perfil al guardar (jefe, 08/09):** hecho
+   (`cd80088`). Las guardadas antes con nombre tipeado **quedan como están** (Felipe:
+   "no hace falta salirlas a buscar"); si algún día hace falta, `scripts/cotizaciones-huerfanas.js`
+   las lista y asigna.
 0-ter. **Guías UPS, etapas 1 y 2 (08/09) — para cerrar:**
    (a) Felipe corre `node scripts/test-guias-datos.js` y `node scripts/test-guias-emision.js`
    (44 y 63) y el `npm run verificar` completo antes del deploy;

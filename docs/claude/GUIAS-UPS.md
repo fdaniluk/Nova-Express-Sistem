@@ -362,6 +362,12 @@ en la Etapa 0 antes de darlos por buenos.
   (guía con servicio debajo, bultos "N × kg", documentos como chips) para entrar sin
   scroll horizontal. Todo en `css/modules/guias.css`; los ids no cambiaron.
 
+- **Fichas completas (administración, 08/09 noche):** debajo del selector de remitente y
+  del de destinatario se ve la ficha con cada dato rotulado (nombre, CUIT, dirección, CP,
+  localidad, provincia, teléfono, contacto, mail / nombre, contacto, dirección, CP, ciudad,
+  estado, país, teléfono, mail, tax ID); lo que falta y es obligatorio va en ámbar con
+  "falta", y Editar corrige sin salir de la pantalla (`fichaHtml()` en `guias.js`).
+
 ### Tandas
 `test-guias-datos.js` (44 checks, puerto 3935: cliente con teléfono/provincia, libreta,
 envío con destinatario/contenido/items, proforma JSON y HTML, borrado en blando) y

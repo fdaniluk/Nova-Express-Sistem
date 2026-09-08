@@ -130,26 +130,35 @@
     return remitentes.find((r) => String(r.id) === v) || null;
   }
 
+  // Ficha con cada dato rotulado (pedido de administración, 08/09: "que se puedan
+  // visualizar aunque se completen solos"). Lo que falta va en ámbar.
+  function fichaHtml(campos) {
+    return `<div class="gui-ficha">${campos.map(([rotulo, valor, obligatorio]) => `
+      <div class="gui-ficha-campo${!valor && obligatorio ? ' falta' : ''}">
+        <span class="k">${esc(rotulo)}</span>
+        <span class="v">${valor ? esc(valor) : (obligatorio ? 'falta' : '—')}</span>
+      </div>`).join('')}</div>`;
+  }
+
   function pintarRemitente() {
     const box = $('g-remitente');
     const r = remSeleccionado();
     $('g-rem-editar').classList.toggle('hidden', !r || r.principal);
-    if (!r) { box.textContent = ''; box.classList.remove('falta'); return; }
+    if (!r) { box.innerHTML = ''; box.classList.remove('falta'); return; }
     const faltan = [];
     if (!r.direccion) faltan.push('dirección');
     if (!r.ciudad) faltan.push('localidad');
     if (!r.codigo_postal) faltan.push('código postal');
     if (!r.cuit) faltan.push('CUIT (para la proforma)');
     if (!r.telefono) faltan.push('teléfono');
-    const linea = [r.nombre, r.cuit ? `CUIT ${r.cuit}` : null, r.direccion,
-      [r.codigo_postal, r.ciudad, r.provincia].filter(Boolean).join(' '), r.telefono, r.contacto]
-      .filter(Boolean).join(' · ');
     const donde = r.principal
-      ? `(<a href="clientes-perfil.html?id=${clienteActual.id}">completar en el cliente</a>)`
-      : '(botón Editar)';
-    box.innerHTML = `<b>Remitente:</b> ${esc(linea)}` + (faltan.length
-      ? ` — <b>faltan:</b> ${esc(faltan.join(', '))} ${donde}`
-      : '');
+      ? `<a href="clientes-perfil.html?id=${clienteActual.id}">completar en el cliente</a>`
+      : 'con el botón Editar';
+    box.innerHTML = fichaHtml([
+      ['Nombre', r.nombre, true], ['CUIT', r.cuit, true], ['Dirección', r.direccion, true],
+      ['CP', r.codigo_postal, true], ['Localidad', r.ciudad, true], ['Provincia', r.provincia, false],
+      ['Teléfono', r.telefono, true], ['Contacto', r.contacto, false], ['E-mail', r.email, false],
+    ]) + (faltan.length ? `<div class="gui-ficha-aviso">Falta ${esc(faltan.join(', '))} — ${donde}.</div>` : '');
     box.classList.toggle('falta', faltan.length > 0);
     pintarResumen();
   }
@@ -268,13 +277,14 @@
     const d = destSeleccionado();
     const ficha = $('g-dest-ficha');
     $('g-dest-editar').classList.toggle('hidden', !d);
-    if (!d) { ficha.textContent = ''; return; }
-    ficha.textContent = [
-      d.nombre + (d.contacto ? ` (Attn: ${d.contacto})` : ''),
-      [d.direccion1, d.direccion2, d.direccion3].filter(Boolean).join(', '),
-      [d.codigo_postal, d.ciudad, d.estado].filter(Boolean).join(' ') + ' · ' + d.pais,
-      [d.telefono ? `Tel ${d.telefono}` : null, d.email, d.tax_id ? `Tax ID ${d.tax_id}` : null].filter(Boolean).join(' · '),
-    ].filter(Boolean).join('\n');
+    if (!d) { ficha.innerHTML = ''; return; }
+    const esNA = /^(Estados Unidos|USA|Canad[aá])$/i.test(String(d.pais || ''));
+    ficha.innerHTML = fichaHtml([
+      ['Nombre', d.nombre, true], ['Contacto', d.contacto, false],
+      ['Dirección', [d.direccion1, d.direccion2, d.direccion3].filter(Boolean).join(', '), true],
+      ['CP', d.codigo_postal, esNA], ['Ciudad', d.ciudad, true], ['Estado / prov.', d.estado, esNA],
+      ['País', d.pais, true], ['Teléfono', d.telefono, true], ['E-mail', d.email, false], ['Tax ID', d.tax_id, false],
+    ]);
     pintarResumen();
   }
 
