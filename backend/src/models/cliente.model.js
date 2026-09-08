@@ -32,8 +32,8 @@ async function crear(data) {
     .prepare(
       `INSERT INTO clientes
         (nombre, nombre_nova, tipo_cobro, tarifa_especial, cuit, direccion_recoleccion, contacto,
-         email, whatsapp, codigo_postal, localidad, tipo_facturacion, tarifa_pct)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         email, whatsapp, codigo_postal, localidad, tipo_facturacion, tarifa_pct, telefono, provincia)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       nombre,
@@ -48,7 +48,9 @@ async function crear(data) {
       data.codigo_postal ?? null,
       data.localidad ?? null,
       data.tipo_facturacion ?? 'Responsable inscripto',
-      data.tarifa_pct ?? 0
+      data.tarifa_pct ?? 0,
+      data.telefono ?? null,
+      data.provincia ?? null
     );
   return buscarPorId(result.lastInsertRowid);
 }
@@ -138,6 +140,8 @@ async function actualizar(id, data) {
         whatsapp            = COALESCE(?, whatsapp),
         codigo_postal       = COALESCE(?, codigo_postal),
         localidad           = COALESCE(?, localidad),
+        telefono            = COALESCE(?, telefono),
+        provincia           = COALESCE(?, provincia),
         tipo_facturacion    = COALESCE(?, tipo_facturacion),
         tarifa_pct          = COALESCE(?, tarifa_pct),
         modo_tarifa         = COALESCE(?, modo_tarifa),
@@ -159,6 +163,8 @@ async function actualizar(id, data) {
       data.whatsapp ?? null,
       data.codigo_postal ?? null,
       data.localidad ?? null,
+      data.telefono ?? null,
+      data.provincia ?? null,
       data.tipo_facturacion ?? null,
       data.tarifa_pct !== undefined ? data.tarifa_pct : null,
       modoProvisto ? data.modo_tarifa : null,

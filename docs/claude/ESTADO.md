@@ -308,8 +308,31 @@ Colores Nova `#403754`/`#EE6C52`.
 
 ---
 
-## 3. Dónde estamos (07-09-2026, tarde)
+## 3. Dónde estamos (08-09-2026, tarde)
 
+- **08/09 — GUÍAS UPS: ETAPAS 1 Y 2 CONSTRUIDAS (commiteadas, pendiente de tests de
+  Felipe / prueba contra UPS de test / push / deploy).** Siguiendo LA REGLA de Felipe con
+  administración (`GUIAS-UPS.md` 3-bis): módulo **Guías** (pantalla nueva + ítem de menú
+  en todas las páginas) que pide la guía a UPS con los datos del sistema y entrega
+  **etiqueta térmica / A4 (una hoja) + proforma**; la guía queda como **PRECARGA en la
+  tabla `guias`** (no en `envios`: ninguna consulta tuvo que aprender a excluirla) y
+  administración la confirma desde **Cargar envío** (panel "Guías para confirmar" →
+  Cargar llena el formulario → cotiza, precio, Guardar → `POST /envios` con `guia_id`).
+  Datos nuevos: `destinatarios` (libreta por cliente), `envio_items` (renglones de la
+  proforma), `clientes.telefono/provincia`, `envios.destinatario_id/contenido/
+  proforma_numero/guia_id`. `ups-shipping.service.js` (entorno por
+  `UPS_SHIPPING_ENTORNO`, test por default; remitente Nova por `UPS_SHIPPER_*` del .env),
+  `guias.model.js`, `guias.routes.js`, `proforma.service.js`, `utils/paisesIso.js`.
+  Tandas `test-guias-datos` (44, puerto 3935) y `test-guias-emision` (63, puerto 3933,
+  `UPS_SHIPPING_MOCK=1`). Cache **`?v=20260908a`**. **69 tandas (72 archivos).** Todo el
+  detalle, lo que se le manda a UPS y lo que falta: `GUIAS-UPS.md` sección 7.
+  **El verificar completo del 08/09 (69 tandas, 8,3 min) destapó dos cosas del paquete del
+  07/09 que no se habían corrido:** (1) el PATCH de Salidas exigía servicio a TODO envío
+  UPS, así que un UPS viejo (de antes de `servicio_ups`) no podía editar ni observaciones
+  ni DDP (400) — ahora se exige solo cuando el guardado toca courier o servicio
+  (`test-ddp-salidas` 9/9, `test-tarifa-50-ups` 32/32); (2) `test-cierre-periodo` no
+  sabía de la fecha de corte — la fixture manda el corte a 2000-01-01 como `test-salud`
+  (81/81). Con eso, **verificar verde**.
 - **07/09 tarde — `8413850` EL PAQUETE DE LA TARDE — PUSHEADO Y DESPLEGADO a las 14:42
   (`DESPLEGADO Y SANO · 0e1971e → 8413850`, check-schema verde). La migración limpió 1
   envío UPS con la marca +50 en producción.** Cuatro cosas:
@@ -440,10 +463,10 @@ Colores Nova `#403754`/`#EE6C52`.
   **`test-cruce-tarifa-50`** (el mismo envío por los seis caminos del sistema).
   Detalle completo en `claude/TARIFA-DHL-MAS-50.md`, sección **"La auditoría del cruce"**.
   **Lección: REGLA NÚMERO ONCE.**
-- Cache **`?v=20260907c`** (las 17 páginas, incluido el v8 de `shared/`). **67 tandas en
-  el verificar (70 archivos `test-*.js`)**, contadas contra `package.json` el 07/09 (las
-  últimas: `test-pantalla-columnas-fijas` 3939, `test-tarifa-50-ups` 3938,
-  `test-liquidacion-desglose` 3937, `test-fecha-corte` 3936): el
+- Cache **`?v=20260908a`** (las 18 páginas, incluido el v8 de `shared/`). **69 tandas en
+  el verificar (72 archivos `test-*.js`)**, contadas contra `package.json` el 08/09 (las
+  últimas: `test-guias-emision` 3933, `test-guias-datos` 3935, `test-fecha-corte` 3936,
+  `test-liquidacion-desglose` 3937, `test-tarifa-50-ups` 3938, `test-pantalla-columnas-fijas` 3939): el
   03-04/09 se sumaron `test-pantalla-entrega-impo` (49), `test-facturas-impuestos` (44, en `test`), `test-agregar-bulto` (36)
   y `test-pantalla-liquidaciones-pendientes` (12), las dos en `test-pantallas`; el 02/09,
   `test-desglose-venta-surge`

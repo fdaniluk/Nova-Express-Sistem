@@ -319,6 +319,17 @@ async function migrateEnvios() {
     ['impuestos_facturados', 'REAL'],
     ['impuestos_factura_id', 'INTEGER'],
     ['impuestos_fecha',      'TEXT'],
+    // Guías y proformas automáticas, etapa 1 (08/09/2026):
+    //   destinatario_id  la entrada de la libreta de destinatarios (tabla destinatarios)
+    //   contenido        descripción de la mercadería (va a la guía y a la proforma)
+    //   proforma_numero  el número que lleva la proforma
+    //   guia_id          la guía emitida desde el módulo Guías de la que nació el envío
+    //                    (tabla guias). Las precargas viven en `guias`, NO acá: un envío
+    //                    existe recién cuando la oficina lo confirma a Salidas.
+    ['destinatario_id',   'INTEGER'],
+    ['contenido',         'TEXT'],
+    ['proforma_numero',   'TEXT'],
+    ['guia_id',           'INTEGER'],
   ];
   for (const [col, def] of toAdd) {
     if (!cols.includes(col)) {
@@ -338,6 +349,85 @@ async function migrateEnvios() {
     await dbApi.exec("UPDATE envios SET tarifa_50 = 0 WHERE tarifa_50 = 1 AND courier <> 'DHL'");
     console.log(`[db] tarifa_50: se sacó la marca +50 (que es solo de DHL) a ${marcadas.n} envío(s) UPS`);
   }
+}
+
+// Libreta de destinatarios por cliente + renglones de la proforma (guías, etapa 1 — 08/09/2026).
+// Los mismos datos que la oficina tipea hoy en la página de UPS y en el Excel de la proforma,
+// guardados UNA vez. El tax id va en su propio campo (en UPS lo metían en la dirección).
+async function migrateGuias() {
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS destinatarios (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      cliente_id     INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+      nombre         TEXT NOT NULL,
+      contacto       TEXT,
+      direccion1     TEXT,
+      direccion2     TEXT,
+      direccion3     TEXT,
+      codigo_postal  TEXT,
+      ciudad         TEXT,
+      estado         TEXT,
+      pais           TEXT NOT NULL,
+      telefono       TEXT,
+      email          TEXT,
+      tax_id         TEXT,
+      activo         INTEGER NOT NULL DEFAULT 1,
+      ultimo_uso     TEXT,
+      created_at     TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    )
+  `);
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_destinatarios_cliente ON destinatarios(cliente_id, activo)');
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS envio_items (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      envio_id       INTEGER NOT NULL REFERENCES envios(id) ON DELETE CASCADE,
+      orden          INTEGER NOT NULL DEFAULT 1,
+      cantidad       REAL NOT NULL DEFAULT 1,
+      descripcion    TEXT NOT NULL,
+      valor_unitario REAL NOT NULL DEFAULT 0
+    )
+  `);
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_envio_items_envio ON envio_items(envio_id)');
+  // Guías emitidas desde el sistema (etapa 2). Cada fila es UNA guía pedida a UPS: lo que
+  // se mandó, lo que contestó, la etiqueta, y los datos del envío para precargarlo en
+  // Cargar envío (datos_json). `estado`: emitida (precarga pendiente) → confirmada (ya es
+  // un envío, envio_id) · anulada. `entorno` distingue las de prueba (wwwcie) de las reales.
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS guias (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      cliente_id       INTEGER NOT NULL REFERENCES clientes(id),
+      destinatario_id  INTEGER REFERENCES destinatarios(id),
+      fecha            TEXT NOT NULL,
+      courier          TEXT NOT NULL DEFAULT 'UPS',
+      servicio         TEXT NOT NULL,
+      cuenta           TEXT,
+      entorno          TEXT NOT NULL DEFAULT 'test',
+      numero_guia      TEXT,
+      estado           TEXT NOT NULL DEFAULT 'emitida' CHECK (estado IN ('emitida', 'confirmada', 'anulada')),
+      ddp              INTEGER NOT NULL DEFAULT 0,
+      fob              REAL NOT NULL DEFAULT 0,
+      contenido        TEXT,
+      proforma_numero  TEXT,
+      datos_json       TEXT NOT NULL,
+      request_json     TEXT,
+      response_json    TEXT,
+      etiqueta_gif     TEXT,
+      cargo_ups        REAL,
+      envio_id         INTEGER REFERENCES envios(id),
+      usuario          TEXT,
+      nota             TEXT,
+      created_at       TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+      updated_at       TEXT,
+      anulada_at       TEXT
+    )
+  `);
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_guias_estado ON guias(estado, fecha)');
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_guias_numero ON guias(numero_guia)');
+  // Remitente completo del cliente (para la guía y la proforma): teléfono y provincia. La
+  // dirección (direccion_recoleccion), CP (codigo_postal), ciudad (localidad), CUIT y mail ya estaban.
+  const cols = (await dbApi.prepare('PRAGMA table_info(clientes)').all()).map((c) => c.name);
+  if (!cols.includes('telefono')) await dbApi.exec('ALTER TABLE clientes ADD COLUMN telefono TEXT');
+  if (!cols.includes('provincia')) await dbApi.exec('ALTER TABLE clientes ADD COLUMN provincia TEXT');
 }
 
 async function migrateEnvioBultos() {
@@ -813,6 +903,7 @@ async function initSchema() {
   await migrateClientes();
   await migratePickups();
   await migrateEnvios();
+  await migrateGuias();
   await migrateEnvioBultos();
   await migrateCuadrantes();
   await migrateConfiguracion();

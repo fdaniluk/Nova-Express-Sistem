@@ -1,6 +1,7 @@
 const envioModel = require('../models/envio.model');
 const { calcularPesos } = require('../services/calculos.service');
 const excelService = require('../services/excel.service');
+const proformaService = require('../services/proforma.service');
 
 async function listar(req, res, next) {
   try {
@@ -80,6 +81,7 @@ async function crear(req, res, next) {
     const envio = await envioModel.crear(body);
     res.status(201).json(envio);
   } catch (e) {
+    if (e.status === 400) return res.status(400).json({ error: e.message });
     if (e.message?.includes('UNIQUE')) {
       const guia = String(req.body.numero_guia ?? '').trim().toUpperCase();
       return res.status(409).json({
@@ -117,6 +119,28 @@ async function actualizar(req, res, next) {
   }
 }
 
+// Proforma / commercial invoice del envío (guías, etapa 1). JSON para el sistema y una
+// hoja A4 lista para imprimir (se abre en otra pestaña; la sesión va por cookie).
+async function proforma(req, res, next) {
+  try {
+    const p = await proformaService.armarProforma(req.params.id);
+    if (!p) return res.status(404).json({ error: 'Envío no encontrado' });
+    res.json(p);
+  } catch (e) {
+    next(e);
+  }
+}
+
+async function proformaHtml(req, res, next) {
+  try {
+    const p = await proformaService.armarProforma(req.params.id);
+    if (!p) return res.status(404).send('Envío no encontrado');
+    res.type('html').send(proformaService.renderHtml(p));
+  } catch (e) {
+    next(e);
+  }
+}
+
 function calcularPesosPreview(req, res, next) {
   try {
     const pesos = calcularPesos(
@@ -143,6 +167,8 @@ async function importarExcel(req, res, next) {
 }
 
 module.exports = {
+  proforma,
+  proformaHtml,
   listar,
   obtener,
   crear,

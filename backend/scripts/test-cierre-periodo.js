@@ -253,6 +253,10 @@ async function main() {
   console.log('\n7. El panel de salud avisa cuando se deja de cerrar\n');
 
   await sql(DB, "UPDATE usuarios SET rol='admin' WHERE id=?", [usuarioId]);
+  // Fecha de corte del control (07/09/2026): el chequeo de cierres no reclama meses
+  // anteriores al corte. Acá se prueba que RECLAME, así que el corte se manda bien atrás
+  // (test-fecha-corte.js cuida el corte).
+  await sql(DB, "UPDATE configuracion_nova SET fecha_corte_control = '2000-01-01' WHERE id = 1");
   const pedirCierres = async () => {
     const rr = await fetch(BASE + '/api/salud', { headers: H() });
     const data = await rr.json();

@@ -41,6 +41,48 @@ async function saveBultos(envioId, bultos) {
   }
 }
 
+// Renglones de la proforma (guías, 08/09/2026): cantidad × descripción × valor unitario.
+async function getItems(envioId) {
+  return getDb()
+    .prepare('SELECT id, orden, cantidad, descripcion, valor_unitario FROM envio_items WHERE envio_id = ? ORDER BY orden, id')
+    .all(envioId);
+}
+
+function limpiarItems(items) {
+  if (!Array.isArray(items)) return [];
+  return items
+    .map((it, i) => ({
+      orden: i + 1,
+      cantidad: Number(it.cantidad) || 1,
+      descripcion: String(it.descripcion ?? '').trim(),
+      valor_unitario: Number(it.valor_unitario) || 0,
+    }))
+    .filter((it) => it.descripcion);
+}
+
+async function saveItems(envioId, items) {
+  const db = getDb();
+  await db.prepare('DELETE FROM envio_items WHERE envio_id = ?').run(envioId);
+  const insert = db.prepare(
+    'INSERT INTO envio_items (envio_id, orden, cantidad, descripcion, valor_unitario) VALUES (?, ?, ?, ?, ?)'
+  );
+  for (const it of limpiarItems(items)) {
+    await insert.run(envioId, it.orden, it.cantidad, it.descripcion, it.valor_unitario);
+  }
+}
+
+// Marca el último uso del destinatario para que la libreta ordene por "más usado recién".
+async function tocarDestinatario(destinatarioId) {
+  await getDb()
+    .prepare("UPDATE destinatarios SET ultimo_uso = datetime('now', 'localtime') WHERE id = ?")
+    .run(destinatarioId);
+}
+
+async function getDestinatario(destinatarioId) {
+  if (!destinatarioId) return null;
+  return getDb().prepare('SELECT * FROM destinatarios WHERE id = ?').get(destinatarioId);
+}
+
 function buildPesos(data) {
   const bultos = data.bultos || [];
   return calcularPesos(data.peso_real, bultos, {
@@ -62,6 +104,8 @@ async function buscarPorId(id) {
   if (!row) return null;
   const envio = mapEnvio(row);
   envio.bultos = await getBultos(id);
+  envio.items = await getItems(id);
+  envio.destinatario = await getDestinatario(row.destinatario_id);
   return envio;
 }
 
@@ -218,6 +262,23 @@ async function crear(data) {
   const db = getDb();
   const { pesoVolumetrico, pesoFacturable } = buildPesos(data);
   const hasBultos = data.bultos && data.bultos.length > 0;
+  const hasItems = Array.isArray(data.items) && data.items.length > 0;
+  // Confirmación de una precarga del módulo Guías: el envío nace de una guía ya emitida.
+  // Se valida acá (y no solo en la ruta) para que una guía no pueda confirmarse dos veces.
+  const guiaId = data.guia_id ? Number(data.guia_id) : null;
+  if (guiaId) {
+    const g = await db.prepare('SELECT id, estado, numero_guia FROM guias WHERE id = ?').get(guiaId);
+    if (!g) {
+      const err = new Error(`La guía #${guiaId} no existe`);
+      err.status = 400;
+      throw err;
+    }
+    if (g.estado !== 'emitida') {
+      const err = new Error(`La guía ${g.numero_guia || '#' + guiaId} ya está ${g.estado}`);
+      err.status = 400;
+      throw err;
+    }
+  }
 
   // Desglose al costo (profit 0) congelado al momento del alta.
   const desglose = await calcularDesgloseAlCosto(data, pesoFacturable);
@@ -233,8 +294,9 @@ async function crear(data) {
           peso_volumetrico, peso_facturable, fob, total_cobrado, observaciones,
           numero_salida, bulto, tipo_paquete, asegurado, ddp, proteccion_doc, remota, entrega,
           flete, descuento, seguro, fuel, fuel_pct, fuel_origen, derechos, adicionales, otros, profit, porcentaje,
-          extras_json, servicio_ups, num_sal_cero, seguro_venta, tarifa_50
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          extras_json, servicio_ups, num_sal_cero, seguro_venta, tarifa_50,
+          destinatario_id, contenido, proforma_numero, guia_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         data.cliente_id,
@@ -287,17 +349,30 @@ async function crear(data) {
         seguroVenta,
         // Tarifa +50 kg de DHL: se congela con el costo porque decide contra qué cuenta se
         // emite la guía. Sin desglose (país que el motor no reconoce) queda en 0.
-        desglose ? desglose.tarifa_50 : 0
+        desglose ? desglose.tarifa_50 : 0,
+        // Guías: destinatario de la libreta, contenido declarado y número de proforma.
+        data.destinatario_id || null,
+        data.contenido ? String(data.contenido).trim() : null,
+        data.proforma_numero ? String(data.proforma_numero).trim() : null,
+        guiaId
       );
     const envioId = result.lastInsertRowid;
     if (hasBultos) await saveBultos(envioId, data.bultos);
+    if (hasItems) await saveItems(envioId, data.items);
+    if (data.destinatario_id) await tocarDestinatario(data.destinatario_id);
+    if (guiaId) {
+      // La precarga pasa a ser un envío: la guía queda confirmada y apunta al envío.
+      await db.prepare(
+        "UPDATE guias SET estado = 'confirmada', envio_id = ?, updated_at = datetime('now', 'localtime') WHERE id = ?"
+      ).run(envioId, guiaId);
+    }
     return envioId;
   };
 
   // Solo abre una transacción propia cuando hay bultos (múltiples escrituras que deben ser atómicas).
   // Sin bultos, un INSERT único ya es atómico en SQLite y puede ejecutarse dentro de
   // una transacción externa (como la de importarSalidas) sin anidar BEGIN.
-  const id = hasBultos ? await db.transaction(doInsert) : await doInsert();
+  const id = (hasBultos || hasItems || guiaId) ? await db.transaction(doInsert) : await doInsert();
   return buscarPorId(id);
 }
 
@@ -405,6 +480,7 @@ async function actualizar(id, data) {
         tipo_paquete = ?, asegurado = ?, ddp = ?, proteccion_doc = ?, remota = ?, entrega = ?,
         num_sal_cero = ?,
         seguro_venta = ?,
+        destinatario_id = ?, contenido = ?, proforma_numero = ?,
         ${costoSet},
         updated_at = datetime('now', 'localtime')
        WHERE id = ?`
@@ -437,6 +513,9 @@ async function actualizar(id, data) {
       data.entrega !== undefined ? data.entrega : actual.entrega,
       data.num_sal_cero !== undefined ? (data.num_sal_cero ? 1 : 0) : actual.num_sal_cero,
       seguroVenta,
+      data.destinatario_id !== undefined ? (data.destinatario_id || null) : actual.destinatario_id,
+      data.contenido !== undefined ? (String(data.contenido ?? '').trim() || null) : actual.contenido,
+      data.proforma_numero !== undefined ? (String(data.proforma_numero ?? '').trim() || null) : actual.proforma_numero,
       // Los nueve de abajo son siempre los mismos parámetros; lo que cambia es el SQL de
       // arriba. Sin recálculo van todos NULL y el COALESCE deja la columna como estaba;
       // con el envío sin pesar, esos mismos NULL la vacían.
@@ -456,6 +535,10 @@ async function actualizar(id, data) {
     if (data.bultos !== undefined) {
       if (data.bultos.length > 0) await saveBultos(id, data.bultos);
       else await db.prepare('DELETE FROM envio_bultos WHERE envio_id = ?').run(id);
+    }
+    if (data.items !== undefined) await saveItems(id, data.items || []);
+    if (data.destinatario_id && data.destinatario_id !== actual.destinatario_id) {
+      await tocarDestinatario(data.destinatario_id);
     }
   });
   return buscarPorId(id);
@@ -545,6 +628,7 @@ module.exports = {
   listarPendientesPorCliente,
   marcarLiquidados,
   getBultos,
+  getItems,
   buildPesos,
   calcularDesgloseAlCosto,
   calcularSeguroVenta,

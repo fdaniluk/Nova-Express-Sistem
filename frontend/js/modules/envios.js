@@ -9,6 +9,9 @@
   // true cuando alguien tocó la tilde del seguro A MANO: desde ahí la decisión es de la
   // persona y el automático no la pisa. Mismo criterio que profitTocado.
   let seguroTocado = false;
+  // Precarga del módulo Guías que se está confirmando (null = alta o edición normal).
+  // Lleva guia_id, destinatario, contenido y renglones de la proforma al alta del envío.
+  let precargaActual = null;
 
   async function init() {
     // hoyLocal(): toISOString() es UTC y adelantaba la fecha un día después de las 21:00.
@@ -28,10 +31,101 @@
     // El panel arranca con el mensaje de "elegi un cliente"; el boton lo recarga a mano
     // (una cotizacion recien guardada en otra pestaña aparece sin recargar la pagina).
     pintarCotizacionesDelCliente();
+    await loadPrecargas();
+    const qGuia = new URLSearchParams(location.search).get('guia');
+    if (qGuia) {
+      const g = precargas.find((x) => String(x.id) === String(qGuia));
+      if (g) cargarPrecarga(g);
+      else NovaUtils.showAlert(alertBox, 'Esa guía ya no está para confirmar (ya se confirmó o se anuló).', 'error');
+    }
     document.getElementById('ctzr-refrescar')
       .addEventListener('click', pintarCotizacionesDelCliente);
     document.getElementById('btn-cancelar-edit').addEventListener('click', resetForm);
     document.getElementById('cantidad_bultos').addEventListener('change', renderBultos);
+  }
+
+  // ── Precargas del módulo Guías ─────────────────────────────────────────────
+  let precargas = [];
+  async function loadPrecargas() {
+    const panel = document.getElementById('precargas-panel');
+    try {
+      precargas = await NovaAPI.guias.pendientes();
+    } catch {
+      precargas = [];
+    }
+    panel.classList.toggle('hidden', precargas.length === 0);
+    document.getElementById('precargas-count').textContent = precargas.length ? String(precargas.length) : '';
+    const esc = (v) => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    document.getElementById('precargas-lista').innerHTML = precargas.map((g) => `
+      <div class="precargas-row${precargaActual && precargaActual.id === g.id ? ' activa' : ''}" data-guia="${g.id}">
+        <span>${esc(NovaUtils.formatDate(g.fecha))}</span>
+        <span class="guia">${esc(g.numero_guia || '—')}${g.entorno === 'test' ? '<span class="precargas-test">prueba</span>' : ''}</span>
+        <span><b>${esc(g.cliente_nombre)}</b> → ${esc(g.destinatario_nombre || '')}, ${esc([g.destinatario_ciudad, g.destinatario_pais].filter(Boolean).join(', '))}
+          · ${g.bultos.length} bulto(s) · ${esc(g.peso_real)} kg · FOB ${esc(g.fob)}${g.ddp ? ' · DDP' : ''}</span>
+        <span class="docs">
+          <a href="${NovaAPI.guias.etiquetaUrl(g.id, 'a4')}" target="_blank" rel="noopener">Etiqueta</a>
+          <a href="${NovaAPI.guias.proformaUrl(g.id)}" target="_blank" rel="noopener">Proforma</a>
+        </span>
+        <button type="button" class="btn btn-primary btn-sm" data-cargar="${g.id}">Cargar</button>
+      </div>`).join('');
+    document.querySelectorAll('[data-cargar]').forEach((b) => {
+      b.addEventListener('click', () => {
+        const g = precargas.find((x) => String(x.id) === b.dataset.cargar);
+        if (g) cargarPrecarga(g);
+      });
+    });
+  }
+
+  // Llena el formulario con la precarga. Es el mismo alta de siempre: administración
+  // cotiza, pone el precio, corrige lo que haga falta y guarda.
+  function cargarPrecarga(g) {
+    resetForm();
+    precargaActual = g;
+    const e = g.envio;
+    document.querySelector('.tab[data-tab="nuevo"]').click();
+    document.getElementById('guia-id').value = g.id;
+    document.getElementById('form-title').textContent = `Confirmar guía ${g.numero_guia || '#' + g.id} → Salidas`;
+    document.getElementById('btn-cancelar-edit').classList.remove('hidden');
+    document.getElementById('cliente_id').value = e.cliente_id;
+    pintarCotizacionesDelCliente();
+    document.getElementById('fecha').value = e.fecha;
+    document.getElementById('courier').value = 'UPS';
+    document.getElementById('cot-ups-wrap').style.display = '';
+    document.getElementById('cot-ups-variante').value = e.servicio_ups || 'UPS_SAV';
+    document.getElementById('tipo_envio').value = 'exportacion';
+    updatePaisLabel();
+    document.getElementById('tipo_paquete').value = 'm';
+    aplicarReglaDocumentos();
+    document.getElementById('numero_guia').value = e.numero_guia || '';
+    document.getElementById('pais_destino').value = e.pais_destino || '';
+    if (document.getElementById('pais_destino').value !== (e.pais_destino || '')) {
+      NovaUtils.showAlert(alertBox, `El país "${e.pais_destino}" no está en la lista del cotizador: elegilo a mano.`, 'error');
+    }
+    document.getElementById('cantidad_bultos').value = e.cantidad_bultos || 1;
+    document.getElementById('peso_real').value = e.peso_real || '';
+    document.getElementById('largo').value = e.largo || '';
+    document.getElementById('ancho').value = e.ancho || '';
+    document.getElementById('alto').value = e.alto || '';
+    document.getElementById('fob').value = e.fob || 0;
+    document.getElementById('ddp').checked = Boolean(e.ddp);
+    document.getElementById('observaciones').value = e.observaciones || '';
+    renderBultos();
+    if (e.bultos?.length) {
+      for (const b of e.bultos) {
+        const set = (field, val) => {
+          const el = document.querySelector(`[data-bulto="${b.numero_bulto}"][data-field="${field}"]`);
+          if (el) el.value = val || '';
+        };
+        set('largo', b.largo);
+        set('ancho', b.ancho);
+        set('alto', b.alto);
+        set('peso_real', b.peso_real);
+      }
+    }
+    aplicarBloqueoMultibulto();
+    updatePesosYCotizacion();
+    loadPrecargas();
+    document.getElementById('form-title').scrollIntoView({ block: 'start' });
   }
 
   function rellenarSelectPaises() {
@@ -647,15 +741,26 @@
           ? (document.getElementById('cot-ups-variante').value || null)
           : null,
       };
+      // Confirmación de una precarga: el envío nace de la guía emitida y se lleva el
+      // destinatario, el contenido y los renglones de la proforma.
+      if (precargaActual && !id) {
+        const e = precargaActual.envio;
+        data.guia_id = precargaActual.id;
+        data.destinatario_id = e.destinatario_id;
+        data.contenido = e.contenido;
+        data.proforma_numero = e.proforma_numero;
+        data.items = e.items;
+      }
       try {
         if (id) {
           await NovaAPI.envios.actualizar(id, data);
           NovaUtils.showAlert(alertBox, 'Envío actualizado correctamente', 'success');
         } else {
           await NovaAPI.envios.crear(data);
-          NovaUtils.showAlert(alertBox, 'Envío registrado correctamente', 'success');
+          NovaUtils.showAlert(alertBox, precargaActual ? 'Guía confirmada: el envío ya está en Salidas' : 'Envío registrado correctamente', 'success');
         }
         resetForm();
+        loadPrecargas();
       } catch (err) {
         NovaUtils.showAlert(alertBox, err.message, 'error');
       }
@@ -663,6 +768,8 @@
   }
 
   function resetForm() {
+    precargaActual = null;
+    document.getElementById('guia-id').value = '';
     document.getElementById('form-envio').reset();
     updatePaisLabel();
     profitTocado = false;

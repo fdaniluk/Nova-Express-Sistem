@@ -6,7 +6,9 @@ vincularía con la carga de envíos, cosa de facilitar la carga a Salidas"*. Pri
 DHL en el futuro. Cuentas UPS: una de **expo**, una de **impo**, una de **vinos** (casi no
 se usa: **afuera por ahora**).
 
-Estado: **✅ ETAPA 0 CERRADA (07/09, 17:30).** La app emite guías: `ups-shipping-prueba.js`
+Estado: **✅ ETAPAS 1 Y 2 CONSTRUIDAS (08/09, tarde) — falta probarlas contra UPS de
+verdad desde la máquina de Felipe y desplegar.** Ver la sección 7 (qué se hizo, cómo se
+prueba, qué falta). Antes: **✅ ETAPA 0 CERRADA (07/09, 17:30).** La app emite guías: `ups-shipping-prueba.js`
 creó una guía de prueba Bella Vista → Miami en el entorno de test (200 OK, etiqueta GIF
 1400×800 "SAMPLE", guía `1ZXXXXXXXXXXXXXXXX` que es el comodín del entorno de test). Lo que
 enseñó: `Shipment.Description` **máximo 50 caracteres** (error 120503); la respuesta trae
@@ -88,6 +90,70 @@ Lo que hay que confirmar antes de escribir una línea del módulo (**Etapa 0**):
 - ✅ Los **números de cuenta** de expo y de impo — arriba (07/09).
 - Una guía de prueba en el **entorno de test de UPS** (`wwwcie.ups.com`): no genera
   cargos ni guías reales. Con eso se ve qué campos exige para Argentina → exterior.
+
+## 3-bis. EL DISEÑO (08/09, después de pensar los escenarios de la oficina)
+
+Pedido de Felipe: *"antes de armar algo, analizá cuál sería la mejor forma, pensando
+distintos escenarios y optimizando el trabajo de administración"*.
+
+### Los escenarios que manda la oficina
+| # | Escenario | Qué le duele hoy | Qué lo arregla |
+|---|---|---|---|
+| A | **Cliente habitual, mismo destinatario** (Cueros, La Martina…): el grueso del volumen | Tipear el destinatario en UPS cada vez, tipear la guía después en el sistema, armar la proforma en Excel | Libreta: se elige y listo. **"Repetir último envío"** a ese destinatario (mismo contenido, solo cambian pesos). Guía y proforma salen del mismo dato. |
+| B | Destinatario nuevo | Cargarlo dos veces (UPS y proforma) | Se carga UNA vez en la libreta, con el tax id en su campo. |
+| C | **Multibulto con pesos distintos** | La página obliga a decir "todos iguales" (pide valor por caja) | La API manda cada bulto con su peso y medidas; el valor declarado se reparte proporcional al peso, sin preguntar nada. |
+| D | **Pesos declarados distintos de los reales** (práctica de la oficina) | Se pierde la trazabilidad | La guía guarda lo DECLARADO (`guias_ups`); el envío guarda lo REAL. Se confirman los reales al pasar a Salidas. |
+| E | Cliente que hace su propia proforma (PIO Álvarez, por UPS) | — | La proforma del sistema es opcional: "no generar" o adjuntar la del cliente. |
+| F | **DHL y envíos cargados a mano** | Hoy la proforma también es a mano | **La proforma NO depende de la API**: sale para cualquier envío con destinatario y contenido, DHL incluido. Es el primer beneficio, y llega antes que la guía. |
+| G | Importación (cuenta 3R6A45) | — | Misma libreta con el remitente en el exterior; Etapa 4. |
+| H | UPS rechaza la guía (dirección, tax id, descripción > 50) | Hoy el error lo ve quien está en CampusShip | El sistema muestra el mensaje de UPS tal cual, se corrige y se reintenta. Un envío que al final no salió: **anular la guía** (void) desde el mismo lugar. |
+| I | El envío arranca en una cotización aceptada | Se recarga todo | "Cargar envío" ya toma la cotización; el destinatario se suma ahí. |
+| J | Impresión | Dos hojas en A4, unificar a mano | Botones **Etiqueta térmica (ZPL)**, **Guía A4 (una hoja)** y **Proforma (3 copias)**. |
+
+### ⚠️ LA REGLA (Felipe con administración, 08/09) — reemplaza a la propuesta de abajo
+Textual: *"que la generación de las guías y la carga a Salidas sean dos pasos diferentes...
+un módulo de generación de guías que te entregue guía y proforma ya hecha y que eso quede
+semi guardado en la parte de carga de envíos para que después, al fin del día,
+administración entre a esa parte y revise qué hay para cargar, modifique lo que tenga que
+modificar, agregue algo si hace falta y confirme la carga envío por envío a Salidas."*
+- **Módulo "Guías"** (pantalla propia): cliente → destinatario (libreta) → contenido y
+  renglones → bultos → servicio → Emitir. Devuelve guía + etiqueta + proforma y deja el
+  envío en **precarga**. NO va a Salidas.
+- **"Precargas"** en Cargar envío: la lista de lo semi-guardado. Se abre cada una con el
+  formulario completo, se corrige, se agrega, y **Confirmar** la pasa a Salidas una por una.
+  Si la guía estaba mal, desde ahí se anula (void) o se reemite.
+- Proforma y etiqueta quedan pegadas al envío, imprimibles desde Precargas y Salidas.
+(La sección siguiente era mi propuesta previa de hacerlo dentro de Cargar envío; queda como
+análisis, pero manda la regla de arriba.)
+
+### La propuesta previa (superada): la guía nace en "Cargar envío"
+"Cargar envío" ya pide cliente, courier, servicio, país, bultos (peso y medidas), FOB, DDP y
+calcula la venta. Una pantalla "Guías" aparte obligaría a cargar lo mismo dos veces o a
+mantener dos formularios iguales. Entonces:
+- **"Cargar envío" suma un bloque "Destinatario y contenido"**: destinatario de la libreta
+  (o nuevo), descripción de la mercadería y los renglones de la proforma (cantidad,
+  descripción, valor unitario; el FOB se calcula de ahí si se cargan). El **país sale del
+  destinatario**. Para DHL o carga manual el bloque es opcional (pero si se completa, sale la
+  proforma).
+- **Dos botones al pie**: **"Guardar"** (como hoy) y, con courier UPS, **"Emitir guía UPS y
+  precargar"**: llama a la API, guarda guía + etiqueta + lo declarado en `guias_ups`, escribe
+  `numero_guia` solo, y deja el envío en estado **PRECARGA** (`envios.precarga = 1`).
+- **Precargas**: una lista propia (misma lógica que Pendientes de Liquidaciones: que no se
+  pase nada de largo) con botón **"Confirmar"**, que abre el envío para corregir pesos y
+  medidas reales, venta, seguro, y lo manda a Salidas. Hasta entonces no aparece en
+  Salidas, liquidaciones, cierre ni control de facturas.
+- **"Repetir último envío"** desde el perfil del cliente / la libreta: clona destinatario,
+  contenido, servicio y DDP; pide solo bultos.
+- **Panel "Documentos" del envío** (en Precargas y en el modal de Salidas): etiqueta térmica,
+  guía A4, proforma. La proforma con numeración propia del sistema (**a confirmar con
+  Felipe: hoy el Nº lo pone la oficina, ¿de dónde sale?**).
+
+### Orden de construcción (cada paso sirve solo)
+1. **Datos + proforma** (sirve para TODOS los envíos, DHL incluido): libreta, remitente
+   completo, contenido/renglones, PDF de proforma con los mismos campos que la de la oficina.
+2. **Guía UPS desde Cargar envío + precarga + lista Precargas + etiqueta térmica/A4.**
+3. Void, repetir último envío, paperless para PIO Álvarez.
+4. Impo por la misma vía; DHL cuando haya API.
 
 ## 4. Las etapas (propuesta)
 
@@ -197,3 +263,102 @@ Internacional desde Argentina: **65 = Worldwide Saver**, **08 = Worldwide Expedi
 ("otro tipo"). Etiqueta: `GIF` (pantalla/A4), `ZPL`/`EPL` (térmica), `PDF` vía
 `LabelImageFormat`. Estos códigos se verifican contra la respuesta del entorno de test
 en la Etapa 0 antes de darlos por buenos.
+
+## 7. LO CONSTRUIDO (08/09) — etapas 1 y 2, siguiendo LA REGLA de 3-bis
+
+### Qué hay
+- **Datos (etapa 1).** Tablas `destinatarios` (libreta por cliente, tax id en su campo,
+  borrado en blando `activo=0`) y `envio_items` (renglones de la proforma). `clientes` suma
+  `telefono` y `provincia` (formulario de Clientes y perfil). `envios` suma
+  `destinatario_id`, `contenido`, `proforma_numero`, `guia_id`. `POST/PUT /api/envios`
+  aceptan `destinatario_id`, `contenido`, `proforma_numero`, `items[]`; `GET /envios/:id`
+  devuelve `destinatario` e `items`. API de la libreta: `GET/POST /api/clientes/:id/destinatarios`,
+  `PUT/DELETE /api/clientes/:id/destinatarios/:destId` (`?todos=1` trae los sacados).
+- **Proforma.** `services/proforma.service.js`: `armarProforma(envioId)` /
+  `armarProformaGuia(guiaId)` → JSON; `renderHtml()` → hoja A4 con el formato de la oficina
+  (COMMERCIAL INVOICE, Nº, fecha, Shipper = el cliente con CUIT/dirección/CP/ciudad/
+  provincia/teléfono/contacto, Consignee = destinatario, tabla Quantity/Description/Unit
+  value/Total value con 4 renglones fijos, TOTAL USD, COUNTRY OF ORIGIN: ARGENTINA,
+  Manufacturer = el remitente). Sin destinatario o sin renglones la hoja sale igual (un
+  renglón con el contenido y el FOB) y avisa arriba (el aviso no se imprime). Rutas:
+  `GET /api/envios/:id/proforma(.html)` y `GET /api/guias/:id/proforma(.html)`. Se abre en
+  otra pestaña (la sesión va por cookie) con botón Imprimir; cabe en UNA hoja A4.
+- **Módulo Guías (etapa 2).** Pantalla `pages/guias.html` (ítem "Guías" en el menú de
+  todas las pantallas): cliente → remitente (avisa qué le falta al cliente, con link al
+  perfil) → destinatario de la libreta (o "+ Nuevo" en un modal, país de la lista del
+  cotizador) → contenido (≤ 50 letras, va a la guía) + Nº de proforma + renglones (el
+  total es el FOB / valor declarado) → bultos (peso obligatorio, medidas opcionales) →
+  servicio Saver/Expedited, DDP → **"Pedir guía a UPS"**. Resultado: número, botones
+  **Etiqueta térmica** (página 4×6), **Etiqueta A4** (una hoja, tamaño real, centrada — no
+  las dos hojas de la página de UPS) y **Proforma**. Pestaña "Guías del día" con estado
+  (Para confirmar / Confirmada → envío #N / Anulada), documentos, Confirmar y Anular.
+- **Backend del módulo.** Tabla `guias` (una fila por guía pedida: `datos_json` con
+  bultos/items/país/observaciones, `request_json`, `response_json`, `etiqueta_gif` = JSON
+  con un GIF base64 por bulto, `cargo_ups`, `estado` emitida/confirmada/anulada,
+  `entorno` test/prod, `envio_id`). `services/ups-shipping.service.js` arma el pedido y
+  llama a `POST /api/shipments/v2403/ship`; `models/guias.model.js` valida, emite,
+  edita (solo mientras es precarga: proforma, contenido, renglones, FOB, nota), anula
+  (`DELETE /api/shipments/v1/void/cancel/:guia`). Rutas: `GET /api/guias/configuracion`,
+  `GET /api/guias?fecha=&estado=&cliente_id=`, `GET /api/guias/pendientes` (cada una con
+  `envio` = el cuerpo listo para `POST /envios`), `POST /api/guias`, `GET/PUT /api/guias/:id`,
+  `POST /api/guias/:id/anular`, `GET /api/guias/:id/etiqueta.gif?bulto=N`,
+  `GET /api/guias/:id/etiqueta.html?formato=a4|termica`.
+- **La precarga vive en `guias`, NO en `envios`.** Un envío existe recién cuando
+  administración lo confirma; así ninguna consulta de Salidas / liquidaciones / cierre /
+  facturas / dashboard / tracking tuvo que aprender a excluir precargas (eran 40 consultas
+  sobre `envios`: un olvido = plata inventada). La columna `precarga` que se había pensado
+  no existe.
+- **Confirmar = Cargar envío de siempre.** En `pages/envios.html` aparece el panel
+  **"Guías para confirmar"** (amarillo, arriba del formulario) con cada precarga
+  (fecha, guía, cliente → destinatario, bultos, kg, FOB, DDP, links a etiqueta y
+  proforma) y el botón **Cargar**, que llena el formulario (cliente, fecha, UPS + servicio,
+  guía, país, bultos con pesos y medidas, FOB, DDP, observaciones) con el título
+  "Confirmar guía 1Z… → Salidas". Administración cotiza, pone el precio, corrige lo que
+  haga falta y **Guardar**: `POST /envios` con `guia_id` crea el envío (mismo motor de
+  costos), copia destinatario/contenido/renglones/Nº de proforma, y la guía pasa a
+  `confirmada` con `envio_id`. Una guía no se confirma dos veces (400), ni una anulada.
+  `envios.html?guia=ID` abre directo esa precarga (link "Confirmar" del listado).
+- **Lo que se le manda a UPS** (`armarPedido`): Shipper = **Nova** con la cuenta de expo
+  (`UPS_CUENTA_EXPO`, default 327W09) y los datos del `.env` (`UPS_SHIPPER_NOMBRE`,
+  `UPS_SHIPPER_ATENCION`, `UPS_SHIPPER_TELEFONO`, `UPS_SHIPPER_DIRECCION`,
+  `UPS_SHIPPER_CIUDAD`, `UPS_SHIPPER_PROVINCIA` (código UPS, default B), `UPS_SHIPPER_CP`);
+  ShipFrom = **el cliente** (dirección de recolección, CP, localidad, teléfono); ShipTo =
+  el destinatario con `CountryCode` ISO-2 (`utils/paisesIso.js` traduce los nombres del
+  cotizador; si no conoce el país pide el código de 2 letras), estado y CP obligatorios
+  para EE.UU./Canadá, teléfono obligatorio (solo dígitos), `TaxIdentificationNumber`;
+  `Description` = contenido recortado a 50; `Service` 65 Saver / 08 Expedited; `Packaging`
+  02; un `Package` por bulto con `PackageWeight` KGS (mín. 0,1) y `Dimensions` CM solo si
+  tiene las tres medidas; `InvoiceLineTotal` USD = FOB (mín. 1); `PaymentInformation`:
+  cargo **01 BillShipper cuenta Nova** siempre, cargo **02 (duties) BillShipper cuenta
+  Nova solo con DDP** — sin DDP no se manda el 02 y UPS le cobra al destinatario (regla
+  4-ter "facturar al destinatario"); etiqueta `GIF`.
+- **Entorno.** `UPS_SHIPPING_ENTORNO=test` (default) → `wwwcie.ups.com`, guías de PRUEBA
+  (la pantalla lo dice en un chip amarillo y en cada documento: "no válida para
+  despachar"). `UPS_SHIPPING_ENTORNO=prod` → `onlinetools.ups.com`, guías reales. El
+  token OAuth se pide al host del entorno (uno de prod no sirve en test). El semáforo de
+  tracking sigue con `UPS_API_BASE` (prod) como siempre. `UPS_SHIPPING_MOCK=1` (solo
+  tests) no llama a UPS.
+
+### Tandas
+`test-guias-datos.js` (44 checks, puerto 3935: cliente con teléfono/provincia, libreta,
+envío con destinatario/contenido/items, proforma JSON y HTML, borrado en blando) y
+`test-guias-emision.js` (63 checks, puerto 3933, con `UPS_SHIPPING_MOCK=1`: validaciones
+sin llamar a UPS, emisión y lo que se manda — servicio, ShipTo, cargos con y sin DDP,
+paquetes —, etiqueta GIF/HTML, proforma de la guía, la precarga NO es envío, editar,
+confirmar por `POST /envios` con `guia_id`, doble confirmación, anular; pantalla: Guías
+emite con el modal de destinatario y Cargar envío confirma la precarga). Las dos en
+`npm test` (69 tandas).
+
+### Lo que falta (en orden)
+1. **Probar contra UPS de test desde la máquina de Felipe**: completar en `backend/.env`
+   `UPS_SHIPPER_*` (dirección real de Nova, teléfono, CP, ciudad) y dejar
+   `UPS_SHIPPING_ENTORNO=test`; emitir una guía desde la pantalla y mirar la etiqueta real
+   (1400×800 apaisada: la hoja la rota sola) y los avisos de UPS. Si UPS pide algo más
+   para algún país (InternationalForms, etc.) se ve ahí.
+2. Cuando la oficina la use en serio: `UPS_SHIPPING_ENTORNO=prod` en el servidor y
+   reiniciar. Sacar antes las guías de prueba (quedan marcadas `entorno='test'`).
+3. Preguntar: ¿el **Nº de proforma** lo pone la oficina (correlativo propio, ej.
+   79122210) o lo numera el sistema? Hoy es un campo libre. ¿En la guía UPS el Shipper
+   tiene que ser Nova (cuenta) o el cliente? Hoy Shipper = Nova, ShipFrom = cliente.
+4. Etapa 3: paperless (subir la proforma a UPS), repetir último envío, impo por la
+   misma vía (cuenta 3R6A45), DHL cuando haya API.

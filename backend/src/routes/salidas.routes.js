@@ -791,7 +791,13 @@ router.patch('/:id', async (req, res, next) => {
       } else if (courierFinal === 'UPS') {
         const servicioFinal = Object.prototype.hasOwnProperty.call(picked, 'servicio_ups')
           ? picked.servicio_ups : existing.servicio_ups;
-        if (!servicioFinal) {
+        // El servicio se exige solo cuando el guardado TOCA el courier o el servicio. Un
+        // envío UPS viejo (de antes de que existiera servicio_ups) tiene que poder editar
+        // observaciones, DDP o el precio sin que un 400 lo frene (verificar del 08/09:
+        // test-ddp-salidas lo detectó; en producción hubiera trabado los UPS de agosto).
+        const tocaServicio = Object.prototype.hasOwnProperty.call(picked, 'courier')
+          || Object.prototype.hasOwnProperty.call(picked, 'servicio_ups');
+        if (!servicioFinal && tocaServicio) {
           return res.status(400).json({ error: 'Un envío UPS necesita el servicio (Saver o Expedited).' });
         }
         // La tarifa +50 es de DHL y de nadie más: si el envío queda en UPS, la marca se

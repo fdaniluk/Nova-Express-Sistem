@@ -33,6 +33,10 @@ CREATE TABLE IF NOT EXISTS clientes (
   -- Fuel propio del cliente, en %. NULL = usa el de Configuración (lo normal).
   -- Solo cambia la cotización; el envío igual congela en fuel_pct el % que se le aplicó.
   fuel_pct_propio      REAL,
+  -- Remitente completo para la guía y la proforma (guías, 08/09/2026). Dirección, CP,
+  -- ciudad, CUIT y mail ya estaban en el cliente.
+  telefono             TEXT,
+  provincia            TEXT,
   -- Seguro propio del cliente. NULL en las dos = regla de siempre de cada courier
   -- (UPS: 0 si el valor < 100, USD 15 fijo hasta 1.000, 1,5% arriba ·
   --  DHL: el mayor entre USD 17,50 y el 1,5%).
@@ -233,6 +237,14 @@ CREATE TABLE IF NOT EXISTS envios (
   impuestos_facturados REAL,
   impuestos_factura_id INTEGER,
   impuestos_fecha      TEXT,
+  -- Guías (08/09/2026): destinatario de la libreta, contenido declarado, Nº de proforma y
+  -- la guía emitida desde el módulo Guías de la que nació (tabla guias). Las precargas
+  -- viven en `guias`: un envío existe recién cuando la oficina lo confirma a Salidas.
+  -- Los renglones de la proforma van en envio_items.
+  destinatario_id      INTEGER,
+  contenido            TEXT,
+  proforma_numero      TEXT,
+  guia_id              INTEGER,
   FOREIGN KEY (cliente_id) REFERENCES clientes(id),
   FOREIGN KEY (liquidacion_id) REFERENCES liquidaciones(id)
 );
@@ -299,6 +311,74 @@ CREATE TABLE IF NOT EXISTS cliente_direcciones (
   direccion  TEXT NOT NULL,
   created_at TEXT DEFAULT (datetime('now','localtime'))
 );
+
+-- Libreta de destinatarios por cliente (guías, 08/09/2026). Lo que hoy se tipea en la
+-- página de UPS y en la proforma, guardado una vez. tax_id en su propio campo.
+CREATE TABLE IF NOT EXISTS destinatarios (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  cliente_id     INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+  nombre         TEXT NOT NULL,
+  contacto       TEXT,
+  direccion1     TEXT,
+  direccion2     TEXT,
+  direccion3     TEXT,
+  codigo_postal  TEXT,
+  ciudad         TEXT,
+  estado         TEXT,
+  pais           TEXT NOT NULL,
+  telefono       TEXT,
+  email          TEXT,
+  tax_id         TEXT,
+  activo         INTEGER NOT NULL DEFAULT 1,
+  ultimo_uso     TEXT,
+  created_at     TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_destinatarios_cliente ON destinatarios(cliente_id, activo);
+
+-- Renglones de la proforma de un envío (cantidad × descripción × valor unitario).
+CREATE TABLE IF NOT EXISTS envio_items (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  envio_id       INTEGER NOT NULL REFERENCES envios(id) ON DELETE CASCADE,
+  orden          INTEGER NOT NULL DEFAULT 1,
+  cantidad       REAL NOT NULL DEFAULT 1,
+  descripcion    TEXT NOT NULL,
+  valor_unitario REAL NOT NULL DEFAULT 0
+);
+CREATE INDEX IF NOT EXISTS idx_envio_items_envio ON envio_items(envio_id);
+
+-- Guías emitidas desde el sistema (guías, etapa 2). Una fila por guía pedida a UPS: lo que
+-- se mandó, lo que contestó, la etiqueta (GIF en base64) y los datos del envío para
+-- precargarlo en Cargar envío (datos_json). estado: emitida (precarga pendiente) →
+-- confirmada (ya es un envío: envio_id) · anulada. entorno: test (wwwcie) / prod.
+CREATE TABLE IF NOT EXISTS guias (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  cliente_id       INTEGER NOT NULL REFERENCES clientes(id),
+  destinatario_id  INTEGER REFERENCES destinatarios(id),
+  fecha            TEXT NOT NULL,
+  courier          TEXT NOT NULL DEFAULT 'UPS',
+  servicio         TEXT NOT NULL,
+  cuenta           TEXT,
+  entorno          TEXT NOT NULL DEFAULT 'test',
+  numero_guia      TEXT,
+  estado           TEXT NOT NULL DEFAULT 'emitida' CHECK (estado IN ('emitida', 'confirmada', 'anulada')),
+  ddp              INTEGER NOT NULL DEFAULT 0,
+  fob              REAL NOT NULL DEFAULT 0,
+  contenido        TEXT,
+  proforma_numero  TEXT,
+  datos_json       TEXT NOT NULL,
+  request_json     TEXT,
+  response_json    TEXT,
+  etiqueta_gif     TEXT,
+  cargo_ups        REAL,
+  envio_id         INTEGER REFERENCES envios(id),
+  usuario          TEXT,
+  nota             TEXT,
+  created_at       TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  updated_at       TEXT,
+  anulada_at       TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_guias_estado ON guias(estado, fecha);
+CREATE INDEX IF NOT EXISTS idx_guias_numero ON guias(numero_guia);
 
 -- Pickups / retiros
 CREATE TABLE IF NOT EXISTS pickups (

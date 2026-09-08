@@ -19,9 +19,12 @@ async function request(path, options = {}) {
   }
   if (!res.ok) {
     let msg = `Error ${res.status}`;
+    let errores = null;
     try {
       const data = await res.json();
       msg = data.error || msg;
+      // Guías: la API devuelve la lista de lo que falta / lo que dijo UPS.
+      if (Array.isArray(data.errores) && data.errores.length) errores = data.errores;
     } catch {
       /* ignore */
     }
@@ -29,6 +32,7 @@ async function request(path, options = {}) {
     // de facturas en lote distingue un 409 "ya estaba cargada" de un error real).
     const err = new Error(msg);
     err.status = res.status;
+    if (errores) err.errores = errores;
     throw err;
   }
 
@@ -127,6 +131,32 @@ api.clientes.direcciones = {
   borrar: (clienteId, dirId) =>
     api.delete(`/clientes/${clienteId}/direcciones/${dirId}`),
 };
+
+// Libreta de destinatarios del cliente (guías, etapa 1).
+api.clientes.destinatarios = {
+  listar: (clienteId, todos) => api.get(`/clientes/${clienteId}/destinatarios${todos ? '?todos=1' : ''}`),
+  crear: (clienteId, data) => api.post(`/clientes/${clienteId}/destinatarios`, data),
+  actualizar: (clienteId, destId, data) => api.put(`/clientes/${clienteId}/destinatarios/${destId}`, data),
+  borrar: (clienteId, destId) => api.delete(`/clientes/${clienteId}/destinatarios/${destId}`),
+};
+// Módulo Guías (etapa 2).
+api.guias = {
+  configuracion: () => api.get('/guias/configuracion'),
+  listar: (params) => {
+    const q = new URLSearchParams(params || {}).toString();
+    return api.get(`/guias${q ? `?${q}` : ''}`);
+  },
+  pendientes: () => api.get('/guias/pendientes'),
+  obtener: (id) => api.get(`/guias/${id}`),
+  emitir: (data) => api.post('/guias', data),
+  actualizar: (id, data) => api.put(`/guias/${id}`, data),
+  anular: (id, nota) => api.post(`/guias/${id}/anular`, { nota }),
+  etiquetaUrl: (id, formato) => `${API_BASE}/guias/${id}/etiqueta.html?formato=${formato || 'a4'}`,
+  etiquetaGifUrl: (id, bulto) => `${API_BASE}/guias/${id}/etiqueta.gif${bulto ? `?bulto=${bulto}` : ''}`,
+  proformaUrl: (id) => `${API_BASE}/guias/${id}/proforma.html`,
+};
+api.envios.proforma = (id) => api.get(`/envios/${id}/proforma`);
+api.envios.proformaUrl = (id) => `${API_BASE}/envios/${id}/proforma.html`;
 
 api.clientes.profit = {
   matriz: (id, servicio, tipo) => {

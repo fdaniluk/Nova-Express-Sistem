@@ -12,9 +12,11 @@ encontró y limpió **1 envío UPS** con la marca +50 pegada en producción.** A
 mismo día: **`0e1971e`** (columnas fijas: cualquier columna — **pusheado y DESPLEGADO el
 07/09**). **67 tandas en el verificar (70 archivos `test-*.js`).**
 
-**Guías UPS (Etapa 0):** Felipe pasó las cuentas — **EXPO `327W09` · IMPO `3R6A45`**
-(`GUIAS-UPS.md`). Falta que confirme en developer.ups.com si la app tiene **Shipping**.
-**Felipe avisó que tiene "un par de cosas más" de Salidas para pasar.**
+**08/09 (tarde): GUÍAS UPS, ETAPAS 1 Y 2 CONSTRUIDAS** — módulo Guías + precargas +
+proforma, según LA REGLA de Felipe con administración (`GUIAS-UPS.md` 3-bis y §7).
+Commiteado, **pendiente de: tandas en la máquina de Felipe, `.env` con `UPS_SHIPPER_*`,
+prueba contra UPS de test, push y deploy.** Tandas `test-guias-datos` (44) y
+`test-guias-emision` (63). Cache **`?v=20260908a`**. **69 tandas (72 archivos).**
 
 ---
 
@@ -33,11 +35,19 @@ mismo día: **`0e1971e`** (columnas fijas: cualquier columna — **pusheado y DE
    ahora se fija cualquier columna, el botón "Ninguna", **la columna % Real (sale Dif
    Costo)** y el selector de Servicio UPS del modal; al manual de facturas, lo mismo del
    % Real (el `.md` ya está corregido; el Word no).
-0-ter. ✅ **Guías UPS, Etapa 0 CERRADA (07/09):** Shipping y Rating habilitados; la guía de
-   prueba salió 200 OK con etiqueta. Sigue la **Etapa 1** (`GUIAS-UPS.md` §4): libreta de
-   destinatarios, remitente completo por cliente, contenido. Faltan de Felipe: una proforma
-   de las que hace la oficina, la confirmación del paso 6 (facturación con/sin DDP) y con
-   qué impresora salen las etiquetas.
+0-ter. **Guías UPS, etapas 1 y 2 (08/09) — para cerrar:**
+   (a) Felipe corre `node scripts/test-guias-datos.js` y `node scripts/test-guias-emision.js`
+   (44 y 63) y el `npm run verificar` completo antes del deploy;
+   (b) en `backend/.env` de la máquina de Felipe y del servidor: `UPS_SHIPPING_ENTORNO=test`,
+   `UPS_CUENTA_EXPO=327W09`, `UPS_SHIPPER_NOMBRE`, `UPS_SHIPPER_TELEFONO`,
+   `UPS_SHIPPER_DIRECCION`, `UPS_SHIPPER_CIUDAD`, `UPS_SHIPPER_CP` (dirección real de Nova;
+   `UPS_SHIPPER_PROVINCIA` default B);
+   (c) emitir una guía de PRUEBA desde la pantalla Guías con un cliente real (completar
+   teléfono/provincia/CUIT del cliente si faltan) y mirar etiqueta térmica, A4 y proforma;
+   (d) preguntas abiertas: **Nº de proforma** (¿correlativo de la oficina o lo numera el
+   sistema?) y **Shipper en la guía** (hoy Nova con la cuenta; ShipFrom = cliente);
+   (e) cuando la oficina la use en serio: `UPS_SHIPPING_ENTORNO=prod` en el servidor.
+   Etapa 0 cerrada el 07/09 (Shipping habilitado, guía de prueba 200 OK).
 0-d. **Importar los ~40 liquidadores viejos a la matriz de profit (07/09, administración):**
    plan en **`IMPORTAR-LIQUIDADORES.md`**. Falta: la lista de clientes con su courier/servicio,
    los `.xls`, y la decisión de Felipe sobre los clientes con tabla de costo vieja (¿se respeta

@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Registro de envíos – Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260907c">
-  <link rel="stylesheet" href="../css/modules/envios.css?v=20260907c">
+  <link rel="stylesheet" href="../css/main.css?v=20260908a">
+  <link rel="stylesheet" href="../css/modules/envios.css?v=20260908a">
   <style>
     .cot-header {
       display: flex;
@@ -60,6 +60,10 @@
       <a href="envios.html" class="nav-item active">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span>
         <span>Envíos</span>
+      </a>
+      <a href="guias.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/><line x1="13" y1="8" x2="13" y2="16"/><line x1="17" y1="8" x2="17" y2="16"/></svg></span>
+        <span>Guías</span>
       </a>
       <a href="salidas.html" class="nav-item">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/><line x1="17" y1="18" x2="22" y2="18"/><polyline points="19 15 22 18 19 21"/></svg></span>
@@ -125,9 +129,20 @@
       </div>
 
       <section id="panel-nuevo" class="card">
+        <!-- Guías emitidas desde el módulo Guías que todavía no son envíos (precargas).
+             "Cargar" llena este mismo formulario; administración revisa, cotiza, corrige
+             y guarda: recién ahí el envío existe (GUIAS-UPS.md 3-bis). -->
+        <div id="precargas-panel" class="precargas hidden">
+          <div class="precargas-head">
+            <b>Guías para confirmar</b> <span class="tab-badge" id="precargas-count"></span>
+            <span class="precargas-hint">Emitidas desde <a href="guias.html">Guías</a>. Cargá cada una, revisá el precio y guardá.</span>
+          </div>
+          <div id="precargas-lista"></div>
+        </div>
         <h2 id="form-title">Cargar envío</h2>
         <form id="form-envio">
           <input type="hidden" id="envio-id" value="">
+          <input type="hidden" id="guia-id" value="">
           <div class="form-grid">
             <div class="form-group">
               <label for="cliente_id">Cliente *</label>
@@ -367,12 +382,12 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260907c"></script>
-<script src="../js/api.js?v=20260907c"></script>
-<script src="../js/main.js?v=20260907c"></script>
-<script src="/shared/cotizador/cotizador-core.js?v=20260907c"></script>
-<script src="/shared/guias/validar-guia.js?v=20260907c"></script>
-<script src="../js/cotizaciones-recientes.js?v=20260907c"></script>
-<script src="../js/modules/envios.js?v=20260907c"></script>
+<script src="/js/auth-guard.js?v=20260908a"></script>
+<script src="../js/api.js?v=20260908a"></script>
+<script src="../js/main.js?v=20260908a"></script>
+<script src="/shared/cotizador/cotizador-core.js?v=20260908a"></script>
+<script src="/shared/guias/validar-guia.js?v=20260908a"></script>
+<script src="../js/cotizaciones-recientes.js?v=20260908a"></script>
+<script src="../js/modules/envios.js?v=20260908a"></script>
 </body>
 </html>
