@@ -151,6 +151,7 @@
       ? ` — <b>faltan:</b> ${esc(faltan.join(', '))} ${donde}`
       : '');
     box.classList.toggle('falta', faltan.length > 0);
+    pintarResumen();
   }
 
   function abrirModalRem(r) {
@@ -274,6 +275,7 @@
       [d.codigo_postal, d.ciudad, d.estado].filter(Boolean).join(' ') + ' · ' + d.pais,
       [d.telefono ? `Tel ${d.telefono}` : null, d.email, d.tax_id ? `Tax ID ${d.tax_id}` : null].filter(Boolean).join(' · '),
     ].filter(Boolean).join('\n');
+    pintarResumen();
   }
 
   function abrirModalDest(d) {
@@ -397,6 +399,7 @@
       total += t;
     });
     $('g-items-total').textContent = money(total);
+    pintarResumen();
   }
 
   // ── Bultos ────────────────────────────────────────────────────────────────
@@ -421,6 +424,7 @@
 
   function numerarBultos() {
     [...$('g-bultos').querySelectorAll('tbody tr')].forEach((tr, i) => { tr.querySelector('.num').textContent = i + 1; });
+    pintarResumen();
   }
 
   function leerBultos() {
@@ -445,6 +449,10 @@
       e.preventDefault();
       await emitir();
     });
+    $('gui-ver-lista').addEventListener('click', () => document.querySelector('.tab[data-tab="listado"]').click());
+    // El resumen sigue al formulario.
+    $('form-guia').addEventListener('input', pintarResumen);
+    $('form-guia').addEventListener('change', pintarResumen);
   }
 
   function mostrarErrores(lista, titulo) {
@@ -510,11 +518,32 @@
   }
 
   function docsHtml(g, chico) {
-    const cls = chico ? '' : 'btn btn-secondary';
+    if (chico) {
+      return `
+      <a href="${NovaAPI.guias.etiquetaUrl(g.id, 'termica')}" target="_blank" rel="noopener" title="Etiqueta para la impresora térmica (4×6)">Térmica</a>
+      <a href="${NovaAPI.guias.etiquetaUrl(g.id, 'a4')}" target="_blank" rel="noopener" title="Etiqueta en hoja A4 (una sola hoja)">A4</a>
+      <a href="${NovaAPI.guias.proformaUrl(g.id)}" target="_blank" rel="noopener" title="Proforma / commercial invoice">Proforma</a>`;
+    }
     return `
-      <a class="${cls}" href="${NovaAPI.guias.etiquetaUrl(g.id, 'termica')}" target="_blank" rel="noopener" title="Etiqueta para la impresora térmica (4×6)">${chico ? 'Térmica' : 'Etiqueta térmica'}</a>
-      <a class="${cls}" href="${NovaAPI.guias.etiquetaUrl(g.id, 'a4')}" target="_blank" rel="noopener" title="Etiqueta en hoja A4 (una sola hoja)">${chico ? 'A4' : 'Etiqueta A4'}</a>
-      <a class="${cls}" href="${NovaAPI.guias.proformaUrl(g.id)}" target="_blank" rel="noopener" title="Proforma / commercial invoice">Proforma</a>`;
+      <a class="doc-termica" href="${NovaAPI.guias.etiquetaUrl(g.id, 'termica')}" target="_blank" rel="noopener"><span class="ico">🏷</span>Etiqueta térmica <small>4×6</small></a>
+      <a class="doc-a4" href="${NovaAPI.guias.etiquetaUrl(g.id, 'a4')}" target="_blank" rel="noopener"><span class="ico">📄</span>Etiqueta en A4</a>
+      <a class="doc-proforma" href="${NovaAPI.guias.proformaUrl(g.id)}" target="_blank" rel="noopener"><span class="ico">🧾</span>Proforma</a>`;
+  }
+
+  // ── Resumen lateral (se actualiza con cada cambio del formulario) ──────────
+  function pintarResumen() {
+    const set = (k, v) => { const el = document.querySelector(`#g-resumen [data-r="${k}"]`); if (el) el.textContent = v || '—'; };
+    const r = remSeleccionado();
+    const d = destSeleccionado();
+    set('cliente', clienteActual ? (clienteActual.nombre_nova || clienteActual.nombre) : '');
+    set('remitente', r ? (r.principal ? 'La ficha del cliente' : r.nombre) : '');
+    set('destino', d ? `${d.nombre} · ${[d.ciudad, d.pais].filter(Boolean).join(', ')}` : '');
+    const serv = $('g-servicio');
+    set('servicio', (serv.options[serv.selectedIndex]?.text || '') + ($('g-ddp').checked ? ' · DDP' : ''));
+    const bultos = leerBultos();
+    const kg = bultos.reduce((s2, b) => s2 + (b.peso_real || 0), 0);
+    set('bultos', bultos.length ? `${bultos.length} × ${Math.round(kg * 100) / 100} kg` : '');
+    set('fob', `US$ ${$('g-items-total').textContent}`);
   }
 
   function mostrarResultado(g) {
@@ -552,23 +581,21 @@
     const lista = await NovaAPI.guias.listar(params);
     const tb = $('gui-tabla').querySelector('tbody');
     if (!lista.length) {
-      tb.innerHTML = '<tr><td colspan="11" class="empty">No hay guías para mostrar.</td></tr>';
+      tb.innerHTML = '<tr><td colspan="8" class="empty">No hay guías para mostrar.</td></tr>';
       return;
     }
     const labelEstado = { emitida: 'Para confirmar', confirmada: 'Confirmada', anulada: 'Anulada' };
     tb.innerHTML = lista.map((g) => `
       <tr data-id="${g.id}">
         <td>${esc(NovaUtils.formatDate(g.fecha))}</td>
-        <td class="guia-num">${esc(g.numero_guia || '—')}${g.entorno === 'test' ? '<span class="gui-test-chip">prueba</span>' : ''}</td>
+        <td><span class="guia-num">${esc(g.numero_guia || '—')}</span>${g.entorno === 'test' ? '<span class="gui-test-chip">prueba</span>' : ''}<br><span class="gui-hint">${esc(g.servicio === 'UPS_SAV' ? 'Saver' : g.servicio === 'UPS_EXP' ? 'Expedited' : g.servicio)}${g.ddp ? ' · DDP' : ''}</span></td>
         <td>${esc(g.cliente_nombre)}${g.remitente_nombre ? `<br><span class="gui-hint">rem. ${esc(g.remitente_nombre)}</span>` : ''}</td>
         <td>${esc(g.destinatario_nombre || '—')}<br><span class="gui-hint">${esc([g.destinatario_ciudad, g.destinatario_pais].filter(Boolean).join(', '))}</span></td>
-        <td>${esc(g.servicio === 'UPS_SAV' ? 'Saver' : g.servicio === 'UPS_EXP' ? 'Expedited' : g.servicio)}</td>
-        <td class="n">${g.bultos.length}</td>
-        <td class="n">${esc(g.peso_real)}</td>
+        <td class="n">${g.bultos.length} × ${esc(g.peso_real)} kg</td>
         <td class="n">${money(g.fob)}</td>
         <td><span class="gui-estado ${esc(g.estado)}">${esc(labelEstado[g.estado] || g.estado)}</span>${g.envio_id ? `<br><span class="gui-hint">envío #${g.envio_id}</span>` : ''}</td>
-        <td class="docs">${g.tiene_etiqueta ? docsHtml(g, true) : `<a href="${NovaAPI.guias.proformaUrl(g.id)}" target="_blank" rel="noopener">Proforma</a>`}</td>
-        <td>${g.estado === 'emitida' ? `<a href="envios.html?guia=${g.id}">Confirmar</a> · <button type="button" class="gui-quitar" data-anular="${g.id}" title="Anular la guía en UPS">Anular</button>` : ''}</td>
+        <td class="docs">${g.tiene_etiqueta ? docsHtml(g, true) : `<a href="${NovaAPI.guias.proformaUrl(g.id)}" target="_blank" rel="noopener">Proforma</a>`}
+          ${g.estado === 'emitida' ? `<br><a class="gui-confirmar" href="envios.html?guia=${g.id}">Confirmar →</a> · <button type="button" class="gui-quitar" data-anular="${g.id}" title="Anular la guía en UPS">Anular</button>` : ''}</td>
       </tr>`).join('');
     tb.querySelectorAll('[data-anular]').forEach((b) => b.addEventListener('click', () => anular(b.dataset.anular)));
     const hoy = NovaUtils.hoyLocal();

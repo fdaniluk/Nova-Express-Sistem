@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Guías — Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260908a">
-  <link rel="stylesheet" href="../css/modules/guias.css?v=20260908a">
+  <link rel="stylesheet" href="../css/main.css?v=20260908b">
+  <link rel="stylesheet" href="../css/modules/guias.css?v=20260908b">
 </head>
 <body>
 <div class="app-layout">
@@ -99,125 +99,186 @@
       </div>
 
       <!-- ── Nueva guía ─────────────────────────────────────────────────────── -->
-      <section id="panel-nueva" class="card">
-        <p class="gui-intro">
-          Se pide la guía a UPS con los datos del sistema y queda como <b>precarga</b> en
-          <a href="envios.html">Cargar envío</a>: ahí administración la revisa, corrige lo que haga
-          falta y la confirma a Salidas. Hasta entonces no existe como envío.
-        </p>
-        <form id="form-guia" autocomplete="off">
-          <div class="form-grid">
-            <div class="form-group">
-              <label for="g-cliente">Cliente *</label>
-              <select id="g-cliente" required></select>
+      <section id="panel-nueva" class="gui-layout">
+        <form id="form-guia" autocomplete="off" class="gui-pasos">
+
+          <!-- Paso 1: cliente, remitente, servicio -->
+          <div class="gui-paso" data-paso="1">
+            <div class="gui-paso-cab">
+              <span class="gui-num">1</span>
+              <div>
+                <h3>Quién envía</h3>
+                <p>El cliente, el remitente que figura en la guía y el servicio.</p>
+              </div>
             </div>
-            <div class="form-group">
-              <label for="g-fecha">Fecha *</label>
-              <input type="date" id="g-fecha" required>
-            </div>
-            <div class="form-group">
-              <label for="g-servicio">Servicio UPS *</label>
-              <select id="g-servicio" required>
-                <option value="UPS_SAV">Worldwide Saver</option>
-                <option value="UPS_EXP">Worldwide Expedited</option>
-              </select>
-            </div>
-            <div class="form-group gui-check">
-              <label><input type="checkbox" id="g-ddp"> DDP (Nova paga impuestos de destino)</label>
-              <span class="gui-hint">Sin DDP, UPS se los cobra al destinatario.</span>
+            <div class="gui-paso-cuerpo">
+              <div class="form-grid gui-grid-3">
+                <div class="form-group gui-col-2">
+                  <label for="g-cliente">Cliente *</label>
+                  <select id="g-cliente" required></select>
+                </div>
+                <div class="form-group">
+                  <label for="g-fecha">Fecha *</label>
+                  <input type="date" id="g-fecha" required>
+                </div>
+              </div>
+              <div class="gui-dest-row">
+                <div class="form-group gui-dest-sel">
+                  <label for="g-remitente-sel">Remitente</label>
+                  <select id="g-remitente-sel">
+                    <option value="">— Elegí un cliente primero —</option>
+                  </select>
+                </div>
+                <button type="button" class="btn btn-outline btn-sm" id="g-rem-nuevo">+ Nuevo remitente</button>
+                <button type="button" class="btn btn-ghost btn-sm hidden" id="g-rem-editar">Editar</button>
+              </div>
+              <div class="gui-remitente" id="g-remitente"></div>
+              <div class="gui-servicio">
+                <div class="form-group">
+                  <label for="g-servicio">Servicio UPS *</label>
+                  <select id="g-servicio" required>
+                    <option value="UPS_SAV">Worldwide Saver</option>
+                    <option value="UPS_EXP">Worldwide Expedited</option>
+                  </select>
+                </div>
+                <label class="gui-ddp" for="g-ddp">
+                  <input type="checkbox" id="g-ddp">
+                  <span><b>DDP</b> — Nova paga los impuestos de destino<small>Sin DDP, UPS se los cobra al destinatario.</small></span>
+                </label>
+              </div>
             </div>
           </div>
 
-          <h3 class="gui-sub">Remitente</h3>
-          <div class="gui-dest-row">
-            <div class="form-group gui-dest-sel">
-              <label for="g-remitente-sel">Quién envía (la ficha del cliente o un perfil propio)</label>
-              <select id="g-remitente-sel">
-                <option value="">— Elegí un cliente primero —</option>
-              </select>
+          <!-- Paso 2: destinatario -->
+          <div class="gui-paso" data-paso="2">
+            <div class="gui-paso-cab">
+              <span class="gui-num">2</span>
+              <div>
+                <h3>A quién</h3>
+                <p>De la libreta del cliente. Lo que se carga una vez queda para la próxima.</p>
+              </div>
             </div>
-            <button type="button" class="btn btn-secondary btn-sm" id="g-rem-nuevo">+ Nuevo remitente</button>
-            <button type="button" class="btn btn-secondary btn-sm hidden" id="g-rem-editar">Editar</button>
-          </div>
-          <div class="gui-remitente" id="g-remitente"></div>
-
-          <h3 class="gui-sub">Destinatario</h3>
-          <div class="gui-dest-row">
-            <div class="form-group gui-dest-sel">
-              <label for="g-destinatario">De la libreta del cliente *</label>
-              <select id="g-destinatario" required>
-                <option value="">— Elegí un cliente primero —</option>
-              </select>
-            </div>
-            <button type="button" class="btn btn-secondary btn-sm" id="g-dest-nuevo">+ Nuevo destinatario</button>
-            <button type="button" class="btn btn-secondary btn-sm hidden" id="g-dest-editar">Editar</button>
-          </div>
-          <div class="gui-dest-ficha" id="g-dest-ficha"></div>
-
-          <h3 class="gui-sub">Contenido y proforma</h3>
-          <div class="form-grid">
-            <div class="form-group gui-col-2">
-              <label for="g-contenido">Contenido (va en la guía, máx. 50 letras) *</label>
-              <input type="text" id="g-contenido" maxlength="50" required placeholder="Ej: Cueros curtidos">
-            </div>
-            <div class="form-group">
-              <label for="g-proforma">Nº de proforma</label>
-              <input type="text" id="g-proforma" placeholder="Opcional">
+            <div class="gui-paso-cuerpo">
+              <div class="gui-dest-row">
+                <div class="form-group gui-dest-sel">
+                  <label for="g-destinatario">Destinatario *</label>
+                  <select id="g-destinatario" required>
+                    <option value="">— Elegí un cliente primero —</option>
+                  </select>
+                </div>
+                <button type="button" class="btn btn-outline btn-sm" id="g-dest-nuevo">+ Nuevo destinatario</button>
+                <button type="button" class="btn btn-ghost btn-sm hidden" id="g-dest-editar">Editar</button>
+              </div>
+              <div class="gui-dest-ficha" id="g-dest-ficha"></div>
             </div>
           </div>
-          <table class="gui-items" id="g-items">
-            <thead>
-              <tr><th class="n">Cantidad</th><th>Descripción (inglés)</th><th class="n">Valor unitario USD</th><th class="n">Total</th><th></th></tr>
-            </thead>
-            <tbody></tbody>
-            <tfoot>
-              <tr>
-                <td colspan="3" class="n">
-                  <button type="button" class="btn btn-secondary btn-sm" id="g-item-agregar">+ Renglón</button>
-                  &nbsp; TOTAL USD (= valor declarado / FOB)
-                </td>
-                <td class="n" id="g-items-total">0.00</td>
-                <td></td>
-              </tr>
-            </tfoot>
-          </table>
 
-          <h3 class="gui-sub">Bultos</h3>
-          <table class="gui-bultos" id="g-bultos">
-            <thead>
-              <tr><th>#</th><th>Peso (kg) *</th><th>Largo</th><th>Ancho</th><th>Alto</th><th></th></tr>
-            </thead>
-            <tbody></tbody>
-            <tfoot>
-              <tr><td colspan="6"><button type="button" class="btn btn-secondary btn-sm" id="g-bulto-agregar">+ Bulto</button> <span class="gui-hint">Medidas en cm. Sin medidas, UPS cobra por peso real.</span></td></tr>
-            </tfoot>
-          </table>
+          <!-- Paso 3: contenido y proforma -->
+          <div class="gui-paso" data-paso="3">
+            <div class="gui-paso-cab">
+              <span class="gui-num">3</span>
+              <div>
+                <h3>Qué va</h3>
+                <p>El contenido para la guía y los renglones de la proforma. El total es el valor declarado.</p>
+              </div>
+            </div>
+            <div class="gui-paso-cuerpo">
+              <div class="form-grid gui-grid-3">
+                <div class="form-group gui-col-2">
+                  <label for="g-contenido">Contenido (va en la guía, máx. 50 letras) *</label>
+                  <input type="text" id="g-contenido" maxlength="50" required placeholder="Ej: Cueros curtidos">
+                </div>
+                <div class="form-group">
+                  <label for="g-proforma">Nº de proforma</label>
+                  <input type="text" id="g-proforma" placeholder="Opcional">
+                </div>
+              </div>
+              <table class="gui-items" id="g-items">
+                <thead>
+                  <tr><th class="n">Cantidad</th><th>Descripción (inglés)</th><th class="n">Valor unitario USD</th><th class="n">Total</th><th></th></tr>
+                </thead>
+                <tbody></tbody>
+                <tfoot>
+                  <tr>
+                    <td colspan="2"><button type="button" class="btn btn-ghost btn-sm" id="g-item-agregar">+ Agregar renglón</button></td>
+                    <td class="n gui-total-label">TOTAL USD · valor declarado</td>
+                    <td class="n" id="g-items-total">0.00</td>
+                    <td></td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
 
-          <div class="form-group">
-            <label for="g-observaciones">Observaciones (quedan en el envío)</label>
-            <input type="text" id="g-observaciones">
+          <!-- Paso 4: bultos -->
+          <div class="gui-paso" data-paso="4">
+            <div class="gui-paso-cab">
+              <span class="gui-num">4</span>
+              <div>
+                <h3>Bultos</h3>
+                <p>Peso obligatorio; medidas en cm si las tenés. Sin medidas, UPS cobra por peso real.</p>
+              </div>
+            </div>
+            <div class="gui-paso-cuerpo">
+              <table class="gui-bultos" id="g-bultos">
+                <thead>
+                  <tr><th>#</th><th>Peso (kg) *</th><th>Largo</th><th>Ancho</th><th>Alto</th><th></th></tr>
+                </thead>
+                <tbody></tbody>
+                <tfoot>
+                  <tr><td colspan="6"><button type="button" class="btn btn-ghost btn-sm" id="g-bulto-agregar">+ Agregar bulto</button></td></tr>
+                </tfoot>
+              </table>
+              <div class="form-group gui-obs">
+                <label for="g-observaciones">Observaciones (quedan en el envío)</label>
+                <input type="text" id="g-observaciones" placeholder="Opcional">
+              </div>
+            </div>
           </div>
 
           <div class="gui-errores hidden" id="g-errores"></div>
-
-          <div class="actions">
-            <button type="submit" class="btn btn-primary" id="g-emitir">Pedir guía a UPS</button>
-            <span class="gui-hint" id="g-estado"></span>
-          </div>
         </form>
+
+        <!-- Resumen lateral + botón -->
+        <aside class="gui-lateral">
+          <div class="gui-resumen">
+            <h3>Resumen</h3>
+            <dl id="g-resumen">
+              <dt>Cliente</dt><dd data-r="cliente">—</dd>
+              <dt>Remitente</dt><dd data-r="remitente">—</dd>
+              <dt>Destino</dt><dd data-r="destino">—</dd>
+              <dt>Servicio</dt><dd data-r="servicio">Worldwide Saver</dd>
+              <dt>Bultos</dt><dd data-r="bultos">—</dd>
+              <dt>Valor declarado</dt><dd data-r="fob">US$ 0.00</dd>
+            </dl>
+            <button type="submit" form="form-guia" class="btn btn-emitir" id="g-emitir">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/><line x1="13" y1="8" x2="13" y2="16"/><line x1="17" y1="8" x2="17" y2="16"/></svg>
+              Pedir guía a UPS
+            </button>
+            <span class="gui-hint gui-estado-txt" id="g-estado"></span>
+            <p class="gui-resumen-pie">
+              La guía queda como <b>precarga</b>: administración la revisa y la confirma a Salidas
+              desde <a href="envios.html">Cargar envío</a>.
+            </p>
+          </div>
+        </aside>
       </section>
 
       <!-- ── Resultado de la emisión ────────────────────────────────────────── -->
-      <section id="panel-resultado" class="card hidden">
-        <h2>Guía emitida</h2>
+      <section id="panel-resultado" class="gui-resultado-card hidden">
+        <div class="gui-resultado-cab">
+          <span class="gui-ok">✓</span>
+          <h2>Guía emitida</h2>
+        </div>
         <div class="gui-resultado" id="gui-resultado"></div>
         <div class="actions">
-          <button type="button" class="btn btn-primary" id="gui-otra">Otra guía</button>
+          <button type="button" class="btn btn-primary" id="gui-otra">+ Otra guía</button>
+          <button type="button" class="btn btn-ghost" id="gui-ver-lista">Ver guías del día</button>
         </div>
       </section>
 
       <!-- ── Listado ─────────────────────────────────────────────────────────── -->
-      <section id="panel-listado" class="card hidden">
+      <section id="panel-listado" class="card gui-listado hidden">
         <div class="filters">
           <div class="form-group">
             <label for="gui-f-fecha">Fecha</label>
@@ -241,8 +302,8 @@
           <table id="gui-tabla">
             <thead>
               <tr>
-                <th>Fecha</th><th>Guía</th><th>Cliente</th><th>Destinatario</th><th>Servicio</th>
-                <th class="n">Bultos</th><th class="n">Kg</th><th class="n">FOB</th><th>Estado</th><th>Documentos</th><th></th>
+                <th>Fecha</th><th>Guía</th><th>Cliente</th><th>Destinatario</th>
+                <th class="n">Bultos</th><th class="n">FOB</th><th>Estado</th><th>Documentos</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -374,10 +435,10 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260908a"></script>
-<script src="../js/api.js?v=20260908a"></script>
-<script src="../js/main.js?v=20260908a"></script>
-<script src="/shared/cotizador/cotizador-core.js?v=20260908a"></script>
-<script src="../js/modules/guias.js?v=20260908a"></script>
+<script src="/js/auth-guard.js?v=20260908b"></script>
+<script src="../js/api.js?v=20260908b"></script>
+<script src="../js/main.js?v=20260908b"></script>
+<script src="/shared/cotizador/cotizador-core.js?v=20260908b"></script>
+<script src="../js/modules/guias.js?v=20260908b"></script>
 </body>
 </html>

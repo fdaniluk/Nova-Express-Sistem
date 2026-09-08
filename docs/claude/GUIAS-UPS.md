@@ -352,6 +352,16 @@ en la Etapa 0 antes de darlos por buenos.
   cliente)"), "+ Nuevo remitente" y "Editar" (solo para perfiles; la ficha se edita en el
   cliente). En el listado y en Cargar envío la guía muestra "rem. X" cuando no es la ficha.
 
+- **Estética (Felipe, 08/09 tarde: "armalo lindo y llevadero").** La pantalla Guías quedó
+  en cuatro pasos numerados en tarjetas ("Quién envía", "A quién", "Qué va", "Bultos") con
+  un **resumen fijo a la derecha** que se va llenando (cliente, remitente, destino,
+  servicio, bultos, valor declarado) y el botón coral **Pedir guía a UPS** debajo. DDP es
+  una tarjeta tildable; los botones "+ Nuevo" son de borde azul y los "+ Agregar" de borde
+  punteado. El resultado es una tarjeta verde con el número grande y tres botones de
+  documento (térmica en azul, A4 blanco, proforma verde). El listado quedó en 8 columnas
+  (guía con servicio debajo, bultos "N × kg", documentos como chips) para entrar sin
+  scroll horizontal. Todo en `css/modules/guias.css`; los ids no cambiaron.
+
 ### Tandas
 `test-guias-datos.js` (44 checks, puerto 3935: cliente con teléfono/provincia, libreta,
 envío con destinatario/contenido/items, proforma JSON y HTML, borrado en blando) y
