@@ -83,7 +83,7 @@ async function main() {
 
   r = await post('/api/guias', { cliente_id: cliPelado.id, destinatario_id: dUS.id, servicio: 'UPS_SAV', contenido: 'Cueros', bultos: [{ peso_real: 2 }] });
   e = await j(r);
-  check('cliente sin dirección / destinatario ajeno → 400', r.status === 400 && e.errores.some((x) => /recolección/i.test(x)) && e.errores.some((x) => /no es de ese cliente/i.test(x)), JSON.stringify(e.errores));
+  check('cliente sin dirección / destinatario ajeno → 400', r.status === 400 && e.errores.some((x) => /El cliente no tiene dirección/i.test(x)) && e.errores.some((x) => /no es de ese cliente/i.test(x)), JSON.stringify(e.errores));
 
   const dXX = await j(await post(`/api/clientes/${cli.id}/destinatarios`, { nombre: 'RARO', direccion1: 'x', ciudad: 'y', pais: 'Atlántida', telefono: '123' }));
   r = await post('/api/guias', { cliente_id: cli.id, destinatario_id: dXX.id, servicio: 'UPS_SAV', contenido: 'Cueros', bultos: [{ peso_real: 2 }] });
@@ -194,6 +194,57 @@ async function main() {
   check('GET /guias?fecha= filtra por fecha', listaFecha.length === 1 && listaFecha[0].id === g.id, String(listaFecha.length));
   await new Promise((res) => dbRaw.close(() => res()));
 
+  console.log('\n6-bis. Perfiles de remitente por cliente (pedido de Felipe, 08/09)\n');
+  let rems = await j(await get(`/api/clientes/${cli.id}/remitentes`));
+  check('GET /clientes/:id/remitentes → la ficha del cliente primero (id null, principal)', rems.length === 1 && rems[0].principal === true && rems[0].id === null && rems[0].nombre === 'CUEROS TEST SA' && rems[0].direccion === 'Calle Falsa 123' && rems[0].ciudad === 'Bella Vista', JSON.stringify(rems));
+  r = await post(`/api/clientes/${cli.id}/remitentes`, { nombre: '' });
+  check('sin nombre → 400', r.status === 400);
+  r = await post(`/api/clientes/${cli.id}/remitentes`, {
+    nombre: 'CUEROS DEL SUR SRL', cuit: '30-33333333-1', direccion: 'Ruta 8 km 40', codigo_postal: '1663',
+    ciudad: 'Muñiz', provincia: 'Buenos Aires', telefono: '11 4222 3333', contacto: 'Laura', email: 'laura@sur.test',
+  });
+  const rem = await j(r);
+  check('POST crea un perfil completo → 201', r.status === 201 && rem.id > 0 && rem.principal === false && rem.cuit === '30-33333333-1', JSON.stringify(rem));
+  rems = await j(await get(`/api/clientes/${cli.id}/remitentes`));
+  check('  la lista trae la ficha + el perfil', rems.length === 2 && rems[1].id === rem.id);
+  const rem2 = await j(await put(`/api/clientes/${cli.id}/remitentes/${rem.id}`, { telefono: '11 4999 0000' }));
+  check('PUT parcial conserva el resto', rem2.telefono === '11 4999 0000' && rem2.direccion === 'Ruta 8 km 40');
+  r = await put(`/api/clientes/${cliPelado.id}/remitentes/${rem.id}`, { nombre: 'HACK' });
+  check('otro cliente no puede editarlo → 404', r.status === 404, String(r.status));
+
+  // Guía con el perfil: ShipFrom y proforma salen con el perfil, no con la ficha.
+  r = await post('/api/guias', {
+    cliente_id: cli.id, destinatario_id: dGB.id, remitente_id: rem.id, servicio: 'UPS_SAV', contenido: 'Cueros', fecha: '2026-09-06',
+    items: [{ cantidad: 1, descripcion: 'Hides', valor_unitario: 90 }], bultos: [{ peso_real: 2 }],
+  });
+  const gR = await j(r);
+  check('guía con remitente_id → 201 y lo devuelve', r.status === 201 && gR.remitente_id === rem.id && gR.remitente_nombre === 'CUEROS DEL SUR SRL', JSON.stringify(gR).slice(0, 200));
+  const filaR = await new Promise((res, rej) => { const d2 = new sqlite3.Database(DB); d2.get('SELECT request_json FROM guias WHERE id = ?', [gR.id], (e2, row) => { d2.close(); e2 ? rej(e2) : res(row); }); });
+  const reqR = JSON.parse(filaR.request_json).ShipmentRequest;
+  check('  ShipFrom = el perfil (nombre, dirección, CP, teléfono)', reqR.Shipment.ShipFrom.Name === 'CUEROS DEL SUR SRL' && reqR.Shipment.ShipFrom.Address.AddressLine[0] === 'Ruta 8 km 40' && reqR.Shipment.ShipFrom.Address.PostalCode === '1663' && reqR.Shipment.ShipFrom.Phone.Number === '1149990000', JSON.stringify(reqR.Shipment.ShipFrom));
+  const pR = await j(await get(`/api/guias/${gR.id}/proforma`));
+  check('  la proforma sale con el perfil como Shipper y Manufacturer', pR.shipper.nombre === 'CUEROS DEL SUR SRL' && pR.shipper.cuit === '30-33333333-1' && pR.shipper.ciudad === 'Muñiz' && pR.manufacturer.cuit === '30-33333333-1', JSON.stringify(pR.shipper));
+  const pendR = await j(await get('/api/guias/pendientes'));
+  check('  la precarga lleva remitente_id al alta', pendR.length === 1 && pendR[0].envio.remitente_id === rem.id);
+  r = await post('/api/envios', { ...pendR[0].envio, total_cobrado: 100, fuel_pct: 39 });
+  const envR = await j(r);
+  check('  confirmada: el envío guarda el remitente y lo devuelve', r.status === 201 && envR.remitente_id === rem.id && envR.remitente?.nombre === 'CUEROS DEL SUR SRL', JSON.stringify({ s: r.status, r: envR.remitente_id }));
+  const pE = await j(await get(`/api/envios/${envR.id}/proforma`));
+  check('  la proforma del envío también', pE.shipper.nombre === 'CUEROS DEL SUR SRL');
+  r = await post('/api/guias', { cliente_id: cli.id, destinatario_id: dGB.id, remitente_id: 999999, servicio: 'UPS_SAV', contenido: 'Cueros', bultos: [{ peso_real: 2 }] });
+  e = await j(r);
+  check('remitente ajeno/inexistente → 400', r.status === 400 && e.errores.some((x) => /remitente elegido no es/i.test(x)), JSON.stringify(e.errores));
+  r = await post(`/api/clientes/${cli.id}/remitentes`, { nombre: 'SIN DIRECCION SA' });
+  const remVacio = await j(r);
+  r = await post('/api/guias', { cliente_id: cli.id, destinatario_id: dGB.id, remitente_id: remVacio.id, servicio: 'UPS_SAV', contenido: 'Cueros', bultos: [{ peso_real: 2 }] });
+  e = await j(r);
+  check('perfil sin dirección → 400 y nombra al remitente', r.status === 400 && e.errores.some((x) => /SIN DIRECCION SA.*dirección/i.test(x)), JSON.stringify(e.errores));
+  r = await fetch(BASE + `/api/clientes/${cli.id}/remitentes/${remVacio.id}`, { method: 'DELETE', headers: H });
+  rems = await j(await get(`/api/clientes/${cli.id}/remitentes`));
+  check('DELETE lo saca en blando (sigue con ?todos=1)', r.status === 200 && rems.length === 2 && (await j(await get(`/api/clientes/${cli.id}/remitentes?todos=1`))).length === 3);
+  const envMix = await j(await put(`/api/envios/${envR.id}`, { remitente_id: null }));
+  check('PUT /envios con remitente_id null vuelve a la ficha del cliente', envMix.remitente_id === null && envMix.remitente === null);
+
   console.log('\n7. Pantallas: Guías (emitir) y Cargar envío (precarga → confirmar)\n');
   let chromium = null;
   try { ({ chromium } = require('playwright')); } catch { chromium = null; }
@@ -218,6 +269,21 @@ async function main() {
     await page.selectOption('#g-cliente', String(cli.id));
     await esperar(500);
     check('  al elegir cliente muestra el remitente y la libreta', await page.evaluate(() => /CUEROS TEST SA/.test(document.getElementById('g-remitente').textContent) && document.querySelectorAll('#g-destinatario option').length >= 3));
+    check('  el selector de remitente tiene la ficha + el perfil', await page.evaluate(() => {
+      const o = [...document.querySelectorAll('#g-remitente-sel option')].map((x) => x.textContent);
+      return o.length === 2 && /ficha del cliente/.test(o[0]) && /CUEROS DEL SUR/.test(o[1]);
+    }), await page.evaluate(() => [...document.querySelectorAll('#g-remitente-sel option')].map((x) => x.textContent).join(' | ')));
+    await page.click('#g-rem-nuevo');
+    await page.fill('#r-nombre', 'TERCER PERFIL SA');
+    await page.fill('#r-direccion', 'Av. Siempreviva 742');
+    await page.fill('#r-cp', '1661');
+    await page.fill('#r-ciudad', 'Bella Vista');
+    await page.click('#modal-rem-guardar');
+    await esperar(600);
+    check('  el modal crea un perfil de remitente y lo deja elegido', await page.evaluate(() => document.getElementById('modal-rem').classList.contains('hidden') && /TERCER PERFIL SA/.test(document.getElementById('g-remitente').textContent) && !document.getElementById('g-rem-editar').classList.contains('hidden')), await page.evaluate(() => document.getElementById('g-remitente').textContent));
+    await page.selectOption('#g-remitente-sel', '');
+    await esperar(100);
+    check('  volver a la ficha esconde Editar', await page.evaluate(() => /CUEROS TEST SA/.test(document.getElementById('g-remitente').textContent) && document.getElementById('g-rem-editar').classList.contains('hidden')));
     await page.selectOption('#g-destinatario', String(dGB.id));
     await esperar(200);
     check('  la ficha del destinatario se ve', await page.evaluate(() => /LONDON LEATHER/.test(document.getElementById('g-dest-ficha').textContent)));

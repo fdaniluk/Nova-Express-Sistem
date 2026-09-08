@@ -245,6 +245,7 @@ CREATE TABLE IF NOT EXISTS envios (
   contenido            TEXT,
   proforma_numero      TEXT,
   guia_id              INTEGER,
+  remitente_id         INTEGER,
   FOREIGN KEY (cliente_id) REFERENCES clientes(id),
   FOREIGN KEY (liquidacion_id) REFERENCES liquidaciones(id)
 );
@@ -375,10 +376,32 @@ CREATE TABLE IF NOT EXISTS guias (
   nota             TEXT,
   created_at       TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
   updated_at       TEXT,
-  anulada_at       TEXT
+  anulada_at       TEXT,
+  remitente_id     INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_guias_estado ON guias(estado, fecha);
 CREATE INDEX IF NOT EXISTS idx_guias_numero ON guias(numero_guia);
+
+-- Perfiles de remitente por cliente (08/09/2026): algunos clientes despachan con otro
+-- nombre/CUIT/dirección según el envío. El "principal" es la ficha del cliente (no se
+-- duplica); estos son los otros, completos. remitente_id NULL en guias/envios = la ficha.
+CREATE TABLE IF NOT EXISTS remitentes (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  cliente_id     INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+  nombre         TEXT NOT NULL,
+  cuit           TEXT,
+  direccion      TEXT,
+  codigo_postal  TEXT,
+  ciudad         TEXT,
+  provincia      TEXT,
+  telefono       TEXT,
+  contacto       TEXT,
+  email          TEXT,
+  activo         INTEGER NOT NULL DEFAULT 1,
+  ultimo_uso     TEXT,
+  created_at     TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_remitentes_cliente ON remitentes(cliente_id, activo);
 
 -- Pickups / retiros
 CREATE TABLE IF NOT EXISTS pickups (

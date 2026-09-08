@@ -323,7 +323,9 @@ Colores Nova `#403754`/`#EE6C52`.
   proforma_numero/guia_id`. `ups-shipping.service.js` (entorno por
   `UPS_SHIPPING_ENTORNO`, test por default; remitente Nova por `UPS_SHIPPER_*` del .env),
   `guias.model.js`, `guias.routes.js`, `proforma.service.js`, `utils/paisesIso.js`.
-  Tandas `test-guias-datos` (44, puerto 3935) y `test-guias-emision` (63, puerto 3933,
+  **Perfiles de remitente por cliente** (tabla `remitentes`; la ficha del cliente es el
+  principal; `remitente_id` en guías y envíos): pedido de Felipe esa misma tarde.
+  Tandas `test-guias-datos` (44, puerto 3935) y `test-guias-emision` (82, puerto 3933,
   `UPS_SHIPPING_MOCK=1`). Cache **`?v=20260908a`**. **69 tandas (72 archivos).** Todo el
   detalle, lo que se le manda a UPS y lo que falta: `GUIAS-UPS.md` sección 7.
   **El verificar completo del 08/09 (69 tandas, 8,3 min) destapó dos cosas del paquete del

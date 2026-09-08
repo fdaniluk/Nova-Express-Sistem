@@ -16,7 +16,7 @@ mismo día: **`0e1971e`** (columnas fijas: cualquier columna — **pusheado y DE
 proforma, según LA REGLA de Felipe con administración (`GUIAS-UPS.md` 3-bis y §7).
 Commiteado, **pendiente de: tandas en la máquina de Felipe, `.env` con `UPS_SHIPPER_*`,
 prueba contra UPS de test, push y deploy.** Tandas `test-guias-datos` (44) y
-`test-guias-emision` (63). Cache **`?v=20260908a`**. **69 tandas (72 archivos).**
+`test-guias-emision` (82). Incluye los **perfiles de remitente por cliente** (tarde). Cache **`?v=20260908a`**. **69 tandas (72 archivos).**
 
 ---
 

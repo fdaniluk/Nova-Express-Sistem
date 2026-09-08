@@ -339,14 +339,29 @@ en la Etapa 0 antes de darlos por buenos.
   tracking sigue con `UPS_API_BASE` (prod) como siempre. `UPS_SHIPPING_MOCK=1` (solo
   tests) no llama a UPS.
 
+- **Perfiles de remitente por cliente (Felipe, 08/09: "hay clientes que cambian el nombre
+  o algo de quien envía; todo tiene que poder cargarse un perfil totalmente nuevo").**
+  Tabla `remitentes` (nombre, CUIT, dirección, CP, ciudad, provincia, teléfono, contacto,
+  mail; borrado en blando). El perfil **principal es la ficha del cliente** y no se
+  duplica: `GET /api/clientes/:id/remitentes` devuelve primero la ficha (`id: null,
+  principal: true`) y después los perfiles; `POST/PUT/DELETE .../remitentes/:remId`.
+  `remitentes.model.resolver(cliente, remitente_id)` da la forma única que usan la guía
+  (ShipFrom), la proforma (Shipper y Manufacturer) y las validaciones. `guias.remitente_id`
+  y `envios.remitente_id` (NULL = la ficha) viajan con la precarga al alta del envío. En
+  la pantalla Guías: bloque "Remitente" con selector (la ficha marcada "(ficha del
+  cliente)"), "+ Nuevo remitente" y "Editar" (solo para perfiles; la ficha se edita en el
+  cliente). En el listado y en Cargar envío la guía muestra "rem. X" cuando no es la ficha.
+
 ### Tandas
 `test-guias-datos.js` (44 checks, puerto 3935: cliente con teléfono/provincia, libreta,
 envío con destinatario/contenido/items, proforma JSON y HTML, borrado en blando) y
-`test-guias-emision.js` (63 checks, puerto 3933, con `UPS_SHIPPING_MOCK=1`: validaciones
+`test-guias-emision.js` (82 checks, puerto 3933, con `UPS_SHIPPING_MOCK=1`: validaciones
 sin llamar a UPS, emisión y lo que se manda — servicio, ShipTo, cargos con y sin DDP,
 paquetes —, etiqueta GIF/HTML, proforma de la guía, la precarga NO es envío, editar,
-confirmar por `POST /envios` con `guia_id`, doble confirmación, anular; pantalla: Guías
-emite con el modal de destinatario y Cargar envío confirma la precarga). Las dos en
+confirmar por `POST /envios` con `guia_id`, doble confirmación, anular; perfiles de
+remitente: alta/edición/borrado, guía y proforma con el perfil, precarga y envío con
+`remitente_id`; pantalla: Guías emite con los modales de destinatario y remitente y
+Cargar envío confirma la precarga). Las dos en
 `npm test` (69 tandas).
 
 ### Lo que falta (en orden)
@@ -360,5 +375,6 @@ emite con el modal de destinatario y Cargar envío confirma la precarga). Las do
 3. Preguntar: ¿el **Nº de proforma** lo pone la oficina (correlativo propio, ej.
    79122210) o lo numera el sistema? Hoy es un campo libre. ¿En la guía UPS el Shipper
    tiene que ser Nova (cuenta) o el cliente? Hoy Shipper = Nova, ShipFrom = cliente.
-4. Etapa 3: paperless (subir la proforma a UPS), repetir último envío, impo por la
+4. ✅ Perfiles de remitente por cliente (hecho el 08/09, ver arriba).
+5. Etapa 3: paperless (subir la proforma a UPS), repetir último envío, impo por la
    misma vía (cuenta 3R6A45), DHL cuando haya API.

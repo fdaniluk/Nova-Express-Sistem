@@ -11,6 +11,7 @@
 // renderHtml() arma la hoja A4 lista para imprimir desde el navegador.
 const { getDb } = require('../db');
 const { normalizarDestino } = require('../utils/paises');
+const remitentesModel = require('./../models/remitentes.model');
 
 function redondear2(n) {
   return Math.round((Number(n) || 0) * 100) / 100;
@@ -41,7 +42,8 @@ const CLIENTE_SQL = `SELECT id, nombre, nombre_nova, cuit, direccion_recoleccion
  * "envío a precargar" de una guía (mismos campos: fecha, numero_guia, courier, ddp,
  * cantidad_bultos, peso_real, fob, contenido, tipo_paquete, pais_destino, proforma_numero).
  */
-function armar({ envio, cliente, destinatario, items, origen }) {
+// `remitente` (opcional): perfil de la libreta de remitentes; si no viene, la ficha del cliente.
+function armar({ envio, cliente, remitente, destinatario, items, origen }) {
   const renglones = renglonesDe(envio, items).map((it) => ({
     cantidad: Number(it.cantidad) || 0,
     descripcion: it.descripcion,
@@ -50,17 +52,18 @@ function armar({ envio, cliente, destinatario, items, origen }) {
   }));
   const total = redondear2(renglones.reduce((s, r) => s + r.total, 0));
 
+  const rem = remitente || remitentesModel.desdeCliente(cliente);
   const shipper = {
-    nombre: cliente.nombre,
-    cuit: cliente.cuit || '',
-    direccion: cliente.direccion_recoleccion || '',
-    codigo_postal: cliente.codigo_postal || '',
-    ciudad: cliente.localidad || '',
-    provincia: cliente.provincia || '',
+    nombre: rem.nombre,
+    cuit: rem.cuit || '',
+    direccion: rem.direccion || '',
+    codigo_postal: rem.codigo_postal || '',
+    ciudad: rem.ciudad || '',
+    provincia: rem.provincia || '',
     pais: 'ARGENTINA',
-    telefono: cliente.telefono || '',
-    contacto: cliente.contacto || '',
-    email: cliente.email || '',
+    telefono: rem.telefono || '',
+    contacto: rem.contacto || '',
+    email: rem.email || '',
   };
 
   const paisDestino = destinatario?.pais || normalizarDestino(envio.pais_destino)?.destino || envio.pais_destino || '';
@@ -116,7 +119,8 @@ async function armarProforma(envioId) {
   const items = await db
     .prepare('SELECT orden, cantidad, descripcion, valor_unitario FROM envio_items WHERE envio_id = ? ORDER BY orden, id')
     .all(envioId);
-  return armar({ envio, cliente, destinatario, items, origen: { envio_id: envio.id } });
+  const remitente = envio.remitente_id ? await db.prepare('SELECT * FROM remitentes WHERE id = ?').get(envio.remitente_id) : null;
+  return armar({ envio, cliente, remitente, destinatario, items, origen: { envio_id: envio.id } });
 }
 
 // La misma hoja para una guía emitida desde el módulo Guías (precarga todavía sin envío).
@@ -145,7 +149,8 @@ async function armarProformaGuia(guiaId) {
     pais_destino: datos.pais_destino,
     proforma_numero: g.proforma_numero,
   };
-  return armar({ envio, cliente, destinatario, items, origen: { guia_id: g.id, envio_id: g.envio_id || null } });
+  const remitente = g.remitente_id ? await db.prepare('SELECT * FROM remitentes WHERE id = ?').get(g.remitente_id) : null;
+  return armar({ envio, cliente, remitente, destinatario, items, origen: { guia_id: g.id, envio_id: g.envio_id || null } });
 }
 
 function esc(s) {

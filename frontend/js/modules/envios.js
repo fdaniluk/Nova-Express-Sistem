@@ -60,7 +60,7 @@
       <div class="precargas-row${precargaActual && precargaActual.id === g.id ? ' activa' : ''}" data-guia="${g.id}">
         <span>${esc(NovaUtils.formatDate(g.fecha))}</span>
         <span class="guia">${esc(g.numero_guia || '—')}${g.entorno === 'test' ? '<span class="precargas-test">prueba</span>' : ''}</span>
-        <span><b>${esc(g.cliente_nombre)}</b> → ${esc(g.destinatario_nombre || '')}, ${esc([g.destinatario_ciudad, g.destinatario_pais].filter(Boolean).join(', '))}
+        <span><b>${esc(g.cliente_nombre)}</b>${g.remitente_nombre ? ` (rem. ${esc(g.remitente_nombre)})` : ''} → ${esc(g.destinatario_nombre || '')}, ${esc([g.destinatario_ciudad, g.destinatario_pais].filter(Boolean).join(', '))}
           · ${g.bultos.length} bulto(s) · ${esc(g.peso_real)} kg · FOB ${esc(g.fob)}${g.ddp ? ' · DDP' : ''}</span>
         <span class="docs">
           <a href="${NovaAPI.guias.etiquetaUrl(g.id, 'a4')}" target="_blank" rel="noopener">Etiqueta</a>
@@ -747,6 +747,7 @@
         const e = precargaActual.envio;
         data.guia_id = precargaActual.id;
         data.destinatario_id = e.destinatario_id;
+        data.remitente_id = e.remitente_id || null;
         data.contenido = e.contenido;
         data.proforma_numero = e.proforma_numero;
         data.items = e.items;

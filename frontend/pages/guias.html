@@ -128,6 +128,17 @@
             </div>
           </div>
 
+          <h3 class="gui-sub">Remitente</h3>
+          <div class="gui-dest-row">
+            <div class="form-group gui-dest-sel">
+              <label for="g-remitente-sel">Quién envía (la ficha del cliente o un perfil propio)</label>
+              <select id="g-remitente-sel">
+                <option value="">— Elegí un cliente primero —</option>
+              </select>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm" id="g-rem-nuevo">+ Nuevo remitente</button>
+            <button type="button" class="btn btn-secondary btn-sm hidden" id="g-rem-editar">Editar</button>
+          </div>
           <div class="gui-remitente" id="g-remitente"></div>
 
           <h3 class="gui-sub">Destinatario</h3>
@@ -302,6 +313,63 @@
       <button class="btn btn-danger btn-sm hidden" id="modal-dest-borrar">Sacar de la libreta</button>
       <button class="btn btn-secondary" id="modal-dest-cancelar">Cancelar</button>
       <button class="btn btn-primary" id="modal-dest-guardar">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal remitente (nuevo / editar perfil) -->
+<div class="modal-overlay hidden" id="modal-rem">
+  <div class="modal-box gui-modal">
+    <div class="modal-header">
+      <h2 id="modal-rem-title">Nuevo remitente</h2>
+      <button class="modal-close" id="modal-rem-close">✕</button>
+    </div>
+    <div class="modal-body">
+      <p class="gui-hint">Un perfil completo: todo lo que figura acá va a la guía y a la proforma en lugar de la ficha del cliente.</p>
+      <div class="form-grid">
+        <div class="form-group gui-col-2">
+          <label for="r-nombre">Nombre / razón social *</label>
+          <input type="text" id="r-nombre" maxlength="60">
+        </div>
+        <div class="form-group">
+          <label for="r-cuit">CUIT / CUIL</label>
+          <input type="text" id="r-cuit" maxlength="20">
+        </div>
+        <div class="form-group gui-col-2">
+          <label for="r-direccion">Dirección *</label>
+          <input type="text" id="r-direccion" maxlength="60">
+        </div>
+        <div class="form-group">
+          <label for="r-cp">Código postal *</label>
+          <input type="text" id="r-cp" maxlength="9">
+        </div>
+        <div class="form-group">
+          <label for="r-ciudad">Localidad *</label>
+          <input type="text" id="r-ciudad" maxlength="30">
+        </div>
+        <div class="form-group">
+          <label for="r-provincia">Provincia</label>
+          <input type="text" id="r-provincia" maxlength="30">
+        </div>
+        <div class="form-group">
+          <label for="r-telefono">Teléfono</label>
+          <input type="text" id="r-telefono" maxlength="20">
+        </div>
+        <div class="form-group">
+          <label for="r-contacto">Contacto</label>
+          <input type="text" id="r-contacto" maxlength="35">
+        </div>
+        <div class="form-group gui-col-2">
+          <label for="r-email">E-mail</label>
+          <input type="text" id="r-email" maxlength="50">
+        </div>
+      </div>
+      <div class="gui-errores hidden" id="r-errores"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-danger btn-sm hidden" id="modal-rem-borrar">Sacar de la libreta</button>
+      <button class="btn btn-secondary" id="modal-rem-cancelar">Cancelar</button>
+      <button class="btn btn-primary" id="modal-rem-guardar">Guardar</button>
     </div>
   </div>
 </div>

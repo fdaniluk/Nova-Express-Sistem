@@ -93,14 +93,18 @@ function soloDigitos(s) {
 }
 
 /** Devuelve la lista de problemas que impiden pedir la guía (vacía si está todo). */
-function validar({ cliente, destinatario, bultos, servicio, contenido }) {
+// `remitente` es la forma única de remitentes.model.resolver(): la ficha del cliente o
+// un perfil de la libreta de remitentes.
+function validar({ cliente, remitente, destinatario, bultos, servicio, contenido }) {
   const faltan = [];
   if (!SERVICIO_CODIGO[servicio]) faltan.push('Elegí el servicio (Saver o Expedited)');
   if (!cliente) faltan.push('Falta el cliente');
+  else if (!remitente) faltan.push('El remitente elegido no es de ese cliente');
   else {
-    if (!cliente.direccion_recoleccion) faltan.push('El cliente no tiene dirección de recolección cargada');
-    if (!cliente.localidad) faltan.push('El cliente no tiene localidad cargada');
-    if (!cliente.codigo_postal) faltan.push('El cliente no tiene código postal cargado');
+    const quien = remitente.principal ? 'El cliente' : `El remitente "${remitente.nombre}"`;
+    if (!remitente.direccion) faltan.push(`${quien} no tiene dirección cargada`);
+    if (!remitente.ciudad) faltan.push(`${quien} no tiene localidad cargada`);
+    if (!remitente.codigo_postal) faltan.push(`${quien} no tiene código postal cargado`);
   }
   if (!destinatario) faltan.push('Falta el destinatario');
   else {
@@ -126,7 +130,7 @@ function validar({ cliente, destinatario, bultos, servicio, contenido }) {
   return faltan;
 }
 
-function armarPedido({ cliente, destinatario, bultos, servicio, ddp, contenido, fob, referencia }) {
+function armarPedido({ remitente, destinatario, bultos, servicio, ddp, contenido, fob, referencia }) {
   const nova = shipperNova();
   const cuenta = cuentaExpo();
   const iso = isoDePais(destinatario.pais);
@@ -174,14 +178,14 @@ function armarPedido({ cliente, destinatario, bultos, servicio, ddp, contenido, 
         },
         ShipTo: shipTo,
         ShipFrom: {
-          Name: recortar(cliente.nombre, 35),
-          AttentionName: recortar(cliente.contacto || cliente.nombre, 35),
-          Phone: { Number: soloDigitos(cliente.telefono || cliente.whatsapp || nova.telefono).slice(0, 15) },
+          Name: recortar(remitente.nombre, 35),
+          AttentionName: recortar(remitente.contacto || remitente.nombre, 35),
+          Phone: { Number: soloDigitos(remitente.telefono || nova.telefono).slice(0, 15) },
           Address: {
-            AddressLine: [recortar(cliente.direccion_recoleccion, 35)],
-            City: recortar(cliente.localidad, 30),
+            AddressLine: [recortar(remitente.direccion, 35)],
+            City: recortar(remitente.ciudad, 30),
             StateProvinceCode: nova.provincia,
-            PostalCode: recortar(cliente.codigo_postal, 9),
+            PostalCode: recortar(remitente.codigo_postal, 9),
             CountryCode: 'AR',
           },
         },

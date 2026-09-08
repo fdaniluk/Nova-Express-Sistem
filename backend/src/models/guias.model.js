@@ -7,17 +7,20 @@
 const { getDb } = require('../db');
 const ups = require('../services/ups-shipping.service');
 const { hoyLocal } = require('../utils/fecha');
+const remitentes = require('./remitentes.model');
 
 const SIN_BLOBS = `g.id, g.cliente_id, g.destinatario_id, g.fecha, g.courier, g.servicio, g.cuenta, g.entorno,
   g.numero_guia, g.estado, g.ddp, g.fob, g.contenido, g.proforma_numero, g.datos_json, g.cargo_ups,
-  g.envio_id, g.usuario, g.nota, g.created_at, g.updated_at, g.anulada_at,
+  g.envio_id, g.usuario, g.nota, g.created_at, g.updated_at, g.anulada_at, g.remitente_id,
+  r.nombre AS remitente_nombre,
   (g.etiqueta_gif IS NOT NULL) AS tiene_etiqueta,
   COALESCE(NULLIF(c.nombre_nova, ''), c.nombre) AS cliente_nombre,
   d.nombre AS destinatario_nombre, d.ciudad AS destinatario_ciudad, d.pais AS destinatario_pais`;
 
 const FROM = `FROM guias g
   JOIN clientes c ON c.id = g.cliente_id
-  LEFT JOIN destinatarios d ON d.id = g.destinatario_id`;
+  LEFT JOIN destinatarios d ON d.id = g.destinatario_id
+  LEFT JOIN remitentes r ON r.id = g.remitente_id`;
 
 function mapGuia(row) {
   if (!row) return null;
@@ -116,12 +119,14 @@ async function emitir(input, usuario) {
   // hoyLocal(): toISOString() es UTC y adelanta un día después de las 21:00 (regla de ESTADO).
   const fecha = String(input.fecha || '').slice(0, 10) || hoyLocal();
 
-  const faltan = ups.validar({ cliente, destinatario, bultos, servicio, contenido });
+  // Remitente: la ficha del cliente (remitente_id vacío) o un perfil de la libreta.
+  const remitente = await remitentes.resolver(cliente, input.remitente_id || null);
+  const faltan = ups.validar({ cliente, remitente, destinatario, bultos, servicio, contenido });
   if (input.destinatario_id && cliente && !destinatario) faltan.push('El destinatario no es de ese cliente');
   if (faltan.length) return { errores: faltan, tipo: 'datos' };
 
   const pedido = ups.armarPedido({
-    cliente, destinatario, bultos, servicio, ddp: Boolean(input.ddp), contenido, fob,
+    remitente, destinatario, bultos, servicio, ddp: Boolean(input.ddp), contenido, fob,
     referencia: `nova cli ${cliente.id}`,
   });
   const r = await ups.pedirGuia(pedido);
@@ -142,18 +147,19 @@ async function emitir(input, usuario) {
   const etiquetas = resumen.etiquetas.filter(Boolean);
   const result = await db
     .prepare(
-      `INSERT INTO guias (cliente_id, destinatario_id, fecha, courier, servicio, cuenta, entorno, numero_guia,
+      `INSERT INTO guias (cliente_id, destinatario_id, remitente_id, fecha, courier, servicio, cuenta, entorno, numero_guia,
          estado, ddp, fob, contenido, proforma_numero, datos_json, request_json, response_json, etiqueta_gif,
          cargo_ups, usuario)
-       VALUES (?, ?, ?, 'UPS', ?, ?, ?, ?, 'emitida', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+       VALUES (?, ?, ?, ?, 'UPS', ?, ?, ?, ?, 'emitida', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
-      cliente.id, destinatario.id, fecha, servicio, ups.cuentaExpo(), ups.entorno(), resumen.numero_guia,
+      cliente.id, destinatario.id, remitente.id || null, fecha, servicio, ups.cuentaExpo(), ups.entorno(), resumen.numero_guia,
       input.ddp ? 1 : 0, fob, contenido, String(input.proforma_numero ?? '').trim() || null,
       JSON.stringify(datos), JSON.stringify(pedido), JSON.stringify(r.data),
       etiquetas.length ? JSON.stringify(etiquetas) : null, resumen.cargo, usuario || null
     );
   await db.prepare("UPDATE destinatarios SET ultimo_uso = datetime('now', 'localtime') WHERE id = ?").run(destinatario.id);
+  await remitentes.tocar(remitente.id);
   return { guia: await buscarPorId(result.lastInsertRowid) };
 }
 
@@ -246,6 +252,7 @@ function comoEnvio(g) {
     ddp: g.ddp ? 1 : 0,
     observaciones: g.datos.observaciones || null,
     destinatario_id: g.destinatario_id,
+    remitente_id: g.remitente_id || null,
     contenido: g.contenido,
     proforma_numero: g.proforma_numero,
     items: g.items,

@@ -106,6 +106,9 @@ async function buscarPorId(id) {
   envio.bultos = await getBultos(id);
   envio.items = await getItems(id);
   envio.destinatario = await getDestinatario(row.destinatario_id);
+  envio.remitente = row.remitente_id
+    ? await getDb().prepare('SELECT * FROM remitentes WHERE id = ?').get(row.remitente_id)
+    : null;
   return envio;
 }
 
@@ -295,8 +298,8 @@ async function crear(data) {
           numero_salida, bulto, tipo_paquete, asegurado, ddp, proteccion_doc, remota, entrega,
           flete, descuento, seguro, fuel, fuel_pct, fuel_origen, derechos, adicionales, otros, profit, porcentaje,
           extras_json, servicio_ups, num_sal_cero, seguro_venta, tarifa_50,
-          destinatario_id, contenido, proforma_numero, guia_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          destinatario_id, contenido, proforma_numero, guia_id, remitente_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         data.cliente_id,
@@ -354,7 +357,8 @@ async function crear(data) {
         data.destinatario_id || null,
         data.contenido ? String(data.contenido).trim() : null,
         data.proforma_numero ? String(data.proforma_numero).trim() : null,
-        guiaId
+        guiaId,
+        data.remitente_id || null
       );
     const envioId = result.lastInsertRowid;
     if (hasBultos) await saveBultos(envioId, data.bultos);
@@ -480,7 +484,7 @@ async function actualizar(id, data) {
         tipo_paquete = ?, asegurado = ?, ddp = ?, proteccion_doc = ?, remota = ?, entrega = ?,
         num_sal_cero = ?,
         seguro_venta = ?,
-        destinatario_id = ?, contenido = ?, proforma_numero = ?,
+        destinatario_id = ?, contenido = ?, proforma_numero = ?, remitente_id = ?,
         ${costoSet},
         updated_at = datetime('now', 'localtime')
        WHERE id = ?`
@@ -516,6 +520,7 @@ async function actualizar(id, data) {
       data.destinatario_id !== undefined ? (data.destinatario_id || null) : actual.destinatario_id,
       data.contenido !== undefined ? (String(data.contenido ?? '').trim() || null) : actual.contenido,
       data.proforma_numero !== undefined ? (String(data.proforma_numero ?? '').trim() || null) : actual.proforma_numero,
+      data.remitente_id !== undefined ? (data.remitente_id || null) : actual.remitente_id,
       // Los nueve de abajo son siempre los mismos parámetros; lo que cambia es el SQL de
       // arriba. Sin recálculo van todos NULL y el COALESCE deja la columna como estaba;
       // con el envío sin pesar, esos mismos NULL la vacían.

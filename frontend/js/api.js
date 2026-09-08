@@ -155,6 +155,13 @@ api.guias = {
   etiquetaGifUrl: (id, bulto) => `${API_BASE}/guias/${id}/etiqueta.gif${bulto ? `?bulto=${bulto}` : ''}`,
   proformaUrl: (id) => `${API_BASE}/guias/${id}/proforma.html`,
 };
+// Perfiles de remitente del cliente (la ficha primero, id null).
+api.clientes.remitentes = {
+  listar: (clienteId, todos) => api.get(`/clientes/${clienteId}/remitentes${todos ? '?todos=1' : ''}`),
+  crear: (clienteId, data) => api.post(`/clientes/${clienteId}/remitentes`, data),
+  actualizar: (clienteId, remId, data) => api.put(`/clientes/${clienteId}/remitentes/${remId}`, data),
+  borrar: (clienteId, remId) => api.delete(`/clientes/${clienteId}/remitentes/${remId}`),
+};
 api.envios.proforma = (id) => api.get(`/envios/${id}/proforma`);
 api.envios.proformaUrl = (id) => `${API_BASE}/envios/${id}/proforma.html`;
 

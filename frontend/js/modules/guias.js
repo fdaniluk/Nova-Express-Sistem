@@ -11,6 +11,8 @@
   let config = null;
   let clienteActual = null;
   let destEditando = null;
+  let remitentes = [];
+  let remEditando = null;
 
   const $ = (id) => document.getElementById(id);
   const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -24,6 +26,7 @@
     bindTabs();
     bindForm();
     bindModalDest();
+    bindModalRem();
     bindListado();
     agregarItem();
     agregarBulto();
@@ -96,27 +99,139 @@
   async function onClienteChange() {
     const id = parseInt($('g-cliente').value, 10);
     clienteActual = clientes.find((c) => c.id === id) || null;
+    await Promise.all([loadRemitentes(), loadDestinatarios()]);
+  }
+
+  // ── Libreta de remitentes (la ficha del cliente + perfiles propios) ────────
+  async function loadRemitentes(seleccionar) {
+    const sel = $('g-remitente-sel');
+    if (!clienteActual) {
+      remitentes = [];
+      sel.innerHTML = '<option value="">— Elegí un cliente primero —</option>';
+      pintarRemitente();
+      return;
+    }
+    remitentes = await NovaAPI.clientes.remitentes.listar(clienteActual.id);
+    sel.innerHTML = '';
+    for (const r of remitentes) {
+      const opt = document.createElement('option');
+      opt.value = r.id == null ? '' : String(r.id);
+      opt.textContent = r.principal ? `${r.nombre} (ficha del cliente)` : r.nombre;
+      sel.appendChild(opt);
+    }
+    sel.value = seleccionar ? String(seleccionar) : '';
     pintarRemitente();
-    await loadDestinatarios();
+  }
+
+  function remSeleccionado() {
+    const v = $('g-remitente-sel').value;
+    if (!clienteActual) return null;
+    if (!v) return remitentes.find((r) => r.principal) || null;
+    return remitentes.find((r) => String(r.id) === v) || null;
   }
 
   function pintarRemitente() {
     const box = $('g-remitente');
-    if (!clienteActual) { box.textContent = ''; box.classList.remove('falta'); return; }
-    const c = clienteActual;
+    const r = remSeleccionado();
+    $('g-rem-editar').classList.toggle('hidden', !r || r.principal);
+    if (!r) { box.textContent = ''; box.classList.remove('falta'); return; }
     const faltan = [];
-    if (!c.direccion_recoleccion) faltan.push('dirección');
-    if (!c.localidad) faltan.push('localidad');
-    if (!c.codigo_postal) faltan.push('código postal');
-    if (!c.cuit) faltan.push('CUIT (para la proforma)');
-    if (!c.telefono && !c.whatsapp) faltan.push('teléfono');
-    const linea = [c.nombre, c.cuit ? `CUIT ${c.cuit}` : null, c.direccion_recoleccion,
-      [c.codigo_postal, c.localidad, c.provincia].filter(Boolean).join(' '), c.telefono || c.whatsapp]
+    if (!r.direccion) faltan.push('dirección');
+    if (!r.ciudad) faltan.push('localidad');
+    if (!r.codigo_postal) faltan.push('código postal');
+    if (!r.cuit) faltan.push('CUIT (para la proforma)');
+    if (!r.telefono) faltan.push('teléfono');
+    const linea = [r.nombre, r.cuit ? `CUIT ${r.cuit}` : null, r.direccion,
+      [r.codigo_postal, r.ciudad, r.provincia].filter(Boolean).join(' '), r.telefono, r.contacto]
       .filter(Boolean).join(' · ');
+    const donde = r.principal
+      ? `(<a href="clientes-perfil.html?id=${clienteActual.id}">completar en el cliente</a>)`
+      : '(botón Editar)';
     box.innerHTML = `<b>Remitente:</b> ${esc(linea)}` + (faltan.length
-      ? ` — <b>faltan en el cliente:</b> ${esc(faltan.join(', '))} (<a href="clientes-perfil.html?id=${c.id}">completar</a>)`
+      ? ` — <b>faltan:</b> ${esc(faltan.join(', '))} ${donde}`
       : '');
     box.classList.toggle('falta', faltan.length > 0);
+  }
+
+  function abrirModalRem(r) {
+    remEditando = r || null;
+    $('modal-rem-title').textContent = r ? 'Editar remitente' : 'Nuevo remitente';
+    $('r-nombre').value = r?.nombre || '';
+    $('r-cuit').value = r?.cuit || '';
+    $('r-direccion').value = r?.direccion || '';
+    $('r-cp').value = r?.codigo_postal || '';
+    $('r-ciudad').value = r?.ciudad || '';
+    $('r-provincia').value = r?.provincia || '';
+    $('r-telefono').value = r?.telefono || '';
+    $('r-contacto').value = r?.contacto || '';
+    $('r-email').value = r?.email || '';
+    $('r-errores').classList.add('hidden');
+    $('modal-rem-borrar').classList.toggle('hidden', !r);
+    $('modal-rem').classList.remove('hidden');
+    $('r-nombre').focus();
+  }
+
+  function cerrarModalRem() {
+    $('modal-rem').classList.add('hidden');
+    remEditando = null;
+  }
+
+  async function guardarRem() {
+    const data = {
+      nombre: $('r-nombre').value.trim(),
+      cuit: $('r-cuit').value.trim(),
+      direccion: $('r-direccion').value.trim(),
+      codigo_postal: $('r-cp').value.trim(),
+      ciudad: $('r-ciudad').value.trim(),
+      provincia: $('r-provincia').value.trim(),
+      telefono: $('r-telefono').value.trim(),
+      contacto: $('r-contacto').value.trim(),
+      email: $('r-email').value.trim(),
+    };
+    const faltan = [];
+    if (!data.nombre) faltan.push('el nombre');
+    if (!data.direccion) faltan.push('la dirección');
+    if (!data.codigo_postal) faltan.push('el código postal');
+    if (!data.ciudad) faltan.push('la localidad');
+    const errBox = $('r-errores');
+    if (faltan.length) {
+      errBox.textContent = `Falta ${faltan.join(', ')}.`;
+      errBox.classList.remove('hidden');
+      return;
+    }
+    try {
+      let r;
+      if (remEditando) r = await NovaAPI.clientes.remitentes.actualizar(clienteActual.id, remEditando.id, data);
+      else r = await NovaAPI.clientes.remitentes.crear(clienteActual.id, data);
+      cerrarModalRem();
+      await loadRemitentes(r.id);
+    } catch (e) {
+      errBox.textContent = e.message;
+      errBox.classList.remove('hidden');
+    }
+  }
+
+  function bindModalRem() {
+    $('g-rem-nuevo').addEventListener('click', () => {
+      if (!clienteActual) { NovaUtils.showAlert(alertBox, 'Elegí el cliente primero', 'error'); return; }
+      abrirModalRem(null);
+    });
+    $('g-rem-editar').addEventListener('click', () => { const r = remSeleccionado(); if (r && !r.principal) abrirModalRem(r); });
+    $('modal-rem-close').addEventListener('click', cerrarModalRem);
+    $('modal-rem-cancelar').addEventListener('click', cerrarModalRem);
+    $('modal-rem-guardar').addEventListener('click', guardarRem);
+    $('modal-rem-borrar').addEventListener('click', async () => {
+      if (!remEditando) return;
+      if (!window.confirm(`¿Sacar el remitente "${remEditando.nombre}" de la libreta? Las guías ya emitidas lo siguen viendo.`)) return;
+      try {
+        await NovaAPI.clientes.remitentes.borrar(clienteActual.id, remEditando.id);
+        cerrarModalRem();
+        await loadRemitentes();
+      } catch (e) {
+        NovaUtils.showAlert(alertBox, e.message, 'error');
+      }
+    });
+    $('g-remitente-sel').addEventListener('change', pintarRemitente);
   }
 
   // ── Libreta de destinatarios ───────────────────────────────────────────────
@@ -355,6 +470,7 @@
     const payload = {
       cliente_id: clienteActual.id,
       destinatario_id: d.id,
+      remitente_id: $('g-remitente-sel').value ? Number($('g-remitente-sel').value) : null,
       fecha: $('g-fecha').value,
       servicio: $('g-servicio').value,
       ddp: $('g-ddp').checked ? 1 : 0,
@@ -409,7 +525,7 @@
       ${g.entorno === 'test' ? '<div class="aviso-test">Guía del entorno de PRUEBA de UPS: sirve para probar el circuito, no para despachar.</div>' : ''}
       <div class="datos">
         <div class="numero">${esc(g.numero_guia || '(sin número)')}</div>
-        <div><b>${esc(g.cliente_nombre)}</b> → ${esc(g.destinatario_nombre)}, ${esc([g.destinatario_ciudad, g.destinatario_pais].filter(Boolean).join(', '))}</div>
+        <div><b>${esc(g.cliente_nombre)}</b>${g.remitente_nombre ? ` (remitente: ${esc(g.remitente_nombre)})` : ''} → ${esc(g.destinatario_nombre)}, ${esc([g.destinatario_ciudad, g.destinatario_pais].filter(Boolean).join(', '))}</div>
         <div>${esc(config?.servicios?.find((s) => s.codigo === g.servicio)?.nombre || g.servicio)} · ${g.bultos.length} bulto(s) · ${kg} kg · FOB US$ ${money(g.fob)}${g.ddp ? ' · DDP' : ''}</div>
         ${g.cargo_ups != null ? `<div class="gui-hint">Cargo según UPS (tarifa de lista): ${esc(g.datos.moneda || 'USD')} ${money(g.cargo_ups)}</div>` : ''}
         <div class="gui-hint">Quedó como precarga: administración la confirma desde <a href="envios.html">Cargar envío</a>.</div>
@@ -444,7 +560,7 @@
       <tr data-id="${g.id}">
         <td>${esc(NovaUtils.formatDate(g.fecha))}</td>
         <td class="guia-num">${esc(g.numero_guia || '—')}${g.entorno === 'test' ? '<span class="gui-test-chip">prueba</span>' : ''}</td>
-        <td>${esc(g.cliente_nombre)}</td>
+        <td>${esc(g.cliente_nombre)}${g.remitente_nombre ? `<br><span class="gui-hint">rem. ${esc(g.remitente_nombre)}</span>` : ''}</td>
         <td>${esc(g.destinatario_nombre || '—')}<br><span class="gui-hint">${esc([g.destinatario_ciudad, g.destinatario_pais].filter(Boolean).join(', '))}</span></td>
         <td>${esc(g.servicio === 'UPS_SAV' ? 'Saver' : g.servicio === 'UPS_EXP' ? 'Expedited' : g.servicio)}</td>
         <td class="n">${g.bultos.length}</td>

@@ -118,7 +118,7 @@
 .modal-close:hover { background: #f1f5f9; color: var(--color-text); }
 .modal-body { padding: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem; flex: 1 1 auto; min-height: 0; overflow-y: auto; }
 .modal-footer { padding: 1rem 1.25rem; border-top: 1px solid var(--color-border); display: flex; justify-content: flex-end; align-items: center; gap: 0.5rem; flex-shrink: 0; }
-.modal-footer #modal-dest-borrar { margin-right: auto; }
+.modal-footer #modal-dest-borrar, .modal-footer #modal-rem-borrar { margin-right: auto; }
 
 @media (max-width: 800px) {
   .gui-resultado { grid-template-columns: 1fr; }

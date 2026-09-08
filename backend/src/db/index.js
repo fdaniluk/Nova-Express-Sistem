@@ -329,7 +329,8 @@ async function migrateEnvios() {
     ['destinatario_id',   'INTEGER'],
     ['contenido',         'TEXT'],
     ['proforma_numero',   'TEXT'],
-    ['guia_id',           'INTEGER'],
+    ['guia_id',           'INTEGER'],    //   remitente_id     perfil de remitente elegido (tabla remitentes); NULL = la ficha
+    ['remitente_id',      'INTEGER'],
   ];
   for (const [col, def] of toAdd) {
     if (!cols.includes(col)) {
@@ -423,6 +424,31 @@ async function migrateGuias() {
   `);
   await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_guias_estado ON guias(estado, fecha)');
   await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_guias_numero ON guias(numero_guia)');
+  // Perfiles de remitente por cliente (pedido de Felipe, 08/09): algunos clientes
+  // despachan con otro nombre/CUIT/dirección según el envío. El perfil "principal" es la
+  // ficha del cliente (no se duplica); los demás viven acá, completos. guias.remitente_id
+  // y envios.remitente_id en NULL = la ficha del cliente.
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS remitentes (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      cliente_id     INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+      nombre         TEXT NOT NULL,
+      cuit           TEXT,
+      direccion      TEXT,
+      codigo_postal  TEXT,
+      ciudad         TEXT,
+      provincia      TEXT,
+      telefono       TEXT,
+      contacto       TEXT,
+      email          TEXT,
+      activo         INTEGER NOT NULL DEFAULT 1,
+      ultimo_uso     TEXT,
+      created_at     TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    )
+  `);
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_remitentes_cliente ON remitentes(cliente_id, activo)');
+  const colsG = (await dbApi.prepare('PRAGMA table_info(guias)').all()).map((c) => c.name);
+  if (!colsG.includes('remitente_id')) await dbApi.exec('ALTER TABLE guias ADD COLUMN remitente_id INTEGER');
   // Remitente completo del cliente (para la guía y la proforma): teléfono y provincia. La
   // dirección (direccion_recoleccion), CP (codigo_postal), ciudad (localidad), CUIT y mail ya estaban.
   const cols = (await dbApi.prepare('PRAGMA table_info(clientes)').all()).map((c) => c.name);
