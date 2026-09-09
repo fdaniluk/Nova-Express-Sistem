@@ -72,7 +72,7 @@ body.salidas-page .page-body > .card { padding: 10px 12px 4px; margin-bottom: 0;
   flex-wrap: wrap;
   gap: 6px;
   min-height: 0;
-  margin-bottom: 6px;
+  margin-bottom: 0;   /* desde el 09/09 viven en la toolbar, no en un renglón propio */
 }
 
 .chip {
@@ -263,6 +263,41 @@ body.salidas-page .page-body > .card { padding: 10px 12px 4px; margin-bottom: 0;
 }
 
 .salidas-table th:hover { background: #e2e8f0; }
+
+/* ── Banda de grupos (rediseño 09/09/2026, SALIDAS-REDISENO.md) ──
+   Una fila arriba de los rótulos que agrupa las 38 columnas por lo que son: Identificación,
+   Bulto, Medidas y pesos, Venta, Costos, Resultado, Factura UPS, Estado. Cada grupo con su
+   color, así el ojo sabe "estoy en costos" sin leer los rótulos. Las DOS filas del thead son
+   sticky: la banda en top:0 y los rótulos pegados justo debajo (--sal-thg-h = alto real de
+   la banda, lo mide salidas.js; 24px de respaldo). */
+.salidas-table tr.th-groups th {
+  --g: #475569;
+  background: var(--g);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-align: center;
+  padding: 4px 8px;
+  line-height: 16px;
+  border-bottom: none;
+  border-right: 2px solid #fff;
+  cursor: default;
+  z-index: 2;
+}
+.salidas-table tr.th-groups th:hover { background: var(--g); }
+.salidas-table tr.th-groups th:last-child { border-right: none; }
+.salidas-table tr.th-groups th.thg-id        { --g: #1a3a5c; }
+.salidas-table tr.th-groups th.thg-bulto     { --g: #2d5a87; }
+.salidas-table tr.th-groups th.thg-medidas   { --g: #3b6d9c; }
+.salidas-table tr.th-groups th.thg-venta     { --g: #0f766e; }
+.salidas-table tr.th-groups th.thg-costos    { --g: #7c5cbf; }
+.salidas-table tr.th-groups th.thg-resultado { --g: #5b3fa8; }
+.salidas-table tr.th-groups th.thg-ups       { --g: #b45309; }
+.salidas-table tr.th-groups th.thg-estado    { --g: #475569; }
+.salidas-table tr.th-cols th { top: var(--sal-thg-h, 24px); }
+/* Un hilo del color del grupo bajo cada rótulo: ata la fila de rótulos a su banda. */
+.salidas-table tr.th-cols th { border-bottom: 2px solid #dfe5ee; }
 
 .salidas-table tr:last-child td { border-bottom: none; }
 .salidas-table tbody tr:hover { background: #f8fafc; }
@@ -677,6 +712,8 @@ td.detail-expandable { cursor: pointer; }
 
 /* ── Dash for empty values ── */
 .em { color: #cbd5e1; }
+/* Unidad en gris chiquito al lado del número ("13.0 kg"): el número manda. */
+.salidas-table .unit { color: #a3aebf; font-size: 10px; }
 
 /* ── Observaciones: preview truncado en la fila (texto completo en el title) ── */
 .obs-cell { max-width: 220px; }
@@ -1323,3 +1360,188 @@ td.cell-sin-pesar { background: #fffbeb; }
   letter-spacing: .06em;
   margin-bottom: 8px;
 }
+
+/* ══════════════════════════════════════════════════════════════════════════════
+   REDISEÑO 09/09/2026 — SALIDAS-REDISENO.md (aprobado por Felipe; quedan Tipo y Dir)
+   ══════════════════════════════════════════════════════════════════════════════ */
+
+/* ── Cabecera: botones agrupados por lo que hacen ──
+   VER cambia cómo se mira la tabla (alertas, 1º bulto, columnas fijas, columnas UPS,
+   colores); ACCIONES hace algo con lo que está en pantalla (copiar guías, limpiar). Cada
+   grupo es una pastilla con rótulo chiquito: se entiende de un vistazo qué botón es qué. */
+body.salidas-page .page-header.sal-header {
+  padding: 8px 16px;
+  gap: 10px;
+  justify-content: flex-start;
+}
+.sal-header h1 { margin-right: 6px; }
+.sal-grupo {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 8px 4px 6px;
+  border: 1px solid var(--color-border, #d8dee9);
+  border-radius: 10px;
+  background: #fafbfd;
+}
+.sal-grupo-lbl {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-muted, #64748b);
+  margin: 0 4px 0 2px;
+}
+.sal-grupo .btn-sm { padding: 5px 9px; font-size: 12px; }
+/* Botón "activo" de VER (alertas, 1º bulto, UPS, colores): el mismo azul suave que la app
+   usa para "estado encendido", para que los cuatro toggles hablen el mismo idioma. */
+.sal-grupo #btn-primer-bulto.active,
+.sal-grupo #btn-leyenda.active,
+.sal-grupo #btn-sticky-cols.active {
+  background: #eaf1f8;
+  color: #1a3a5c;
+  border-color: #1a3a5c;
+}
+/* Copiar guías: contorno azul (acción principal del grupo), con el (n) de tildadas. */
+.btn-outline {
+  background: #fff;
+  color: var(--color-primary, #1a3a5c);
+  border: 1px solid var(--color-primary, #1a3a5c);
+}
+.btn-outline:hover { background: #eaf1f8; }
+.sal-copiar-n { font-weight: 700; margin-left: 2px; }
+.sal-copiar-n:empty { display: none; }
+
+/* ── Toolbar: buscador + chips + contador + cierre en UN renglón ── */
+.sal-card .salidas-toolbar { gap: 8px 12px; margin-bottom: 8px; }
+.sal-card .salidas-toolbar .search-box { flex: 0 1 380px; }
+.sal-card .salidas-toolbar .filter-chips { flex: 1 1 auto; }
+.sal-card .cierre-box { margin-left: auto; }
+
+/* ── Barra de totales (la "suma de Excel") ──
+   Pegada al pie de la tabla, dentro del card. Σ de lo que está en pantalla; si hay filas
+   tildadas aparece un segundo bloque con la selección. Clic en un número lo copia. */
+.sal-totales {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  padding: 6px 12px 5px;
+  margin: 0 -12px -4px;              /* pisa el padding del card: de borde a borde */
+  border-top: 2px solid var(--color-primary, #1a3a5c);
+  border-radius: 0 0 var(--radius, 8px) var(--radius, 8px);
+  background: #f8fafc;
+  font-size: 12px;
+  min-height: 38px;
+}
+/* El wrap ya no cierra abajo: la barra de totales es su pie. */
+.sal-card .salidas-table-wrap { border-radius: var(--radius) var(--radius) 0 0; border-bottom: none; }
+.sal-tot { display: flex; flex-direction: column; line-height: 1.15; }
+.sal-tot .k,
+.sal-tot-sel-item .k {
+  font-size: 9.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-muted, #64748b);
+}
+.sal-tot .v,
+.sal-tot-sel-item .v {
+  font-weight: 700;
+  color: var(--color-primary, #1a3a5c);
+  font-variant-numeric: tabular-nums;
+  cursor: copy;
+  border-radius: 4px;
+  padding: 0 3px;
+  margin-left: -3px;
+  transition: background 0.15s;
+}
+.sal-tot .v:hover,
+.sal-tot-sel-item .v:hover { background: #e2e8f0; }
+.sal-tot .v.copiado,
+.sal-tot-sel-item .v.copiado { background: #d1fae5; color: #065f46; }
+.sal-tot .v.neg,
+.sal-tot-sel-item .v.neg { color: #dc2626; }
+.sal-tot-sep { width: 1px; height: 26px; background: var(--color-border, #d8dee9); }
+/* Bloque de la selección: crema, para que se distinga de la Σ de pantalla. */
+.sal-tot-sel { display: none; }
+.sal-tot-sel.on {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 3px 10px;
+  border: 1px solid #f5d67a;
+  border-radius: 8px;
+  background: #fffbea;
+}
+.sal-tot-sel-lbl {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #92400e;
+}
+.sal-tot-sel-item { display: flex; flex-direction: column; line-height: 1.15; }
+.sal-tot-sel-item .v { color: #78350f; }
+/* Con selección a la vista el hint sobra (y haría crecer la barra a dos renglones). */
+.sal-tot-sel.on ~ .sal-tot-hint { display: none; }
+.sal-tot-hint {
+  margin-left: auto;
+  font-size: 11px;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+/* ── "? Colores": la leyenda ── */
+.sal-leyenda {
+  position: absolute;
+  z-index: 60;
+  width: 360px;
+  max-width: calc(100vw - 24px);
+  background: #fff;
+  border: 1px solid var(--color-border, #d8dee9);
+  border-radius: 10px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
+  padding: 12px 14px;
+  font-size: 12px;
+  color: var(--color-text, #1e293b);
+}
+.sal-ley-tit {
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-muted, #64748b);
+  margin-bottom: 6px;
+}
+.sal-ley-sec {
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #94a3b8;
+  margin: 8px 0 2px;
+}
+.sal-ley-item {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 3px 0;
+  line-height: 1.3;
+}
+.sal-ley-item .sw {
+  flex-shrink: 0;
+  min-width: 26px;
+  height: 18px;
+  border-radius: 3px;
+  border: 1px solid #e2e8f0;
+  font-size: 10px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 4px;
+}
+.sal-ley-item .sw-borde { background: #fff; border-left: 3px solid; }
+.sal-ley-item .bulto-estado-dot { margin-right: 0; }
+.sal-ley-item .badge { font-size: 10.5px; }

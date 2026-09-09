@@ -123,6 +123,8 @@
     bindGridNav();
     bindCopiarGuias();
     bindSelectAllGuias();
+    bindTotales();
+    bindLeyenda();
     buildStickyCols();
     loadStickyPins();
     bindStickyCols();
@@ -276,6 +278,7 @@
     if (chkAll) chkAll.checked = false;
     renderPage();
     updateCounter();
+    updateTotales();
     renderChips();
     renderMonthTabs();
   }
@@ -590,17 +593,17 @@
       <td class="num">${fmtKg(pesoReal)}</td>
       <td class="num">${fmtKg(pesoVol)}</td>
       <td class="num${sinPesarEnvio(e) ? ' cell-sin-pesar' : ''}" data-col="peso_facturable">${env(pesoFacturableCellHtml(e))}</td>
-      <td class="num">${env(fmtUSD(e.valor_declarado))}</td>
+      <td class="num">${env(fmtCell(e.valor_declarado))}</td>
       <td>${env(e.asegurado ? 'Sí' : 'No')}</td>
       <td class="num venta-total-cell${ventaExp ? ' detail-expandable' : ''}"${ventaExp ? ` data-detail-envio="${e.id}"` : ''} data-col="total">${ventaTotalCellHtml(e, isFirst)}</td>
-      <td class="num" data-col="flete">${env(fmtUSD(e.flete))}</td>
-      <td class="num" data-col="descuento">${env(fmtUSD(e.descuento))}</td>
-      <td class="num" data-col="seguro">${env(fmtUSD(e.seguro))}</td>
-      <td class="num" data-col="fuel">${env(fmtUSD(e.fuel))}</td>
-      <td class="num" data-col="derechos">${env(fmtUSD(e.derechos))}</td>
+      <td class="num" data-col="flete">${env(fmtCell(e.flete))}</td>
+      <td class="num" data-col="descuento">${env(fmtCell(e.descuento))}</td>
+      <td class="num" data-col="seguro">${env(fmtCell(e.seguro))}</td>
+      <td class="num" data-col="fuel">${env(fmtCell(e.fuel))}</td>
+      <td class="num" data-col="derechos">${env(fmtCell(e.derechos))}</td>
       <td class="num adic-cell${adicExp ? ' adic-expandable detail-expandable' : ''}"${adicExp ? ` data-detail-envio="${e.id}"` : ''}>${adicCellHtml(e, isFirst)}</td>
-      <td class="num" data-col="otros">${env(fmtUSD(e.otros))}</td>
-      <td class="num${isRevisionPendiente(e, isFirst) ? ' cell-compra-pendiente' : ''}" data-col="compra_total">${env(fmtUSD(e.compra_estimada ?? e.compra_total))}</td>
+      <td class="num" data-col="otros">${env(fmtCell(e.otros))}</td>
+      <td class="num${isRevisionPendiente(e, isFirst) ? ' cell-compra-pendiente' : ''}" data-col="compra_total">${env(fmtCell(e.compra_estimada ?? e.compra_total))}</td>
       <td class="num" data-col="profit">${env(profitCell(e))}</td>
       <td class="num" data-col="porcentaje">${env(pctCell(e))}</td>
       <td class="num ups-col${difCosto.rojo ? ' cell-desvio-rojo' : ''}" data-col="costo_ups"${difCosto.title ? ` title="${escAttr(difCosto.title)}"` : ''}>${costoUpsCellHtml(e, isFirst)}</td>
@@ -634,9 +637,9 @@
   // el envío tiene desglose (e.extras). En las filas de bulto o sin extras queda como hoy.
   // El ▸ es un <button> propio (no un input) para no disparar shouldYieldGridNav.
   function adicCellHtml(e, isFirst) {
-    if (!(isFirst && e.extras && e.extras.length)) return isFirst ? fmtUSD(e.adicionales) : '';
+    if (!(isFirst && e.extras && e.extras.length)) return isFirst ? fmtCell(e.adicionales) : '';
     const open = expandedExtras.has(e.id) ? ' open' : '';
-    return `${fmtUSD(e.adicionales)}<button class="extras-toggle${open}" data-envio-id="${e.id}" `
+    return `${fmtCell(e.adicionales)}<button class="extras-toggle${open}" data-envio-id="${e.id}" `
       + `title="Ver desglose de adicionales" aria-label="Ver desglose de adicionales">▸</button>`;
   }
 
@@ -645,9 +648,9 @@
   // detalle que Adic. Sin venta → solo el monto (como una celda normal, sin ▸).
   function ventaTotalCellHtml(e, isFirst) {
     if (!isFirst) return '';
-    if (!e.venta_desglose) return fmtUSD(e.total);
+    if (!e.venta_desglose) return fmtCell(e.total);
     const open = expandedExtras.has(e.id) ? ' open' : '';
-    return `${fmtUSD(e.total)}<button class="extras-toggle${open}" data-envio-id="${e.id}" `
+    return `${fmtCell(e.total)}<button class="extras-toggle${open}" data-envio-id="${e.id}" `
       + `title="Ver desglose de venta" aria-label="Ver desglose de venta">▸</button>`;
   }
 
@@ -661,7 +664,7 @@
   function costoUpsCellHtml(e, isFirst) {
     if (!isFirst) return '';
     if (e.costo_facturado == null) return '<span class="em">—</span>';
-    return fmtUSD(e.costo_facturado);
+    return fmtCell(e.costo_facturado);
   }
 
   // Celda "Peso UPS": el peso que facturó el courier (e.peso_facturado).
@@ -1182,6 +1185,140 @@
       visible === total ? `${total} envíos` : `${visible} de ${total} envíos`;
   }
 
+  // ── Barra de totales (09/09/2026, SALIDAS-REDISENO.md) ──────────────────────
+  // "La suma de Excel": Σ de lo que está EN PANTALLA (solapa de mes + filtros + búsqueda) y,
+  // si hay filas tildadas, Σ de la selección al lado. Se recalcula con cada applyAll y con
+  // cada tilde. Los envíos NO VOLÓ se cuentan pero no suman plata ni kilos (mismo criterio
+  // que el dashboard y el cierre); la barra lo avisa. Clic en un número lo copia.
+  function sumarEnvios(lista) {
+    const acc = { envios: 0, bultos: 0, kg_fact: 0, kg_real: 0, venta: 0, compra: 0, profit: 0, no_volo: 0 };
+    for (const e of lista) {
+      acc.envios += 1;
+      if (e.no_volo) { acc.no_volo += 1; continue; }
+      acc.bultos += (e.bultos && e.bultos.length) ? e.bultos.length : (Number(e.cantidad_bultos) || 1);
+      acc.kg_fact += Number(e.peso_facturable) || 0;
+      // Balanza: en un multibulto el peso vive en cada bulto (el del envío puede estar en 0).
+      const bs = (e.bultos && e.bultos.length) ? e.bultos : [];
+      const kgBultos = bs.reduce((a, b) => a + (Number(b.peso_real) || 0), 0);
+      acc.kg_real += bs.length && kgBultos > 0 ? kgBultos : (Number(e.peso) || 0);
+      acc.venta += Number(e.total) || 0;
+      acc.compra += Number(e.compra_estimada ?? e.compra_total) || 0;
+      acc.profit += Number(e.profit_estimado ?? e.profit) || 0;
+    }
+    acc.pct = acc.compra > 0 ? (acc.profit / acc.compra) * 100 : null;
+    return acc;
+  }
+
+  function fmtTot(key, v) {
+    if (key === 'envios' || key === 'bultos') return String(v);
+    if (key === 'pct') return v == null ? '—' : `${v.toFixed(1)}%`;
+    if (key === 'kg_fact' || key === 'kg_real') return `${v.toFixed(1)} kg`;
+    return v.toFixed(2);
+  }
+
+  function enviosSeleccionados() {
+    const ids = new Set();
+    document.querySelectorAll('#salidas-body .chk-guia:checked').forEach((c) => {
+      const tr = c.closest('tr[data-envio-id]');
+      if (tr) ids.add(Number(tr.dataset.envioId));
+    });
+    return filteredData.filter((e) => ids.has(Number(e.id)));
+  }
+
+  function updateTotales() {
+    const bar = document.getElementById('sal-totales');
+    if (!bar) return;
+    const tot = sumarEnvios(filteredData);
+    bar.querySelectorAll('.v[data-tot]').forEach((el) => {
+      const k = el.dataset.tot;
+      el.textContent = fmtTot(k, tot[k]);
+      el.classList.toggle('neg', k === 'profit' && tot.profit < 0);
+    });
+    const hint = document.getElementById('sal-totales-hint');
+    if (hint) {
+      hint.textContent = 'Σ de lo que está en pantalla · clic en un número lo copia'
+        + (tot.no_volo ? ` · ${tot.no_volo} NO VOLÓ no suma${tot.no_volo > 1 ? 'n' : ''}` : '');
+    }
+
+    // Selección: aparece solo cuando hay algo tildado.
+    const selBox = document.getElementById('sal-totales-sel');
+    const sel = enviosSeleccionados();
+    const n = sel.length;
+    const btnN = document.getElementById('copiar-guias-n');
+    if (btnN) btnN.textContent = n ? `(${n})` : '';
+    if (!selBox) return;
+    if (!n) { selBox.innerHTML = ''; selBox.classList.remove('on'); return; }
+    const t = sumarEnvios(sel);
+    selBox.classList.add('on');
+    selBox.innerHTML = `<span class="sal-tot-sel-lbl">Selección · ${n} envío${n === 1 ? '' : 's'}</span>`
+      + ['bultos', 'kg_fact', 'venta', 'compra', 'profit', 'pct'].map((k) => {
+        const lbl = { bultos: 'Bultos', kg_fact: 'Kg fact.', venta: 'Venta', compra: 'Compra', profit: 'Profit', pct: '%' }[k];
+        return `<span class="sal-tot-sel-item"><span class="k">${lbl}</span><span class="v${k === 'profit' && t.profit < 0 ? ' neg' : ''}" data-tot="${k}">${fmtTot(k, t[k])}</span></span>`;
+      }).join('');
+  }
+
+  // Clic en un número de la barra → al portapapeles (sin unidad ni %: lo que se pega en Excel).
+  function bindTotales() {
+    const bar = document.getElementById('sal-totales');
+    if (!bar) return;
+    bar.addEventListener('click', async (ev) => {
+      const v = ev.target.closest('.v[data-tot]');
+      if (!v) return;
+      const texto = v.textContent.replace(/[^0-9.\-]/g, '');
+      if (!texto) return;
+      try {
+        if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(texto);
+        else copiarFallback(texto);
+        v.classList.add('copiado');
+        setTimeout(() => v.classList.remove('copiado'), 700);
+      } catch (_) { /* sin portapapeles: no pasa nada */ }
+    });
+    // Cada tilde de fila recalcula la selección (delegado: el tbody se reconstruye seguido).
+    document.getElementById('salidas-body').addEventListener('change', (ev) => {
+      if (ev.target.classList && ev.target.classList.contains('chk-guia')) updateTotales();
+    });
+  }
+
+  // ── "? Colores": qué significa cada color de la tabla ────────────────────────
+  // Siete códigos de color sin cartel eran siete cosas para acordarse de memoria (09/09).
+  // Panelito flotante debajo del botón; se cierra con clic afuera, Esc o el mismo botón.
+  function bindLeyenda() {
+    const btn = document.getElementById('btn-leyenda');
+    if (!btn) return;
+    let panel = null;
+    const cerrar = () => { if (panel) { panel.remove(); panel = null; btn.classList.remove('active'); } };
+    btn.addEventListener('click', (ev) => {
+      ev.stopPropagation();
+      if (panel) { cerrar(); return; }
+      panel = document.createElement('div');
+      panel.className = 'sal-leyenda';
+      panel.id = 'sal-leyenda';
+      panel.innerHTML = `
+        <div class="sal-ley-tit">¿Qué significa cada color?</div>
+        <div class="sal-ley-sec">Filas</div>
+        <div class="sal-ley-item"><span class="sw sw-borde" style="border-left-color:#dc2626"></span>Borde rojo: el profit del envío es negativo</div>
+        <div class="sal-ley-item"><span class="sw sw-borde" style="border-left-color:#d97706"></span>Borde ámbar: profit 0 o venta sin costo cargado</div>
+        <div class="sal-ley-item"><span class="sw" style="background:#ece9f1;border-left:3px solid #8c2f26"></span>Gris violáceo y tachado: NO VOLÓ (no cuenta en nada)</div>
+        <div class="sal-ley-item"><span class="sw" style="background:#fdf1a8"></span>Amarillo: fila marcada a mano (clic en el # de salida)</div>
+        <div class="sal-ley-sec">Celdas</div>
+        <div class="sal-ley-item"><span class="sw" style="background:#fef3c7;color:#92400e">1Z…</span>Guía en ámbar: el número no cierra, revisar cómo se tipeó</div>
+        <div class="sal-ley-item"><span class="sw" style="background:#fee2e2;color:#991b1b">$</span>Costo / Peso UPS en rojo: el courier facturó de más</div>
+        <div class="sal-ley-item"><span class="sw" style="background:#dbeafe;color:#1e3a5f">$</span>Compra en azul: contra ese número se compara la factura pendiente</div>
+        <div class="sal-ley-item"><span class="sw" style="background:#fef3c7;color:#92400e">sin pesar</span>Envío cargado sin peso: la venta espera la balanza</div>
+        <div class="sal-ley-sec">Bultos y estado</div>
+        <div class="sal-ley-item"><span class="bulto-estado-dot estado-rojo"></span><span class="bulto-estado-dot estado-amarillo"></span><span class="bulto-estado-dot estado-verde"></span>Punto del bulto: estado de la caja (rojo · amarillo · verde)</div>
+        <div class="sal-ley-item"><span class="badge badge-pend-ok">Pendiente · 3d</span><span class="badge badge-pend-alert">Pendiente · ${DIAS_ALERTA_ROJO}d+</span><span class="badge badge-liq">Liquidado</span></div>
+        <div class="sal-ley-item"><span style="color:#15803d;font-weight:700">+</span><span style="color:#d97706;font-weight:700">0</span><span style="color:#dc2626;font-weight:700">−</span>Profit: verde gana, ámbar empata, rojo pierde</div>`;
+      document.body.appendChild(panel);
+      const r = btn.getBoundingClientRect();
+      panel.style.top = `${r.bottom + window.scrollY + 6}px`;
+      panel.style.left = `${Math.max(8, Math.min(r.left + window.scrollX, window.innerWidth - panel.offsetWidth - 12))}px`;
+      btn.classList.add('active');
+    });
+    document.addEventListener('click', (ev) => { if (panel && !panel.contains(ev.target)) cerrar(); });
+    document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape' && panel) cerrar(); });
+  }
+
   // ── Solo alertas toggle ──────────────────────────────────────────────────────
   function bindAlertToggle() {
     const btn = document.getElementById('btn-solo-alertas');
@@ -1198,6 +1335,7 @@
       soloPrimerBulto = !soloPrimerBulto;
       btnPB.classList.toggle('active', soloPrimerBulto);
       renderPage();
+      updateTotales();   // el tbody se rehizo: la selección se perdió
     });
 
     // "Limpiar filtros" (31/08): un golpe y la tabla queda "como la usamos siempre" —
@@ -1422,6 +1560,7 @@
     chkAll.addEventListener('change', () => {
       const checked = chkAll.checked;
       document.querySelectorAll('#salidas-body .chk-guia').forEach((c) => { c.checked = checked; });
+      updateTotales();
     });
   }
 
@@ -1430,7 +1569,9 @@
   // posición 1-based para `:nth-child`. La clave es estable entre sesiones (data-col o slug
   // del rótulo), así que lo guardado antes ('numero_salida', 'cliente_nombre'…) sigue valiendo.
   function buildStickyCols() {
-    const ths = Array.from(document.querySelectorAll('.salidas-table thead th'));
+    // Solo la fila de rótulos (tr.th-cols): la banda de grupos de arriba (tr.th-groups) no
+    // son columnas, son títulos con colspan.
+    const ths = Array.from(document.querySelectorAll('.salidas-table thead tr.th-cols th'));
     stickyCols = [];
     const seen = new Set();
     ths.forEach((th, i) => {
@@ -1501,7 +1642,7 @@
     let offset = stickyColWidth('.salidas-table th.chk-cell');   // el bloque arranca tras el checkbox
 
     for (const col of pinned) {
-      const th = `.salidas-table thead th:nth-child(${col.nth})`;
+      const th = `.salidas-table thead tr.th-cols th:nth-child(${col.nth})`;
       const td = `.salidas-table tbody tr[data-envio-id] > td:nth-child(${col.nth})`;
       // th + td se congelan a la izquierda. z-index:1 por encima de las celdas normales.
       css += `${th},${td}{position:sticky;left:${offset}px;z-index:1;}\n`;
@@ -1700,7 +1841,18 @@
     // scrollea) y la barra nativa del wrap no se corta. 8px de paddings + ~2px de aire = 10.
     // El piso de 200px es para viewports muy bajos.
     const BOTTOM_GAP = 10;
-    const h = Math.max(200, viewH - top - BOTTOM_GAP);
+    // La barra de totales (09/09) vive DEBAJO del wrap, dentro del card: hay que dejarle lugar.
+    const totales = document.getElementById('sal-totales');
+    const totH = totales ? totales.getBoundingClientRect().height : 0;
+    const h = Math.max(200, viewH - top - BOTTOM_GAP - totH);
+    // La fila de rótulos se pega justo debajo de la banda de grupos: su `top` sticky es el alto
+    // real de esa banda (CSS trae 24px de respaldo; acá se mide para que no quede una rendija).
+    const grupos = document.querySelector('.salidas-table thead tr.th-groups');
+    if (grupos) {
+      const gh = `${Math.round(grupos.getBoundingClientRect().height)}px`;
+      const table = grupos.closest('table');
+      if (table && table.style.getPropertyValue('--sal-thg-h') !== gh) table.style.setProperty('--sal-thg-h', gh);
+    }
     const next = `${h}px`;
     // Solo escribir si cambió: fijar el max-height altera el tamaño del wrap y volvería a
     // disparar el ResizeObserver; sin este guard el lazo no convergería.
@@ -1792,6 +1944,18 @@
     return `$${Number(v).toFixed(2)}`;
   }
 
+  // Importe en una celda de la grilla (rediseño 09/09, SALIDAS-REDISENO.md): sin el "$"
+  // (la banda de grupos ya dice USD) y el CERO en gris clarito, así el ojo va derecho a las
+  // celdas que tienen plata y la fila deja de ser una pared de "$0.00". Vacío sigue siendo
+  // "—". Punto decimal a propósito: los tests y el copiado leen el número tal cual.
+  function fmtCell(v) {
+    if (v == null || v === '') return '<span class="em">—</span>';
+    const n = Number(v);
+    if (!Number.isFinite(n)) return esc(String(v));
+    if (n === 0) return '<span class="em">0</span>';
+    return n.toFixed(2);
+  }
+
   // Lee un valor numérico tolerando la coma decimal con la que se muestran los importes
   // (es-AR: "99,73"). Number('99,73') daría NaN y rompería comparaciones/sumas; aquí la
   // coma se normaliza a punto. Vacío o no numérico → 0. Único criterio de parseo numérico
@@ -1804,7 +1968,8 @@
 
   function fmtKg(v) {
     if (v == null || v === '') return '<span class="em">—</span>';
-    return `${Number(v).toFixed(1)} kg`;
+    // La unidad va en gris chiquito (.unit): se sigue leyendo "13.0 kg" pero el número manda.
+    return `${Number(v).toFixed(1)}<span class="unit"> kg</span>`;
   }
 
   function fmtDim(v) {
@@ -1825,7 +1990,7 @@
     const v = e.profit_estimado ?? e.profit;
     if (v == null) return '<span class="em">—</span>';
     const color = v < 0 ? '#dc2626' : v === 0 ? '#d97706' : '#15803d';
-    return `<span style="color:${color}" title="Estimado por nosotros: venta − compra estimada">$${Number(v).toFixed(2)}</span>`;
+    return `<span style="color:${color}" title="Estimado por nosotros: venta − compra estimada">${Number(v).toFixed(2)}</span>`;
   }
 
   // Profit contra la factura REAL del courier (venta − Costo UPS). Aparece apenas se
@@ -1839,7 +2004,7 @@
     const pct = e.porcentaje_real != null ? ` (${e.porcentaje_real}%)` : '';
     const aprobada = e.estado_revision === 'revisado_ok';
     const title = `Venta − Costo UPS facturado${pct}` + (aprobada ? '' : ' · la factura aún no está aprobada en Revisión');
-    return `<span style="color:${color}" title="${escAttr(title)}">$${Number(v).toFixed(2)}</span>`;
+    return `<span style="color:${color}" title="${escAttr(title)}">${Number(v).toFixed(2)}</span>`;
   }
 
   // Celda "% Real" (07/09, pedido de Felipe): la ganancia de la guía contra lo que cobró UPS

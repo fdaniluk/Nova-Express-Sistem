@@ -1,24 +1,58 @@
 # Pendientes
 
-**Actualizado 07/09/2026 (tarde).** Última punta: **el paquete de la tarde del 07/09** (ver
-"LO DEL 07/09" abajo): el +50 que se pegaba a envíos UPS (caso de administración,
-reproducido y arreglado, con selector de servicio UPS en el modal de Salidas y limpieza de
-datos al arrancar), Liquidaciones con profit en pantalla + desglose de adicionales + Excel
-con logo/colores Nova y título según el cobro del cliente, y Salidas con **"% Real"** en
-lugar de "Dif Costo". Tandas nuevas `test-tarifa-50-ups` (32), `test-liquidacion-desglose`
-(41). Cache **`?v=20260907b`**. **`8413850` — PUSHEADO Y DESPLEGADO el 07/09 a las 14:42
-(`DESPLEGADO Y SANO · 0e1971e → 8413850`, check-schema verde, 28 tablas). La migración
-encontró y limpió **1 envío UPS** con la marca +50 pegada en producción.** Antes, el
-mismo día: **`0e1971e`** (columnas fijas: cualquier columna — **pusheado y DESPLEGADO el
-07/09**). **67 tandas en el verificar (70 archivos `test-*.js`).**
+**Actualizado 09/09/2026.** Salidas, **Fase A del rediseño** (`SALIDAS-REDISENO.md` §3):
+cabecera en dos grupos VER / ACCIONES, una sola barra con el Cierre, banda de grupos sobre
+las 38 columnas, importes sin `$` y ceros en gris, **barra de totales estilo Excel** (Σ de
+lo filtrado + Σ de la selección, clic copia), leyenda "? Colores". Test nuevo
+`test-pantalla-totales-salidas` (46). Cache **`?v=20260909a`**. Felipe aprobó las maquetas
+("me gusta como se ve") **conservando las columnas Tipo y Dir**. Faltan Fase B (bultos como
+árbol, atajos de teclado) y Fase C (modal en dos columnas). **Paquete entregado, a la
+espera de que Felipe corra las tandas y suba.**
 
-**08/09 (tarde): GUÍAS UPS, ETAPAS 1 Y 2 CONSTRUIDAS** — módulo Guías + precargas +
-proforma, según LA REGLA de Felipe con administración (`GUIAS-UPS.md` 3-bis y §7).
-Commiteado, **pendiente de: tandas en la máquina de Felipe, `.env` con `UPS_SHIPPER_*`,
-prueba contra UPS de test, push y deploy.** Tandas `test-guias-datos` (44) y
-`test-guias-emision` (82). Incluye los **perfiles de remitente por cliente** (tarde). Cache **`?v=20260908d`**. **69 tandas (72 archivos).**
+**Estado al 08/09 (noche, cierre del día).** Día entero de guías: **`a4fecb9`** (módulo
+Guías etapas 1 y 2: libreta de destinatarios, proforma, precargas, Cargar envío confirma),
+**`714efc6`** (perfiles de remitente por cliente), **`bb510cd`** (rediseño de la pantalla),
+**`cd80088`** (cotizador: guardar sin cliente elige el perfil al final, chip "profit manual"),
+**`1ee611d`** (fichas completas de remitente y destinatario). Todo **pusheado y desplegado
+el 08/09**; el `.env` del servidor (el de la RAÍZ del repo, no `backend/.env`) ya tiene
+`UPS_CUENTA_EXPO` y `UPS_SHIPPER_*`. Entorno UPS: **prueba** (`UPS_SHIPPING_ENTORNO` sin
+poner). Cache **`?v=20260908d`**. **69 tandas (72 archivos), verificar verde el 08/09.**
+
+**Lo que viene, en orden:** (1) administración hace la primera guía de PRUEBA desde la
+pantalla con un envío real (UPS valida los datos como en producción: ciudad/CP/estado) y
+mira etiqueta térmica, A4 y proforma; (2) con eso OK, `UPS_SHIPPING_ENTORNO=prod` en el
+`.env` del servidor + `pm2 restart nova --update-env`; (3) las dos preguntas abiertas: Nº
+de proforma (¿correlativo de la oficina o del sistema?) y quién figura como Shipper en la
+guía UPS (hoy Nova con la cuenta; ShipFrom = cliente/remitente); (4) liquidadores viejos
+cuando administración arme `Z:\LIQUIDADORES`.
 
 ---
+
+## 🎨 ESTÉTICA, MÓDULO POR MÓDULO (Felipe, 08/09 noche)
+
+Guías quedó como referencia ("quedó muy lindo"): pasos numerados en tarjetas, resumen
+lateral fijo, botón principal en coral, secundarios con borde azul, "+ Agregar" con borde
+punteado, estados como chips (ámbar pendiente / verde confirmado / gris anulado), tablas
+con cabecera gris y filas aireadas. Aplicar el mismo criterio al resto, uno por vez, cada
+uno con su tanda de pantalla verde antes de subir. Orden sugerido (los más usados primero):
+
+1. **Cargar envío** (`envios.html`): formulario largo sin separación de áreas → pasos
+   (cliente y courier · destino y bultos · valor y extras · precio) + el panel de precargas
+   ya está.
+2. **Salidas**: 🔶 **Fase A hecha el 09/09** (cabecera, barra única, banda de grupos,
+   números limpios, totales, leyenda). Faltan **Fase B** (bultos como árbol con ▾, sub-filas
+   bajas, plegar Medidas/Costos, atajos ↑↓ Enter Ctrl+C Ctrl+F) y **Fase C** (modal en dos
+   columnas con Resultado a la derecha, Guardar coral, Eliminar como link, NO VOLÓ ámbar).
+   Tipo y Dir se quedan (decisión de Felipe). Detalle: `SALIDAS-REDISENO.md`.
+3. **Cotizador** (`cotizador.html`): unificar con el look del sistema (hoy tiene su propio
+   CSS), tarjetas de resultado, columna de oficina.
+4. **Liquidaciones**: vista previa y lista de borradores; botones Confirmar / Excel.
+5. **Clientes y perfil del cliente**: la ficha, las matrices, las libretas (destinatarios
+   y remitentes todavía no se ven desde el perfil: sumarlas ahí).
+6. **Facturas** (las tres bandejas), **Panel de salud**, **Cobranzas**, **Pickups**,
+   **Operaciones**, **Configuración**, **Usuarios**, **Dashboard**.
+7. Al final: **menú lateral** (íconos y orden) y una pasada general de consistencia
+   (mismos botones, mismos chips, mismas tarjetas en todas).
 
 ## 🔵 LO PRIMERO
 

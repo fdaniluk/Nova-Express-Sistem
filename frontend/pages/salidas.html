@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Salidas – Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260908d">
-  <link rel="stylesheet" href="../css/modules/salidas.css?v=20260908d">
+  <link rel="stylesheet" href="../css/main.css?v=20260909a">
+  <link rel="stylesheet" href="../css/modules/salidas.css?v=20260909a">
   <!-- Acá se cargaba la librería xlsx desde un CDN, para el viejo botón "Exportar Excel".
        Se fue con el botón el 06/08/2026: la planilla del cierre la arma el servidor, así
        que esta pantalla ya no le pide nada a internet. Si alguna vez vuelve a hacer falta
@@ -90,63 +90,63 @@
   </aside>
 
   <div class="page-content">
-    <div class="page-header">
+    <div class="page-header sal-header">
       <h1>Salidas</h1>
-      <div style="display:flex;gap:8px;align-items:center;">
-        <button class="btn btn-sm btn-secondary btn-toggle-alertas" id="btn-solo-alertas" title="Ver solo filas con alertas">
-          ⚠ Solo alertas
-        </button>
+      <!-- Rediseño 09/09/2026 (SALIDAS-REDISENO.md): los botones se agrupan por lo que hacen.
+           VER cambia cómo se mira la tabla; ACCIONES hace algo con lo que está en pantalla.
+           Los ids no cambiaron: los tests y el JS los siguen encontrando. -->
+      <div class="sal-grupo">
+        <span class="sal-grupo-lbl">Ver</span>
+        <button class="btn btn-sm btn-secondary btn-toggle-alertas" id="btn-solo-alertas" title="Ver solo filas con alertas">⚠ Solo alertas</button>
         <!-- Pedido de la oficina (28/08): en los envios multibulto el desglose de bultos
              "contamina" la vista cuando estan revisando envios. Este boton deja UN renglon
              por envio (el primer bulto). Es solo de vista: no toca filtros ni totales. -->
-        <button class="btn btn-sm btn-secondary btn-toggle-alertas" id="btn-primer-bulto" title="Mostrar un solo renglón por envío (el primer bulto)">
-          1º bulto
-        </button>
+        <button class="btn btn-sm btn-secondary btn-toggle-alertas" id="btn-primer-bulto" title="Mostrar un solo renglón por envío (el primer bulto)">▸ 1º bulto</button>
+        <button class="btn btn-sm btn-secondary" id="btn-sticky-cols" title="Fijar columnas a la izquierda">📌 Columnas fijas</button>
+        <button class="btn btn-sm btn-secondary" id="btn-toggle-ups" aria-pressed="false" title="Mostrar u ocultar las columnas de comparación con UPS">🧾 Columnas UPS</button>
+        <button class="btn btn-sm btn-secondary" id="btn-leyenda" title="Qué significa cada color de la tabla">? Colores</button>
+      </div>
+      <div class="sal-grupo">
+        <span class="sal-grupo-lbl">Acciones</span>
+        <button id="btn-copiar-guias" class="btn btn-sm btn-outline">Copiar guias <span class="sal-copiar-n" id="copiar-guias-n"></span></button>
         <!-- Pedido de Felipe (31/08): un boton que saque TODOS los filtros de un golpe y
              deje la tabla en el formato de siempre: numero de salida de mayor a menor. -->
-        <button class="btn btn-sm btn-secondary" id="btn-limpiar-filtros" title="Sacar todos los filtros y volver al orden de siempre (# de salida, de mayor a menor)">
-          ✕ Limpiar filtros
-        </button>
-        <button id="btn-copiar-guias" class="btn btn-sm btn-secondary">Copiar guias</button>
-        <!-- Cierre de periodo: la planilla que se archiva FUERA del sistema. Baja SIEMPRE
-             el periodo completo y la arma el servidor. Se ve solo con el permiso
-             cerrar_mes (o siendo admin); lo esconde auth-guard.js.
-             Aca al lado habia un boton "Exportar Excel" que bajaba lo que hubiera quedado
-             filtrado en pantalla. Se saco el 06/08/2026: dos botones parecidos invitaban
-             a bajar una planilla filtrada creyendo que se archivo el mes entero. -->
-        <div class="cierre-box" data-perm="cerrar_mes">
-          <span class="cierre-titulo">Cierre</span>
-          <input type="month" id="cierre-mes" class="cierre-mes" title="Mes a archivar">
-          <button class="btn btn-sm btn-primary" id="btn-cierre-mes"
-                  title="Baja el Excel con TODAS las salidas del mes elegido, para guardarlo fuera del sistema">
-            ↓ Mes
-          </button>
-          <button class="btn btn-sm btn-secondary" id="btn-cierre-semana"
-                  title="Baja el Excel de las salidas de esta semana (lunes a hoy)">
-            ↓ Semana
-          </button>
-          <span id="cierre-ultimo" class="cierre-ultimo"></span>
-        </div>
+        <button class="btn btn-sm btn-secondary" id="btn-limpiar-filtros" title="Sacar todos los filtros y volver al orden de siempre (# de salida, de mayor a menor)">✕ Limpiar filtros</button>
       </div>
     </div>
 
     <div class="page-body">
       <div id="alert-box"></div>
 
-      <div class="card">
-        <!-- Toolbar: buscador + contador -->
+      <div class="card sal-card">
+        <!-- Toolbar: buscador + chips de filtros + contador + cierre -->
         <div class="salidas-toolbar">
           <div class="search-box">
             <input type="text" id="buscador" placeholder="Buscar guía, cliente, destino, observaciones…">
             <button class="search-clear" id="btn-clear-search" title="Limpiar">×</button>
           </div>
+          <div class="filter-chips" id="filter-chips"></div>
           <span class="salidas-counter" id="contador">Cargando…</span>
-          <button class="btn btn-sm btn-secondary" id="btn-sticky-cols" title="Fijar columnas a la izquierda">📌 Columnas fijas</button>
-          <button class="btn btn-sm btn-secondary" id="btn-toggle-ups" aria-pressed="false" title="Mostrar u ocultar las columnas de comparación con UPS">🧾 Columnas UPS</button>
+          <!-- Cierre de periodo: la planilla que se archiva FUERA del sistema. Baja SIEMPRE
+               el periodo completo y la arma el servidor. Se ve solo con el permiso
+               cerrar_mes (o siendo admin); lo esconde auth-guard.js.
+               Aca al lado habia un boton "Exportar Excel" que bajaba lo que hubiera quedado
+               filtrado en pantalla. Se saco el 06/08/2026: dos botones parecidos invitaban
+               a bajar una planilla filtrada creyendo que se archivo el mes entero. -->
+          <div class="cierre-box" data-perm="cerrar_mes">
+            <span class="cierre-titulo">Cierre</span>
+            <input type="month" id="cierre-mes" class="cierre-mes" title="Mes a archivar">
+            <button class="btn btn-sm btn-primary" id="btn-cierre-mes"
+                    title="Baja el Excel con TODAS las salidas del mes elegido, para guardarlo fuera del sistema">
+              ↓ Mes
+            </button>
+            <button class="btn btn-sm btn-secondary" id="btn-cierre-semana"
+                    title="Baja el Excel de las salidas de esta semana (lunes a hoy)">
+              ↓ Semana
+            </button>
+            <span id="cierre-ultimo" class="cierre-ultimo"></span>
+          </div>
         </div>
-
-        <!-- Filter chips activos -->
-        <div class="filter-chips" id="filter-chips"></div>
 
         <!-- Solapas por mes (estilo Excel) -->
         <div class="salidas-month-tabs" id="month-tabs"></div>
@@ -155,7 +155,21 @@
         <div class="salidas-table-wrap" id="table-wrap">
           <table class="salidas-table" id="salidas-table">
             <thead>
-              <tr>
+              <!-- Banda de grupos (09/09/2026): una fila arriba de los rótulos que agrupa las
+                   columnas por lo que son. Los colspans SUMAN 38 = las columnas de abajo; si se
+                   agrega o saca una columna hay que tocar el grupo que corresponde. El grupo
+                   "Factura UPS" lleva .ups-col para plegarse con las columnas UPS. -->
+              <tr class="th-groups">
+                <th class="thg thg-id" colspan="8">Identificación</th>
+                <th class="thg thg-bulto" colspan="3">Bulto</th>
+                <th class="thg thg-medidas" colspan="6">Medidas y pesos</th>
+                <th class="thg thg-venta" colspan="3">Venta</th>
+                <th class="thg thg-costos" colspan="8">Costos (USD)</th>
+                <th class="thg thg-resultado" colspan="2">Resultado</th>
+                <th class="thg thg-ups ups-col" colspan="6">Factura UPS</th>
+                <th class="thg thg-estado" colspan="2">Estado</th>
+              </tr>
+              <tr class="th-cols">
                 <th class="chk-cell" style="width:32px"><input type="checkbox" id="chk-all-guias" title="Seleccionar todo"></th>
                 <th data-col="numero_salida" style="width:52px"><div class="th-inner">#Sal<button class="filter-btn" data-filter="numero_salida" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
                 <th data-col="courier" style="width:70px"><div class="th-inner">Courier<button class="filter-btn" data-filter="courier" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
@@ -199,9 +213,26 @@
               </tr>
             </thead>
             <tbody id="salidas-body">
-              <tr><td colspan="37" class="salidas-empty">Cargando…</td></tr>
+              <tr><td colspan="38" class="salidas-empty">Cargando…</td></tr>
             </tbody>
           </table>
+        </div>
+        <!-- Barra de totales (09/09/2026, pedido de la oficina "como la suma de Excel"):
+             Σ de lo que está en pantalla (filtros + solapa de mes) y, si hay filas tildadas,
+             de la selección. Clic en un número lo copia. -->
+        <div class="sal-totales" id="sal-totales">
+          <div class="sal-tot"><span class="k">Envíos</span><span class="v" data-tot="envios">—</span></div>
+          <div class="sal-tot"><span class="k">Bultos</span><span class="v" data-tot="bultos">—</span></div>
+          <span class="sal-tot-sep"></span>
+          <div class="sal-tot"><span class="k">Kg facturables</span><span class="v" data-tot="kg_fact">—</span></div>
+          <div class="sal-tot"><span class="k">Kg balanza</span><span class="v" data-tot="kg_real">—</span></div>
+          <span class="sal-tot-sep"></span>
+          <div class="sal-tot"><span class="k">Venta</span><span class="v" data-tot="venta">—</span></div>
+          <div class="sal-tot"><span class="k">Compra</span><span class="v" data-tot="compra">—</span></div>
+          <div class="sal-tot"><span class="k">Profit</span><span class="v" data-tot="profit">—</span></div>
+          <div class="sal-tot"><span class="k">% promedio</span><span class="v" data-tot="pct">—</span></div>
+          <div class="sal-tot-sel" id="sal-totales-sel"></div>
+          <span class="sal-tot-hint" id="sal-totales-hint">Σ de lo que está en pantalla · clic en un número lo copia</span>
         </div>
       </div>
     </div>
@@ -221,12 +252,12 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260908d"></script>
-<script src="../js/api.js?v=20260908d"></script>
-<script src="../js/main.js?v=20260908d"></script>
-<script src="/shared/cotizador/cotizador-core.js?v=20260908d"></script>
-<script src="/shared/guias/validar-guia.js?v=20260908d"></script>
-<script src="../js/cotizaciones-recientes.js?v=20260908d"></script>
-<script src="../js/modules/salidas.js?v=20260908d"></script>
+<script src="/js/auth-guard.js?v=20260909a"></script>
+<script src="../js/api.js?v=20260909a"></script>
+<script src="../js/main.js?v=20260909a"></script>
+<script src="/shared/cotizador/cotizador-core.js?v=20260909a"></script>
+<script src="/shared/guias/validar-guia.js?v=20260909a"></script>
+<script src="../js/cotizaciones-recientes.js?v=20260909a"></script>
+<script src="../js/modules/salidas.js?v=20260909a"></script>
 </body>
 </html>

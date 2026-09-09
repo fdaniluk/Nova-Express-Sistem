@@ -121,7 +121,8 @@ async function main() {
   };
   // Índice 1-based del th cuyo rótulo es `label` (para comparar con las celdas).
   const nthDe = (label) => page.evaluate((label) => {
-    const ths = [...document.querySelectorAll('.salidas-table thead th')];
+    // Desde el 09/09 el thead tiene DOS filas (la banda de grupos + los rótulos): se miran los rótulos.
+    const ths = [...document.querySelectorAll('.salidas-table thead tr.th-cols th')];
     const i = ths.findIndex((th) => {
       const inner = th.querySelector('.th-inner') || th;
       let t = '';
@@ -138,7 +139,7 @@ async function main() {
     return { position: cs.position, left: parseFloat(cs.left) || 0, bg: cs.backgroundColor, x: td.getBoundingClientRect().left };
   }, { nth, sel });
   const estiloTh = (nth) => page.evaluate((nth) => {
-    const th = document.querySelector(`.salidas-table thead th:nth-child(${nth})`);
+    const th = document.querySelector(`.salidas-table thead tr.th-cols th:nth-child(${nth})`);
     const cs = getComputedStyle(th);
     return { position: cs.position, left: parseFloat(cs.left) || 0, width: th.getBoundingClientRect().width, z: cs.zIndex };
   }, nth);
@@ -147,7 +148,7 @@ async function main() {
   await page.goto(BASE + '/pages/salidas.html', { waitUntil: 'networkidle' });
   await esperar(1200);
 
-  const totalTh = await page.evaluate(() => document.querySelectorAll('.salidas-table thead th').length);
+  const totalTh = await page.evaluate(() => document.querySelectorAll('.salidas-table thead tr.th-cols th').length);
   const totalCb = await page.evaluate(() => document.querySelectorAll('#sticky-cols-panel input[type=checkbox]').length);
   check(`hay un checkbox por columna menos el tilde de selección (${totalTh - 1})`, totalCb === totalTh - 1,
     `th=${totalTh} checkboxes=${totalCb}`);
