@@ -589,12 +589,39 @@ th:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: '⇅'; }
 
 .expand-btn:hover { background: #e0e7ff; }
 
+/* Sub-filas de bulto (Fase B, 09/09): más bajas y en gris, para que el envío se lea como
+   UNA fila con sus bultos colgando y no como cinco filas iguales. El padding vertical baja
+   de 6 a 2 px: un envío de 5 bultos pasa de ocupar 5 renglones a ~2,5. */
 .bulto-detail-row td {
   background: #f8fafc;
-  padding-left: 28px;
-  font-size: 11.5px;
+  padding-top: 2px;
+  padding-bottom: 2px;
+  font-size: 11px;
+  line-height: 1.3;
   color: var(--color-muted);
+  border-bottom-color: #f1f5f9;
 }
+.bulto-detail-row .bulto-estado-dot { width: 7px; height: 7px; }
+.bulto-sub { color: #b6bfcc; margin-right: 3px; font-size: 10px; }
+
+/* Celda Bulto: el ▾/▸ que pliega o abre los bultos de ESE envío (estilo árbol). */
+.salidas-table td.bulto-cell { white-space: nowrap; }
+.bultos-toggle {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 3px;
+  color: var(--color-primary, #1a3a5c);
+  cursor: pointer;
+  font-size: 10px;
+  line-height: 1;
+  padding: 2px 3px;
+  margin-right: 3px;
+  vertical-align: middle;
+}
+.bultos-toggle:hover { background: #eaf1f8; border-color: #c7d7e8; }
+
+/* Ctrl+C sobre la celda activa: parpadeo verde de "copiado". */
+.salidas-table td.cell-copiada { background: #d1fae5 !important; transition: background 0.1s; }
 
 /* ── Sub-fila de detalle (Venta + Extracargos compra) ── */
 /* Toda la celda expandible (Venta Total o Adic) es clickeable (togglea la sub-fila), no

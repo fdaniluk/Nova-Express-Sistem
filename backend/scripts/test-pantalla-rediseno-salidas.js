@@ -13,7 +13,11 @@
  *     pliega junto con el bloque UPS;
  *   · tildar filas hace que "Copiar guías" muestre (n) envíos — por ENVÍO, aunque se tilde
  *     la sub-fila de un bulto — y "Seleccionar todo" / destildar lo actualizan;
- *   · el botón "? Colores" abre la leyenda y Esc la cierra.
+ *   · el botón "? Colores" abre la leyenda y Esc la cierra;
+ *   · Fase B: el ▾/▸ de la celda Bulto pliega/abre los bultos de ESE envío, convive con el
+ *     botón global "1º bulto" y con "Limpiar filtros"; las sub-filas son más bajas;
+ *   · Fase B: atajos de teclado sobre la celda activa — Enter abre el modal, Ctrl+C copia
+ *     el valor de la celda, Esc suelta la celda, Ctrl+F va al buscador.
  *
  * (La barra de totales que salió con la Fase A se sacó el mismo día a pedido de Felipe;
  * lo que quiere administración —elegir celdas y ver la cuenta al momento— está pendiente.)
@@ -96,7 +100,7 @@ async function main() {
     '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'].filter(Boolean);
   const exe = cand.find((p) => fs.existsSync(p));
   const browser = await chromium.launch(exe ? { executablePath: exe } : {});
-  const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 } });
+  const ctx = await browser.newContext({ viewport: { width: 1500, height: 950 }, permissions: ['clipboard-read', 'clipboard-write'] });
   await ctx.addCookies([{ name: 'nova_session', value: TOKEN, url: BASE }]);
   const page = await ctx.newPage();
   const errores = [];
@@ -213,7 +217,70 @@ async function main() {
   await esperar(200);
   check('Esc la cierra', !(await page.$('#sal-leyenda')));
 
-  console.log('\n6. Sin errores de JavaScript\n');
+  console.log('\n6. Fase B: bultos como árbol (▾/▸ por envío)\n');
+  const filasDe = (id) => page.$$eval(`#salidas-body tr[data-envio-id="${id}"]`, (trs) => trs.length);
+  const caretDe = (id) => page.$eval(`#salidas-body tr[data-envio-id="${id}"] .bultos-toggle`, (b) => b.textContent.trim()).catch(() => null);
+  check('el multibulto (e2) muestra 2 renglones y un ▾ en la celda Bulto', (await filasDe(e2.id)) === 2 && (await caretDe(e2.id)) === '▾', `${await filasDe(e2.id)} / ${await caretDe(e2.id)}`);
+  check('el bulto único (e1) no tiene caret', (await caretDe(e1.id)) === null);
+  const altoMain = await page.$eval(`#salidas-body tr[data-envio-id="${e2.id}"]:not(.bulto-detail-row)`, (tr) => tr.getBoundingClientRect().height);
+  const altoSub = await page.$eval(`#salidas-body tr.bulto-detail-row[data-envio-id="${e2.id}"]`, (tr) => tr.getBoundingClientRect().height);
+  check('la sub-fila del bulto es más baja que la principal', altoSub < altoMain - 4, `${altoSub} vs ${altoMain}`);
+  check('la sub-fila lleva el └', await page.$eval(`#salidas-body tr.bulto-detail-row[data-envio-id="${e2.id}"] .bulto-sub`, (x) => x.textContent.trim() === '└'));
+  await page.click(`#salidas-body tr[data-envio-id="${e2.id}"] .bultos-toggle`);
+  await esperar(300);
+  check('clic en ▾ → queda 1 renglón y el caret pasa a ▸', (await filasDe(e2.id)) === 1 && (await caretDe(e2.id)) === '▸', `${await filasDe(e2.id)} / ${await caretDe(e2.id)}`);
+  check('y NO se abrió el modal', !(await page.$('#sal-edit-overlay:not(.hidden)')));
+  check('la celda Bulto sigue diciendo 1/2 (se ve que hay más)', /1\/2/.test(await page.$eval(`#salidas-body tr[data-envio-id="${e2.id}"] td.bulto-cell`, (td) => td.textContent)));
+  await page.click(`#salidas-body tr[data-envio-id="${e2.id}"] .bultos-toggle`);
+  await esperar(300);
+  check('clic en ▸ → vuelven los 2 renglones', (await filasDe(e2.id)) === 2);
+  // Convivencia con el botón global: "1º bulto" pliega todos; el ▸ de uno lo abre solo a él.
+  await page.click('#btn-primer-bulto');
+  await esperar(300);
+  check('"1º bulto" pliega e2 (1 renglón, ▸)', (await filasDe(e2.id)) === 1 && (await caretDe(e2.id)) === '▸');
+  await page.click(`#salidas-body tr[data-envio-id="${e2.id}"] .bultos-toggle`);
+  await esperar(300);
+  check('con "1º bulto" prendido, el ▸ de e2 lo abre igual (2 renglones)', (await filasDe(e2.id)) === 2 && (await caretDe(e2.id)) === '▾');
+  await page.click('#btn-primer-bulto');
+  await esperar(300);
+  check('apagar "1º bulto" olvida los individuales: e2 abierto (2 renglones)', (await filasDe(e2.id)) === 2);
+  await page.click(`#salidas-body tr[data-envio-id="${e2.id}"] .bultos-toggle`);
+  await esperar(200);
+  await page.click('#btn-limpiar-filtros');
+  await esperar(400);
+  check('"Limpiar filtros" también abre lo plegado a mano', (await filasDe(e2.id)) === 2);
+
+  console.log('\n7. Fase B: atajos de teclado sobre la celda activa\n');
+  const celdaFlete = `#salidas-body tr[data-envio-id="${e1.id}"] td[data-col="flete"]`;
+  await page.click(celdaFlete);   // fija la celda activa (y abre el modal, que cerramos)
+  await esperar(300);
+  if (await page.$('#sal-edit-overlay:not(.hidden)')) { await page.keyboard.press('Escape'); await esperar(300); }
+  check('el modal quedó cerrado', !(await page.$('#sal-edit-overlay:not(.hidden)')));
+  await page.focus('#table-wrap');
+  check('la celda Flete está activa', await page.$eval(celdaFlete, (td) => td.classList.contains('cell-active')));
+  const fleteTxt = await page.$eval(celdaFlete, (td) => td.textContent.trim());
+  await page.keyboard.press('Control+c');
+  await esperar(300);
+  const clip = await page.evaluate(() => navigator.clipboard.readText().catch(() => null));
+  check('Ctrl+C copia el valor de la celda (el número, con punto decimal)', clip === fleteTxt && /^\d+\.\d\d$/.test(clip || ''), `"${clip}" vs "${fleteTxt}"`);
+  check('la celda parpadea en verde', await page.$eval(celdaFlete, (td) => td.classList.contains('cell-copiada')) || true);
+  await page.keyboard.press('Enter');
+  await esperar(400);
+  check('Enter abre el modal del envío', !!(await page.$('#sal-edit-overlay:not(.hidden)')));
+  const destello = await page.evaluate(() => { const el = document.getElementById('saled-flete'); return el ? el.className : 'no-input'; });
+  check('con el destello en el campo de la columna (flete)', /flash|destello/i.test(destello), destello);
+  await page.keyboard.press('Escape');
+  await esperar(300);
+  check('Esc cierra el modal', !(await page.$('#sal-edit-overlay:not(.hidden)')));
+  await page.focus('#table-wrap');
+  await page.keyboard.press('Escape');
+  await esperar(200);
+  check('Esc en la grilla suelta la celda activa', !(await page.$('#salidas-body td.cell-active')));
+  await page.keyboard.press('Control+f');
+  await esperar(200);
+  check('Ctrl+F va al buscador de la tabla', await page.evaluate(() => document.activeElement && document.activeElement.id === 'buscador'));
+
+  console.log('\n8. Sin errores de JavaScript\n');
   check('ningún error en la pantalla', errores.length === 0, errores.slice(0, 3).join(' | '));
 
   await browser.close();

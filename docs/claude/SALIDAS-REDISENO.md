@@ -115,11 +115,16 @@ Idea a proponer cuando vuelva con la respuesta: al seleccionar celdas numéricas
 tabla con **Σ · promedio · cantidad**, como la barra de estado de Excel; desaparece al
 soltar la selección. Nada fijo en pantalla.
 
-### Fase B — pendiente
+### Fase B — HECHA (09/09, cache `?v=20260909c`)
 
-Punto 6 (bultos como árbol: ▾ por envío, sub-filas bajas, "… n bultos más"), punto 4
-segunda parte (plegar Medidas / Costos por grupo), punto 11 (↑↓ / Enter / Ctrl+C / Ctrl+F —
-ver qué ya hace `bindGridNav`), punto 7 solo en lo del nombre del estado de la caja.
+| Punto | Qué quedó |
+|---|---|
+| 6 | **Bultos como árbol.** En la fila principal de un multibulto la celda Bulto lleva **▾/▸** (`.bultos-toggle`) que pliega o abre los bultos de ESE envío; las sub-filas son más bajas (padding 2 px, 11 px, gris) y llevan **└**. Estado por envío en `bultosOverride` (XOR con el botón global "1º bulto": el botón pliega/abre todos y olvida los individuales; "Limpiar filtros" también). No se hizo el resumen "… n bultos más": los bultos tienen guía propia y checkbox para Copiar guías, esconderlos a medias confundía. |
+| 11 | **Atajos sobre la celda activa** (`onGridKeydown`): **Enter** abre el modal con el destello en el campo de esa columna; **Ctrl+C** copia el valor limpio de la celda (sin ▸, lápiz ni "kg"; punto decimal) y la parpadea en verde — si hay texto marcado a mano, copia eso como siempre; **Esc** suelta la celda; **Ctrl+F** (en toda la pantalla, fuera de un input y sin modal) va al buscador de la tabla. Las flechas ya existían. |
+| 4 (2ª parte) | **Plegar Medidas / Costos por grupo: NO se hizo.** Con `table-layout:auto`, columnas fijas por `nth-child`, colspans de las sub-filas y la navegación por flechas, esconder columnas del medio toca demasiado por poco; el bloque UPS ya cubre el caso que importa. Si administración lo pide, se retoma. |
+| 7 | Estado de la caja: sigue el punto de color (con el nombre en el tooltip); con nombre escrito la columna Bulto se ensanchaba. |
+
+Test: `test-pantalla-rediseno-salidas.js` pasa a 47 checks (secciones 6 y 7).
 
 ### Fase C — pendiente
 

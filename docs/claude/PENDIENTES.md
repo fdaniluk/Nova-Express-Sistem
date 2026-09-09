@@ -6,8 +6,9 @@ grupos sobre las 38 columnas, importes sin `$` y ceros en gris, leyenda "? Color
 barra de totales se sacó el mismo día** (Felipe: "tapa mucha pantalla"; lo que quiere es
 *seleccionar campos y hacer la cuenta rápida en el momento* → pendiente de definir con
 administración). Test `test-pantalla-rediseno-salidas` (26). Cache **`?v=20260909b`**.
-Felipe aprobó las maquetas conservando Tipo y Dir. Faltan Fase B (bultos como árbol,
-atajos) y Fase C (modal en dos columnas).
+Felipe aprobó las maquetas conservando Tipo y Dir. **Fase B entregada** (▾/▸ por envío,
+sub-filas bajas, Enter / Ctrl+C / Esc / Ctrl+F; cache `?v=20260909c`, tanda 47). Falta
+Fase C (modal en dos columnas).
 
 **Estado al 08/09 (noche, cierre del día).** Día entero de guías: **`a4fecb9`** (módulo
 Guías etapas 1 y 2: libreta de destinatarios, proforma, precargas, Cargar envío confirma),
@@ -39,9 +40,9 @@ uno con su tanda de pantalla verde antes de subir. Orden sugerido (los más usad
 1. **Cargar envío** (`envios.html`): formulario largo sin separación de áreas → pasos
    (cliente y courier · destino y bultos · valor y extras · precio) + el panel de precargas
    ya está.
-2. **Salidas**: 🔶 **Fase A hecha el 09/09** (cabecera, barra única, banda de grupos,
-   números limpios, leyenda; la barra de totales se sacó → "cuenta rápida" a definir). Faltan **Fase B** (bultos como árbol con ▾, sub-filas
-   bajas, plegar Medidas/Costos, atajos ↑↓ Enter Ctrl+C Ctrl+F) y **Fase C** (modal en dos
+2. **Salidas**: 🔶 **Fases A y B hechas el 09/09** (cabecera, barra única, banda de grupos,
+   números limpios, leyenda, bultos como árbol, atajos de teclado; la barra de totales se
+   sacó → "cuenta rápida" a definir con administración). Falta **Fase C** (modal en dos
    columnas con Resultado a la derecha, Guardar coral, Eliminar como link, NO VOLÓ ámbar).
    Tipo y Dir se quedan (decisión de Felipe). Detalle: `SALIDAS-REDISENO.md`.
 3. **Cotizador** (`cotizador.html`): unificar con el look del sistema (hoy tiene su propio

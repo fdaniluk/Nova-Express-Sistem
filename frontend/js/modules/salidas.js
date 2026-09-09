@@ -12,6 +12,11 @@
   // "1º bulto": deja UN renglón por envío (pedido de la oficina, 28/08 — el desglose de
   // los multibulto molesta cuando revisan envíos). Solo afecta el render, no los filtros.
   let soloPrimerBulto = false;
+  // Fase B (09/09): plegado POR ENVÍO. Guarda los ids cuyo estado es el CONTRARIO del botón
+  // global "1º bulto": con el botón apagado, los que están acá se ven plegados; con el botón
+  // prendido, los que están acá se ven abiertos. Apretar el botón global limpia el set.
+  const bultosOverride = new Set();
+  function isEnvioPlegado(e) { return soloPrimerBulto !== bultosOverride.has(e.id); }
   let selectedMonth = null;  // mes activo de las solapas ("YYYY-MM"); null = sin datos
   const colFilters = {};     // { courier: Set(['UPS','DHL']), ... }
 
@@ -124,6 +129,7 @@
     bindCopiarGuias();
     bindSelectAllGuias();
     bindCopiarN();
+    bindBultosToggle();
     bindLeyenda();
     buildStickyCols();
     loadStickyPins();
@@ -384,7 +390,7 @@
       let visibles = bultosVisibles(e, colFilters);
       // "1º bulto": un renglón por envío. La celda Bulto sigue diciendo "1/3", así se ve
       // que el envío tiene más bultos aunque no se muestren.
-      if (soloPrimerBulto && visibles.length > 1) visibles = [visibles[0]];
+      if (isEnvioPlegado(e) && visibles.length > 1) visibles = [visibles[0]];
       visibles.forEach(([bulto, idxOriginal], pos) => {
         // isFirst = es el PRIMER renglón que se dibuja de este envío. Los datos del envío
         // (cliente, plata, iconos) van ahí, aunque el bulto que quedó a la vista sea el 2.
@@ -584,7 +590,7 @@
       <td data-col="tipo_cobro">${env(cobroBadge(e.tipo_cobro))}</td>
       <td data-col="cliente_nombre">${env(`<a href="clientes-perfil.html?id=${e.cliente_id}">${esc(e.cliente_nombre)}</a>`)}</td>
       <td data-col="destino">${env(esc(e.destino))}</td>
-      <td>${estadoCajaDotHtml(b.estado_caja, e)}${numBulto}/${totalBultos}</td>
+      <td class="bulto-cell">${bultoCellHtml(e, b, numBulto, totalBultos, isFirst)}</td>
       <td>${env(tipoBadge(e.tipo_paquete))}</td>
       <td>${env(dirBadge(e.direccion))}</td>
       <td class="num">${fmtDim(largo)}</td>
@@ -1268,6 +1274,7 @@
     const btnPB = document.getElementById('btn-primer-bulto');
     if (btnPB) btnPB.addEventListener('click', () => {
       soloPrimerBulto = !soloPrimerBulto;
+      bultosOverride.clear();   // el botón global manda: se olvidan los ▾/▸ individuales
       btnPB.classList.toggle('active', soloPrimerBulto);
       renderPage();
       updateCopiarN();   // el tbody se rehizo: la selección se perdió
@@ -1290,6 +1297,7 @@
       const bA = document.getElementById('btn-solo-alertas');
       if (bA) bA.classList.remove('active');
       soloPrimerBulto = false;
+      bultosOverride.clear();
       btnPB.classList.remove('active');
       // El orden de siempre: # de salida descendente (los "sin numerar" quedan arriba
       // igual: sortData los prioriza se ordene por lo que se ordene).
@@ -2022,6 +2030,31 @@
     amarillo: { cls: 'estado-amarillo', label: 'En tránsito',  btn: 'Amarillo' },
     verde:    { cls: 'estado-verde',    label: 'Entregada',    btn: 'Verde' },
   };
+
+  // Celda "Bulto" (Fase B, 09/09): en la fila principal de un multibulto va el ▾/▸ que
+  // pliega o abre ESE envío (estilo árbol); en las sub-filas, un └ para que se lea que
+  // cuelgan de arriba. El punto de color del estado de la caja queda igual.
+  function bultoCellHtml(e, b, numBulto, totalBultos, isFirst) {
+    const dot = estadoCajaDotHtml(b.estado_caja, e);
+    if (!isFirst) return `<span class="bulto-sub">└</span>${dot}${numBulto}/${totalBultos}`;
+    if (totalBultos <= 1) return `${dot}${numBulto}/${totalBultos}`;
+    const plegado = isEnvioPlegado(e);
+    const title = plegado ? `Ver los ${totalBultos} bultos` : 'Plegar los bultos (dejar un renglón)';
+    return `<button class="bultos-toggle" data-envio-id="${e.id}" title="${title}" aria-expanded="${plegado ? 'false' : 'true'}">${plegado ? '▸' : '▾'}</button>${dot}${numBulto}/${totalBultos}`;
+  }
+
+  // Click en el ▾/▸ de un envío: invierte su estado respecto del botón global y redibuja.
+  function bindBultosToggle() {
+    document.getElementById('salidas-body').addEventListener('click', (ev) => {
+      const btn = ev.target.closest('.bultos-toggle');
+      if (!btn) return;
+      ev.stopPropagation();
+      const id = Number(btn.dataset.envioId);
+      if (bultosOverride.has(id)) bultosOverride.delete(id); else bultosOverride.add(id);
+      renderPage();
+      updateCopiarN();
+    });
+  }
 
   // Punto de color para la celda de bulto. Cualquier valor no reconocido (incl. null) → rojo.
   // Si el semáforo automático ya miró este envío (envios.tracking_*), el tooltip cuenta
@@ -3590,6 +3623,7 @@
       if (e.target.closest('.track-btn') || e.target.closest('a')) return;
       if (e.target.closest('.bulto-guia-edit') || e.target.closest('.bulto-guia-edit-box')) return;
       if (e.target.closest('.btn-revision')) return;   // ✓/✕ de Revisión aprueban/rechazan, no abren el modal
+      if (e.target.closest('.bultos-toggle')) return;   // ▾/▸ pliega los bultos, no abre el modal
       if (e.target.closest('td.detail-expandable')) return;   // Venta Total / Adic togglean el detalle, no abren el modal
       if (e.target.closest('td[data-col="numero_salida"]')) return;   // #Sal marca la fila, no abre el modal
       const tr = e.target.closest('tr[data-envio-id]');
@@ -3851,6 +3885,19 @@
     wrap.setAttribute('tabindex', '0');
     wrap.addEventListener('keydown', onGridKeydown);
 
+    // Ctrl+F en cualquier lado de la pantalla (fuera de un input y sin el modal abierto) va
+    // al buscador de la tabla en vez del "buscar en la página" del navegador: es lo que la
+    // gente de Excel espera que haga.
+    document.addEventListener('keydown', (e) => {
+      if (!(e.ctrlKey || e.metaKey) || (e.key !== 'f' && e.key !== 'F')) return;
+      if (shouldYieldGridNav(e)) return;
+      const inp = document.getElementById('buscador');
+      if (!inp) return;
+      e.preventDefault();
+      inp.focus();
+      inp.select();
+    });
+
     // Click en una celda de datos: fija la celda activa SIN interferir con el modal.
     // No hace stopPropagation ni preventDefault, así que el handler de fila sigue abriendo
     // el modal igual que hoy; solo deja la coordenada lista para navegar con flechas.
@@ -3868,6 +3915,21 @@
         wrap.focus({ preventScroll: true });
       }
     });
+  }
+
+  // Copia el texto visible de una celda (sin el ▾ de detalle ni el lápiz ni la unidad "kg";
+  // los números quedan con punto decimal, listos para pegar en Excel) y la parpadea.
+  async function copiarCelda(td) {
+    const clon = td.cloneNode(true);
+    clon.querySelectorAll('button, .unit, .bulto-guia-edit, .alert-icon, .track-btn').forEach((n) => n.remove());
+    const texto = (clon.textContent || '').replace(/\s+/g, ' ').trim();
+    if (!texto || texto === '—') return;
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(texto);
+      else copiarFallback(texto);
+      td.classList.add('cell-copiada');
+      setTimeout(() => td.classList.remove('cell-copiada'), 600);
+    } catch (_) { /* sin portapapeles: nada que hacer */ }
   }
 
   // Filas de datos = las que tienen data-envio-id. Excluye automáticamente las filas
@@ -3938,8 +4000,36 @@
   }
 
   function onGridKeydown(e) {
-    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
     if (shouldYieldGridNav(e)) return;
+
+    // Atajos estilo Excel (Fase B, 09/09) sobre la celda activa:
+    //   Enter  → abre el envío (el modal), con el ojo en la columna de la celda.
+    //   Ctrl+C → copia el valor de la celda (solo si no hay texto seleccionado a mano).
+    //   Esc    → suelta la celda activa.
+    // Ctrl+F lo maneja bindGridNav a nivel documento (va al buscador).
+    if (e.key === 'Enter' && activeCell) {
+      const td = getActiveTd();
+      const tr = td && td.closest('tr[data-envio-id]');
+      const envio = tr && allData.find((d) => d.id === Number(tr.dataset.envioId));
+      if (envio) { e.preventDefault(); openEditModal(envio, td.dataset.col || null); }
+      return;
+    }
+    if ((e.ctrlKey || e.metaKey) && (e.key === 'c' || e.key === 'C') && activeCell) {
+      const sel = window.getSelection && window.getSelection().toString();
+      if (sel && sel.trim()) return;   // el usuario marcó texto: que copie eso, como siempre
+      const td = getActiveTd();
+      if (!td) return;
+      e.preventDefault();
+      copiarCelda(td);
+      return;
+    }
+    if (e.key === 'Escape' && activeCell) {
+      activeCell = null;
+      clearActiveCellHighlight();
+      return;
+    }
+
+    if (e.key !== 'ArrowUp' && e.key !== 'ArrowDown' && e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
 
     const rows = getDataRows();
     if (!rows.length) return;

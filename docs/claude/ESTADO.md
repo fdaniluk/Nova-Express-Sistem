@@ -6,7 +6,7 @@
 >
 > ⚠️ **REGLA NÚMERO DOS (aprendida a los gritos el 13/08):** **cuando Felipe describe un comportamiento, está definiendo LA REGLA DEL NEGOCIO, no comentando la pantalla.** Si lo que pide contradice cómo funciona el sistema, el que está mal es el sistema — confirmar con UNA pregunta y cambiar el sistema, no adaptar la pantalla.
 >
-> ⚠️ **REGLA NÚMERO TRES (13/08):** **SIEMPRE pasarle los comandos**, aunque el paso parezca obvio y aunque ya se lo hayas dado antes. Con la ruta y diciendo dónde se pegan (PowerShell / VPS). Nunca "falta desplegar" a secas.
+> ⚠️ **REGLA NÚMERO TRES (13/08):** **SIEMPRE pasarle los comandos**, aunque el paso parezca obvio y aunque ya se lo hayas dado antes. Con la ruta y diciendo dónde se pegan (PowerShell / VPS). Nunca "falta desplegar" a secas. **Y EN SU FORMATO, SIEMPRE (09/09, a los gritos): cada comando en su propio bloque de código, con un rótulo en negrita arriba que diga DÓNDE va — `**PowerShell (C:\\dev\\Nova-Express-Sistem):**` / `**PowerShell, dentro de backend\\:**` / `**VPS:**`. NUNCA comandos en una sola línea de texto separados por " · ".**
 >
 > ⚠️ **REGLA NÚMERO CUATRO (20/08):** **no se corrige lo que cargaron los empleados.** Los informes se corren y se MIRAN; corregir datos cargados requiere pedido explícito. Lo que sí se arregla sin preguntar es el **código** que los genera mal.
 >
@@ -326,8 +326,11 @@ Colores Nova `#403754`/`#EE6C52`.
   `buildStickyCols`/`applyStickyCols` y `test-pantalla-columnas-fijas` miran solo
   `tr.th-cols`. Tanda nueva **`test-pantalla-rediseno-salidas`** (26, puerto 3961), en
   `test-pantallas`. Las 13 tandas de Salidas verdes en el contenedor. Cache
-  **`?v=20260909b`**. Faltan **Fase B** (bultos como árbol, plegar grupos, atajos) y
-  **Fase C** (modal en dos columnas).
+  **`?v=20260909b`**. **Fase B (09/09, cache `?v=20260909c`, paquete entregado):** ▾/▸ por
+  envío en la celda Bulto (`bultosOverride`, XOR con "1º bulto"), sub-filas bajas con └,
+  atajos Enter / Ctrl+C / Esc / Ctrl+F sobre la celda activa (`onGridKeydown`). Plegar
+  Medidas/Costos por grupo NO se hizo (demasiado acople con sticky/colspans/flechas).
+  Tanda `test-pantalla-rediseno-salidas` 47. Falta **Fase C** (modal en dos columnas).
 - **08/09, noche — COTIZAR SIN CLIENTE Y ELEGIR EL PERFIL AL GUARDAR (pedido del jefe de
   Felipe).** Antes, guardar sin cliente pedía un nombre tipeado y la cotización quedaba
   con `cliente_id NULL`: invisible en el perfil y en el panel de Cargar envío (las dos
