@@ -1,13 +1,13 @@
 # Pendientes
 
-**Actualizado 09/09/2026.** Salidas, **Fase A del rediseño** (`SALIDAS-REDISENO.md` §3):
-cabecera en dos grupos VER / ACCIONES, una sola barra con el Cierre, banda de grupos sobre
-las 38 columnas, importes sin `$` y ceros en gris, **barra de totales estilo Excel** (Σ de
-lo filtrado + Σ de la selección, clic copia), leyenda "? Colores". Test nuevo
-`test-pantalla-totales-salidas` (46). Cache **`?v=20260909a`**. Felipe aprobó las maquetas
-("me gusta como se ve") **conservando las columnas Tipo y Dir**. Faltan Fase B (bultos como
-árbol, atajos de teclado) y Fase C (modal en dos columnas). **Paquete entregado, a la
-espera de que Felipe corra las tandas y suba.**
+**Actualizado 09/09/2026.** Salidas, **Fase A del rediseño** (`SALIDAS-REDISENO.md` §3),
+`dbe9a44`: cabecera en dos grupos VER / ACCIONES, una sola barra con el Cierre, banda de
+grupos sobre las 38 columnas, importes sin `$` y ceros en gris, leyenda "? Colores". **La
+barra de totales se sacó el mismo día** (Felipe: "tapa mucha pantalla"; lo que quiere es
+*seleccionar campos y hacer la cuenta rápida en el momento* → pendiente de definir con
+administración). Test `test-pantalla-rediseno-salidas` (26). Cache **`?v=20260909b`**.
+Felipe aprobó las maquetas conservando Tipo y Dir. Faltan Fase B (bultos como árbol,
+atajos) y Fase C (modal en dos columnas).
 
 **Estado al 08/09 (noche, cierre del día).** Día entero de guías: **`a4fecb9`** (módulo
 Guías etapas 1 y 2: libreta de destinatarios, proforma, precargas, Cargar envío confirma),
@@ -40,7 +40,7 @@ uno con su tanda de pantalla verde antes de subir. Orden sugerido (los más usad
    (cliente y courier · destino y bultos · valor y extras · precio) + el panel de precargas
    ya está.
 2. **Salidas**: 🔶 **Fase A hecha el 09/09** (cabecera, barra única, banda de grupos,
-   números limpios, totales, leyenda). Faltan **Fase B** (bultos como árbol con ▾, sub-filas
+   números limpios, leyenda; la barra de totales se sacó → "cuenta rápida" a definir). Faltan **Fase B** (bultos como árbol con ▾, sub-filas
    bajas, plegar Medidas/Costos, atajos ↑↓ Enter Ctrl+C Ctrl+F) y **Fase C** (modal en dos
    columnas con Resultado a la derecha, Guardar coral, Eliminar como link, NO VOLÓ ámbar).
    Tipo y Dir se quedan (decisión de Felipe). Detalle: `SALIDAS-REDISENO.md`.

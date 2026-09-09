@@ -1,22 +1,24 @@
 #!/usr/bin/env node
 /**
- * test-pantalla-totales-salidas.js — el rediseño de Salidas (09/09/2026) en un navegador
- * de verdad. SALIDAS-REDISENO.md, Fase A.
+ * test-pantalla-rediseno-salidas.js — el rediseño de Salidas (09/09/2026, Fase A) en un
+ * navegador de verdad. SALIDAS-REDISENO.md §3.
  *
- * Lo que la oficina pidió y acá se controla:
+ * Lo que se controla:
  *
- *   · la barra de totales ("la suma de Excel"): Σ de lo que está en pantalla, que cuadra
- *     al centavo con lo que devuelve /api/salidas, y que sigue a los filtros;
- *   · tildar filas arma un segundo bloque con la Σ de la selección (por ENVÍO, aunque se
- *     tilde la sub-fila de un bulto) y el botón "Copiar guías" muestra cuántas hay;
- *   · un envío NO VOLÓ se cuenta pero no suma plata ni kilos, y la barra lo avisa;
- *   · la banda de grupos arriba de los rótulos cubre EXACTAMENTE las 38 columnas y se
- *     pliega junto con el bloque UPS;
+ *   · la cabecera tiene los dos grupos VER / ACCIONES con los botones de siempre (ids) y
+ *     el Cierre vive en la barra del buscador;
  *   · los importes de la grilla van sin "$" y el cero en gris (.em), pero el número sigue
  *     siendo legible con punto decimal (lo que leen los otros tests y el copiado);
+ *   · la banda de grupos arriba de los rótulos cubre EXACTAMENTE las 38 columnas y se
+ *     pliega junto con el bloque UPS;
+ *   · tildar filas hace que "Copiar guías" muestre (n) envíos — por ENVÍO, aunque se tilde
+ *     la sub-fila de un bulto — y "Seleccionar todo" / destildar lo actualizan;
  *   · el botón "? Colores" abre la leyenda y Esc la cierra.
  *
- *   cd backend && node scripts/test-pantalla-totales-salidas.js
+ * (La barra de totales que salió con la Fase A se sacó el mismo día a pedido de Felipe;
+ * lo que quiere administración —elegir celdas y ver la cuenta al momento— está pendiente.)
+ *
+ *   cd backend && node scripts/test-pantalla-rediseno-salidas.js
  */
 
 let chromium;
@@ -33,8 +35,8 @@ const { prepararDb, abrirSesion, esperarServidor } = require('./_base-test');
 
 const PORT = process.env.PORT_TEST || 3961;
 const BASE = `http://localhost:${PORT}`;
-const DB = process.env.DB_PATH_TEST || '/tmp/test_pantalla_totales_salidas.db';
-const TOKEN = 'token-test-pantalla-totales';
+const DB = process.env.DB_PATH_TEST || '/tmp/test_pantalla_rediseno_salidas.db';
+const TOKEN = 'token-test-pantalla-rediseno';
 const H = { 'Content-Type': 'application/json', Cookie: `nova_session=${TOKEN}` };
 
 let ok = 0; let fail = 0;
@@ -90,14 +92,6 @@ async function main() {
   const e3 = await nuevo({ cliente_id: cliB.id, numero_guia: '9920000036', peso_real: 10, total_cobrado: 500 });
   check('se crearon los tres envíos', e1.id && e2.id && e3.id, JSON.stringify([e1, e2, e3]).slice(0, 200));
 
-  // Lo que el servidor dice de cada uno: la barra tiene que cuadrar con ESTO.
-  const api = await (await fetch(`${BASE}/api/salidas`, { headers: H })).json();
-  const lista = Array.isArray(api) ? api : (api.data || api.salidas || []);
-  const porId = new Map(lista.map((e) => [e.id, e]));
-  const suma = (ids, campo) => ids.reduce((acc, id) => acc + (Number(porId.get(id)?.[campo]) || 0), 0);
-  const todos = [e1.id, e2.id, e3.id];
-  check('la API devuelve los tres', todos.every((id) => porId.has(id)), `${lista.length} filas`);
-
   const cand = [process.env.CHROME_PATH, '/opt/pw-browsers/chromium/chrome-linux/chrome',
     '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'].filter(Boolean);
   const exe = cand.find((p) => fs.existsSync(p));
@@ -114,35 +108,28 @@ async function main() {
   });
   page.on('dialog', (d) => d.accept());
 
-  const tot = () => page.evaluate(() => {
-    const o = {};
-    document.querySelectorAll('#sal-totales > .sal-tot .v[data-tot]').forEach((el) => { o[el.dataset.tot] = el.textContent.trim(); });
-    o.sel = document.getElementById('sal-totales-sel').textContent.replace(/\s+/g, ' ').trim();
-    o.selOn = document.getElementById('sal-totales-sel').classList.contains('on');
-    o.hint = (document.getElementById('sal-totales-hint').textContent || '').trim();
-    o.copiarN = document.getElementById('copiar-guias-n').textContent.trim();
-    return o;
-  });
-  const selV = (k) => page.$eval(`#sal-totales-sel .v[data-tot="${k}"]`, (el) => el.textContent.trim()).catch(() => null);
+  const copiarN = () => page.$eval('#copiar-guias-n', (el) => el.textContent.trim());
 
-  console.log('\n1. La barra de totales cuadra con la API\n');
+  console.log('\n1. La cabecera: dos grupos, mismos botones\n');
   await page.goto(`${BASE}/pages/salidas.html`);
   await esperar(2500);
-  let t = await tot();
-  check('hay barra de totales', !!(await page.$('#sal-totales')));
-  check('Envíos = 3', t.envios === '3', t.envios);
-  check('Bultos = 4 (1 + 2 + 1)', t.bultos === '4', t.bultos);
-  check('Kg facturables = Σ peso_facturable de la API', cerca(num(t.kg_fact), suma(todos, 'peso_facturable'), 0.06), `${t.kg_fact} vs ${suma(todos, 'peso_facturable')}`);
-  check('Kg balanza = 6 + 12 + 10 = 28', cerca(num(t.kg_real), 28, 0.06), t.kg_real);
-  check('Venta = 250 + 400 + 500 = 1150', cerca(num(t.venta), 1150), t.venta);
-  const compraApi = todos.reduce((a, id) => a + (Number(porId.get(id).compra_estimada ?? porId.get(id).compra_total) || 0), 0);
-  const profitApi = todos.reduce((a, id) => a + (Number(porId.get(id).profit_estimado ?? porId.get(id).profit) || 0), 0);
-  check('Compra = Σ compra de la API (al centavo)', cerca(num(t.compra), compraApi), `${t.compra} vs ${compraApi.toFixed(2)}`);
-  check('Profit = Σ profit de la API (al centavo)', cerca(num(t.profit), profitApi), `${t.profit} vs ${profitApi.toFixed(2)}`);
-  check('% promedio = profit / compra', compraApi > 0 && cerca(num(t.pct), (profitApi / compraApi) * 100, 0.06), t.pct);
-  check('sin selección no hay bloque de selección', !t.selOn && t.sel === '', t.sel);
-  check('el botón Copiar guías no muestra número', t.copiarN === '', t.copiarN);
-  check('la barra explica que es la Σ de la pantalla y que el clic copia', /pantalla/.test(t.hint) && /copia/.test(t.hint), t.hint);
+  const cab = await page.evaluate(() => {
+    const g = [...document.querySelectorAll('.sal-header .sal-grupo')];
+    return {
+      grupos: g.map((x) => x.querySelector('.sal-grupo-lbl')?.textContent.trim()),
+      ver: g[0] ? [...g[0].querySelectorAll('button')].map((b) => b.id) : [],
+      acciones: g[1] ? [...g[1].querySelectorAll('button')].map((b) => b.id) : [],
+      cierreEnToolbar: !!document.querySelector('.salidas-toolbar .cierre-box'),
+      sinBarraTotales: !document.getElementById('sal-totales'),
+    };
+  });
+  check('hay dos grupos: Ver y Acciones', cab.grupos.length === 2 && /Ver/i.test(cab.grupos[0]) && /Acciones/i.test(cab.grupos[1]), cab.grupos.join(' / '));
+  check('VER tiene alertas, 1º bulto, columnas fijas, columnas UPS y ? Colores',
+    ['btn-solo-alertas', 'btn-primer-bulto', 'btn-sticky-cols', 'btn-toggle-ups', 'btn-leyenda'].every((id) => cab.ver.includes(id)), cab.ver.join(','));
+  check('ACCIONES tiene Copiar guías y Limpiar filtros', ['btn-copiar-guias', 'btn-limpiar-filtros'].every((id) => cab.acciones.includes(id)), cab.acciones.join(','));
+  check('el Cierre vive en la barra del buscador', cab.cierreEnToolbar);
+  check('NO hay barra de totales (se sacó el 09/09 a pedido de Felipe)', cab.sinBarraTotales);
+  check('sin tildes el botón Copiar guías no muestra número', (await copiarN()) === '', await copiarN());
 
   console.log('\n2. Los importes de la grilla: sin "$", cero en gris, punto decimal\n');
   const celdas = await page.evaluate((id) => {
@@ -191,56 +178,29 @@ async function main() {
   await page.click('#btn-toggle-ups');
   await esperar(300);
 
-  console.log('\n4. Tildar filas arma la Σ de la selección (por envío)\n');
+  console.log('\n4. Tildar filas: Copiar guías muestra (n) envíos\n');
   // Tildar e1 (primer renglón) y la SUB-FILA del segundo bulto de e2: dos envíos, no tres tildes.
   await page.click(`#salidas-body tr[data-envio-id="${e1.id}"] .chk-guia`);
   const subChk = await page.$(`#salidas-body tr.bulto-detail-row[data-envio-id="${e2.id}"] .chk-guia`);
   if (subChk) await subChk.click();
   else await page.click(`#salidas-body tr[data-envio-id="${e2.id}"] .chk-guia`);
   await esperar(300);
-  t = await tot();
-  check('aparece el bloque de selección', t.selOn, t.sel);
-  check('dice "Selección · 2 envíos" (la sub-fila del bulto cuenta al envío, no aparte)', /Selecci.n · 2 env.os/.test(t.sel), t.sel);
-  check('Bultos de la selección = 3 (1 + 2)', (await selV('bultos')) === '3', await selV('bultos'));
-  check('Venta de la selección = 250 + 400 = 650', cerca(num(await selV('venta')), 650), await selV('venta'));
-  check('Kg fact. de la selección = Σ de los dos envíos', cerca(num(await selV('kg_fact')), suma([e1.id, e2.id], 'peso_facturable'), 0.06), await selV('kg_fact'));
-  check('el botón Copiar guías dice (2)', t.copiarN === '(2)', t.copiarN);
-  check('la Σ de pantalla no cambió (sigue en 3 envíos / 1150)', t.envios === '3' && cerca(num(t.venta), 1150), `${t.envios} / ${t.venta}`);
-  check('con selección a la vista el hint se esconde (no crece la barra)',
-    await page.$eval('#sal-totales-hint', (el) => getComputedStyle(el).display === 'none'));
-
-  // "Seleccionar todo" del header
+  check('el botón Copiar guías dice (2) — la sub-fila del bulto cuenta al envío, no aparte', (await copiarN()) === '(2)', await copiarN());
   await page.click('#chk-all-guias');
   await esperar(300);
-  t = await tot();
-  check('"Seleccionar todo" → Selección · 3 envíos', /3 env.os/.test(t.sel) && t.copiarN === '(3)', `${t.sel} · ${t.copiarN}`);
+  check('"Seleccionar todo" → (3)', (await copiarN()) === '(3)', await copiarN());
   await page.click('#chk-all-guias');
   await esperar(300);
-  t = await tot();
-  check('destildar todo saca el bloque de selección', !t.selOn && t.copiarN === '', `${t.selOn} · ${t.copiarN}`);
+  check('destildar todo lo saca', (await copiarN()) === '', await copiarN());
+  await page.click(`#salidas-body tr[data-envio-id="${e3.id}"] .chk-guia`);
+  await esperar(200);
+  await page.click('#btn-primer-bulto');
+  await esperar(400);
+  check('"1º bulto" rehace la tabla y la selección se pierde (el (n) se va)', (await copiarN()) === '', await copiarN());
+  await page.click('#btn-primer-bulto');
+  await esperar(300);
 
-  console.log('\n5. La Σ sigue a los filtros\n');
-  await page.fill('#buscador', 'TOTALES B');
-  await esperar(600);
-  t = await tot();
-  check('buscando al cliente B quedan 1 envío y Venta 500', t.envios === '1' && cerca(num(t.venta), 500), `${t.envios} / ${t.venta}`);
-  await page.click('#btn-limpiar-filtros');
-  await esperar(600);
-  t = await tot();
-  check('"Limpiar filtros" vuelve a 3 / 1150', t.envios === '3' && cerca(num(t.venta), 1150), `${t.envios} / ${t.venta}`);
-
-  console.log('\n6. NO VOLÓ se cuenta pero no suma\n');
-  const nv = await fetch(`${BASE}/api/salidas/${e3.id}/no-volo`, { method: 'PATCH', headers: H, body: JSON.stringify({ no_volo: true }) });
-  check('se marcó e3 como NO VOLÓ por la API', nv.ok, String(nv.status));
-  await page.goto(`${BASE}/pages/salidas.html`);
-  await esperar(2500);
-  t = await tot();
-  check('Envíos sigue en 3', t.envios === '3', t.envios);
-  check('pero Venta bajó a 650 (250 + 400)', cerca(num(t.venta), 650), t.venta);
-  check('y Bultos a 3', t.bultos === '3', t.bultos);
-  check('la barra avisa que hay 1 NO VOLÓ que no suma', /1 NO VOL. no suma/.test(t.hint), t.hint);
-
-  console.log('\n7. "? Colores" abre la leyenda y Esc la cierra\n');
+  console.log('\n5. "? Colores" abre la leyenda y Esc la cierra\n');
   await page.click('#btn-leyenda');
   await esperar(300);
   const ley = await page.$('#sal-leyenda');
@@ -253,7 +213,7 @@ async function main() {
   await esperar(200);
   check('Esc la cierra', !(await page.$('#sal-leyenda')));
 
-  console.log('\n8. Sin errores de JavaScript\n');
+  console.log('\n6. Sin errores de JavaScript\n');
   check('ningún error en la pantalla', errores.length === 0, errores.slice(0, 3).join(' | '));
 
   await browser.close();

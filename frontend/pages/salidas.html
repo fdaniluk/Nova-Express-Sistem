@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Salidas – Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260909a">
-  <link rel="stylesheet" href="../css/modules/salidas.css?v=20260909a">
+  <link rel="stylesheet" href="../css/main.css?v=20260909b">
+  <link rel="stylesheet" href="../css/modules/salidas.css?v=20260909b">
   <!-- Acá se cargaba la librería xlsx desde un CDN, para el viejo botón "Exportar Excel".
        Se fue con el botón el 06/08/2026: la planilla del cierre la arma el servidor, así
        que esta pantalla ya no le pide nada a internet. Si alguna vez vuelve a hacer falta
@@ -217,23 +217,6 @@
             </tbody>
           </table>
         </div>
-        <!-- Barra de totales (09/09/2026, pedido de la oficina "como la suma de Excel"):
-             Σ de lo que está en pantalla (filtros + solapa de mes) y, si hay filas tildadas,
-             de la selección. Clic en un número lo copia. -->
-        <div class="sal-totales" id="sal-totales">
-          <div class="sal-tot"><span class="k">Envíos</span><span class="v" data-tot="envios">—</span></div>
-          <div class="sal-tot"><span class="k">Bultos</span><span class="v" data-tot="bultos">—</span></div>
-          <span class="sal-tot-sep"></span>
-          <div class="sal-tot"><span class="k">Kg facturables</span><span class="v" data-tot="kg_fact">—</span></div>
-          <div class="sal-tot"><span class="k">Kg balanza</span><span class="v" data-tot="kg_real">—</span></div>
-          <span class="sal-tot-sep"></span>
-          <div class="sal-tot"><span class="k">Venta</span><span class="v" data-tot="venta">—</span></div>
-          <div class="sal-tot"><span class="k">Compra</span><span class="v" data-tot="compra">—</span></div>
-          <div class="sal-tot"><span class="k">Profit</span><span class="v" data-tot="profit">—</span></div>
-          <div class="sal-tot"><span class="k">% promedio</span><span class="v" data-tot="pct">—</span></div>
-          <div class="sal-tot-sel" id="sal-totales-sel"></div>
-          <span class="sal-tot-hint" id="sal-totales-hint">Σ de lo que está en pantalla · clic en un número lo copia</span>
-        </div>
       </div>
     </div>
   </div>
@@ -252,12 +235,12 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260909a"></script>
-<script src="../js/api.js?v=20260909a"></script>
-<script src="../js/main.js?v=20260909a"></script>
-<script src="/shared/cotizador/cotizador-core.js?v=20260909a"></script>
-<script src="/shared/guias/validar-guia.js?v=20260909a"></script>
-<script src="../js/cotizaciones-recientes.js?v=20260909a"></script>
-<script src="../js/modules/salidas.js?v=20260909a"></script>
+<script src="/js/auth-guard.js?v=20260909b"></script>
+<script src="../js/api.js?v=20260909b"></script>
+<script src="../js/main.js?v=20260909b"></script>
+<script src="/shared/cotizador/cotizador-core.js?v=20260909b"></script>
+<script src="/shared/guias/validar-guia.js?v=20260909b"></script>
+<script src="../js/cotizaciones-recientes.js?v=20260909b"></script>
+<script src="../js/modules/salidas.js?v=20260909b"></script>
 </body>
 </html>

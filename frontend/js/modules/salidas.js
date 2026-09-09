@@ -123,7 +123,7 @@
     bindGridNav();
     bindCopiarGuias();
     bindSelectAllGuias();
-    bindTotales();
+    bindCopiarN();
     bindLeyenda();
     buildStickyCols();
     loadStickyPins();
@@ -278,7 +278,7 @@
     if (chkAll) chkAll.checked = false;
     renderPage();
     updateCounter();
-    updateTotales();
+    updateCopiarN();
     renderChips();
     renderMonthTabs();
   }
@@ -1185,97 +1185,32 @@
       visible === total ? `${total} envíos` : `${visible} de ${total} envíos`;
   }
 
-  // ── Barra de totales (09/09/2026, SALIDAS-REDISENO.md) ──────────────────────
-  // "La suma de Excel": Σ de lo que está EN PANTALLA (solapa de mes + filtros + búsqueda) y,
-  // si hay filas tildadas, Σ de la selección al lado. Se recalcula con cada applyAll y con
-  // cada tilde. Los envíos NO VOLÓ se cuentan pero no suman plata ni kilos (mismo criterio
-  // que el dashboard y el cierre); la barra lo avisa. Clic en un número lo copia.
-  function sumarEnvios(lista) {
-    const acc = { envios: 0, bultos: 0, kg_fact: 0, kg_real: 0, venta: 0, compra: 0, profit: 0, no_volo: 0 };
-    for (const e of lista) {
-      acc.envios += 1;
-      if (e.no_volo) { acc.no_volo += 1; continue; }
-      acc.bultos += (e.bultos && e.bultos.length) ? e.bultos.length : (Number(e.cantidad_bultos) || 1);
-      acc.kg_fact += Number(e.peso_facturable) || 0;
-      // Balanza: en un multibulto el peso vive en cada bulto (el del envío puede estar en 0).
-      const bs = (e.bultos && e.bultos.length) ? e.bultos : [];
-      const kgBultos = bs.reduce((a, b) => a + (Number(b.peso_real) || 0), 0);
-      acc.kg_real += bs.length && kgBultos > 0 ? kgBultos : (Number(e.peso) || 0);
-      acc.venta += Number(e.total) || 0;
-      acc.compra += Number(e.compra_estimada ?? e.compra_total) || 0;
-      acc.profit += Number(e.profit_estimado ?? e.profit) || 0;
-    }
-    acc.pct = acc.compra > 0 ? (acc.profit / acc.compra) * 100 : null;
-    return acc;
-  }
-
-  function fmtTot(key, v) {
-    if (key === 'envios' || key === 'bultos') return String(v);
-    if (key === 'pct') return v == null ? '—' : `${v.toFixed(1)}%`;
-    if (key === 'kg_fact' || key === 'kg_real') return `${v.toFixed(1)} kg`;
-    return v.toFixed(2);
-  }
-
+  // ── Contador del botón "Copiar guías" ────────────────────────────────────────
+  // Muestra (n) = envíos con alguna fila tildada. (La barra de totales del 09/09 se sacó el
+  // mismo día a pedido de Felipe: "tapa mucha pantalla y son datos que no tienen que estar a
+  // simple vista". Lo que administración quiere es otra cosa: elegir celdas y ver la cuenta
+  // en el momento, estilo barra de estado de Excel. Queda como pendiente en
+  // SALIDAS-REDISENO.md.)
   function enviosSeleccionados() {
     const ids = new Set();
     document.querySelectorAll('#salidas-body .chk-guia:checked').forEach((c) => {
       const tr = c.closest('tr[data-envio-id]');
-      if (tr) ids.add(Number(tr.dataset.envioId));
+      if (tr) ids.add(tr.dataset.envioId);
     });
-    return filteredData.filter((e) => ids.has(Number(e.id)));
+    return ids.size;
   }
 
-  function updateTotales() {
-    const bar = document.getElementById('sal-totales');
-    if (!bar) return;
-    const tot = sumarEnvios(filteredData);
-    bar.querySelectorAll('.v[data-tot]').forEach((el) => {
-      const k = el.dataset.tot;
-      el.textContent = fmtTot(k, tot[k]);
-      el.classList.toggle('neg', k === 'profit' && tot.profit < 0);
-    });
-    const hint = document.getElementById('sal-totales-hint');
-    if (hint) {
-      hint.textContent = 'Σ de lo que está en pantalla · clic en un número lo copia'
-        + (tot.no_volo ? ` · ${tot.no_volo} NO VOLÓ no suma${tot.no_volo > 1 ? 'n' : ''}` : '');
-    }
-
-    // Selección: aparece solo cuando hay algo tildado.
-    const selBox = document.getElementById('sal-totales-sel');
-    const sel = enviosSeleccionados();
-    const n = sel.length;
+  function updateCopiarN() {
     const btnN = document.getElementById('copiar-guias-n');
-    if (btnN) btnN.textContent = n ? `(${n})` : '';
-    if (!selBox) return;
-    if (!n) { selBox.innerHTML = ''; selBox.classList.remove('on'); return; }
-    const t = sumarEnvios(sel);
-    selBox.classList.add('on');
-    selBox.innerHTML = `<span class="sal-tot-sel-lbl">Selección · ${n} envío${n === 1 ? '' : 's'}</span>`
-      + ['bultos', 'kg_fact', 'venta', 'compra', 'profit', 'pct'].map((k) => {
-        const lbl = { bultos: 'Bultos', kg_fact: 'Kg fact.', venta: 'Venta', compra: 'Compra', profit: 'Profit', pct: '%' }[k];
-        return `<span class="sal-tot-sel-item"><span class="k">${lbl}</span><span class="v${k === 'profit' && t.profit < 0 ? ' neg' : ''}" data-tot="${k}">${fmtTot(k, t[k])}</span></span>`;
-      }).join('');
+    if (!btnN) return;
+    const n = enviosSeleccionados();
+    btnN.textContent = n ? `(${n})` : '';
   }
 
-  // Clic en un número de la barra → al portapapeles (sin unidad ni %: lo que se pega en Excel).
-  function bindTotales() {
-    const bar = document.getElementById('sal-totales');
-    if (!bar) return;
-    bar.addEventListener('click', async (ev) => {
-      const v = ev.target.closest('.v[data-tot]');
-      if (!v) return;
-      const texto = v.textContent.replace(/[^0-9.\-]/g, '');
-      if (!texto) return;
-      try {
-        if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(texto);
-        else copiarFallback(texto);
-        v.classList.add('copiado');
-        setTimeout(() => v.classList.remove('copiado'), 700);
-      } catch (_) { /* sin portapapeles: no pasa nada */ }
-    });
-    // Cada tilde de fila recalcula la selección (delegado: el tbody se reconstruye seguido).
+  function bindCopiarN() {
+    // Delegado: el tbody se reconstruye seguido.
     document.getElementById('salidas-body').addEventListener('change', (ev) => {
-      if (ev.target.classList && ev.target.classList.contains('chk-guia')) updateTotales();
+      if (ev.target.classList && ev.target.classList.contains('chk-guia')) updateCopiarN();
     });
   }
 
@@ -1335,7 +1270,7 @@
       soloPrimerBulto = !soloPrimerBulto;
       btnPB.classList.toggle('active', soloPrimerBulto);
       renderPage();
-      updateTotales();   // el tbody se rehizo: la selección se perdió
+      updateCopiarN();   // el tbody se rehizo: la selección se perdió
     });
 
     // "Limpiar filtros" (31/08): un golpe y la tabla queda "como la usamos siempre" —
@@ -1560,7 +1495,7 @@
     chkAll.addEventListener('change', () => {
       const checked = chkAll.checked;
       document.querySelectorAll('#salidas-body .chk-guia').forEach((c) => { c.checked = checked; });
-      updateTotales();
+      updateCopiarN();
     });
   }
 
@@ -1841,10 +1776,7 @@
     // scrollea) y la barra nativa del wrap no se corta. 8px de paddings + ~2px de aire = 10.
     // El piso de 200px es para viewports muy bajos.
     const BOTTOM_GAP = 10;
-    // La barra de totales (09/09) vive DEBAJO del wrap, dentro del card: hay que dejarle lugar.
-    const totales = document.getElementById('sal-totales');
-    const totH = totales ? totales.getBoundingClientRect().height : 0;
-    const h = Math.max(200, viewH - top - BOTTOM_GAP - totH);
+    const h = Math.max(200, viewH - top - BOTTOM_GAP);
     // La fila de rótulos se pega justo debajo de la banda de grupos: su `top` sticky es el alto
     // real de esa banda (CSS trae 24px de respaldo; acá se mide para que no quede una rendija).
     const grupos = document.querySelector('.salidas-table thead tr.th-groups');

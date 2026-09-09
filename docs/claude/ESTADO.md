@@ -310,21 +310,23 @@ Colores Nova `#403754`/`#EE6C52`.
 
 ## 3. Dónde estamos (09-09-2026)
 
-- **09/09 — REDISEÑO DE SALIDAS, FASE A (paquete entregado, esperando tandas de Felipe y
-  push).** Felipe pidió rediseñar Salidas "con mucho énfasis" y **sin tocar nada sin
+- **09/09 — REDISEÑO DE SALIDAS, FASE A (`dbe9a44` pusheado; el retiro de la barra en el
+  paquete siguiente).** Felipe pidió rediseñar Salidas "con mucho énfasis" y **sin tocar nada sin
   mostrárselo antes**: se hizo diagnóstico + dos maquetas y las aprobó ("me gusta como se
   ve") **conservando las columnas Tipo y Dir**. Fase A (`SALIDAS-REDISENO.md` §3):
   cabecera en dos pastillas **VER / ACCIONES** (mismos ids), una sola barra (buscador ·
   chips · contador · **Cierre**), **banda de grupos** `tr.th-groups` sobre los rótulos
   `tr.th-cols` (colspans 8·3·6·3·8·2·6·2 = 38; el grupo Factura UPS lleva `.ups-col`),
   importes sin `$` y **cero en gris** (`fmtCell`; punto decimal, los tests leen el número),
-  **barra de totales** `#sal-totales` (Σ de lo filtrado; con tildes, Σ de la selección por
-  envío; NO VOLÓ cuenta pero no suma; clic copia; Copiar guías muestra `(n)`), leyenda
-  **"? Colores"**. `refreshTableHeight` descuenta la barra y mide la banda (`--sal-thg-h`).
+  Copiar guías muestra `(n)`, leyenda **"? Colores"**. `refreshTableHeight` mide la banda
+  (`--sal-thg-h`). **La barra de totales salió en `dbe9a44` y se SACÓ el mismo día** a
+  pedido de Felipe ("tapa mucha pantalla… no es a lo que me refería"): lo que quiere es
+  *seleccionar campos y hacer la cuenta rápida en el momento*; queda para definir con
+  administración (`SALIDAS-REDISENO.md` §3).
   `buildStickyCols`/`applyStickyCols` y `test-pantalla-columnas-fijas` miran solo
-  `tr.th-cols`. Tanda nueva **`test-pantalla-totales-salidas`** (46, puerto 3961), en
+  `tr.th-cols`. Tanda nueva **`test-pantalla-rediseno-salidas`** (26, puerto 3961), en
   `test-pantallas`. Las 13 tandas de Salidas verdes en el contenedor. Cache
-  **`?v=20260909a`**. Faltan **Fase B** (bultos como árbol, plegar grupos, atajos) y
+  **`?v=20260909b`**. Faltan **Fase B** (bultos como árbol, plegar grupos, atajos) y
   **Fase C** (modal en dos columnas).
 - **08/09, noche — COTIZAR SIN CLIENTE Y ELEGIR EL PERFIL AL GUARDAR (pedido del jefe de
   Felipe).** Antes, guardar sin cliente pedía un nombre tipeado y la cotización quedaba

@@ -93,7 +93,7 @@ Aprobado todo **menos el punto 7 en lo que toca a las columnas Tipo (m/d) y Dir
 (expo/impo): quedan en la tabla** por ahora. Se implementa en tres fases; cada una sale
 con las tandas de Salidas en verde y se sube por separado.
 
-### Fase A — HECHA (09/09, cache `?v=20260909a`)
+### Fase A — HECHA (09/09, `dbe9a44` + el retiro de la barra; cache `?v=20260909b`)
 
 | Punto | Qué quedó |
 |---|---|
@@ -101,11 +101,19 @@ con las tandas de Salidas en verde y se sube por separado.
 | 2 | Una sola barra: buscador (380 px) · chips de filtro · contador · **Cierre** (mes, ↓ Mes, ↓ Semana, último cierre) a la derecha. |
 | 4 | Banda de grupos (`tr.th-groups`) arriba de los rótulos (`tr.th-cols`): Identificación 8 · Bulto 3 · Medidas y pesos 6 · Venta 3 · Costos (USD) 8 · Resultado 2 · Factura UPS 6 (`.ups-col`, se pliega con el bloque) · Estado 2 = **38**. Las dos filas son sticky; el `top` de los rótulos es el alto real de la banda (`--sal-thg-h`, lo mide `refreshTableHeight`). Sin plegado por grupo todavía. |
 | 5 | Importes de la grilla sin `$` y con el **cero en gris** (`fmtCell`); Profit / Profit Real sin `$`; kilos con la unidad en gris chiquito (`.unit`). **Punto decimal, no coma**: los tests y el copiado leen el número tal cual (`Number(t.replace(/[^0-9.-]/g,''))`). |
-| 8 | **Barra de totales** al pie del card (`#sal-totales`): Envíos · Bultos · Kg facturables · Kg balanza · Venta · Compra · Profit · % promedio de **lo que está en pantalla** (solapa + filtros + búsqueda). Con filas tildadas aparece el bloque crema **Selección · n envíos** (por envío: tildar la sub-fila de un bulto cuenta al envío). NO VOLÓ se cuenta en Envíos pero no suma plata ni kilos, y la barra lo avisa. Clic en un número lo copia (sin unidad ni %). El botón Copiar guías muestra **(n)**. |
+| 8 | ~~Barra de totales~~ **SACADA el mismo 09/09** a pedido de Felipe: *"no es a lo que me refería… tapa mucha pantalla y son datos que no tienen que estar a simple vista"*. Lo que quiere es **elegir campos y hacer la cuenta rápida en el momento** (estilo barra de estado de Excel al seleccionar celdas). Queda pendiente hasta que hable con administración. Del bloque sobrevive solo el **(n)** del botón Copiar guías (`updateCopiarN`). |
 | 9 | **? Colores**: panel flotante con la leyenda (filas, celdas, bultos y estado). Esc o clic afuera lo cierra. |
 
-Test nuevo: `scripts/test-pantalla-totales-salidas.js` (46 checks; en `test-pantallas`).
+Test nuevo: `scripts/test-pantalla-rediseno-salidas.js` (26 checks; en `test-pantallas`).
 `test-pantalla-columnas-fijas.js` ahora mira `thead tr.th-cols th` (la banda no son columnas).
+
+### Pendiente de definir con administración: la "cuenta rápida"
+
+Felipe (09/09): *"algo más como seleccionar campos y hacer la cuenta rápida en el momento"*.
+Idea a proponer cuando vuelva con la respuesta: al seleccionar celdas numéricas con el mouse
+(arrastrar) o con Shift+flechas, un globito chico al lado del cursor / en el pie de la
+tabla con **Σ · promedio · cantidad**, como la barra de estado de Excel; desaparece al
+soltar la selección. Nada fijo en pantalla.
 
 ### Fase B — pendiente
 
