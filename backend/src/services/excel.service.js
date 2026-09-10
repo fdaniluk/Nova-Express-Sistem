@@ -304,10 +304,10 @@ const COL_HEADERS = [
 ];
 
 // Colores Nova (07/09/2026, pedido de Felipe: "logo, colores de Nova y que quede bien bonito"):
-// violeta #403754 para cabeceras y título, coral #EE6C52 para el acento y el total.
-const NOVA_VIOLETA = 'FF403754';
-const NOVA_CORAL = 'FFEE6C52';
-const NOVA_VIOLETA_SUAVE = 'FFF1EFF5';
+// azul Nova #2A3661 para cabeceras y título, naranja Nova #EA6749 para el acento y el total.
+const NOVA_VIOLETA = 'FF2A3661';
+const NOVA_CORAL = 'FFEA6749';
+const NOVA_VIOLETA_SUAVE = 'FFEAF1F8';
 const NOVA_GRIS = 'FF6B6478';
 const FUENTE = 'Calibri';
 const STYLES = {

@@ -4,7 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Perfil de cliente — Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260910c">
+  <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
+  <link rel="stylesheet" href="../css/main.css?v=20260911a">
   <!-- Las fuentes del cuadro de la cotización (el mismo que dibuja el cotizador). -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500;600&display=swap">
   <style>
@@ -148,7 +149,7 @@
     .tarifas-vista { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin: 0.2rem 0 0.2rem; }
     .tarifas-vista .vista-btn { border: 1px solid var(--color-border); background: #fff; color: var(--color-muted);
       border-radius: 8px; padding: 0.35rem 0.8rem; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
-    .tarifas-vista .vista-btn.on { background: #1a3a5c; border-color: #1a3a5c; color: #fff; }
+    .tarifas-vista .vista-btn.on { background: #2A3661; border-color: #2A3661; color: #fff; }
     .tarifas-vista .vista-btn:hover:not(.on) { border-color: #2a78d6; }
     td.tarifa-cell.heredado { background: repeating-linear-gradient(45deg,#f7f6f2 0 5px,transparent 5px 10px); }
     td.tarifa-cell.heredado.sin-valor { background: none; }
@@ -175,7 +176,7 @@
     .t-escenarios { display: flex; flex-direction: column; gap: 0.3rem; }
     .t-esc, .t-rango { text-align: left; background: #fff; border: 1px solid #d7dce4;
       border-radius: 8px; padding: 0.4rem 0.6rem; font-size: 0.8rem; cursor: pointer; }
-    .t-esc.active, .t-rango.active { background: #1a3a5c; border-color: #1a3a5c; color: #fff; font-weight: 600; }
+    .t-esc.active, .t-rango.active { background: #2A3661; border-color: #2A3661; color: #fff; font-weight: 600; }
     .t-ayuda { margin: 0.4rem 0 0; font-size: 0.72rem; color: #6b7688; line-height: 1.4; }
     /* main.css pone los label en mayúsculas y en negrita para los formularios de carga;
        acá son quince opciones seguidas y así gritan. */
@@ -216,15 +217,15 @@
     .ctz-acciones { display: flex; flex-direction: column; gap: 4px; }
     .ctz-acciones button { font-family: inherit; font-size: 11px; padding: 3px 8px;
       cursor: pointer; border: 1px solid #cfc9da; border-radius: 5px; background: #fff; }
-    .ctz-acciones button:hover { border-color: #403754; }
+    .ctz-acciones button:hover { border-color: #2A3661; }
     .ctz-vacio { font-size: 12.5px; color: #8a8494; padding: 6px 2px; }
     .ctz-desglose td { background: #fbfafc; }
     .ctz-desglose-caja { display: flex; gap: 18px; flex-wrap: wrap; padding: 6px 4px; }
     .ctz-desglose-op { min-width: 220px; font-size: 12px; }
-    .ctz-desglose-op .dg-tit { font-weight: 700; margin-bottom: 4px; color: #403754; }
+    .ctz-desglose-op .dg-tit { font-weight: 700; margin-bottom: 4px; color: #2A3661; }
     .ctz-desglose-op .dg-row { display: flex; justify-content: space-between; gap: 14px;
       padding: 2px 0; font-family: 'Courier New', monospace; }
-    .ctz-desglose-op .dg-row.dg-total { border-top: 1px solid #403754; font-weight: 700; margin-top: 3px; padding-top: 4px; }
+    .ctz-desglose-op .dg-row.dg-total { border-top: 1px solid #2A3661; font-weight: 700; margin-top: 3px; padding-top: 4px; }
     /* Opciones guardadas / no guardadas (10/09) y el botón Aceptada directo. */
     .ctz-op-enviada { color: #166534; font-weight: 600; }
     .ctz-op-no { color: #9ca3af; }
@@ -232,7 +233,7 @@
     .ctz-acciones button.ctz-btn-ok:hover { background: #bbf7d0; }
     /* "Ver cuadro" y el modal con la imagen para reenviar (10/09). */
     .ctz-ver-cuadro { margin-top: 6px; font-family: inherit; font-size: 11px; padding: 3px 8px;
-      cursor: pointer; border: 1px solid #1a3a5c; border-radius: 5px; background: #fff; color: #1a3a5c; }
+      cursor: pointer; border: 1px solid #2A3661; border-radius: 5px; background: #fff; color: #2A3661; }
     .ctz-ver-cuadro:hover { background: #eaf1f8; }
     .ctz-cuadro-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.55); z-index: 2000;
       display: none; align-items: center; justify-content: center; padding: 16px; }
@@ -255,7 +256,7 @@
 
   <aside class="sidebar">
     <a class="sidebar-brand" href="../index.html">
-      <span class="sidebar-logo">NE</span>
+      <span class="sidebar-logo"><img src="/assets/logos/isotipo.svg" alt="Nova Express"></span>
       <div>
         <div class="sidebar-title">Nova Express</div>
         <div class="sidebar-subtitle">Courier DHL / UPS</div>
@@ -639,10 +640,10 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260910c"></script>
-<script src="../js/api.js?v=20260910c"></script>
-<script src="../js/main.js?v=20260910c"></script>
-<script src="../js/cotizacion-imagen.js?v=20260910c"></script>
-<script src="../js/modules/clientes-perfil.js?v=20260910c"></script>
+<script src="/js/auth-guard.js?v=20260911a"></script>
+<script src="../js/api.js?v=20260911a"></script>
+<script src="../js/main.js?v=20260911a"></script>
+<script src="../js/cotizacion-imagen.js?v=20260911a"></script>
+<script src="../js/modules/clientes-perfil.js?v=20260911a"></script>
 </body>
 </html>

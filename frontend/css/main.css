@@ -1,9 +1,9 @@
 :root {
   --color-bg: #f4f6f9;
   --color-surface: #ffffff;
-  --color-primary: #1a3a5c;
-  --color-primary-light: #2d5a87;
-  --color-accent: #e8a317;
+  --color-primary: #2A3661;
+  --color-primary-light: #3D4C85;
+  --color-accent: #EA6749;
   --color-border: #d8dee9;
   --color-text: #1e293b;
   --color-muted: #64748b;
@@ -210,7 +210,7 @@ textarea:focus {
 
 .btn-accent {
   background: var(--color-accent);
-  color: #1e293b;
+  color: #fff;
 }
 
 .btn-danger {
@@ -374,13 +374,14 @@ tr:hover td {
   text-decoration: none;
 }
 
+.sidebar-logo img { width: 26px; height: 26px; display: block; }
 .sidebar-logo {
   display: flex;
   align-items: center;
   justify-content: center;
   width: 34px;
   height: 34px;
-  background: var(--color-accent);
+  background: #fff;
   color: #1e293b;
   font-weight: 800;
   font-size: 0.85rem;
@@ -645,7 +646,7 @@ tr:hover td {
 .ctzr-datos { min-width: 0; }
 .ctzr-titulo { display: flex; align-items: center; gap: 8px; font-size: 13px; }
 .ctzr-fecha { color: #8a8494; font-size: 12px; }
-.ctzr-destino { font-size: 12.5px; color: #403754; margin-top: 2px; }
+.ctzr-destino { font-size: 12.5px; color: #2A3661; margin-top: 2px; }
 .ctzr-medidas { font-size: 12px; color: #8a8494; font-family: 'DM Mono', monospace; margin-top: 1px; }
 .ctzr-precios { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
 .ctzr-precio {
@@ -653,10 +654,10 @@ tr:hover td {
   font-family: inherit; cursor: pointer; padding: 5px 10px;
   border: 1px solid #cfc9da; border-radius: 6px; background: #fff; line-height: 1.15;
 }
-.ctzr-precio:hover { border-color: #403754; background: #f3f1f6; }
-.ctzr-precio.elegido { border-color: #EE6C52; background: #fdf1ee; }
+.ctzr-precio:hover { border-color: #2A3661; background: #EAF1F8; }
+.ctzr-precio.elegido { border-color: #EA6749; background: #FDECE7; }
 .ctzr-serv { font-size: 10.5px; color: #8a8494; letter-spacing: .02em; }
-.ctzr-monto { font-size: 13px; font-weight: 600; color: #403754; font-family: 'DM Mono', monospace; }
+.ctzr-monto { font-size: 13px; font-weight: 600; color: #2A3661; font-family: 'DM Mono', monospace; }
 .ctzr-estado {
   font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
   padding: 1px 6px; border-radius: 999px; background: #ece9f1; color: #6b6478;

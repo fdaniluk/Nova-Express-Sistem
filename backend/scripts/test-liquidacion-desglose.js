@@ -141,12 +141,12 @@ async function main() {
   await wb.xlsx.load(buf);
   const ws = wb.getWorksheet('Liquidacion');
   check('el título dice LIQUIDACIÓN SEMANAL', String(ws.getCell('D1').value) === 'LIQUIDACIÓN SEMANAL', String(ws.getCell('D1').value));
-  check('el título va en violeta Nova', (ws.getCell('D1').font || {}).color?.argb === 'FF403754', JSON.stringify(ws.getCell('D1').font));
+  check('el título va en azul Nova', (ws.getCell('D1').font || {}).color?.argb === 'FF2A3661', JSON.stringify(ws.getCell('D1').font));
   check('el Excel lleva el logo', (ws.getImages() || []).length === 1, `${(ws.getImages() || []).length}`);
   const textos = [];
   ws.eachRow((row) => row.eachCell((c) => { if (c.value != null) textos.push(String(c.value.richText ? c.value.richText.map((t) => t.text).join('') : c.value)); }));
-  check('la cabecera de la tabla va en violeta con letra blanca', ws.getCell('A7').fill?.fgColor?.argb === 'FF403754' && ws.getCell('A7').font?.color?.argb === 'FFFFFFFF');
-  check('la fila TOTAL va en coral', textos.includes('TOTAL') && (() => { let f = null; ws.eachRow((row) => { if (row.getCell(1).value === 'TOTAL') f = row.getCell(1).fill?.fgColor?.argb; }); return f === 'FFEE6C52'; })());
+  check('la cabecera de la tabla va en azul con letra blanca', ws.getCell('A7').fill?.fgColor?.argb === 'FF2A3661' && ws.getCell('A7').font?.color?.argb === 'FFFFFFFF');
+  check('la fila TOTAL va en coral', textos.includes('TOTAL') && (() => { let f = null; ws.eachRow((row) => { if (row.getCell(1).value === 'TOTAL') f = row.getCell(1).fill?.fgColor?.argb; }); return f === 'FFEA6749'; })());
   check('hay una sección "DETALLE DE ADICIONALES"', textos.includes('DETALLE DE ADICIONALES'));
   check('  con la línea del GoGreen', textos.includes('GoGreen'));
   check('  con el surge con fuel', textos.includes('Surge fee (con fuel)'));

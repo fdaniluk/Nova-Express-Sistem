@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <meta name="robots" content="noindex, nofollow">
 <title>Cotizá tu envío · Nova Express</title>
+<link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
 <!--
   LA PÁGINA PÚBLICA DEL LINK DE COTIZACIÓN. La abre el CLIENTE, sin sesión.
 
@@ -19,7 +20,7 @@
 -->
 <style>
 :root{
-  --nova:#403754; --acento:#EE6C52; --fondo:#f6f5f2; --tarjeta:#fff;
+  --nova:#2A3661; --acento:#EA6749; --fondo:#F4F6FA; --tarjeta:#fff;
   --borde:#e2e0d8; --texto:#1a1916; --texto2:#5c5a54; --texto3:#9c9a94;
 }
 *{margin:0;padding:0;box-sizing:border-box}
@@ -27,7 +28,7 @@ body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--
 .franja{background:var(--nova);color:#fff;padding:16px 0}
 .franja .wrap{display:flex;justify-content:space-between;align-items:center}
 .wrap{max-width:720px;margin:0 auto;padding:0 16px}
-.logo{height:34px;background:#fff;border-radius:8px;padding:5px 10px;box-sizing:content-box}
+.logo{height:40px;display:block}
 .saludo{font-size:13px;opacity:.85;text-align:right}
 .saludo b{display:block;font-size:15px;opacity:1}
 h1{font-size:20px;margin:22px 0 4px}
@@ -75,7 +76,7 @@ select,input{width:100%;padding:9px 10px;border:1px solid var(--borde);border-ra
 <body>
 <div id="app" style="display:none">
   <div class="franja"><div class="wrap">
-    <img class="logo" src="/assets/logos/nova.png" alt="Nova Express">
+    <img class="logo" src="/assets/logos/nova-sobre-azul.svg" alt="Nova Express">
     <div class="saludo" id="saludo"></div>
   </div></div>
   <div class="wrap">
@@ -137,7 +138,7 @@ select,input{width:100%;padding:9px 10px;border:1px solid var(--borde);border-ra
 </div>
 <div id="roto" class="roto" style="display:none">
   <div class="card">
-    <img class="logo" src="/assets/logos/nova.png" alt="Nova Express" style="height:40px;margin-bottom:16px;background:transparent;padding:0">
+    <img class="logo" src="/assets/logos/nova.png" alt="Nova Express" style="height:40px;margin-bottom:16px">
     <h1 style="font-size:17px" id="roto-titulo"></h1>
     <div style="font-size:13px;color:var(--texto2)">Nova Express · WhatsApp <b>+54 9 11 6500-2047</b></div>
   </div>

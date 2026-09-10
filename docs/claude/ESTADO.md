@@ -315,6 +315,18 @@ Colores Nova `#403754`/`#EE6C52`.
   `frontend/assets/logos/nova.svg` (vector) y `nova.png` (1050 px, transparente); lo usan
   la imagen de la cotización (marca de agua + pie), el cotizador público y el tarifario.
   El viejo (violeta #403754 / coral #ED6D51) quedó en `_backup_logo/` fuera del repo.
+- **10/09 — MARCA APLICADA AL SISTEMA (commit después del dashboard; cache `?v=20260911a`).**
+  Felipe aprobó las capturas ("está perfecto, avancemos"). `main.css`: `--color-primary`
+  #2A3661, `--color-primary-light` #3D4C85, `--color-accent` #EA6749 (texto blanco sobre
+  naranja); barra lateral y login con el isotipo/logo "sobre azul"
+  (`assets/logos/isotipo.svg`, `nova-sobre-azul.svg`); favicon con el isotipo en todas las
+  páginas; violeta/coral reemplazados por azul/naranja en cotizador, salidas, facturas,
+  perfil de cliente, `tarifario.js` (marca nova), Excel del tarifario, Excel de liquidaciones
+  (`excel.service.js`, `importar-liquidador.js`; el test `test-liquidacion-desglose` espera
+  `FF2A3661`). El link público (`cotizar-cliente.html`) usa `--nova`/`--acento` nuevos y el
+  logo sobre azul sin cuadro blanco. La imagen de la cotización y el cotizador público son
+  neutros con acento por courier: sin cambios. Manual de marca: `MANUAL-DE-MARCA.md`;
+  archivos en `C:\dev\Marca Nova Express`.
 - **10/09 — DASHBOARD REDISEÑADO (bloque C de la lista; paquete `dashboard.tgz`, cache
   `?v=20260910c`, esperando tandas de Felipe y push).** Maqueta mostrada y aprobada;
   `services/analitica.service.js` + `GET /api/dashboard/analitica` (+ `.xlsx`) devuelven

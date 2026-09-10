@@ -177,7 +177,7 @@ function analizar(liq) {
 }
 
 // ── Excel de revisión ────────────────────────────────────────────────────────
-const VIOLETA = 'FF403754', CORAL = 'FFEE6C52', SUAVE = 'FFF1EFF5', ROJO = 'FFFDE2E2', VERDE = 'FFE7F6EC';
+const VIOLETA = 'FF2A3661', CORAL = 'FFEA6749', SUAVE = 'FFEAF1F8', ROJO = 'FFFDE2E2', VERDE = 'FFE7F6EC';
 function cabecera(ws, fila, textos) {
   textos.forEach((t, i) => {
     const c = ws.getCell(fila, i + 1);

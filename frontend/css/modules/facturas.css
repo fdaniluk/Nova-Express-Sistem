@@ -362,4 +362,4 @@
 /* Nota de la fecha de corte del control (07/09): qué se está mostrando y el link para ver lo anterior. */
 .fac-corte-nota { font-size: 12.5px; color: var(--text-secondary, #6b6860); margin: 8px 0 10px; }
 .fac-corte-nota:empty { display: none; }
-.fac-corte-nota a { color: var(--color-primary, #403754); cursor: pointer; text-decoration: underline; }
+.fac-corte-nota a { color: var(--color-primary, #2A3661); cursor: pointer; text-decoration: underline; }

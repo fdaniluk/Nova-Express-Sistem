@@ -50,7 +50,7 @@
   };
   const fmtDia = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(iso || ''); return m ? `${m[3]}/${m[2]}/${m[1]}` : ''; };
 
-  const COL = { p: '#1a3a5c', pl: '#dbe4ef', ups: '#b45309', dhl: '#c8102e', ok: '#15803d', amb: '#e8a317', grid: '#eef1f5', est: '#c7d2fe', real: '#4f46e5', muted: '#94a3b8' };
+  const COL = { p: '#2A3661', pl: '#dbe4ef', ups: '#b45309', dhl: '#c8102e', ok: '#15803d', amb: '#e8a317', grid: '#eef1f5', est: '#c7d2fe', real: '#4f46e5', muted: '#94a3b8' };
   if (window.Chart) {
     Chart.defaults.font.family = "'Segoe UI', system-ui, -apple-system, sans-serif";
     Chart.defaults.font.size = 11;
@@ -236,7 +236,7 @@
     const labels = top.map((p) => p.pais);
     const valores = top.map((p) => p[campo]);
     if (resto.length) { labels.push(`Otros (${resto.length})`); valores.push(Math.round(resto.reduce((s, p) => s + (p[campo] || 0), 0) * 100) / 100); }
-    const azules = ['#1a3a5c', '#2d5a87', '#3b6d9c', '#4f81b0', '#6a96c0', '#87abcf', '#a4c0dd', '#b9cde3', '#cbd5e1'];
+    const azules = ['#2A3661', '#3D4C85', '#5262A0', '#6B7AB5', '#8592C6', '#9FAAD5', '#B8C1E1', '#CDD3EA', '#DFE3F1'];
     chart('c-pais', {
       type: 'bar',
       data: { labels, datasets: [{ data: valores, backgroundColor: labels.map((_, i) => azules[Math.min(i, azules.length - 1)]), borderRadius: 4 }] },

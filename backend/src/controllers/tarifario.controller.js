@@ -49,8 +49,8 @@ async function excel(req, res, next) {
     const wb = new ExcelJS.Workbook();
     wb.creator = 'Nova Express';
 
-    const VIOLETA = 'FF403754';
-    const CORAL = 'FFEE6C52';
+    const VIOLETA = 'FF2A3661';
+    const CORAL = 'FFEA6749';
 
     for (const tabla of data.tablas) {
       const nombreHoja = `${tabla.titulo.replace(' (USD)', '')}${tabla.servicio ? ` ${tabla.servicio}` : ''}`

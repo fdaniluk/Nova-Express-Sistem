@@ -27,8 +27,8 @@
   const MARCAS = {
     nova: {
       logo: '/assets/logos/nova.png', nombre: 'Nova Express',
-      osc: '#403754', ac: '#EE6C52', suave: '#fde9e4', impar: '#faf9fb',
-      borde: '#e3e0ea', txt: '#2b2540',
+      osc: '#2A3661', ac: '#EA6749', suave: '#FDECE7', impar: '#F4F6FA',
+      borde: '#DFE5EE', txt: '#1F2937',
       pie: 'Nova Express · Courier internacional · Buenos Aires, Argentina',
       mail: 'ventas@novaexpress.com.ar',
     },

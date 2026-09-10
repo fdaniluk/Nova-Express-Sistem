@@ -4,7 +4,8 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>Cotizador — Nova Express</title>
-<link rel="stylesheet" href="../css/main.css?v=20260910c">
+<link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
+  <link rel="stylesheet" href="../css/main.css?v=20260911a">
 <style>
 @import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600&family=DM+Mono:wght@400;500&display=swap');
 :root{--cot-bg:#f5f4f0;--cot-surface:#ffffff;--cot-border:#e2e0d8;--cot-border-strong:#c8c5bb;--cot-text:#1a1916;--cot-text-secondary:#6b6860;--cot-text-tertiary:#9c9a94;--cot-accent-dhl:#d4a017;--cot-accent-ups:#2d5fa6;--cot-accent-dhl-bg:#fdf8ec;--cot-accent-ups-bg:#eef3fb;--cot-success:#2d6a4f;--cot-success-bg:#edf7f2;--cot-danger:#c0392b;--cot-radius:10px;--cot-radius-sm:6px;--cot-shadow:0 1px 3px rgba(0,0,0,0.06),0 1px 2px rgba(0,0,0,0.04);--cot-shadow-md:0 4px 12px rgba(0,0,0,0.08),0 2px 4px rgba(0,0,0,0.05)}
@@ -97,14 +98,14 @@
   cursor:pointer;border-radius:var(--cot-radius-sm);
   border:1px dashed #c9c3d4;background:#fff;color:var(--cot-text-tertiary);
   transition:background .12s,border-color .12s,color .12s}
-.btn-viaja:hover{border-color:#403754;color:#403754}
+.btn-viaja:hover{border-color:#2A3661;color:#2A3661}
 .btn-viaja .bv-ico{display:inline-flex;align-items:center;justify-content:center;
   width:16px;height:16px;border-radius:50%;background:#ece9f1;color:#8a8494;
   font-size:12px;font-weight:700;flex-shrink:0}
 /* Marcado: violeta Nova lleno. No verde: el verde de esta pantalla ya significa ganancia. */
-.btn-viaja[aria-pressed="true"]{border:1px solid #403754;background:#403754;color:#fff}
+.btn-viaja[aria-pressed="true"]{border:1px solid #2A3661;background:#2A3661;color:#fff}
 .btn-viaja[aria-pressed="true"]:hover{background:#332c44}
-.btn-viaja[aria-pressed="true"] .bv-ico{background:#EE6C52;color:#fff}
+.btn-viaja[aria-pressed="true"] .bv-ico{background:#EA6749;color:#fff}
 .btn-viaja.ocupado{opacity:.55;pointer-events:none}
 /* El renglon con el numero de CTZ, abajo del boton. Vacio no ocupa nada. */
 .bv-estado{font-size:10.5px;color:var(--cot-text-tertiary);text-align:center;min-height:0;
@@ -196,7 +197,7 @@
 
   <aside class="sidebar">
     <a class="sidebar-brand" href="../index.html">
-      <span class="sidebar-logo">NE</span>
+      <span class="sidebar-logo"><img src="/assets/logos/isotipo.svg" alt="Nova Express"></span>
       <div>
         <div class="sidebar-title">Nova Express</div>
         <div class="sidebar-subtitle">Courier DHL / UPS</div>
@@ -423,10 +424,10 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260910c"></script>
-<script src="/js/api.js?v=20260910c"></script>
-<script src="/shared/cotizador/cotizador-core.js?v=20260910c"></script>
-<script src="/js/cotizacion-imagen.js?v=20260910c"></script>
+<script src="/js/auth-guard.js?v=20260911a"></script>
+<script src="/js/api.js?v=20260911a"></script>
+<script src="/shared/cotizador/cotizador-core.js?v=20260911a"></script>
+<script src="/js/cotizacion-imagen.js?v=20260911a"></script>
 <script>
 let bultoId=0;
 /* agregarBulto(datos, despuesDeInfo)
@@ -864,7 +865,7 @@ document.addEventListener('DOMContentLoaded',()=>{
 <!-- ¿Para quién es? (guardar sin cliente arriba, 08/09/2026) -->
 <div id="ctz-para-quien" style="display:none;position:fixed;inset:0;background:rgba(15,23,42,.45);z-index:3000;align-items:center;justify-content:center;padding:16px">
   <div style="background:#fff;border-radius:12px;width:100%;max-width:440px;box-shadow:0 12px 40px rgba(0,0,0,.22);overflow:hidden;font-family:inherit">
-    <div style="padding:14px 18px;background:#eaf1f8;border-bottom:1px solid #d8dee9;font-weight:700;color:#1a3a5c">¿Para quién es esta cotización?</div>
+    <div style="padding:14px 18px;background:#eaf1f8;border-bottom:1px solid #d8dee9;font-weight:700;color:#2A3661">¿Para quién es esta cotización?</div>
     <div style="padding:16px 18px;display:flex;flex-direction:column;gap:10px">
       <div id="pq-profit" style="font-size:12.5px;color:#64748b"></div>
       <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:#64748b">Cliente</label>
@@ -877,7 +878,7 @@ document.addEventListener('DOMContentLoaded',()=>{
     </div>
     <div style="padding:12px 18px;border-top:1px solid #d8dee9;display:flex;justify-content:flex-end;gap:8px">
       <button type="button" id="pq-cancelar" style="padding:8px 14px;border:1px solid #d8dee9;background:#fff;border-radius:6px;cursor:pointer;font:inherit">Cancelar</button>
-      <button type="button" id="pq-ok" style="padding:8px 16px;border:0;background:#1a3a5c;color:#fff;border-radius:6px;cursor:pointer;font:inherit;font-weight:600">Guardar acá</button>
+      <button type="button" id="pq-ok" style="padding:8px 16px;border:0;background:#2A3661;color:#fff;border-radius:6px;cursor:pointer;font:inherit;font-weight:600">Guardar acá</button>
     </div>
   </div>
 </div>

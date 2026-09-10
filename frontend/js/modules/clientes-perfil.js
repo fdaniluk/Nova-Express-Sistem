@@ -138,7 +138,7 @@
       const y = pad.top + ch - barH;
 
       // Bar
-      ctx.fillStyle = '#1a3a5c';
+      ctx.fillStyle = '#2A3661';
       ctx.fillRect(x, y, barW, barH);
 
       // Envíos tooltip dentro de la barra si hay espacio
