@@ -1307,6 +1307,13 @@
       : 'USD ' + Number(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   }
 
+  function ctzServicioCorto(svc) {
+    if (/Expedited/i.test(svc)) return 'UPS W.E';
+    if (/Saver/i.test(svc)) return 'UPS W.S';
+    if (/DHL/i.test(svc)) return 'DHL';
+    return svc || '—';
+  }
+
   function ctzFecha(iso) {
     const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
     return m ? `${m[3]}/${m[2]}/${m[1]}` : '—';
@@ -1330,10 +1337,20 @@
         + '<th>Acordado</th><th>Estado</th><th>Vence</th><th></th></tr></thead><tbody>'
         + filas.map((f) => {
           const ops = f.opciones_resumen || [];
+          /* Qué opciones se GUARDARON (el botón "Guardar este precio" está al lado de cada
+             servicio, así que la marca `viaja` dice cuál eligió la oficina). Pedido de Felipe
+             (10/09): volver a preguntar qué servicio se confirmó era redundante. Con UNA
+             guardada, el botón es directo "Aceptada ✓"; con varias, se elige solo entre esas;
+             sin marca (cotizaciones viejas), como antes. */
+          const conocenMarca = ops.some((o) => o.viaja !== undefined);
+          const guardadas = conocenMarca ? ops.filter((o) => o.viaja) : ops;
           const acciones = f.estado === 'aceptada'
             ? `<button data-accion="estado" data-id="${f.id}" data-estado="emitida">Desmarcar</button>`
-            : ops.map((o) => `<button data-accion="aceptar" data-id="${f.id}" data-servicio="${o.servicio}"`
-                + ` title="El cliente aceptó ${o.servicio}">Aceptar ${o.servicio}</button>`).join('')
+            : (guardadas.length === 1
+              ? `<button data-accion="aceptar" data-id="${f.id}" data-servicio="${guardadas[0].servicio}" class="ctz-btn-ok"`
+                + ` title="El cliente aceptó la cotización (${guardadas[0].servicio})">✓ Aceptada</button>`
+              : guardadas.map((o) => `<button data-accion="aceptar" data-id="${f.id}" data-servicio="${o.servicio}"`
+                + ` title="El cliente aceptó ${o.servicio}">Aceptar ${ctzServicioCorto(o.servicio)}</button>`).join(''))
               + `<button data-accion="estado" data-id="${f.id}" data-estado="rechazada">Rechazar</button>`;
           const abierta = ctzAbiertas.has(f.id);
           return `<tr>
@@ -1343,7 +1360,10 @@
             <td style="font-size:11.5px">${ctzFecha(f.creado_en)}</td>
             <td>${f.pais}<br><span style="font-size:11px;color:#8a8494">${f.tipo_envio === 'importacion' ? 'Impo' : 'Expo'} · Zona ${f.zona || '—'}</span>${f.profit && f.profit.manual ? `<br><span class="ctz-chip manual" title="Se cotizó sin la tarifa del cliente, con una ganancia tipeada a mano">profit manual ${f.profit.pct}%</span>` : ''}</td>
             <td>${Number(f.peso_facturable).toFixed(1)} kg</td>
-            <td style="font-size:11.5px">${ops.map((o) => `${o.servicio}: ${ctzFmt(o.total)}`).join('<br>') || '—'}</td>
+            <td style="font-size:11.5px">${ops.map((o) => {
+              const enviada = conocenMarca && o.viaja;
+              return `<span class="${enviada ? 'ctz-op-enviada' : (conocenMarca ? 'ctz-op-no' : '')}" title="${enviada ? 'Guardada / enviada al cliente' : (conocenMarca ? 'No se guardó para el cliente' : '')}">${enviada ? '✓ ' : ''}${ctzServicioCorto(o.servicio)}: ${ctzFmt(o.total)}</span>`;
+            }).join('<br>') || '—'}</td>
             <td>${f.estado === 'aceptada' ? `<b>${ctzFmt(f.total_acordado)}</b><br><span style="font-size:11px;color:#8a8494">${f.servicio_aceptado || ''}</span>` : '—'}</td>
             <td><span class="ctz-chip ${f.estado}">${f.estado}</span></td>
             <td style="font-size:11.5px">${f.vence_en || '—'}</td>
@@ -1377,16 +1397,87 @@
         (o.extras || []).forEach(([n, v]) => filas.push([n, v]));
         return `<div class="ctz-desglose-op"><div class="dg-tit">${o.servicio}${o.viaja ? '' : ' <span style="font-weight:400;color:#9ca3af">(no enviada)</span>'}</div>`
           + filas.map(([n, v]) => `<div class="dg-row"><span>${n}</span><span>${ctzFmt(v)}</span></div>`).join('')
-          + `<div class="dg-row dg-total"><span>Total</span><span>${ctzFmt(o.total)}</span></div></div>`;
+          + `<div class="dg-row dg-total"><span>Total</span><span>${ctzFmt(o.total)}</span></div>`
+          /* El cuadro tal cual se le manda al cliente, para reenviarlo (Felipe, 10/09). */
+          + `<button type="button" class="ctz-ver-cuadro" data-id="${q.id}" data-servicio="${o.servicio}" title="Ver el cuadro de la cotización tal cual se le manda al cliente, para copiarlo y reenviarlo">🖼 Ver cuadro</button>`
+          + `</div>`;
       }).join('')}</div>`;
+      ctzCache.set(q.id, q);
     } catch (e) {
       celda.textContent = `No se pudo traer el desglose: ${e.message || e}`;
     }
   }
 
+  // Las cotizaciones completas ya traídas (para armar el cuadro sin volver a pedirlas).
+  const ctzCache = new Map();
+
+  /* ── El cuadro de la cotización (10/09/2026) ──
+     Vuelve a dibujar EXACTAMENTE el cuadro que el cotizador copia al portapapeles, con
+     los números guardados (no recalcula nada: es lo que se le mandó al cliente) y lo
+     muestra en un modal con "Copiar imagen" y "Descargar", para reenviarlo. */
+  async function verCuadro(id, servicio) {
+    let q = ctzCache.get(id);
+    if (!q) { q = await NovaAPI.cotizaciones.obtener(id); ctzCache.set(id, q); }
+    let ops = [];
+    try { ops = JSON.parse(q.opciones || '[]'); } catch { ops = []; }
+    const op = ops.find((o) => o.servicio === servicio) || ops[0];
+    if (!op) { alert('Esta cotización no tiene esa opción.'); return; }
+    await CotizacionImagen.esperarFuentes();
+    const canvas = await CotizacionImagen.dibujar(CotizacionImagen.datosDeGuardada(q, op));
+
+    let overlay = document.getElementById('ctz-cuadro-overlay');
+    if (!overlay) {
+      overlay = document.createElement('div');
+      overlay.id = 'ctz-cuadro-overlay';
+      overlay.className = 'ctz-cuadro-overlay';
+      overlay.innerHTML = `
+        <div class="ctz-cuadro-box">
+          <div class="ctz-cuadro-head">
+            <b id="ctz-cuadro-tit"></b>
+            <span id="ctz-cuadro-sub" class="ctz-cuadro-sub"></span>
+            <button type="button" class="ctz-cuadro-x" id="ctz-cuadro-cerrar" title="Cerrar">×</button>
+          </div>
+          <div class="ctz-cuadro-img"><img id="ctz-cuadro-img" alt="Cuadro de la cotización"></div>
+          <div class="ctz-cuadro-pie">
+            <span class="ctz-cuadro-nota">Es el mismo cuadro que copia el cotizador, con los números guardados.</span>
+            <button type="button" class="btn btn-secondary" id="ctz-cuadro-bajar">Descargar PNG</button>
+            <button type="button" class="btn btn-primary" id="ctz-cuadro-copiar">Copiar imagen</button>
+          </div>
+        </div>`;
+      document.body.appendChild(overlay);
+      overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.classList.remove('on'); });
+      document.getElementById('ctz-cuadro-cerrar').addEventListener('click', () => overlay.classList.remove('on'));
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') overlay.classList.remove('on'); });
+    }
+    overlay._canvas = canvas;
+    overlay._archivo = `CTZ-${q.numero}-${String(op.servicio).toLowerCase().replace(/[^a-z0-9]+/g, '-')}.png`;
+    document.getElementById('ctz-cuadro-tit').textContent = `CTZ-${q.numero} · ${ctzServicioCorto(op.servicio)}`;
+    document.getElementById('ctz-cuadro-sub').textContent = `${ctzFecha(q.creado_en)}${q.vence_en ? ' · válida hasta el ' + ctzFecha(q.vence_en) : ''}${q.estado === 'vencida' ? ' · VENCIDA: revisar el precio antes de reenviar' : ''}`;
+    document.getElementById('ctz-cuadro-img').src = canvas.toDataURL('image/png');
+    const btnCopiar = document.getElementById('ctz-cuadro-copiar');
+    const btnBajar = document.getElementById('ctz-cuadro-bajar');
+    btnCopiar.onclick = async () => {
+      const como = await CotizacionImagen.copiarODescargar(overlay._canvas, overlay._archivo);
+      btnCopiar.textContent = como === 'copiada' ? '¡Copiada! Ctrl+V' : 'Descargada';
+      setTimeout(() => { btnCopiar.textContent = 'Copiar imagen'; }, 2200);
+    };
+    btnBajar.onclick = async () => {
+      const blob = await CotizacionImagen.aBlob(overlay._canvas);
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob); a.download = overlay._archivo; a.click(); URL.revokeObjectURL(a.href);
+    };
+    overlay.classList.add('on');
+  }
+
   function bindCotizaciones() {
     const cont = document.getElementById('ctz-lista');
     if (!cont) return;
+    cont.addEventListener('click', (e) => {
+      const b = e.target.closest('.ctz-ver-cuadro');
+      if (!b) return;
+      e.preventDefault();
+      verCuadro(Number(b.dataset.id), b.dataset.servicio).catch((err) => alert('No se pudo armar el cuadro: ' + (err.message || err)));
+    });
     document.getElementById('ctz-filtro-estado').addEventListener('change', cargarCotizacionesCliente);
     document.getElementById('btn-ctz-actualizar').addEventListener('click', cargarCotizacionesCliente);
     cont.addEventListener('click', async (e) => {

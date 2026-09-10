@@ -412,8 +412,10 @@ async function main() {
      dibuja. Al cliente le tiene que quedar el WhatsApp, no un mail: la oficina atiende
      por WhatsApp y una cotización que ofrece un mail manda al cliente a un buzón que
      nadie mira. Si alguien vuelve a poner un mail acá, esto se pone rojo. */
+  // Desde el 10/09 el dibujo vive en /js/cotizacion-imagen.js (compartido con el perfil
+  // del cliente, que vuelve a armar el cuadro de una cotización guardada).
   const src = fs.readFileSync(
-    path.join(__dirname, '..', '..', 'frontend', 'pages', 'cotizador.html'), 'utf8');
+    path.join(__dirname, '..', '..', 'frontend', 'js', 'cotizacion-imagen.js'), 'utf8');
   const franja = src.slice(src.indexOf('FRANJA DEL PIE'), src.indexOf('Filete de 1 px'));
   check('la franja del pie lleva el WhatsApp de Nova',
     franja.includes('+54 9 11 6500-2047'));

@@ -308,8 +308,17 @@ Colores Nova `#403754`/`#EE6C52`.
 
 ---
 
-## 3. Dónde estamos (09-09-2026)
+## 3. Dónde estamos (10-09-2026)
 
+- **10/09 — LISTA DE LA OFICINA (`LISTA-OFICINA-10-09.md`): bloque A, cotizaciones
+  guardadas — HECHO (paquete entregado, cache `?v=20260910a`).** El cuadro de la cotización
+  se dibuja en `frontend/js/cotizacion-imagen.js` (compartido) y el perfil lo vuelve a armar
+  desde una cotización guardada ("🖼 Ver cuadro" → copiar / descargar); con una sola opción
+  guardada el botón es "✓ Aceptada" (no se re-pregunta el servicio); en Cargar envío pinchar
+  una cotización completa país, tipo, courier/servicio, bultos, medidas, pesos, FOB, DDP y
+  entrega (`aplicarCotizacion`), y con el país elegido el panel filtra por país. Tanda
+  `test-pantalla-cotizacion-guardada` (37). Quedan B (Guías: Tax ID, proforma editable y
+  numerada, térmica vs A4 apaisada) y C (dashboard, diseño primero).
 - **09/09 — REDISEÑO DE SALIDAS, FASE A (`dbe9a44` pusheado; el retiro de la barra en el
   paquete siguiente).** Felipe pidió rediseñar Salidas "con mucho énfasis" y **sin tocar nada sin
   mostrárselo antes**: se hizo diagnóstico + dos maquetas y las aprobó ("me gusta como se
@@ -330,8 +339,7 @@ Colores Nova `#403754`/`#EE6C52`.
   envío en la celda Bulto (`bultosOverride`, XOR con "1º bulto"), sub-filas bajas con └,
   atajos Enter / Ctrl+C / Esc / Ctrl+F sobre la celda activa (`onGridKeydown`). Plegar
   Medidas/Costos por grupo NO se hizo (demasiado acople con sticky/colspans/flechas).
-  **Fase C (09/09, cache `?v=20260909d`, paquete armado; Felipe se fue antes de correr
-  las tandas):** el modal en dos columnas — pasos 1·2·3 a la izquierda, tarjeta Resultado
+  **Fase C (`10871cc`, pusheada y desplegada el 10/09; cache `?v=20260909d`):** el modal en dos columnas — pasos 1·2·3 a la izquierda, tarjeta Resultado
   (venta grande, compra total en vivo `#saled-compra-view`, profit y %) + acciones sobre
   el precio + Guardar coral a la derecha; pie con Eliminar como link, NO VOLÓ ámbar,
   Ctrl+Enter guarda. Ningún id cambió. Tanda `test-pantalla-rediseno-salidas` **62**; las

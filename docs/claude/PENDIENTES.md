@@ -1,14 +1,24 @@
 # Pendientes
 
-**Actualizado 09/09/2026.** Salidas, **Fase A del rediseño** (`SALIDAS-REDISENO.md` §3),
+**Actualizado 10/09/2026.** Felipe pasó la **lista de la oficina** → `LISTA-OFICINA-10-09.md`:
+(A) cotizaciones guardadas — volver a desplegarlas enteras para reenviar, no re-preguntar el
+servicio (los botones Guardar ya son por servicio), que al pincharla desde Cargar envío complete
+país/peso/medidas/bultos y que si el país ya está elegido solo sugiera cotizaciones a ese país;
+(B) Guías — Tax ID limita caracteres, térmica ≠ guía A4 (UPS tiene dos formatos), guía A4
+apaisada con las leyendas de UPS al dorso (administración manda una impresa), título de la
+proforma editable; (C) Dashboard — kg por mes, top de clientes por kg/facturación/utilidad en
+una tabla con selector, estimado vs real con las facturas cargadas, y más ideas mías. Orden
+propuesto: A → B1/B4/B5 → B2/B3 → C. **A hecho el 10/09** (paquete entregado, cache `?v=20260910a`).
+
+**Estado al 09/09.** Salidas, **Fase A del rediseño** (`SALIDAS-REDISENO.md` §3),
 `dbe9a44`: cabecera en dos grupos VER / ACCIONES, una sola barra con el Cierre, banda de
 grupos sobre las 38 columnas, importes sin `$` y ceros en gris, leyenda "? Colores". **La
 barra de totales se sacó el mismo día** (Felipe: "tapa mucha pantalla"; lo que quiere es
 *seleccionar campos y hacer la cuenta rápida en el momento* → pendiente de definir con
 administración). Test `test-pantalla-rediseno-salidas` (26). Cache **`?v=20260909b`**.
 Felipe aprobó las maquetas conservando Tipo y Dir. **Fase B** (`1f5a748`: ▾/▸ por envío,
-sub-filas bajas, Enter / Ctrl+C / Esc / Ctrl+F) pusheada. **Fase C (modal en dos columnas,
-cache `?v=20260909d`, tanda 62) armada y esperando que Felipe corra las tandas y suba.**
+sub-filas bajas, Enter / Ctrl+C / Esc / Ctrl+F) pusheada. **Fase C (`10871cc`, modal en dos
+columnas, cache `?v=20260909d`, tanda 62) pusheada y desplegada el 10/09.**
 
 **Estado al 08/09 (noche, cierre del día).** Día entero de guías: **`a4fecb9`** (módulo
 Guías etapas 1 y 2: libreta de destinatarios, proforma, precargas, Cargar envío confirma),

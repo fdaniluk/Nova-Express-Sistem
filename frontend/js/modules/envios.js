@@ -393,6 +393,10 @@
     // El label del país (destino/origen) sigue al tipo de envío.
     document.getElementById('tipo_envio').addEventListener('change', updatePaisLabel);
 
+    // El panel de cotizaciones del cliente sigue al país (10/09): con país elegido,
+    // solo las cotizaciones a ese país.
+    document.getElementById('pais_destino').addEventListener('change', debounce(pintarCotizacionesDelCliente, 250));
+
     // Cambiar país, courier o tipo cambia el contexto de la matriz: reset + re-precarga.
     const resetRecotizar = debounce(() => { profitTocado = false; precargarYCotizar(); }, 400);
     ['pais_destino', 'courier', 'tipo_envio'].forEach((id) => {
@@ -955,26 +959,99 @@
   //
   // EL PRECIO ES UN SUGERIDO. Se escribe en "Total cobrado" y ahi termina: se puede pisar,
   // borrar o recalcular. El envio NO queda atado a la cotizacion.
+  //
+  // 10/09/2026 (Felipe): al pinchar una cotización se completa TODO lo que ella sabe —
+  // país, tipo, courier y servicio, bultos con medidas y pesos, FOB, DDP, zona de
+  // entrega, protección de documentos— además del precio. Y al revés: si el país ya está
+  // elegido, el panel muestra solo las cotizaciones a ese país.
   function pintarCotizacionesDelCliente() {
     const cont = document.getElementById('ctzr-panel');
     if (!cont || !window.CotizacionesRecientes) return;
     const clienteId = document.getElementById('cliente_id').value;
     window.CotizacionesRecientes.montar(cont, {
       clienteId,
-      onUsar: (total) => {
+      pais: document.getElementById('pais_destino').value || '',
+      onUsar: (total, ctx) => {
+        if (ctx && ctx.cotizacion) aplicarCotizacion(ctx.cotizacion, ctx.opcion);
         const campo = document.getElementById('total_cobrado');
         campo.value = Number(total).toFixed(2);
         // El cotizador automatico pudo haber dejado su propio numero: se avisa cual quedo
         // puesto, para que nadie descubra despues que el precio salio de otro lado.
         const nota = document.getElementById('ctzr-sugerido');
         if (nota) {
-          nota.textContent = 'Precio traido de una cotizacion — es un sugerido, se puede cambiar.';
+          nota.textContent = ctx && ctx.cotizacion
+            ? `Precio y datos traídos de la CTZ-${ctx.cotizacion.numero} — son un sugerido, se puede cambiar todo.`
+            : 'Precio traido de una cotizacion — es un sugerido, se puede cambiar.';
           nota.classList.remove('hidden');
         }
         campo.focus();
         campo.select();
       },
     });
+  }
+
+  // Pega en el formulario lo que la cotización guardada sabe del envío. No toca el
+  // cliente (ya es el mismo), ni la fecha, ni la guía, ni las observaciones. Los campos
+  // quedan editables: es un punto de partida, no una orden. Misma mecánica que
+  // cargarPrecarga (las precargas de Guías).
+  function aplicarCotizacion(q, opcion) {
+    const setVal = (id, v) => { const el = document.getElementById(id); if (el && v !== undefined && v !== null) el.value = v; };
+    const tipo = q.tipo_envio === 'importacion' ? 'importacion' : 'exportacion';
+    setVal('tipo_envio', tipo);
+    updatePaisLabel();
+    const servicio = String((opcion && opcion.servicio) || '');
+    if (servicio) {
+      const esUps = /UPS/i.test(servicio);
+      setVal('courier', esUps ? 'UPS' : 'DHL');
+      document.getElementById('cot-ups-wrap').style.display = esUps ? '' : 'none';
+      if (esUps) setVal('cot-ups-variante', /Saver/i.test(servicio) ? 'UPS_SAV' : 'UPS_EXP');
+      aplicarVisibilidadProteccionDoc(true);
+      setFuelPctDefault();
+    }
+    const paisSel = document.getElementById('pais_destino');
+    if (q.pais) {
+      paisSel.value = q.pais;
+      if (paisSel.value !== q.pais) {
+        // Por si el nombre no coincide exacto con la lista (mayúsculas / acentos).
+        const n = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+        const opt = [...paisSel.options].find((o) => n(o.value) === n(q.pais));
+        if (opt) paisSel.value = opt.value;
+        else NovaUtils.showAlert(alertBox, `El país "${q.pais}" de la cotización no está en la lista: elegilo a mano.`, 'error');
+      }
+    }
+    aplicarReglaDocumentos();
+    autocompletarZona();
+
+    const bultos = Array.isArray(q.bultos) ? q.bultos : [];
+    const n = bultos.length || Number(q.cantidad_bultos) || 1;
+    setVal('cantidad_bultos', n);
+    renderBultos();
+    if (n <= 1) {
+      const b = bultos[0] || {};
+      setVal('peso_real', b.pr ?? '');
+      setVal('largo', b.l ?? '');
+      setVal('ancho', b.a ?? '');
+      setVal('alto', b.al ?? '');
+    } else {
+      bultos.forEach((b, i) => {
+        const set = (field, val) => {
+          const el = document.querySelector(`[data-bulto="${i + 1}"][data-field="${field}"]`);
+          if (el) el.value = val ?? '';
+        };
+        set('largo', b.l); set('ancho', b.a); set('alto', b.al); set('peso_real', b.pr);
+      });
+    }
+    setVal('fob', Number(q.valor_declarado) || 0);
+    // El tilde de asegurado sigue al FOB (misma regla que al tipearlo: ≥ 100 → asegurado).
+    document.getElementById('asegurado').checked = (Number(q.valor_declarado) || 0) >= 100;
+    const d = q.datos || {};
+    document.getElementById('ddp').checked = Boolean(d.ddp);
+    setVal('entrega', d.entrega || 'normal');
+    const prot = document.getElementById('proteccion_doc');
+    if (prot) prot.checked = Boolean(d.proteccion_doc);
+    aplicarVisibilidadProteccionDoc(false);
+    aplicarBloqueoMultibulto();
+    updatePesosYCotizacion();
   }
 
   // ── Precarga de % profit desde la matriz ─────────────────────────

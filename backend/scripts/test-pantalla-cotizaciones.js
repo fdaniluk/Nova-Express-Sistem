@@ -206,7 +206,11 @@ async function main() {
     (await page.textContent('#ctz-lista .ctz-chip')).trim() === 'emitida');
 
   const etiqueta = await page.textContent('#ctz-lista .ctz-acciones button');
-  check('ofrece aceptar por servicio', /^Aceptar /.test((etiqueta || '').trim()), etiqueta);
+  // 10/09 (Felipe): el botón Guardar está al lado de cada servicio, así que con UNA opción
+  // guardada no se vuelve a preguntar cuál: el botón es directo "✓ Aceptada". Con varias
+  // guardadas (o sin marca, cotizaciones viejas) sigue "Aceptar <servicio>".
+  check('ofrece aceptar sin volver a preguntar el servicio (o por servicio si hay varios)',
+    /^(✓ Aceptada|Aceptar )/.test((etiqueta || '').trim()), etiqueta);
   await page.click('#ctz-lista .ctz-acciones button');
   const acepto = await esperarQue(async () =>
     (await page.textContent('#ctz-lista .ctz-chip')).trim() === 'aceptada');

@@ -88,7 +88,10 @@ async function listar({ cliente_id, estado, desde, hasta, limite, sin_cliente } 
     const { entrada, opciones, ...resto } = f;
     let resumen = [];
     try {
-      resumen = JSON.parse(opciones || '[]').map((o) => ({ servicio: o.servicio, total: o.total }));
+      // `viaja` (10/09/2026): qué opción se GUARDÓ con el botón de al lado del servicio. El
+      // perfil la usa para no volver a preguntar qué servicio se confirmó. En cotizaciones
+      // anteriores a la marca por opción viene undefined (→ el perfil las trata como antes).
+      resumen = JSON.parse(opciones || '[]').map((o) => ({ servicio: o.servicio, total: o.total, viaja: o.viaja === undefined ? undefined : (o.viaja ? 1 : 0) }));
     } catch { resumen = []; }
     // Con qué profit se cotizó (08/09/2026): `manual` = se cotizó sin cliente arriba, con
     // la ganancia tipeada, y se guardó en un perfil al final. La oficina tiene que ver que
@@ -162,13 +165,22 @@ async function recientesDeCliente(clienteId, dias = 30) {
     const { entrada, opciones, ...resto } = f;
     let bultos = [];
     let precios = [];
+    // Lo operativo de la cotización que Cargar envío puede pegar en el formulario (Felipe,
+    // 10/09: "que chupe otros datos que viven dentro de la cotización"). De la ganancia, el
+    // fuel y el arancel no va nada: es cocina nuestra.
+    let datos = { ddp: 0, entrega: 'normal', residencial: 0, proteccion_doc: 0 };
     try {
       const e = JSON.parse(entrada || '{}');
-      // Solo las medidas y los pesos. Del resto de `entrada` (ganancia, fuel, arancel)
-      // no va nada: es cocina nuestra.
+      // Solo las medidas y los pesos.
       bultos = Array.isArray(e.bultos)
         ? e.bultos.map((b) => ({ pr: b.pr, l: b.l, a: b.a, al: b.al, pv: b.pv, pf: b.pf }))
         : [];
+      datos = {
+        ddp: e.ddp ? 1 : 0,
+        entrega: e.entrega || (e.residencial ? 'extendida' : 'normal'),
+        residencial: e.residencial ? 1 : 0,
+        proteccion_doc: e.proteccion_doc ? 1 : 0,
+      };
     } catch { bultos = []; }
     try {
       /* Solo las opciones MARCADAS. Cotizar DHL + UPS rápido + UPS lento y mandarle una
@@ -185,7 +197,7 @@ async function recientesDeCliente(clienteId, dias = 30) {
         .filter((o) => o && (conocenLaMarca ? o.viaja : true))
         .map((o) => ({ servicio: o.servicio, total: o.total, pf: o.pf, zona: o.zona }));
     } catch { precios = []; }
-    return { ...resto, bultos, opciones_resumen: precios };
+    return { ...resto, bultos, datos, opciones_resumen: precios };
   })
     /* Una cotización sin ninguna opción tildada no tiene nada que mostrar. Puede pasar si
        alguien destildó todo antes de guardar: se guarda igual (es el respaldo) pero no

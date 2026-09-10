@@ -79,8 +79,8 @@
     const destino = [q.pais, q.zona ? `zona ${q.zona}` : null,
       q.tipo_envio === 'importacion' ? 'impo' : 'expo'].filter(Boolean).join(' · ');
     const opciones = (q.opciones_resumen || []).map((o) => `
-      <button type="button" class="ctzr-precio" data-total="${Number(o.total) || 0}"
-              title="Escribir ${usd(o.total)} como precio sugerido — después se puede cambiar">
+      <button type="button" class="ctzr-precio" data-total="${Number(o.total) || 0}" data-ctz="${q.id}" data-servicio="${esc(o.servicio)}"
+              title="Usar esta cotización: escribe ${usd(o.total)} como precio sugerido y completa país, bultos, medidas y pesos — después se puede cambiar todo">
         <span class="ctzr-serv">${esc(servicioCorto(o.servicio))}</span>
         <span class="ctzr-monto">${usd(o.total)}</span>
       </button>`).join('');
@@ -100,6 +100,12 @@
       </div>`;
   }
 
+  // Para comparar países sin que importen mayúsculas ni acentos ("Estados Unidos" =
+  // "estados unidos" = "ESTADOS UNIDOS").
+  function normalizarPais(p) {
+    return String(p || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim();
+  }
+
   /**
    * Pinta el panel adentro de `cont`.
    *
@@ -107,9 +113,13 @@
    * @param {Object} opts
    *   clienteId  cliente a consultar (sin cliente el panel se limpia y no pide nada)
    *   dias       días corridos hacia atrás (30 por defecto)
-   *   onUsar     fn(total) — se llama al apretar un precio
+   *   pais       si viene, se muestran SOLO las cotizaciones a ese país (Felipe, 10/09:
+   *              "si pongo un país antes de agarrar la cotización, que solo me sugiera
+   *              las de ese cliente a ese país"). Si no hay ninguna a ese país, se
+   *              muestran todas con un aviso.
+   *   onUsar     fn(total, { cotizacion, opcion }) — se llama al apretar un precio
    */
-  async function montar(cont, { clienteId, dias, onUsar } = {}) {
+  async function montar(cont, { clienteId, dias, onUsar, pais } = {}) {
     if (!cont) return;
     const id = parseInt(clienteId, 10);
     if (!Number.isFinite(id)) {
@@ -135,15 +145,33 @@
       return;
     }
 
-    cont.innerHTML = `<div class="ctzr-lista">${filas.map(filaHtml).join('')}</div>`;
+    let aviso = '';
+    let visibles = filas;
+    const paisN = normalizarPais(pais);
+    if (paisN) {
+      const delPais = filas.filter((q) => normalizarPais(q.pais) === paisN);
+      if (delPais.length) {
+        visibles = delPais;
+        if (delPais.length < filas.length) {
+          aviso = `<div class="ctzr-aviso">Solo las cotizaciones a <b>${esc(pais)}</b> (${delPais.length} de ${filas.length}). Cambiá el país de arriba para ver otras.</div>`;
+        }
+      } else {
+        aviso = `<div class="ctzr-aviso">No hay cotizaciones a <b>${esc(pais)}</b> en los últimos ${n} días; se muestran todas.</div>`;
+      }
+    }
 
+    cont.innerHTML = aviso + `<div class="ctzr-lista">${visibles.map(filaHtml).join('')}</div>`;
+
+    const porId = new Map(visibles.map((q) => [q.id, q]));
     cont.querySelectorAll('.ctzr-precio').forEach((btn) => {
       btn.addEventListener('click', (ev) => {
         ev.preventDefault();
         const total = Number(btn.dataset.total) || 0;
         cont.querySelectorAll('.ctzr-precio').forEach((b) => b.classList.remove('elegido'));
         btn.classList.add('elegido');
-        if (typeof onUsar === 'function') onUsar(total);
+        const q = porId.get(Number(btn.dataset.ctz)) || null;
+        const opcion = q ? (q.opciones_resumen || []).find((o) => o.servicio === btn.dataset.servicio) || null : null;
+        if (typeof onUsar === 'function') onUsar(total, { cotizacion: q, opcion });
       });
     });
   }
