@@ -7,6 +7,7 @@
   background: #fef2f2; border: 1px solid #fecaca; border-left: 4px solid var(--color-danger);
   border-radius: var(--radius); color: var(--color-text); text-decoration: none; font-size: 0.9rem;
 }
+.franja-salud[hidden] { display: none; }
 .franja-salud:hover { background: #fee2e2; }
 .franja-salud strong { color: var(--color-danger); }
 .franja-salud .franja-detalle { color: var(--color-muted); font-size: 0.85rem; margin-top: 0.2rem; }
