@@ -330,7 +330,13 @@ Colores Nova `#403754`/`#EE6C52`.
   envío en la celda Bulto (`bultosOverride`, XOR con "1º bulto"), sub-filas bajas con └,
   atajos Enter / Ctrl+C / Esc / Ctrl+F sobre la celda activa (`onGridKeydown`). Plegar
   Medidas/Costos por grupo NO se hizo (demasiado acople con sticky/colspans/flechas).
-  Tanda `test-pantalla-rediseno-salidas` 47. Falta **Fase C** (modal en dos columnas).
+  **Fase C (09/09, cache `?v=20260909d`, paquete armado; Felipe se fue antes de correr
+  las tandas):** el modal en dos columnas — pasos 1·2·3 a la izquierda, tarjeta Resultado
+  (venta grande, compra total en vivo `#saled-compra-view`, profit y %) + acciones sobre
+  el precio + Guardar coral a la derecha; pie con Eliminar como link, NO VOLÓ ámbar,
+  Ctrl+Enter guarda. Ningún id cambió. Tanda `test-pantalla-rediseno-salidas` **62**; las
+  14 tandas de Salidas verdes en el contenedor. **Con esto el rediseño de Salidas queda
+  completo** salvo la "cuenta rápida" (a definir con administración) y el manual Word.
 - **08/09, noche — COTIZAR SIN CLIENTE Y ELEGIR EL PERFIL AL GUARDAR (pedido del jefe de
   Felipe).** Antes, guardar sin cliente pedía un nombre tipeado y la cotización quedaba
   con `cliente_id NULL`: invisible en el perfil y en el panel de Cargar envío (las dos

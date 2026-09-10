@@ -17,7 +17,11 @@
  *   · Fase B: el ▾/▸ de la celda Bulto pliega/abre los bultos de ESE envío, convive con el
  *     botón global "1º bulto" y con "Limpiar filtros"; las sub-filas son más bajas;
  *   · Fase B: atajos de teclado sobre la celda activa — Enter abre el modal, Ctrl+C copia
- *     el valor de la celda, Esc suelta la celda, Ctrl+F va al buscador.
+ *     el valor de la celda, Esc suelta la celda, Ctrl+F va al buscador;
+ *   · Fase C: el modal en dos columnas — los tres pasos a la izquierda, la tarjeta
+ *     Resultado (venta, compra, profit) y el Guardar coral a la derecha; Eliminar como
+ *     link y NO VOLÓ con borde ámbar en el pie; Ctrl+Enter guarda; la compra total de la
+ *     tarjeta sigue en vivo a los costos.
  *
  * (La barra de totales que salió con la Fase A se sacó el mismo día a pedido de Felipe;
  * lo que quiere administración —elegir celdas y ver la cuenta al momento— está pendiente.)
@@ -280,7 +284,60 @@ async function main() {
   await esperar(200);
   check('Ctrl+F va al buscador de la tabla', await page.evaluate(() => document.activeElement && document.activeElement.id === 'buscador'));
 
-  console.log('\n8. Sin errores de JavaScript\n');
+  console.log('\n8. Fase C: el modal en dos columnas\n');
+  await page.click(`#salidas-body tr[data-envio-id="${e1.id}"] td[data-col="destino"]`);
+  await esperar(500);
+  check('se abre el modal', !!(await page.$('#sal-edit-overlay:not(.hidden)')));
+  const lay = await page.evaluate(() => {
+    const izq = document.querySelector('.sal-modal-izq');
+    const der = document.querySelector('.sal-modal-der');
+    const enDer = (id) => !!(der && der.querySelector('#' + id));
+    const enIzq = (id) => !!(izq && izq.querySelector('#' + id));
+    const r = (el) => el && el.getBoundingClientRect();
+    return {
+      dosCols: !!(izq && der) && r(der).left > r(izq).left + r(izq).width - 5,
+      pasos: [...document.querySelectorAll('.sal-modal-izq .sal-sec-n')].map((n) => n.textContent.trim()).join(''),
+      totalDer: enDer('saled-total'), profitDer: enDer('saled-profit'), pctDer: enDer('saled-porcentaje'),
+      compraView: (document.getElementById('saled-compra-view') || {}).textContent,
+      recalcDer: enDer('saled-recalcular'), ventaDer: enDer('saled-calcular-venta'), guardarDer: enDer('sal-modal-save'),
+      guardarCoral: getComputedStyle(document.getElementById('sal-modal-save')).backgroundColor,
+      fleteIzq: enIzq('saled-flete'), guiaIzq: enIzq('saled-guia'), obsIzq: enIzq('saled-observaciones'),
+      eliminarLink: getComputedStyle(document.getElementById('sal-modal-delete')).textDecorationLine,
+      noVoloBg: getComputedStyle(document.getElementById('sal-modal-no-volo')).backgroundColor,
+      noVoloBorde: getComputedStyle(document.getElementById('sal-modal-no-volo')).borderTopColor,
+      hint: (document.querySelector('.sal-modal-hint') || {}).textContent,
+    };
+  });
+  check('dos columnas: la derecha está a la derecha de la izquierda', lay.dosCols);
+  check('los tres pasos numerados 1 · 2 · 3 a la izquierda', lay.pasos === '123', lay.pasos);
+  check('Venta total, Profit y % viven en la tarjeta Resultado (derecha)', lay.totalDer && lay.profitDer && lay.pctDer);
+  check('la tarjeta muestra la Compra total (número)', /^\d+\.\d\d$/.test(lay.compraView || ''), lay.compraView);
+  check('Recalcular costo y Calcular venta están a la derecha', lay.recalcDer && lay.ventaDer);
+  check('Guardar está a la derecha y es coral', lay.guardarDer && lay.guardarCoral === 'rgb(242, 106, 75)', lay.guardarCoral);
+  check('Guía, Flete y Observaciones siguen a la izquierda', lay.guiaIzq && lay.fleteIzq && lay.obsIzq);
+  check('Eliminar es un link (subrayado), no un botón rojo', /underline/.test(lay.eliminarLink), lay.eliminarLink);
+  check('NO VOLÓ tiene fondo blanco y borde ámbar (ya no rojo lleno)', lay.noVoloBg === 'rgb(255, 255, 255)' && lay.noVoloBorde === 'rgb(245, 158, 11)', `${lay.noVoloBg} / ${lay.noVoloBorde}`);
+  check('el pie dice "Esc cierra · Ctrl+Enter guarda"', /Esc cierra/.test(lay.hint || '') && /Ctrl\+Enter/.test(lay.hint || ''), lay.hint);
+
+  // La compra total de la tarjeta sigue en vivo a los costos.
+  const compraAntes = Number(lay.compraView);
+  await page.fill('#saled-otros', '10');
+  await page.dispatchEvent('#saled-otros', 'input');
+  await esperar(200);
+  const compraDesp = await page.$eval('#saled-compra-view', (el) => Number(el.textContent));
+  check('tocar Otros (+10) sube la Compra total de la tarjeta en 10', Math.abs(compraDesp - compraAntes - 10) < 0.011, `${compraAntes} → ${compraDesp}`);
+  const profitDesp = await page.$eval('#saled-profit', (el) => Number(el.value));
+  check('y el Profit baja 10 (250 − compra)', Math.abs((250 - compraDesp) - profitDesp) < 0.011, `${profitDesp}`);
+
+  // Ctrl+Enter guarda.
+  await page.fill('#saled-observaciones', 'guardado con Ctrl+Enter');
+  await page.keyboard.press('Control+Enter');
+  const cerro = await (async () => { const h = Date.now() + 6000; while (Date.now() < h) { if (!(await page.$('#sal-edit-overlay:not(.hidden)'))) return true; await esperar(150); } return false; })();
+  check('Ctrl+Enter guarda y cierra el modal', cerro);
+  const guardado = await (await fetch(`${BASE}/api/envios/${e1.id}`, { headers: H })).json();
+  check('lo guardado llegó al servidor (observaciones y Otros = 10)', guardado.observaciones === 'guardado con Ctrl+Enter' && Number(guardado.otros) === 10, JSON.stringify({ o: guardado.observaciones, otros: guardado.otros }));
+
+  console.log('\n9. Sin errores de JavaScript\n');
   check('ningún error en la pantalla', errores.length === 0, errores.slice(0, 3).join(' | '));
 
   await browser.close();

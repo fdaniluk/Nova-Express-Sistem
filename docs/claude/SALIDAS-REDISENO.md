@@ -126,7 +126,17 @@ soltar la selección. Nada fijo en pantalla.
 
 Test: `test-pantalla-rediseno-salidas.js` pasa a 47 checks (secciones 6 y 7).
 
-### Fase C — pendiente
+### Fase C — HECHA (09/09, cache `?v=20260909d`)
 
-Punto 10: modal en dos columnas (Resultado a la derecha, Guardar coral, Eliminar como
-link, NO VOLÓ ámbar, Esc / Ctrl+Enter).
+| Punto | Qué quedó |
+|---|---|
+| 10 | **Modal en dos columnas** (`.sal-modal-body` grid `1fr 330px`, 1180 px de ancho; a menos de 980 px se apila). Izquierda (`.sal-modal-izq`, scrollea sola): tres pasos en tarjetas numeradas — **1 Identificación** (los tildes Asegurado / DDP / Prot. doc. / Sin numerar como chips, Zona de entrega como campo), **2 Bultos, medidas y estado de la caja** (medidas en un renglón de 6, estado de la caja, dimensiones por bulto con rótulos de columna, "+ Agregar bulto" punteado), **3 Costos (USD)** (los 7 costos en un renglón + desglose de adicionales), Observaciones. Derecha (`.sal-modal-der`, siempre a la vista): tarjeta **Resultado** con `saled-total` (grande), **Compra total** (`#saled-compra-view`, solo lectura, la suma de los costos, en vivo con `recalcProfit`), `saled-profit` + `saled-porcentaje`; debajo aparece ahí "Cotizaciones de este cliente" al pararse en la venta; tarjeta **Acciones sobre el precio** (↻ Recalcular costo · $ Calcular venta, con sus avisos y el panel de venta sugerida); **Guardar cambios** coral abajo. Pie: **Eliminar envío** como link rojo chico, **NO VOLÓ** con borde ámbar, "Esc cierra · Ctrl+Enter guarda", Cancelar. **Ctrl+Enter guarda.** Ningún id cambió; `MODAL_FIELD_BY_COL` y el destello siguen funcionando. |
+
+Test: `test-pantalla-rediseno-salidas.js` → 62 checks (sección 8).
+
+## 4. Lo que queda del rediseño
+
+- La **"cuenta rápida"** (seleccionar celdas y ver Σ / promedio / cantidad al momento): esperar
+  la respuesta de administración.
+- **Plegar Medidas / Costos por grupo** en la banda: solo si lo piden.
+- Manual de Salidas (Word): actualizar capturas y sumar ▾/▸, atajos y el modal nuevo.

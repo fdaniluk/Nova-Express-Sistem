@@ -2077,6 +2077,11 @@
     const overlay = document.createElement('div');
     overlay.id = 'sal-edit-overlay';
     overlay.className = 'sal-modal-overlay hidden';
+    // Fase C del rediseño (09/09/2026, SALIDAS-REDISENO.md): el modal en DOS columnas.
+    // Izquierda, los tres pasos (Identificación · Bultos, medidas y estado de la caja ·
+    // Costos); derecha, el RESULTADO (venta, compra, profit), los botones que tocan el
+    // precio, la venta sugerida y el Guardar en coral. Pie: Eliminar como link chico,
+    // NO VOLÓ con borde ámbar (ya no dos rojos juntos), Cancelar. Ningún id cambió.
     overlay.innerHTML = `
       <div class="sal-modal-box">
         <div class="sal-modal-header">
@@ -2087,10 +2092,11 @@
           <button class="sal-modal-close" id="sal-modal-close" title="Cerrar">×</button>
         </div>
         <div class="sal-modal-body">
+          <div class="sal-modal-izq">
           <div id="sal-modal-alert"></div>
           <div id="saled-no-volo-note" class="saled-no-volo-note hidden"></div>
-          <div>
-            <div class="sal-section-title">Identificación</div>
+          <div class="sal-sec">
+            <div class="sal-section-title"><span class="sal-sec-n">1</span>Identificación</div>
             <div class="sal-form-grid">
               <div class="form-group" style="grid-column:span 2">
                 <label>Nro. Guía *</label>
@@ -2127,13 +2133,6 @@
                 <label>País destino *</label>
                 <select id="saled-pais-destino"></select>
               </div>
-              <div class="form-group" style="justify-content:flex-end;padding-bottom:2px">
-                <label>&nbsp;</label>
-                <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px">
-                  <input type="checkbox" id="saled-sin-numerar" style="width:auto;margin:0">
-                  Envío sin numerar
-                </label>
-              </div>
               <div class="form-group">
                 <label>Bulto</label>
                 <input type="text" id="saled-bulto">
@@ -2156,90 +2155,67 @@
               <!-- Valor declarado (fob): editable desde el 14/08 a pedido de administración.
                    El seguro sale de él, así que después de cambiarlo hay que Recalcular. -->
               <div class="form-group">
-                <label>Valor declarado (USD)</label>
+                <label>Valor decl. USD</label>
                 <input type="number" id="saled-fob" step="0.01" min="0">
               </div>
-              <div class="form-group" style="justify-content:flex-end;padding-bottom:2px">
-                <label>&nbsp;</label>
-                <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px">
-                  <input type="checkbox" id="saled-asegurado" style="width:auto;margin:0">
-                  Asegurado
-                </label>
-                <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px">
-                  Zona
-                  <select id="saled-entrega" style="width:auto;margin:0;padding:2px 4px;font-size:12px">
-                    <option value="normal">Normal</option>
-                    <option value="extendida">Extendida</option>
-                    <option value="remota">Remota</option>
-                  </select>
-                </label>
-                <label style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px">
-                  <input type="checkbox" id="saled-ddp" style="width:auto;margin:0">
-                  DDP
-                </label>
+              <div class="form-group">
+                <label>Zona de entrega</label>
+                <select id="saled-entrega">
+                  <option value="normal">Normal</option>
+                  <option value="extendida">Extendida</option>
+                  <option value="remota">Remota</option>
+                </select>
+              </div>
+              <!-- Los tildes, como chips: se ve de un vistazo cuál está prendido. -->
+              <div class="sal-chks" style="grid-column:1 / -1">
+                <label class="sal-chk"><input type="checkbox" id="saled-asegurado">Asegurado</label>
+                <label class="sal-chk"><input type="checkbox" id="saled-ddp">DDP</label>
                 <!-- Impuestos de destino facturados por UPS (solo lectura): llegan en una
                      factura aparte, 1-2 meses después, y se liquidan al cliente en su
                      propio documento. Se llena en abrirModal. -->
-                <span id="saled-impuestos-ddp" class="saled-recalc-status" style="margin-left:4px"></span>
+                <span id="saled-impuestos-ddp" class="saled-recalc-status"></span>
                 <!-- Proteccion de Documentos de DHL: USD 7,50 por envio, a pedido. Se
                      esconde en UPS porque es un servicio que solo existe en DHL. -->
-                <label id="saled-prot-doc-label" style="display:flex;align-items:center;gap:6px;font-weight:400;font-size:13px" title="Protección de documentos de DHL — USD 7,50 por envío">
-                  <input type="checkbox" id="saled-proteccion-doc" style="width:auto;margin:0">
-                  Prot. doc.
-                </label>
+                <label class="sal-chk" id="saled-prot-doc-label" title="Protección de documentos de DHL — USD 7,50 por envío"><input type="checkbox" id="saled-proteccion-doc">Prot. doc.</label>
+                <label class="sal-chk"><input type="checkbox" id="saled-sin-numerar">Envío sin numerar</label>
               </div>
             </div>
             <div id="saled-lock-note" class="alert alert-info hidden" style="margin-top:8px">
               Este envío está liquidado: no se puede cambiar la fecha ni el cliente (afectaría una liquidación confirmada). El resto de los campos sí se pueden editar.
             </div>
           </div>
-          <div>
-            <div class="sal-section-title">Estado de la caja</div>
-            <div id="saled-estado-caja" class="saled-estado-caja"></div>
-          </div>
-          <div>
-            <div class="sal-section-title">Peso y medidas</div>
-            <div class="sal-form-grid">
-              <div class="form-group"><label>Peso balanza (kg)</label><input type="number" id="saled-peso-real" step="0.001" min="0"></div>
-              <div class="form-group"><label>Largo (cm)</label><input type="number" id="saled-largo" step="0.1" min="0"></div>
-              <div class="form-group"><label>Ancho (cm)</label><input type="number" id="saled-ancho" step="0.1" min="0"></div>
-              <div class="form-group"><label>Alto (cm)</label><input type="number" id="saled-alto" step="0.1" min="0"></div>
-              <div class="form-group"><label>Peso facturable (kg)</label><input type="number" id="saled-peso-facturable" readonly class="campo-bloqueado"></div>
-              <div class="form-group"><label>Peso volumétrico (kg)</label><input type="number" id="saled-peso-volumetrico" readonly class="campo-bloqueado"></div>
+          <div class="sal-sec">
+            <div class="sal-section-title"><span class="sal-sec-n">2</span>Bultos, medidas y estado de la caja</div>
+            <div class="sal-form-grid sal-form-grid--medidas">
+              <div class="form-group"><label>Balanza kg</label><input type="number" id="saled-peso-real" step="0.001" min="0"></div>
+              <div class="form-group"><label>Largo cm</label><input type="number" id="saled-largo" step="0.1" min="0"></div>
+              <div class="form-group"><label>Ancho cm</label><input type="number" id="saled-ancho" step="0.1" min="0"></div>
+              <div class="form-group"><label>Alto cm</label><input type="number" id="saled-alto" step="0.1" min="0"></div>
+              <div class="form-group"><label>Volumétrico kg</label><input type="number" id="saled-peso-volumetrico" readonly class="campo-bloqueado"></div>
+              <div class="form-group"><label>Facturable kg</label><input type="number" id="saled-peso-facturable" readonly class="campo-bloqueado campo-destacado"></div>
+            </div>
+            <div class="saled-estado-wrap">
+              <span class="saled-estado-lbl">Estado de la caja</span>
+              <div id="saled-estado-caja" class="saled-estado-caja"></div>
             </div>
             <div id="saled-bultos-section" class="hidden">
               <div class="saled-bultos-label">Dimensiones por bulto</div>
+              <div class="saled-bultos-head"><span>#</span><span>Largo</span><span>Ancho</span><span>Alto</span><span>Peso kg</span></div>
               <div id="saled-bultos-container"></div>
             </div>
             <!-- Agregar bultos desde Salidas (03/09/2026). Caso de la oficina: el envío se
                  carga como de un bulto y después resultan ser dos. Con un bulto único el
                  botón convierte los campos sueltos en la fila 1 y agrega la 2. -->
             <div class="saled-bultos-add">
-              <button type="button" class="btn btn-secondary btn-sm" id="saled-agregar-bulto">+ Agregar bulto</button>
+              <button type="button" class="btn btn-secondary btn-sm btn-dashed" id="saled-agregar-bulto">+ Agregar bulto</button>
               <span id="saled-bultos-add-aviso" class="saled-recalc-status"></span>
             </div>
-            <div class="saled-recalc-bar">
-              <button type="button" class="btn btn-secondary" id="saled-recalcular">Recalcular</button>
-              <span id="saled-recalc-status" class="saled-recalc-status"></span>
-            </div>
-            <!-- Calcular venta: para los envios que se cargan sin pesar (Kasdorf y
-                 parecidos). Recalcular trae el COSTO; este trae lo que hay que COBRARLE,
-                 usando el profit ya cargado del cliente. -->
-            <div class="saled-recalc-bar">
-              <button type="button" class="btn btn-secondary" id="saled-calcular-venta">Calcular venta</button>
-              <span id="saled-venta-status" class="saled-recalc-status"></span>
-            </div>
-            <!-- Aviso de venta desfasada: aparece solo cuando Recalcular dejo el precio
-                 calculado para el peso anterior. Va ARRIBA del panel de venta a proposito:
-                 es lo primero que tiene que leer quien acaba de cambiar el peso. -->
-            <div id="saled-venta-aviso" class="saled-venta-aviso hidden"></div>
-            <div id="saled-venta-panel" class="saled-venta-panel hidden"></div>
           </div>
-          <div id="saled-costos-block">
+          <div id="saled-costos-block" class="sal-sec">
             <!-- Tarifa DHL +50 kg: dice contra que cuenta se emite la guia. Va arriba de
                  los costos porque es una instruccion operativa, no un numero mas. -->
             <div id="saled-tarifa50-aviso" class="aviso-tarifa50 hidden"></div>
-            <div class="sal-section-title">Costos (USD)</div>
+            <div class="sal-section-title"><span class="sal-sec-n">3</span>Costos (USD)</div>
             <div class="sal-form-grid sal-form-grid--nums">
               <div class="form-group"><label>Flete</label><input type="number" id="saled-flete" step="0.01"></div>
               <div class="form-group"><label>Descuento</label><input type="number" id="saled-descuento" step="0.01"></div>
@@ -2248,17 +2224,6 @@
               <div class="form-group"><label>Derechos</label><input type="number" id="saled-derechos" step="0.01"></div>
               <div class="form-group"><label>Adicionales</label><input type="number" id="saled-adicionales" step="0.01"></div>
               <div class="form-group"><label>Otros</label><input type="number" id="saled-otros" step="0.01"></div>
-              <div class="form-group"><label>Total cobrado</label><input type="number" id="saled-total" step="0.01"></div>
-              <div class="form-group"><label>Profit</label><input type="number" id="saled-profit" step="0.01"></div>
-              <div class="form-group"><label>% Profit</label><input type="number" id="saled-porcentaje" step="0.1"></div>
-            </div>
-            <!-- LAS COTIZACIONES DE ESTE CLIENTE. Arranca oculto y aparece SOLO cuando
-                 alguien se para en "Total cobrado" (pedido de Felipe, 25/08: "que no
-                 moleste, tal vez que solo aparezca en el caso que esten editando el
-                 precio de venta"). El precio que trae es un SUGERIDO. -->
-            <div id="saled-ctzr" class="saled-ctzr hidden">
-              <div class="saled-ctzr-tit">Cotizaciones de este cliente — últimos 30 días</div>
-              <div id="saled-ctzr-panel"></div>
             </div>
             <div id="saled-extras-block" class="saled-extras"></div>
           </div>
@@ -2266,12 +2231,65 @@
             <label>Observaciones</label>
             <textarea id="saled-observaciones" rows="2" style="resize:vertical"></textarea>
           </div>
+          </div>
+          <div class="sal-modal-der">
+            <div class="sal-cardp sal-cardp-resultado">
+              <div class="sal-cardp-tit">Resultado</div>
+              <div class="sal-res-row">
+                <label for="saled-total">Venta total</label>
+                <input type="number" id="saled-total" step="0.01" class="sal-res-input sal-res-venta">
+              </div>
+              <div class="sal-res-row sal-res-ro">
+                <span>Compra total</span>
+                <span id="saled-compra-view" class="sal-res-val">—</span>
+              </div>
+              <div class="sal-res-row sal-res-profit">
+                <label for="saled-profit">Profit</label>
+                <div class="sal-res-pair">
+                  <input type="number" id="saled-profit" step="0.01" class="sal-res-input">
+                  <input type="number" id="saled-porcentaje" step="0.1" class="sal-res-input sal-res-pct" title="% Profit">
+                  <span class="sal-res-pct-sign">%</span>
+                </div>
+              </div>
+              <div class="sal-res-hint">Profit = venta − compra. Se recalcula solo al tocar un costo o la venta.</div>
+              <!-- LAS COTIZACIONES DE ESTE CLIENTE. Arranca oculto y aparece SOLO cuando
+                   alguien se para en "Venta total" (pedido de Felipe, 25/08: "que no
+                   moleste, tal vez que solo aparezca en el caso que esten editando el
+                   precio de venta"). El precio que trae es un SUGERIDO. -->
+              <div id="saled-ctzr" class="saled-ctzr hidden">
+                <div class="saled-ctzr-tit">Cotizaciones de este cliente — últimos 30 días</div>
+                <div id="saled-ctzr-panel"></div>
+              </div>
+            </div>
+            <div class="sal-cardp">
+              <div class="sal-cardp-tit">Acciones sobre el precio</div>
+              <div class="saled-recalc-bar">
+                <button type="button" class="btn btn-outline" id="saled-recalcular" title="Vuelve a calcular el COSTO con el peso y las medidas de arriba (usa el fuel congelado del envío)">↻ Recalcular costo</button>
+                <span id="saled-recalc-status" class="saled-recalc-status"></span>
+              </div>
+              <!-- Calcular venta: para los envios que se cargan sin pesar (Kasdorf y
+                   parecidos). Recalcular trae el COSTO; este trae lo que hay que COBRARLE,
+                   usando el profit ya cargado del cliente. -->
+              <div class="saled-recalc-bar">
+                <button type="button" class="btn btn-outline" id="saled-calcular-venta" title="Calcula lo que hay que COBRARLE al cliente con su profit">$ Calcular venta</button>
+                <span id="saled-venta-status" class="saled-recalc-status"></span>
+              </div>
+              <!-- Aviso de venta desfasada: aparece solo cuando Recalcular dejo el precio
+                   calculado para el peso anterior. Va ARRIBA del panel de venta a proposito:
+                   es lo primero que tiene que leer quien acaba de cambiar el peso. -->
+              <div id="saled-venta-aviso" class="saled-venta-aviso hidden"></div>
+              <div id="saled-venta-panel" class="saled-venta-panel hidden"></div>
+            </div>
+            <div class="sal-der-guardar">
+              <button class="btn btn-coral" id="sal-modal-save">Guardar cambios</button>
+            </div>
+          </div>
         </div>
         <div class="sal-modal-footer">
-          <button class="btn btn-danger" id="sal-modal-delete" style="margin-right:auto">Eliminar</button>
+          <button class="btn btn-link-danger" id="sal-modal-delete">Eliminar envío</button>
           <button class="btn btn-no-volo" id="sal-modal-no-volo">NO VOLÓ</button>
+          <span class="sal-modal-hint">Esc cierra · Ctrl+Enter guarda</span>
           <button class="btn btn-secondary" id="sal-modal-cancel">Cancelar</button>
-          <button class="btn btn-primary" id="sal-modal-save">Guardar cambios</button>
         </div>
       </div>`;
     document.body.appendChild(overlay);
@@ -2304,8 +2322,14 @@
     document.getElementById('saled-total').addEventListener('focus', abrirCotizacionesDelCliente);
 
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape' && !document.getElementById('sal-edit-overlay').classList.contains('hidden')) {
-        closeEditModal();
+      const abierto = !document.getElementById('sal-edit-overlay').classList.contains('hidden');
+      if (!abierto) return;
+      if (e.key === 'Escape') closeEditModal();
+      // Ctrl+Enter guarda (Fase C): lo que la gente de Excel espera de un formulario.
+      else if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+        e.preventDefault();
+        const btn = document.getElementById('sal-modal-save');
+        if (btn && !btn.disabled) btn.click();
       }
     });
   }
@@ -2421,6 +2445,8 @@
     // real vive en su propia columna y no se edita a mano.
     document.getElementById('saled-profit').value = envio.profit_estimado ?? envio.profit ?? '';
     document.getElementById('saled-porcentaje').value = envio.porcentaje_estimado ?? envio.porcentaje ?? '';
+    const compraAbrir = envio.compra_estimada ?? envio.compra_total;
+    document.getElementById('saled-compra-view').textContent = compraAbrir != null && compraAbrir !== '' ? Number(compraAbrir).toFixed(2) : '—';
     document.getElementById('saled-total').value = envio.total ?? '';
     // El aviso de venta desfasada es de la sesion de edicion, no del envio: al abrir otro
     // se limpia, si no arrastraria el cartel del anterior.
@@ -2730,10 +2756,14 @@
     const num = (id) => parseNum(document.getElementById(id).value);
     const totalRaw = document.getElementById('saled-total').value;
     const total = totalRaw === '' ? null : Number(totalRaw);
-    if (total == null || total === 0) return;
-
     const costo = num('saled-flete') - num('saled-descuento') + num('saled-seguro')
       + num('saled-fuel') + num('saled-derechos') + num('saled-adicionales') + num('saled-otros');
+    // La tarjeta Resultado muestra la compra total (suma de los costos) siempre, aunque no
+    // haya venta: es el número contra el que se compara la factura del courier.
+    const compraView = document.getElementById('saled-compra-view');
+    if (compraView) compraView.textContent = costo ? costo.toFixed(2) : '—';
+    if (total == null || total === 0) return;
+
     const profit = Math.round((total - costo) * 100) / 100;
     document.getElementById('saled-profit').value = profit;
     document.getElementById('saled-porcentaje').value = costo > 0
