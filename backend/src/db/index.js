@@ -754,6 +754,13 @@ async function migrateFuelNova() {
   if (!colsNova.includes('fecha_corte_control')) {
     await dbApi.exec("ALTER TABLE configuracion_nova ADD COLUMN fecha_corte_control TEXT NOT NULL DEFAULT '2026-09-01'");
   }
+  // Numeración automática de las proformas (10/09/2026, pedido de Felipe): el número lo
+  // inventaba la oficina tratando de que fuera correlativo. Ahora lo pone el sistema al
+  // emitir la guía si el campo quedó vacío: este es el PRÓXIMO que va a usar. Se edita en
+  // Configuración (arranca en 1300, el número que dio Felipe).
+  if (!colsNova.includes('proforma_proximo')) {
+    await dbApi.exec('ALTER TABLE configuracion_nova ADD COLUMN proforma_proximo INTEGER NOT NULL DEFAULT 1300');
+  }
 }
 
 // Índices que faltaban sobre las consultas que ya están en producción. Todos son

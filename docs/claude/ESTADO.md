@@ -317,8 +317,19 @@ Colores Nova `#403754`/`#EE6C52`.
   guardada el botón es "✓ Aceptada" (no se re-pregunta el servicio); en Cargar envío pinchar
   una cotización completa país, tipo, courier/servicio, bultos, medidas, pesos, FOB, DDP y
   entrega (`aplicarCotizacion`), y con el país elegido el panel filtra por país. Tanda
-  `test-pantalla-cotizacion-guardada` (37). Quedan B (Guías: Tax ID, proforma editable y
-  numerada, térmica vs A4 apaisada) y C (dashboard, diseño primero).
+  `test-pantalla-cotizacion-guardada` (37). Commit `c936721`, desplegado.
+- **10/09 — LISTA, bloque B1/B4/B5 (Guías) — HECHO (paquete entregado, cache
+  `?v=20260910b`).** Tax ID hasta 40 caracteres, guardado tal cual y limpiado para UPS
+  (`taxIdParaUps`, máx. 15); **numeración automática de proformas**
+  (`configuracion_nova.proforma_proximo`, arranca en 1300, se ajusta en Configuración, se
+  consume solo cuando UPS devolvió la guía; un número tipeado cercano hace saltar el
+  contador, uno lejano no); **título de la proforma** elegible (desplegable + "Otro…",
+  `datos_json.proforma_titulo`, la hoja y el envío confirmado lo usan). Tanda
+  `test-guias-emision` 102. **B2/B3 (mismo paquete):** la hoja A4 es la de UPS CampusShip
+  (instrucciones + firma/fecha + DOBLAR AQUÍ + etiqueta acostada 6×4 abajo, una por bulto);
+  la térmica, solo la etiqueta 4×6; botón ↻ Girar por si sale cabeza abajo — **verificar la
+  orientación con la primera guía real** (el GIF mock es de 1 px). Tanda 106. Queda C
+  (dashboard, diseño primero).
 - **09/09 — REDISEÑO DE SALIDAS, FASE A (`dbe9a44` pusheado; el retiro de la barra en el
   paquete siguiente).** Felipe pidió rediseñar Salidas "con mucho énfasis" y **sin tocar nada sin
   mostrárselo antes**: se hizo diagnóstico + dos maquetas y las aprobó ("me gusta como se

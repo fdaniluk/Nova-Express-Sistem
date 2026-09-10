@@ -8,6 +8,7 @@ const { getDb } = require('../db');
 const ups = require('../services/ups-shipping.service');
 const { hoyLocal } = require('../utils/fecha');
 const remitentes = require('./remitentes.model');
+const configuracionModel = require('./configuracion.model');
 
 const SIN_BLOBS = `g.id, g.cliente_id, g.destinatario_id, g.fecha, g.courier, g.servicio, g.cuenta, g.entorno,
   g.numero_guia, g.estado, g.ddp, g.fob, g.contenido, g.proforma_numero, g.datos_json, g.cargo_ups,
@@ -101,6 +102,13 @@ function totalItems(items) {
  * Pide la guía a UPS y la guarda como precarga. Devuelve { guia } o { errores: [...] }
  * (errores de datos → 400 sin llamar a UPS; errores de UPS → 502 con lo que dijo UPS).
  */
+const TITULO_PROFORMA_DEFAULT = 'COMMERCIAL INVOICE';
+// El título va en mayúsculas y sin excesos (es el encabezado de la hoja).
+function limpiarTitulo(v) {
+  const t = String(v ?? '').replace(/\s+/g, ' ').trim().toUpperCase().slice(0, 40);
+  return t || TITULO_PROFORMA_DEFAULT;
+}
+
 async function emitir(input, usuario) {
   const db = getDb();
   const cliente = input.cliente_id
@@ -133,10 +141,18 @@ async function emitir(input, usuario) {
   if (!r.ok) return { errores: r.errores, tipo: 'ups', status: r.status, respuesta: r.data };
 
   const resumen = ups.resumirRespuesta(r.data);
+  // Nº de proforma (10/09/2026): vacío → lo pone el sistema (correlativo, Configuración);
+  // tipeado → se respeta y el contador salta si hace falta. Recién acá, con la guía ya
+  // emitida: una guía rechazada por UPS no gasta número.
+  let proformaNumero = String(input.proforma_numero ?? '').trim() || null;
+  if (!proformaNumero) proformaNumero = String(await configuracionModel.tomarNumeroProforma());
+  else await configuracionModel.registrarNumeroProformaManual(proformaNumero);
   const datos = {
     pais_destino: input.pais_destino || destinatario.pais,
     bultos,
     items,
+    // Título de la proforma (10/09/2026): no siempre es "Commercial Invoice".
+    proforma_titulo: limpiarTitulo(input.proforma_titulo),
     observaciones: String(input.observaciones ?? '').trim() || null,
     trackings: resumen.trackings,
     alertas: resumen.alertas,
@@ -154,7 +170,7 @@ async function emitir(input, usuario) {
     )
     .run(
       cliente.id, destinatario.id, remitente.id || null, fecha, servicio, ups.cuentaExpo(), ups.entorno(), resumen.numero_guia,
-      input.ddp ? 1 : 0, fob, contenido, String(input.proforma_numero ?? '').trim() || null,
+      input.ddp ? 1 : 0, fob, contenido, proformaNumero,
       JSON.stringify(datos), JSON.stringify(pedido), JSON.stringify(r.data),
       etiquetas.length ? JSON.stringify(etiquetas) : null, resumen.cargo, usuario || null
     );
@@ -178,6 +194,8 @@ async function actualizar(id, data) {
   if (data.items !== undefined) datos.items = limpiarItems(data.items);
   if (data.observaciones !== undefined) datos.observaciones = String(data.observaciones ?? '').trim() || null;
   if (data.bultos !== undefined) datos.bultos = limpiarBultos(data.bultos);
+  if (data.proforma_titulo !== undefined) datos.proforma_titulo = limpiarTitulo(data.proforma_titulo);
+  if (data.proforma_numero !== undefined && String(data.proforma_numero).trim()) await configuracionModel.registrarNumeroProformaManual(data.proforma_numero);
   const fob = data.fob !== undefined ? (Number(data.fob) || 0) : g.fob;
   await db
     .prepare(

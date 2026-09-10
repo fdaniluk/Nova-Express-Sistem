@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Configuración – Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260910a">
+  <link rel="stylesheet" href="../css/main.css?v=20260910b">
   <style>
     /* Cards de configuración (mudadas desde liquidaciones.css) */
     .fuel-cards {
@@ -174,6 +174,26 @@
       </section>
 
       <section class="card">
+        <h2>Numeración de proformas</h2>
+        <p class="config-hint">
+          Cuando se emite una guía con el Nº de proforma vacío, el sistema le pone el próximo número
+          y sigue contando. Si en Guías se tipea un número más alto, el contador salta solo. Acá se
+          ajusta desde dónde sigue (por ejemplo, para arrancar en 1300).
+        </p>
+        <div class="fuel-cards">
+          <div class="fuel-card" id="proforma-card">
+            <h4>Próximo Nº de proforma</h4>
+            <div class="current" id="proforma-actual">—</div>
+            <div class="form-group" style="margin-top:0.75rem">
+              <label>Nuevo próximo número</label>
+              <input type="number" id="proforma-input" min="1" step="1">
+            </div>
+            <button class="btn btn-primary btn-sm" id="btn-proforma-guardar">Guardar</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
         <h2>Ganancia mínima antes de alertar (%)</h2>
         <p class="config-hint">
           Cuando se cargue la factura del courier, se marcará la guía como "a revisar" si la ganancia real es menor a este umbral.
@@ -205,9 +225,9 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260910a"></script>
-<script src="../js/api.js?v=20260910a"></script>
-<script src="../js/main.js?v=20260910a"></script>
-<script src="../js/modules/configuracion.js?v=20260910a"></script>
+<script src="/js/auth-guard.js?v=20260910b"></script>
+<script src="../js/api.js?v=20260910b"></script>
+<script src="../js/main.js?v=20260910b"></script>
+<script src="../js/modules/configuracion.js?v=20260910b"></script>
 </body>
 </html>

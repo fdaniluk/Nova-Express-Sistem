@@ -108,6 +108,8 @@ const api = {
       const q = courier ? `?courier=${courier}` : '';
       return api.get(`/configuracion/umbral/historial${q}`);
     },
+    proforma: () => api.get('/configuracion/proforma'),
+    actualizarProforma: (proforma_proximo) => api.put('/configuracion/proforma', { proforma_proximo }),
     corte: () => api.get('/configuracion/corte'),
     actualizarCorte: (fecha_corte_control) => api.put('/configuracion/corte', { fecha_corte_control }),
     tolerancias: () => api.get('/configuracion/tolerancias'),

@@ -316,3 +316,8 @@
   .gui-col-2 { grid-column: span 1; }
   .gui-servicio { grid-template-columns: 1fr; }
 }
+
+/* Título de la proforma (10/09): desplegable + campo libre para "Otro…". */
+.gui-titulo-row { display: flex; gap: 6px; }
+.gui-titulo-row select { flex: 0 0 200px; }
+.gui-titulo-row input { flex: 1; }

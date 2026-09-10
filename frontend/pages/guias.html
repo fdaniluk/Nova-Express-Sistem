@@ -4,8 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Guías — Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260910a">
-  <link rel="stylesheet" href="../css/modules/guias.css?v=20260910a">
+  <link rel="stylesheet" href="../css/main.css?v=20260910b">
+  <link rel="stylesheet" href="../css/modules/guias.css?v=20260910b">
 </head>
 <body>
 <div class="app-layout">
@@ -190,7 +190,22 @@
                 </div>
                 <div class="form-group">
                   <label for="g-proforma">Nº de proforma</label>
-                  <input type="text" id="g-proforma" placeholder="Opcional">
+                  <!-- Vacío → lo pone el sistema (correlativo, se ve en Configuración). -->
+                  <input type="text" id="g-proforma" placeholder="Automático">
+                  <small class="gui-hint" id="g-proforma-hint">Si lo dejás vacío, sale el próximo número.</small>
+                </div>
+                <div class="form-group gui-col-2">
+                  <label for="g-proforma-titulo">Título de la proforma</label>
+                  <div class="gui-titulo-row">
+                    <select id="g-proforma-titulo">
+                      <option value="COMMERCIAL INVOICE">Commercial Invoice</option>
+                      <option value="PROFORMA INVOICE">Proforma Invoice</option>
+                      <option value="INVOICE">Invoice</option>
+                      <option value="PACKING LIST">Packing List</option>
+                      <option value="__otro">Otro…</option>
+                    </select>
+                    <input type="text" id="g-proforma-titulo-otro" maxlength="40" placeholder="Escribí el título" class="hidden">
+                  </div>
                 </div>
               </div>
               <table class="gui-items" id="g-items">
@@ -365,7 +380,8 @@
         </div>
         <div class="form-group">
           <label for="d-taxid">Tax ID / EORI / VAT</label>
-          <input type="text" id="d-taxid" maxlength="15">
+          <input type="text" id="d-taxid" maxlength="40" placeholder="Ej: CPF: 123.456.789-00">
+          <small class="gui-hint">Podés escribir el nombre del documento y el número; a UPS le va solo el número (máx. 15).</small>
         </div>
       </div>
       <div class="gui-errores hidden" id="d-errores"></div>
@@ -435,10 +451,10 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260910a"></script>
-<script src="../js/api.js?v=20260910a"></script>
-<script src="../js/main.js?v=20260910a"></script>
-<script src="/shared/cotizador/cotizador-core.js?v=20260910a"></script>
-<script src="../js/modules/guias.js?v=20260910a"></script>
+<script src="/js/auth-guard.js?v=20260910b"></script>
+<script src="../js/api.js?v=20260910b"></script>
+<script src="../js/main.js?v=20260910b"></script>
+<script src="/shared/cotizador/cotizador-core.js?v=20260910b"></script>
+<script src="../js/modules/guias.js?v=20260910b"></script>
 </body>
 </html>

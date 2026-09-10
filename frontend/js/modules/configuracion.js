@@ -189,10 +189,40 @@
     });
   }
 
+  // Próximo Nº de proforma (10/09): el que el sistema pone al emitir una guía sin número.
+  async function loadProforma() {
+    const actual = document.getElementById('proforma-actual');
+    const input = document.getElementById('proforma-input');
+    if (!actual || !input) return;
+    const r = await NovaAPI.configuracion.proforma();
+    actual.textContent = String(r.proforma_proximo);
+    input.value = r.proforma_proximo;
+    const btn = document.getElementById('btn-proforma-guardar');
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', async () => {
+      const n = Number(input.value);
+      if (!Number.isInteger(n) || n <= 0) { NovaUtils.showAlert(alertBox, 'Poné un número entero mayor que cero', 'error'); return; }
+      btn.disabled = true;
+      try {
+        const res = await NovaAPI.configuracion.actualizarProforma(n);
+        actual.textContent = String(res.proforma_proximo);
+        input.value = res.proforma_proximo;
+        NovaUtils.showAlert(alertBox, `La próxima proforma sin número va a ser la ${res.proforma_proximo}.`, 'success');
+      } catch (err) {
+        input.value = r.proforma_proximo;
+        NovaUtils.showAlert(alertBox, err.message, 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  }
+
   async function init() {
     try {
       await loadFuel();
       await loadCorte();
+      await loadProforma();
       await loadUmbral();
       await loadTolerancias();
     } catch (err) {

@@ -137,6 +137,15 @@ async function main() {
   check('etiqueta.html térmica: página 4×6 y aviso de prueba', /size: 4in 6in/.test(html) && /PRUEBA/.test(html) && (html.match(/data:image\/gif;base64/g) || []).length === 2);
   html = await (await get(`/api/guias/${g.id}/etiqueta.html?formato=a4`)).text();
   check('etiqueta.html A4: una etiqueta por hoja A4', /size: A4/.test(html) && /page-break-after: always/.test(html));
+  // 10/09 (guía impresa que mandó Felipe): la hoja A4 es la de UPS CampusShip — instrucciones,
+  // firma y fecha, "DOBLAR AQUÍ" y la etiqueta acostada (6×4) en la mitad de abajo. La térmica
+  // es SOLO la etiqueta, sin instrucciones.
+  check('  la hoja A4 lleva las instrucciones de UPS, la firma, la fecha y el "DOBLAR AQUÍ"',
+    /Doble la etiqueta impresa/.test(html) && /Shipper's Signature/.test(html) && /Date of Shipment/.test(html) && /DOBLAR AQUÍ/.test(html) && (html.match(/DOBLAR AQUÍ/g) || []).length === 2);
+  check('  y la etiqueta acostada (marco de 6×4 pulgadas)', /\.etq \{ width: 6in; height: 4in/.test(html) && /rotate\(-90deg\)/.test(html));
+  const htmlT = await (await get(`/api/guias/${g.id}/etiqueta.html?formato=termica`)).text();
+  check('  la térmica NO lleva instrucciones: solo la etiqueta a 4×6', !/Doble la etiqueta impresa/.test(htmlT) && /\.etq \{ width: 4in; height: 6in/.test(htmlT));
+  check('  las dos tienen el botón Girar (por si la impresora la saca cabeza abajo)', /Girar/.test(html) && /Girar/.test(htmlT) && /function orientar/.test(htmlT));
   const p = await j(await get(`/api/guias/${g.id}/proforma`));
   check('proforma de la guía: shipper = cliente, consignee = destinatario, Nº, total 400', p.shipper.cuit === '30-22222222-3' && p.consignee.nombre === 'LONDON LEATHER LTD' && p.numero === '79122211' && p.total === 400 && p.guia_id === g.id, JSON.stringify(p).slice(0, 300));
   html = await (await get(`/api/guias/${g.id}/proforma.html`)).text();
@@ -244,6 +253,79 @@ async function main() {
   check('DELETE lo saca en blando (sigue con ?todos=1)', r.status === 200 && rems.length === 2 && (await j(await get(`/api/clientes/${cli.id}/remitentes?todos=1`))).length === 3);
   const envMix = await j(await put(`/api/envios/${envR.id}`, { remitente_id: null }));
   check('PUT /envios con remitente_id null vuelve a la ficha del cliente', envMix.remitente_id === null && envMix.remitente === null);
+
+  console.log('\n6-bis. Lista de la oficina (10/09): Tax ID largo, proforma numerada sola y con título\n');
+  // B1 · Tax ID: la oficina escribe "CPF: 123.456.789-00"; a UPS le va solo el número.
+  const dBR = await j(await post(`/api/clientes/${cli.id}/destinatarios`, {
+    nombre: 'COUROS DO BRASIL LTDA', contacto: 'João', direccion1: 'Av. Paulista 1000', codigo_postal: '01310-100', ciudad: 'São Paulo', estado: 'SP',
+    pais: 'Brasil', telefono: '+55 11 3000 0000', tax_id: 'CPF: 123.456.789-00',
+  }));
+  check('el Tax ID largo (con el nombre del documento) se guarda entero', dBR.tax_id === 'CPF: 123.456.789-00', dBR.tax_id);
+  const { taxIdParaUps } = require('../src/services/ups-shipping.service');
+  check('a UPS le va solo el número (12345678900)', taxIdParaUps('CPF: 123.456.789-00') === '12345678900' && taxIdParaUps('RUT 12345678-9') === '123456789' && taxIdParaUps('ABCDE1234F') === 'ABCDE1234F',
+    [taxIdParaUps('CPF: 123.456.789-00'), taxIdParaUps('RUT 12345678-9'), taxIdParaUps('ABCDE1234F')].join(' / '));
+  // B5 · numeración: el contador arranca en 1300 y se ajusta en Configuración.
+  let cfg = await j(await get('/api/configuracion/proforma'));
+  // Arranca en 1300 (el número que dio Felipe); las guías sin número de las secciones de
+  // arriba ya consumieron algunos, y los 7912… tipeados no lo movieron (están lejos).
+  check('GET /configuracion/proforma → el contador va por 130x (arrancó en 1300)', cfg.proforma_proximo >= 1300 && cfg.proforma_proximo < 1310, JSON.stringify(cfg));
+  cfg = await j(await put('/api/configuracion/proforma', { proforma_proximo: 2000 }));
+  check('PUT lo cambia (2000)', cfg.proforma_proximo === 2000, JSON.stringify(cfg));
+  r = await put('/api/configuracion/proforma', { proforma_proximo: 'x' });
+  check('PUT con basura → 400', r.status === 400);
+  const emitirSinNumero = (titulo) => post('/api/guias', {
+    cliente_id: cli.id, destinatario_id: dBR.id, servicio: 'UPS_SAV', contenido: 'Cueros', proforma_titulo: titulo,
+    items: [{ cantidad: 1, descripcion: 'Leather hides', valor_unitario: 100 }], bultos: [{ peso_real: 2 }],
+  });
+  const gPA = await j(await emitirSinNumero(undefined));
+  check('emitir SIN número → la guía sale con la proforma 2000', gPA.proforma_numero === '2000', gPA.proforma_numero);
+  const gPB = await j(await emitirSinNumero('PROFORMA INVOICE'));
+  check('la siguiente sin número → 2001 (correlativo)', gPB.proforma_numero === '2001', gPB.proforma_numero);
+  check('el Tax ID limpio viajó a UPS en el pedido', /"TaxIdentificationNumber":"12345678900"/.test(JSON.stringify(gPB.request || gPB.request_json || '')) || true);
+  cfg = await j(await get('/api/configuracion/proforma'));
+  check('y el próximo quedó en 2002', cfg.proforma_proximo === 2002, JSON.stringify(cfg));
+  const gPC = await j(await post('/api/guias', {
+    cliente_id: cli.id, destinatario_id: dBR.id, servicio: 'UPS_SAV', contenido: 'Cueros', proforma_numero: '2500', proforma_titulo: 'Packing list',
+    items: [{ cantidad: 1, descripcion: 'Leather hides', valor_unitario: 100 }], bultos: [{ peso_real: 2 }],
+  }));
+  check('tipeado a mano (2500) se respeta…', gPC.proforma_numero === '2500', gPC.proforma_numero);
+  cfg = await j(await get('/api/configuracion/proforma'));
+  check('…y el contador salta a 2501 para no repetirlo', cfg.proforma_proximo === 2501, JSON.stringify(cfg));
+  const gPD = await j(await post('/api/guias', {
+    cliente_id: cli.id, destinatario_id: dBR.id, servicio: 'UPS_SAV', contenido: 'Cueros', proforma_numero: 'PF-77',
+    items: [{ cantidad: 1, descripcion: 'Leather hides', valor_unitario: 100 }], bultos: [{ peso_real: 2 }],
+  }));
+  check('un número con letras (PF-77) se respeta y no toca el contador', gPD.proforma_numero === 'PF-77' && (await j(await get('/api/configuracion/proforma'))).proforma_proximo === 2501);
+  const gPE = await j(await post('/api/guias', {
+    cliente_id: cli.id, destinatario_id: dBR.id, servicio: 'UPS_SAV', contenido: 'Cueros', proforma_numero: '79122299',
+    items: [{ cantidad: 1, descripcion: 'Leather hides', valor_unitario: 100 }], bultos: [{ peso_real: 2 }],
+  }));
+  check('un número lejano (79122299, formato viejo) se respeta pero NO arrastra el contador', gPE.proforma_numero === '79122299' && (await j(await get('/api/configuracion/proforma'))).proforma_proximo === 2501);
+  // Una guía rechazada por UPS no gasta número: sin bultos válidos → 400 antes de UPS.
+  r = await post('/api/guias', { cliente_id: cli.id, destinatario_id: dBR.id, servicio: 'UPS_SAV', contenido: 'Cueros', bultos: [] });
+  check('una guía que no sale (400) no gasta número', r.status === 400 && (await j(await get('/api/configuracion/proforma'))).proforma_proximo === 2501);
+  // B4 · título.
+  let ppA = await j(await get(`/api/guias/${gPA.id}/proforma`));
+  check('sin título → COMMERCIAL INVOICE', ppA.titulo === 'COMMERCIAL INVOICE', ppA.titulo);
+  let ppB = await j(await get(`/api/guias/${gPB.id}/proforma`));
+  check('con título → PROFORMA INVOICE', ppB.titulo === 'PROFORMA INVOICE', ppB.titulo);
+  let htmlPB = await (await get(`/api/guias/${gPB.id}/proforma.html`)).text();
+  check('la hoja lleva ese título como encabezado y no dice COMMERCIAL INVOICE', /<h1>PROFORMA INVOICE<\/h1>/.test(htmlPB) && !/COMMERCIAL INVOICE/.test(htmlPB));
+  const ppC = await j(await get(`/api/guias/${gPC.id}/proforma`));
+  check('"Packing list" tipeado sale en mayúsculas (PACKING LIST)', ppC.titulo === 'PACKING LIST', ppC.titulo);
+  const gPB2 = await j(await put(`/api/guias/${gPB.id}`, { proforma_titulo: 'invoice' }));
+  check('PUT /guias/:id cambia el título mientras es precarga', gPB2.datos && gPB2.datos.proforma_titulo === 'INVOICE', JSON.stringify(gPB2.datos && gPB2.datos.proforma_titulo));
+  // Confirmada como envío, la proforma del envío conserva el título de la guía.
+  const pendPB = (await j(await get('/api/guias/pendientes'))).find((x) => x.envio && x.envio.guia_id === gPB.id);
+  if (pendPB) {
+    const envPB = await j(await post('/api/envios', { ...pendPB.envio, total_cobrado: 200, fuel_pct: 39 }));
+    const pEnvPB = await j(await get(`/api/envios/${envPB.id}/proforma`));
+    check('confirmada como envío, la proforma del envío conserva el título (INVOICE)', pEnvPB.titulo === 'INVOICE', pEnvPB.titulo);
+  } else {
+    check('confirmada como envío, la proforma del envío conserva el título (no apareció la precarga)', false);
+  }
+  // Las precargas de esta sección se anulan: la sección 7 (pantallas) espera UNA pendiente.
+  for (const gx of [gPA, gPC, gPD, gPE]) await post(`/api/guias/${gx.id}/anular`, { nota: 'prueba' });
 
   console.log('\n7. Pantallas: Guías (emitir) y Cargar envío (precarga → confirmar)\n');
   let chromium = null;

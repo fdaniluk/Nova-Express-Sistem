@@ -173,6 +173,46 @@ async function actualizarFechaCorte(fecha) {
   return { fecha_corte_control: await obtenerFechaCorte() };
 }
 
+// ── NUMERACIÓN DE PROFORMAS ─────────────────────────────────────────────────
+// El próximo número que el sistema pone en una proforma cuando la guía se emite con el
+// campo vacío (10/09/2026). Si la oficina tipea uno a mano más alto, el contador salta
+// para no repetir.
+async function obtenerProformaProximo() {
+  const fila = await getDb().prepare('SELECT proforma_proximo FROM configuracion_nova WHERE id = 1').get();
+  const n = fila ? Number(fila.proforma_proximo) : NaN;
+  return Number.isInteger(n) && n > 0 ? n : 1300;
+}
+
+async function actualizarProformaProximo(n) {
+  const db = getDb();
+  await db.prepare(
+    `INSERT INTO configuracion_nova (id, fuel_pct, proforma_proximo)
+     VALUES (1, 0, ?)
+     ON CONFLICT(id) DO UPDATE SET proforma_proximo = excluded.proforma_proximo`
+  ).run(n);
+  return { proforma_proximo: await obtenerProformaProximo() };
+}
+
+// Toma el próximo número (y deja listo el siguiente). Se llama recién cuando UPS ya
+// devolvió la guía: una guía rechazada no gasta número.
+async function tomarNumeroProforma() {
+  const n = await obtenerProformaProximo();
+  await actualizarProformaProximo(n + 1);
+  return n;
+}
+
+// La oficina tipeó un número a mano: si es un entero mayor o igual al próximo Y está
+// cerca (hasta 1000 adelante), el contador sigue desde ahí, así el siguiente automático
+// no lo repite. Un número lejano (un formato viejo tipo 79122211, o un error de tipeo)
+// NO arrastra el contador: se respeta en esa guía y la numeración sigue como estaba.
+const SALTO_MAXIMO_PROFORMA = 1000;
+async function registrarNumeroProformaManual(valor) {
+  const n = Number(String(valor ?? '').trim());
+  if (!Number.isInteger(n) || n <= 0) return;
+  const prox = await obtenerProformaProximo();
+  if (n >= prox && n < prox + SALTO_MAXIMO_PROFORMA) await actualizarProformaProximo(n + 1);
+}
+
 async function historialFuelNova() {
   return getDb()
     .prepare('SELECT * FROM configuracion_nova_historial ORDER BY fecha_cambio DESC')
@@ -187,6 +227,7 @@ async function listarFuelTodos() {
 }
 
 module.exports = {
+  obtenerProformaProximo, actualizarProformaProximo, tomarNumeroProforma, registrarNumeroProformaManual,
   obtenerFuel, listarFuel, actualizarFuel, historialFuel,
   obtenerFuelNova, actualizarFuelNova, historialFuelNova, listarFuelTodos,
   obtenerUmbral, listarUmbrales, actualizarUmbral, historialUmbral,

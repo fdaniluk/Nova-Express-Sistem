@@ -162,7 +162,24 @@ async function actualizarCorte(req, res, next) {
   } catch (e) { next(e); }
 }
 
+async function obtenerProforma(req, res, next) {
+  try {
+    res.json({ proforma_proximo: await configuracionModel.obtenerProformaProximo() });
+  } catch (e) { next(e); }
+}
+
+async function actualizarProforma(req, res, next) {
+  try {
+    const n = Number(String((req.body || {}).proforma_proximo ?? '').trim());
+    if (!Number.isInteger(n) || n <= 0) {
+      return res.status(400).json({ error: 'proforma_proximo debe ser un número entero mayor que cero.' });
+    }
+    res.json(await configuracionModel.actualizarProformaProximo(n));
+  } catch (e) { next(e); }
+}
+
 module.exports = {
+  obtenerProforma, actualizarProforma,
   obtenerCorte, actualizarCorte,
   listarFuel, actualizarFuel, historialFuel,
   listarUmbrales, actualizarUmbral, historialUmbral,

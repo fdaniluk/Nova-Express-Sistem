@@ -28,6 +28,8 @@
     bindModalDest();
     bindModalRem();
     bindListado();
+    bindTituloProforma();
+    mostrarProximaProforma();
     agregarItem();
     agregarBulto();
     // ?cliente=ID desde otra pantalla
@@ -494,6 +496,7 @@
       ddp: $('g-ddp').checked ? 1 : 0,
       contenido: $('g-contenido').value.trim(),
       proforma_numero: $('g-proforma').value.trim() || null,
+      proforma_titulo: tituloProforma(),
       items,
       bultos: bultos.filter((b) => b.peso_real > 0 || (b.largo && b.ancho && b.alto)),
       pais_destino: d.pais,
@@ -514,9 +517,41 @@
     }
   }
 
+  // Título de la proforma: el desplegable o, con "Otro…", lo que se escribió.
+  function tituloProforma() {
+    const sel = $('g-proforma-titulo');
+    if (!sel) return null;
+    if (sel.value === '__otro') return $('g-proforma-titulo-otro').value.trim() || null;
+    return sel.value;
+  }
+
+  function bindTituloProforma() {
+    const sel = $('g-proforma-titulo');
+    if (!sel) return;
+    sel.addEventListener('change', () => {
+      const otro = $('g-proforma-titulo-otro');
+      otro.classList.toggle('hidden', sel.value !== '__otro');
+      if (sel.value === '__otro') otro.focus();
+    });
+  }
+
+  // El próximo Nº de proforma, para que se vea qué va a poner el sistema si el campo
+  // queda vacío (se cambia en Configuración).
+  async function mostrarProximaProforma() {
+    try {
+      const r = await NovaAPI.configuracion.proforma();
+      const inp = $('g-proforma');
+      const hint = $('g-proforma-hint');
+      if (inp) inp.placeholder = `Automático: ${r.proforma_proximo}`;
+      if (hint) hint.textContent = `Si lo dejás vacío, sale el ${r.proforma_proximo} (correlativo; se ajusta en Configuración).`;
+    } catch (_) { /* sin dato el campo queda "Automático" */ }
+  }
+
   function limpiarForm() {
     $('g-contenido').value = '';
     $('g-proforma').value = '';
+    if ($('g-proforma-titulo')) { $('g-proforma-titulo').value = 'COMMERCIAL INVOICE'; $('g-proforma-titulo-otro').value = ''; $('g-proforma-titulo-otro').classList.add('hidden'); }
+    mostrarProximaProforma();
     $('g-observaciones').value = '';
     $('g-ddp').checked = false;
     $('g-items').querySelector('tbody').innerHTML = '';

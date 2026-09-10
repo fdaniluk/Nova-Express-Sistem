@@ -105,44 +105,119 @@ router.get('/:id/etiqueta.gif', async (req, res, next) => {
   }
 });
 
-// Hoja para imprimir la etiqueta: ?formato=a4 (una por hoja, tamaño real 4×6 pulgadas
-// centrado, en UNA hoja — no las dos que saca la página de UPS) o ?formato=termica
-// (página de 4×6 para la impresora de etiquetas).
+// Hoja para imprimir la etiqueta (rehecha el 10/09/2026 con la guía impresa que mandó
+// Felipe — LISTA-OFICINA-10-09.md, B2/B3):
+//   ?formato=termica → SOLO la etiqueta, página de 4×6 pulgadas, vertical, para la impresora
+//                      de etiquetas (es la foto de la térmica de la oficina).
+//   ?formato=a4      → la hoja que imprime la oficina desde UPS CampusShip: A4 vertical con
+//                      las instrucciones de UPS arriba (firma del shipper y fecha), la línea
+//                      "DOBLAR AQUÍ" al medio y la etiqueta APAISADA en la mitad de abajo. Se
+//                      dobla por la línea: de un lado la guía, del otro las leyendas.
+//   Una página por bulto en los dos formatos. El botón "Girar" da vuelta la etiqueta 180°
+//   si la impresora la saca cabeza abajo (se recuerda en el navegador).
 router.get('/:id/etiqueta.html', async (req, res, next) => {
   try {
     const row = await guias.etiqueta(req.params.id);
     if (!row) return res.status(404).send('La guía no tiene etiqueta');
     const lista = JSON.parse(row.etiqueta_gif);
     const termica = String(req.query.formato || 'a4') === 'termica';
-    const pagina = termica ? 'size: 4in 6in; margin: 0;' : 'size: A4 portrait; margin: 10mm;';
-    const imgs = lista.map((b64, i) => `
+    const pagina = termica ? 'size: 4in 6in; margin: 0;' : 'size: A4 portrait; margin: 12mm 14mm;';
+    const instrucciones = `
+      <div class="instr">
+        <h2>Nova Express · Guía UPS ${esc(row.numero_guia || '')}</h2>
+        <ol>
+          <li><b>Asegúrese de que no haya otras etiquetas de envío o de rastreo adjuntas a su paquete.</b> Seleccione el botón Imprimir del cuadro de diálogo que aparece. Nota: si el navegador no admite esta función, seleccione Imprimir en el menú Archivo para imprimir la etiqueta.</li>
+          <li><b>Factura de la aduana</b> – Se requieren 3 copias de una factura de aduanas con los datos completos para los envíos con valor comercial.</li>
+          <li><b>Doble la etiqueta impresa por la línea continua que aparece abajo.</b> Coloque la etiqueta en una bolsa plástica de UPS. Si no tiene una bolsa plástica, pegue la etiqueta doblada usando cinta adhesiva transparente por encima de toda la etiqueta.</li>
+          <li><b>Recolección e instalaciones para dejar paquetes</b><br>Clientes con recolección diaria: tengan listos sus envíos para el repartidor como de costumbre.<br>Para programar una recolección o para buscar una ubicación UPS, seleccione Programar una recolección o Buscar ubicaciones en el panel de navegación lateral de la ficha Envío.</li>
+          <li>Para indicar su aceptación del idioma original del acuerdo con UPS tal como aparece en la página de pago de confirmación, y para autorizar a UPS a actuar como agente para el control de exportación y con finalidades de aduanas, <b>firme y feche aquí:</b></li>
+        </ol>
+        <div class="firma">
+          <div><b>Shipper's Signature</b><span class="raya"></span></div>
+          <div><b>Date of Shipment</b><span class="raya"></span></div>
+        </div>
+        <div class="doblar"><span>DOBLAR AQUÍ</span></div>
+      </div>`;
+    const paginas = lista.map((b64, i) => `
       <div class="pag">
-        <img src="data:image/gif;base64,${b64}" alt="Etiqueta ${i + 1}" onload="if (this.naturalWidth > this.naturalHeight) this.classList.add('apaisada')">
+        ${termica ? '' : instrucciones}
+        <div class="etq"><img src="data:image/gif;base64,${b64}" alt="Etiqueta ${i + 1}" onload="orientar(this)"></div>
       </div>`).join('');
     res.type('html').send(`<!DOCTYPE html>
 <html lang="es"><head><meta charset="utf-8">
 <title>Etiqueta ${esc(row.numero_guia || '')}</title>
 <style>
   @page { ${pagina} }
-  body { margin: 0; background: #eee; font-family: Arial, sans-serif; }
-  .barra { position: sticky; top: 0; background: #1f2a44; color: #fff; padding: 8px 14px; font-size: 13px; display: flex; gap: 12px; align-items: center; }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: #eee; font-family: Arial, Helvetica, sans-serif; color: #111; }
+  .barra { position: sticky; top: 0; z-index: 2; background: #1f2a44; color: #fff; padding: 8px 14px; font-size: 13px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
   .barra button { background: #f26a4b; color: #fff; border: 0; padding: 6px 14px; border-radius: 4px; cursor: pointer; font-size: 13px; }
+  .barra button.sec { background: #3b4a6b; }
   .barra a { color: #fff; }
-  .pag { background: #fff; margin: 12px auto; display: flex; align-items: center; justify-content: center;
-         ${termica ? 'width: 4in; height: 6in;' : 'width: 190mm; height: 277mm;'} page-break-after: always; }
-  /* La etiqueta de UPS suele venir apaisada (6×4): si es más ancha que alta se rota
-     para que quede en tamaño real 4×6; si ya viene vertical, se deja como está. */
-  .pag img { width: 4in; height: auto; max-height: ${termica ? '6in' : '7in'}; object-fit: contain; image-rendering: crisp-edges; }
-  .pag img.apaisada { height: 4in; width: auto; max-width: ${termica ? '6in' : '7in'}; transform: rotate(90deg); }
-  @media print { .barra { display: none; } body { background: #fff; } .pag { margin: 0; } }
-</style></head>
+  .pag { background: #fff; margin: 12px auto; position: relative; page-break-after: always; overflow: hidden;
+         ${termica ? 'width: 4in; height: 6in;' : 'width: 182mm; height: 273mm; padding: 0;'} }
+  .pag:last-child { page-break-after: auto; }
+  /* ── Térmica: la etiqueta ocupa toda la página de 4×6, vertical. ── */
+  ${termica ? `
+  .etq { width: 4in; height: 6in; display: flex; align-items: center; justify-content: center; }
+  .etq img { width: 4in; height: 6in; object-fit: contain; image-rendering: crisp-edges; }
+  /* El GIF de UPS suele venir apaisado (6×4, texto de costado): se gira para que quede
+     vertical como en la impresora de la oficina. */
+  .etq img.apaisada { width: 6in; height: 4in; transform: rotate(90deg); }
+  ` : `
+  /* ── A4: instrucciones arriba, doblez al medio, etiqueta apaisada abajo (como la hoja de
+     UPS CampusShip que imprime la oficina). ── */
+  .instr { height: 136mm; font-size: 8.6pt; line-height: 1.3; position: relative; }
+  .instr h2 { font-size: 9.5pt; margin: 0 0 3mm; }
+  .instr ol { margin: 0; padding-left: 5mm; }
+  .instr li { margin-bottom: 2.2mm; }
+  .firma { display: flex; gap: 40mm; margin-top: 14mm; font-size: 8.6pt; }
+  .firma > div { display: flex; flex-direction: column; gap: 2mm; min-width: 60mm; }
+  .firma .raya { display: block; height: 0; }
+  .doblar { position: absolute; left: 0; right: 0; bottom: 0; border-bottom: 1px solid #555; font-size: 8pt; }
+  .doblar span { position: absolute; left: 2mm; bottom: 1mm; }
+  /* La etiqueta se acuesta en un marco de 6×4 pulgadas, arriba a la izquierda de la mitad
+     de abajo (como la imprime UPS). La imagen se centra en el marco y se gira alrededor de
+     su centro, así el marco y la imagen girada coinciden. */
+  .etq { width: 6in; height: 4in; margin: 8mm 0 0 2mm; display: flex; align-items: center; justify-content: center; }
+  .etq img { width: 6in; height: 4in; object-fit: contain; image-rendering: crisp-edges; }
+  /* GIF vertical (4×6) → se gira 90° para acostarlo. GIF apaisado (6×4) → ya está acostado. */
+  .etq img.vertical { width: 4in; height: 6in; transform: rotate(-90deg); }
+  `}
+  /* "Girar": 180° más, por si la impresora la saca cabeza abajo. */
+  .pag.girada .etq img { transform: rotate(180deg); }
+  .pag.girada .etq img.apaisada { transform: rotate(270deg); }
+  .pag.girada .etq img.vertical { transform: rotate(90deg); }
+  @media print { .barra { display: none; } body { background: #fff; } .pag { margin: 0; box-shadow: none; } }
+</style>
+<script>
+  /* Va en el <head>: las imágenes son data: y disparan onload antes de que corra un script
+     puesto al final del body (la primera etiqueta quedaba sin girar). */
+  var CLAVE = 'nova.etiqueta.girada.${termica ? 'termica' : 'a4'}';
+  function orientar(img) {
+    var apaisada = img.naturalWidth > img.naturalHeight;
+    img.classList.add(apaisada ? 'apaisada' : 'vertical');
+  }
+  function aplicarGiro() {
+    var g = false; try { g = localStorage.getItem(CLAVE) === '1'; } catch (e) {}
+    document.querySelectorAll('.pag').forEach(function (p) { p.classList.toggle('girada', g); });
+  }
+  function girar() {
+    var g = false; try { g = localStorage.getItem(CLAVE) === '1'; } catch (e) {}
+    try { localStorage.setItem(CLAVE, g ? '0' : '1'); } catch (e) {}
+    aplicarGiro();
+  }
+  document.addEventListener('DOMContentLoaded', aplicarGiro);
+</script>
+</head>
 <body>
 <div class="barra">
   <button onclick="window.print()">Imprimir</button>
-  <span>Etiqueta ${esc(row.numero_guia || '')} · ${lista.length} bulto(s) · ${termica ? 'térmica 4×6' : 'A4'}${row.entorno === 'test' ? ' · PRUEBA (no válida para despachar)' : ''}</span>
-  <a href="?formato=${termica ? 'a4' : 'termica'}">${termica ? 'ver en A4' : 'ver para térmica'}</a>
+  <button class="sec" onclick="girar()" title="Si sale cabeza abajo, girarla 180°">↻ Girar</button>
+  <span>Etiqueta ${esc(row.numero_guia || '')} · ${lista.length} bulto(s) · ${termica ? 'térmica 4×6 (solo la etiqueta)' : 'hoja A4 para doblar (instrucciones + etiqueta)'}${row.entorno === 'test' ? ' · PRUEBA (no válida para despachar)' : ''}</span>
+  <a href="?formato=${termica ? 'a4' : 'termica'}">${termica ? 'ver la hoja A4' : 'ver para la térmica'}</a>
 </div>
-${imgs}
+${paginas}
 </body></html>`);
   } catch (e) {
     next(e);

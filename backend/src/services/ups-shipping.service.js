@@ -84,6 +84,21 @@ async function getTokenPara(host) {
 }
 
 // ── Validación y armado del pedido ───────────────────────────────────────────
+/* El Tax ID como lo carga la oficina puede venir "CPF: 123.456.789-00" o "RUT 12345678-9"
+   (el nombre del documento y el número, que es lo que la proforma tiene que mostrar —
+   10/09/2026). A UPS le entra SOLO el número, hasta 15 caracteres: se saca lo que está
+   antes de los dos puntos, los espacios y la puntuación. */
+function taxIdParaUps(v) {
+  let t = String(v ?? '').trim();
+  if (t.includes(':')) t = t.slice(t.lastIndexOf(':') + 1).trim();
+  // "RUT 12345678-9": una palabra corta de letras y después el número → se saca la palabra.
+  // (Sin espacio no se toca: un PAN de la India como "ABCDE1234F" es todo el número.)
+  const m = /^[A-Za-z]{2,6}\s+(.+)$/.exec(t);
+  if (m) t = m[1];
+  t = t.replace(/[\s.\-\/]/g, '');
+  return t.slice(0, 15);
+}
+
 function recortar(s, n) {
   return String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
 }
@@ -148,7 +163,7 @@ function armarPedido({ remitente, destinatario, bultos, servicio, ddp, contenido
   };
   if (destinatario.estado) shipTo.Address.StateProvinceCode = recortar(destinatario.estado, 5).toUpperCase();
   if (destinatario.email) shipTo.EMailAddress = recortar(destinatario.email, 50);
-  if (destinatario.tax_id) shipTo.TaxIdentificationNumber = recortar(destinatario.tax_id, 15);
+  if (destinatario.tax_id) shipTo.TaxIdentificationNumber = taxIdParaUps(destinatario.tax_id);
 
   const shipmentCharge = [{ Type: '01', BillShipper: { AccountNumber: cuenta } }];
   // Impuestos y derechos: con DDP los paga Nova (misma cuenta); sin DDP no se manda el
@@ -299,6 +314,7 @@ async function anularGuia(numeroGuia) {
 }
 
 module.exports = {
+  taxIdParaUps,
   SERVICIO_CODIGO,
   SERVICIO_NOMBRE,
   configuracion,

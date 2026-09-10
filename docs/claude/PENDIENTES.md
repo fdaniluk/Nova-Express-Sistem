@@ -8,7 +8,7 @@ país/peso/medidas/bultos y que si el país ya está elegido solo sugiera cotiza
 apaisada con las leyendas de UPS al dorso (administración manda una impresa), título de la
 proforma editable; (C) Dashboard — kg por mes, top de clientes por kg/facturación/utilidad en
 una tabla con selector, estimado vs real con las facturas cargadas, y más ideas mías. Orden
-propuesto: A → B1/B4/B5 → B2/B3 → C. **A hecho el 10/09** (paquete entregado, cache `?v=20260910a`).
+propuesto: A → B1/B4/B5 → B2/B3 → C. **A hecho el 10/09** (`c936721`, desplegado). **B1/B4/B5 hechos el 10/09** (Tax ID largo, título de la proforma, numeración automática desde 1300 en Configuración; paquete entregado, cache `?v=20260910b`). **B2/B3 también hechos** (hoja A4 de CampusShip con instrucciones + doblez + etiqueta acostada; térmica solo etiqueta; botón Girar — verificar orientación con la primera guía real). Queda C (dashboard).
 
 **Estado al 09/09.** Salidas, **Fase A del rediseño** (`SALIDAS-REDISENO.md` §3),
 `dbe9a44`: cabecera en dos grupos VER / ACCIONES, una sola barra con el Cierre, banda de

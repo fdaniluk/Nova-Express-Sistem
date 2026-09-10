@@ -42,6 +42,41 @@ mostrado antes cuando toque pantalla (regla del rediseño de Salidas).
 - **A4 · Filtro por país.** `montar(..., {pais})`: con país elegido muestra solo las cotizaciones a ese país (aviso ámbar "Solo las cotizaciones a X (n de m)"); si no hay ninguna, muestra todas y avisa. El panel se rehace al cambiar el país.
 - Tanda nueva **`test-pantalla-cotizacion-guardada`** (37, puerto 3962), en `test-pantallas`. Ajustadas `test-pantalla-cotizacion-cliente` (lee la franja del pie en el archivo nuevo) y `test-pantalla-cotizaciones` (acepta "✓ Aceptada").
 
+### B1 · B4 · B5 — HECHO (10/09, cache `?v=20260910b`, paquete `guias-proforma.tgz`)
+
+- **B1 · Tax ID.** El campo del destinatario acepta hasta **40** caracteres (antes 15) y se
+  guarda tal cual ("CPF: 123.456.789-00" — así lo muestra la proforma). A UPS le va SOLO el
+  número: `taxIdParaUps()` saca lo que está antes de los dos puntos, una palabra corta al
+  principio ("RUT 12345678-9"), espacios, puntos, guiones y barras, y corta a 15 (el máximo
+  de UPS). Un PAN de la India ("ABCDE1234F") queda entero.
+- **B5 · Numeración.** `configuracion_nova.proforma_proximo` (migración + schema, arranca en
+  **1300**). Al emitir una guía con el Nº vacío, el sistema le pone ese número y avanza el
+  contador; **recién cuando UPS ya devolvió la guía** (una rechazada no gasta número). Si se
+  tipea un número a mano se respeta; si es ≥ al próximo y está a menos de 1000, el contador
+  salta para no repetirlo; un número lejano (formato viejo tipo 79122211) no arrastra el
+  contador. Se ve y se ajusta en **Configuración → Numeración de proformas**
+  (`GET/PUT /api/configuracion/proforma`). El formulario de Guías muestra "Automático: 1300".
+- **B4 · Título.** Desplegable en Guías (Commercial Invoice · Proforma Invoice · Invoice ·
+  Packing List · Otro…) guardado en `guias.datos_json.proforma_titulo` (mayúsculas, máx. 40);
+  editable por `PUT /guias/:id` mientras es precarga; la hoja (`renderHtml`) lo usa como
+  encabezado y título de la pestaña; la proforma del envío confirmado lo hereda de la guía.
+- Tanda `test-guias-emision` → **102** (sección 6-bis). `check-schema` ✓ contra base nueva.
+
+### B2 · B3 — HECHO (10/09, con el PDF y la foto que mandó Felipe)
+
+- Lo que imprime la oficina es la **hoja de UPS CampusShip**: A4 vertical con las cinco
+  instrucciones de UPS arriba, "Shipper's Signature" / "Date of Shipment", la línea
+  **DOBLAR AQUÍ** al medio y la etiqueta **acostada (6×4)** en la mitad de abajo; se dobla y
+  queda la guía de un lado y las leyendas del otro. La térmica es SOLO la etiqueta, 4×6
+  vertical.
+- `GET /guias/:id/etiqueta.html?formato=a4` ahora arma esa hoja (una por bulto);
+  `?formato=termica` saca solo la etiqueta a 4×6. La orientación del GIF de UPS se detecta
+  (`orientar()`, en el `<head>` porque las imágenes data: cargan antes que un script al
+  final) y hay un botón **↻ Girar** (180°, se recuerda por formato en el navegador) por si
+  la impresora la saca cabeza abajo — **hay que verificarlo con la primera guía real**: el
+  GIF de UPS de test viene de 1×1 px, no se pudo comprobar la orientación de verdad.
+- Tanda `test-guias-emision` → **106**.
+
 ## Orden propuesto
 
 1. **A** (cotizaciones) — es lo que más usan a diario y lo pidió la oficina.

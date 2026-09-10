@@ -17,6 +17,11 @@ router.get('/umbral/historial', ctrl.historialUmbral);
 router.put('/umbral/:courier', requireConfig, ctrl.actualizarUmbral);
 
 // Fecha desde la que el panel de salud y las bandejas de Facturas controlan (07/09).
+// Próximo Nº de proforma (10/09/2026). Lo lee cualquiera (el módulo Guías lo muestra);
+// lo cambia quien tiene permiso de configuración.
+router.get('/proforma', ctrl.obtenerProforma);
+router.put('/proforma', requireConfig, ctrl.actualizarProforma);
+
 router.get('/corte', ctrl.obtenerCorte);
 router.put('/corte', requireConfig, ctrl.actualizarCorte);
 

@@ -87,6 +87,8 @@ function armar({ envio, cliente, remitente, destinatario, items, origen }) {
 
   return {
     ...origen,
+    // Título de la hoja (10/09/2026): "COMMERCIAL INVOICE" salvo que la guía diga otra cosa.
+    titulo: String(envio.proforma_titulo || '').trim().toUpperCase() || 'COMMERCIAL INVOICE',
     numero: envio.proforma_numero || '',
     fecha: envio.fecha,
     fecha_texto: fechaLarga(envio.fecha),
@@ -120,6 +122,11 @@ async function armarProforma(envioId) {
     .prepare('SELECT orden, cantidad, descripcion, valor_unitario FROM envio_items WHERE envio_id = ? ORDER BY orden, id')
     .all(envioId);
   const remitente = envio.remitente_id ? await db.prepare('SELECT * FROM remitentes WHERE id = ?').get(envio.remitente_id) : null;
+  // El título de la proforma vive en la guía de la que salió el envío (si salió de una).
+  if (envio.guia_id) {
+    const g = await db.prepare('SELECT datos_json FROM guias WHERE id = ?').get(envio.guia_id);
+    try { envio.proforma_titulo = JSON.parse((g && g.datos_json) || '{}').proforma_titulo || null; } catch { envio.proforma_titulo = null; }
+  }
   return armar({ envio, cliente, remitente, destinatario, items, origen: { envio_id: envio.id } });
 }
 
@@ -148,6 +155,7 @@ async function armarProformaGuia(guiaId) {
     tipo_paquete: 'm',
     pais_destino: datos.pais_destino,
     proforma_numero: g.proforma_numero,
+    proforma_titulo: datos.proforma_titulo || null,
   };
   const remitente = g.remitente_id ? await db.prepare('SELECT * FROM remitentes WHERE id = ?').get(g.remitente_id) : null;
   return armar({ envio, cliente, remitente, destinatario, items, origen: { guia_id: g.id, envio_id: g.envio_id || null } });
@@ -188,7 +196,7 @@ function renderHtml(p) {
 <html lang="en">
 <head>
 <meta charset="utf-8">
-<title>Commercial Invoice ${esc(p.numero || p.numero_guia || p.envio_id)}</title>
+<title>${esc(p.titulo || 'Commercial Invoice')} ${esc(p.numero || p.numero_guia || p.envio_id)}</title>
 <style>
   @page { size: A4; margin: 14mm; }
   * { box-sizing: border-box; }
@@ -227,7 +235,7 @@ function renderHtml(p) {
 </div>
 <div class="hoja">
   ${avisos.length ? `<div class="avisos">${avisos.map(esc).join('<br>')}</div>` : ''}
-  <h1>COMMERCIAL INVOICE</h1>
+  <h1>${esc(p.titulo || 'COMMERCIAL INVOICE')}</h1>
   <div class="cab">
     <div><b>Nº</b> ${esc(p.numero || '')}</div>
     <div><b>Date</b> ${esc(p.fecha_texto)}</div>
