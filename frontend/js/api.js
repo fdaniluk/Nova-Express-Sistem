@@ -108,6 +108,8 @@ const api = {
       const q = courier ? `?courier=${courier}` : '';
       return api.get(`/configuracion/umbral/historial${q}`);
     },
+    margenObjetivo: () => api.get('/configuracion/margen-objetivo'),
+    actualizarMargenObjetivo: (margen_objetivo_pct) => api.put('/configuracion/margen-objetivo', { margen_objetivo_pct }),
     proforma: () => api.get('/configuracion/proforma'),
     actualizarProforma: (proforma_proximo) => api.put('/configuracion/proforma', { proforma_proximo }),
     corte: () => api.get('/configuracion/corte'),
@@ -223,6 +225,9 @@ api.dashboard = {
     return api.get(`/dashboard/metricas${q ? `?${q}` : ''}`);
   },
   meses: () => api.get('/dashboard/meses'),
+  // Rediseño 10/09/2026: todo el dashboard en una llamada; `q` es el query string armado.
+  analitica: (q) => api.get(`/dashboard/analitica${q ? `?${q}` : ''}`),
+  analiticaExcelUrl: (q) => `${API_BASE}/dashboard/analitica.xlsx${q ? `?${q}` : ''}`,
 };
 
 api.pickups = {

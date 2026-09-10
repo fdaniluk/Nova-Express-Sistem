@@ -178,7 +178,30 @@ async function actualizarProforma(req, res, next) {
   } catch (e) { next(e); }
 }
 
+async function obtenerMargen(req, res, next) {
+  try {
+    res.json({ margen_objetivo_pct: await configuracionModel.obtenerMargenObjetivo() });
+  } catch (e) { next(e); }
+}
+
+// null / vacío borra la línea; un número entre 0 y 500 la fija.
+async function actualizarMargen(req, res, next) {
+  try {
+    const raw = (req.body || {}).margen_objetivo_pct;
+    if (raw === null || raw === '' || raw === undefined) {
+      res.json(await configuracionModel.actualizarMargenObjetivo(null));
+      return;
+    }
+    const n = Number(raw);
+    if (!Number.isFinite(n) || n <= 0 || n > 500) {
+      return res.status(400).json({ error: 'margen_objetivo_pct debe ser un porcentaje entre 0 y 500 (o vacío para sacar la línea).' });
+    }
+    res.json(await configuracionModel.actualizarMargenObjetivo(n));
+  } catch (e) { next(e); }
+}
+
 module.exports = {
+  obtenerMargen, actualizarMargen,
   obtenerProforma, actualizarProforma,
   obtenerCorte, actualizarCorte,
   listarFuel, actualizarFuel, historialFuel,

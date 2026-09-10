@@ -310,6 +310,21 @@ Colores Nova `#403754`/`#EE6C52`.
 
 ## 3. Dónde estamos (10-09-2026)
 
+- **10/09 — LOGO OFICIAL.** Felipe eligió el logo vectorizado a limpio con **azul #2A3661 y
+  naranja #EA6749** ("desde ahora tomá ese como el logo oficial de Nova Express"). Está en
+  `frontend/assets/logos/nova.svg` (vector) y `nova.png` (1050 px, transparente); lo usan
+  la imagen de la cotización (marca de agua + pie), el cotizador público y el tarifario.
+  El viejo (violeta #403754 / coral #ED6D51) quedó en `_backup_logo/` fuera del repo.
+- **10/09 — DASHBOARD REDISEÑADO (bloque C de la lista; paquete `dashboard.tgz`, cache
+  `?v=20260910c`, esperando tandas de Felipe y push).** Maqueta mostrada y aprobada;
+  `services/analitica.service.js` + `GET /api/dashboard/analitica` (+ `.xlsx`) devuelven
+  todo en una respuesta con la misma regla de profit que Salidas y NO VOLÓ afuera;
+  `index.html` nuevo con **Chart.js vendorizado** (`js/vendor/chart.umd.js`); filtros
+  período / courier / tipo / comparar (previo o mismo período del año pasado); KPIs, por
+  mes, mix, top clientes, destinos, estimado vs real (cobertura + aviso), margen con
+  objetivo (Configuración → `margen_objetivo_pct`, vacío = sin línea), plata en la calle,
+  ritmo. Tandas `test-dashboard-analitica` (52) y `test-pantalla-dashboard` (29).
+  Detalle: `DASHBOARD-REDISENO.md`.
 - **10/09 — LISTA DE LA OFICINA (`LISTA-OFICINA-10-09.md`): bloque A, cotizaciones
   guardadas — HECHO (paquete entregado, cache `?v=20260910a`).** El cuadro de la cotización
   se dibuja en `frontend/js/cotizacion-imagen.js` (compartido) y el perfil lo vuelve a armar

@@ -218,11 +218,39 @@
     });
   }
 
+  // Margen objetivo del dashboard (10/09): la línea punteada de "Margen por mes".
+  async function loadMargen() {
+    const actual = document.getElementById('margen-actual');
+    const input = document.getElementById('margen-input');
+    if (!actual || !input) return;
+    const r = await NovaAPI.configuracion.margenObjetivo();
+    const pintar = (v) => { actual.textContent = v == null ? 'sin línea' : `${v}%`; input.value = v == null ? '' : v; };
+    pintar(r.margen_objetivo_pct);
+    const btn = document.getElementById('btn-margen-guardar');
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = '1';
+    btn.addEventListener('click', async () => {
+      const raw = input.value.trim();
+      btn.disabled = true;
+      try {
+        const res = await NovaAPI.configuracion.actualizarMargenObjetivo(raw === '' ? null : Number(raw));
+        pintar(res.margen_objetivo_pct);
+        NovaUtils.showAlert(alertBox, res.margen_objetivo_pct == null ? 'El dashboard queda sin línea de objetivo.' : `El dashboard va a marcar el objetivo de ${res.margen_objetivo_pct}%.`, 'success');
+      } catch (err) {
+        pintar(r.margen_objetivo_pct);
+        NovaUtils.showAlert(alertBox, err.message, 'error');
+      } finally {
+        btn.disabled = false;
+      }
+    });
+  }
+
   async function init() {
     try {
       await loadFuel();
       await loadCorte();
       await loadProforma();
+      await loadMargen();
       await loadUmbral();
       await loadTolerancias();
     } catch (err) {

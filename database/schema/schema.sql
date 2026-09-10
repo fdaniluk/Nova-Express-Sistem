@@ -78,7 +78,9 @@ CREATE TABLE IF NOT EXISTS configuracion_nova (
   -- serio (07/09/2026). Lo anterior se ve a pedido, no se destaca.
   fecha_corte_control  TEXT NOT NULL DEFAULT '2026-09-01',
   -- Próximo Nº de proforma que asigna el sistema al emitir una guía sin número (10/09/2026).
-  proforma_proximo     INTEGER NOT NULL DEFAULT 1300
+  proforma_proximo     INTEGER NOT NULL DEFAULT 1300,
+  -- Margen objetivo (%) que dibuja el dashboard como línea de referencia; NULL = sin línea.
+  margen_objetivo_pct  REAL
 );
 
 CREATE TABLE IF NOT EXISTS configuracion_nova_historial (

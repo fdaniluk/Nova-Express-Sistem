@@ -19,6 +19,10 @@ router.put('/umbral/:courier', requireConfig, ctrl.actualizarUmbral);
 // Fecha desde la que el panel de salud y las bandejas de Facturas controlan (07/09).
 // Próximo Nº de proforma (10/09/2026). Lo lee cualquiera (el módulo Guías lo muestra);
 // lo cambia quien tiene permiso de configuración.
+// Margen objetivo del dashboard (10/09/2026).
+router.get('/margen-objetivo', ctrl.obtenerMargen);
+router.put('/margen-objetivo', requireConfig, ctrl.actualizarMargen);
+
 router.get('/proforma', ctrl.obtenerProforma);
 router.put('/proforma', requireConfig, ctrl.actualizarProforma);
 

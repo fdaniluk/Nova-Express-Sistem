@@ -761,6 +761,11 @@ async function migrateFuelNova() {
   if (!colsNova.includes('proforma_proximo')) {
     await dbApi.exec('ALTER TABLE configuracion_nova ADD COLUMN proforma_proximo INTEGER NOT NULL DEFAULT 1300');
   }
+  // Margen objetivo del dashboard (10/09/2026): la línea punteada del gráfico "Margen por
+  // mes". NULL = sin línea (no se inventa un objetivo).
+  if (!colsNova.includes('margen_objetivo_pct')) {
+    await dbApi.exec('ALTER TABLE configuracion_nova ADD COLUMN margen_objetivo_pct REAL');
+  }
 }
 
 // Índices que faltaban sobre las consultas que ya están en producción. Todos son

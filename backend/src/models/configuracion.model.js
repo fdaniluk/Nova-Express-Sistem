@@ -213,6 +213,24 @@ async function registrarNumeroProformaManual(valor) {
   if (n >= prox && n < prox + SALTO_MAXIMO_PROFORMA) await actualizarProformaProximo(n + 1);
 }
 
+// ── MARGEN OBJETIVO DEL DASHBOARD ────────────────────────────────────────────
+// Línea de referencia del gráfico "Margen por mes" (10/09/2026). null = sin línea.
+async function obtenerMargenObjetivo() {
+  const fila = await getDb().prepare('SELECT margen_objetivo_pct FROM configuracion_nova WHERE id = 1').get();
+  const v = fila ? Number(fila.margen_objetivo_pct) : NaN;
+  return Number.isFinite(v) && v > 0 ? v : null;
+}
+
+async function actualizarMargenObjetivo(pct) {
+  const db = getDb();
+  await db.prepare(
+    `INSERT INTO configuracion_nova (id, fuel_pct, margen_objetivo_pct)
+     VALUES (1, 0, ?)
+     ON CONFLICT(id) DO UPDATE SET margen_objetivo_pct = excluded.margen_objetivo_pct`
+  ).run(pct);
+  return { margen_objetivo_pct: await obtenerMargenObjetivo() };
+}
+
 async function historialFuelNova() {
   return getDb()
     .prepare('SELECT * FROM configuracion_nova_historial ORDER BY fecha_cambio DESC')
@@ -227,6 +245,7 @@ async function listarFuelTodos() {
 }
 
 module.exports = {
+  obtenerMargenObjetivo, actualizarMargenObjetivo,
   obtenerProformaProximo, actualizarProformaProximo, tomarNumeroProforma, registrarNumeroProformaManual,
   obtenerFuel, listarFuel, actualizarFuel, historialFuel,
   obtenerFuelNova, actualizarFuelNova, historialFuelNova, listarFuelTodos,

@@ -4,20 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Dashboard — Nova Express</title>
-  <link rel="stylesheet" href="css/main.css?v=20260910b">
-  <style>
-    /* Franja de salud del Dashboard. Roja y arriba de todo a proposito: es lo unico de
-       esta pantalla que pide una accion. Enlaza al panel completo. */
-    .franja-salud {
-      display: block; margin-bottom: 1rem; padding: 0.75rem 1rem;
-      background: #fef2f2; border: 1px solid #fecaca; border-left: 4px solid var(--color-danger);
-      border-radius: var(--radius); color: var(--color-text); text-decoration: none;
-      font-size: 0.9rem;
-    }
-    .franja-salud:hover { background: #fee2e2; }
-    .franja-salud strong { color: var(--color-danger); }
-    .franja-salud .franja-detalle { color: var(--color-muted); font-size: 0.85rem; margin-top: 0.2rem; }
-  </style>
+  <link rel="stylesheet" href="css/main.css?v=20260910c">
+  <link rel="stylesheet" href="css/modules/dashboard.css?v=20260910c">
 </head>
 <body>
 <div class="app-layout">
@@ -97,69 +85,134 @@
   </aside>
 
   <div class="page-content">
-    <div class="page-header">
+    <!-- Rediseño 10/09/2026 (DASHBOARD-REDISENO.md). Los filtros de arriba mandan sobre
+         TODO lo de abajo; los datos vienen de UNA llamada (GET /api/dashboard/analitica). -->
+    <div class="page-header dash-header">
       <h1>Dashboard</h1>
-      <div class="period-selector">
-        <button class="period-btn active" data-periodo="hoy">Hoy</button>
-        <button class="period-btn" data-periodo="semana">7 días</button>
-        <button class="period-btn" data-periodo="mes">Este mes</button>
-        <select id="mes-selector" class="period-select"></select>
+      <div class="dash-grupo">
+        <span class="dash-grupo-lbl">Período</span>
+        <button class="btn btn-sm btn-secondary dash-per" data-periodo="mes">Este mes</button>
+        <button class="btn btn-sm btn-secondary dash-per active" data-periodo="12m">Últimos 12 meses</button>
+        <button class="btn btn-sm btn-secondary dash-per" data-periodo="anio">Este año</button>
+        <span class="dash-rango">
+          <input type="month" id="dash-desde" title="Desde (mes)">
+          <span>→</span>
+          <input type="month" id="dash-hasta" title="Hasta (mes)">
+          <button class="btn btn-sm btn-secondary" id="dash-rango-ok" title="Ver ese rango de meses">Ver</button>
+        </span>
       </div>
+      <div class="dash-grupo">
+        <span class="dash-grupo-lbl">Courier</span>
+        <button class="btn btn-sm btn-secondary dash-courier active" data-courier="">Todos</button>
+        <button class="btn btn-sm btn-secondary dash-courier" data-courier="UPS">UPS</button>
+        <button class="btn btn-sm btn-secondary dash-courier" data-courier="DHL">DHL</button>
+      </div>
+      <div class="dash-grupo">
+        <span class="dash-grupo-lbl">Tipo</span>
+        <button class="btn btn-sm btn-secondary dash-tipo active" data-tipo="">Todos</button>
+        <button class="btn btn-sm btn-secondary dash-tipo" data-tipo="exportacion">Expo</button>
+        <button class="btn btn-sm btn-secondary dash-tipo" data-tipo="importacion">Impo</button>
+      </div>
+      <div class="dash-grupo">
+        <span class="dash-grupo-lbl">Comparar con</span>
+        <select id="dash-comparar" class="dash-sel">
+          <option value="previo">el período anterior</option>
+          <option value="anio">el mismo período del año pasado</option>
+        </select>
+      </div>
+      <span class="dash-hint" id="dash-hint">Cargando…</span>
+      <a class="btn btn-sm btn-outline" id="dash-excel" href="#" title="Baja un Excel con lo que se ve (una hoja por bloque)">↓ Excel</a>
     </div>
 
-    <div class="page-body">
+    <div class="page-body dash-body">
       <div id="alert-box"></div>
 
       <!-- Franja de salud: solo aparece si hay algo en rojo o algun chequeo que no pudo
            correr. En verde no ocupa lugar, para que el dia que aparezca signifique algo. -->
       <a id="franja-salud" class="franja-salud" href="pages/salud.html" hidden></a>
 
-      <!-- Metric cards -->
-      <div class="metrics-grid" id="metrics-grid">
-        <div class="metric-card"><div class="metric-label">Cargando...</div></div>
+      <!-- KPIs -->
+      <div class="dash-kpis" id="dash-kpis">
+        <div class="dash-kpi" data-kpi="envios"><div class="k">Envíos</div><div class="v">—</div><div class="d"></div><canvas class="sp"></canvas></div>
+        <div class="dash-kpi" data-kpi="kg_fact"><div class="k">Kg facturables</div><div class="v">—</div><div class="d"></div><canvas class="sp"></canvas></div>
+        <div class="dash-kpi" data-kpi="venta"><div class="k">Venta</div><div class="v">—</div><div class="d"></div><canvas class="sp"></canvas></div>
+        <div class="dash-kpi" data-kpi="compra"><div class="k">Compra</div><div class="v">—</div><div class="d"></div><canvas class="sp"></canvas></div>
+        <div class="dash-kpi pro" data-kpi="profit"><div class="k">Profit</div><div class="v">—</div><div class="d"></div><canvas class="sp"></canvas></div>
+        <div class="dash-kpi" data-kpi="sin_liquidar"><div class="k">Sin liquidar</div><div class="v">—</div><div class="d"></div></div>
       </div>
 
-      <!-- Chart + Top clientes -->
-      <div class="dashboard-cols">
-        <div class="card">
-          <h2>Utilidad por período <span id="periodo-label" class="periodo-label"></span></h2>
-          <canvas id="chart-utilidad" width="500" height="220"></canvas>
+      <div class="dash-grid2">
+        <div class="card dash-card">
+          <h2>Por mes <span class="sub" id="dash-mes-sub">facturables · barra clara = período de comparación</span>
+            <span class="der"><span class="seg" id="seg-mes"><button class="on" data-m="kg">Kg</button><button data-m="envios">Envíos</button><button data-m="venta">Venta</button><button data-m="profit">Profit</button></span></span></h2>
+          <div class="dash-chart h280"><canvas id="c-mes"></canvas></div>
         </div>
-        <div class="card">
-          <h2>Top clientes</h2>
+        <div class="card dash-card">
+          <h2>Mix de couriers <span class="sub" id="dash-mix-sub">por venta</span>
+            <span class="der"><span class="seg" id="seg-mix"><button class="on" data-m="venta">Venta</button><button data-m="envios">Envíos</button><button data-m="kg">Kg</button></span></span></h2>
+          <div class="dash-chart h280"><canvas id="c-mix"></canvas></div>
+        </div>
+      </div>
+
+      <div class="dash-grid2">
+        <div class="card dash-card">
+          <h2>Top clientes <span class="sub">ordenados por</span>
+            <span class="der"><span class="seg" id="seg-top"><button data-m="kg_fact">Kg</button><button class="on" data-m="venta">Venta</button><button data-m="profit">Profit</button><button data-m="envios">Envíos</button></span>
+            <select id="dash-top-n" class="dash-sel"><option value="5">Ver 5</option><option value="10" selected>Ver 10</option><option value="20">Ver 20</option><option value="0">Todos</option></select></span></h2>
           <div class="table-wrap">
-            <table id="table-top-clientes">
-              <thead>
-                <tr><th>Cliente</th><th>Envíos</th><th>Kilos</th><th>Utilidad</th></tr>
-              </thead>
-              <tbody id="top-clientes-body"></tbody>
+            <table class="dash-tabla" id="dash-top">
+              <thead><tr><th></th><th>Cliente</th><th class="n">Envíos</th><th class="n">Kg</th><th class="n">Venta</th><th class="n">Profit</th><th class="n">%</th><th>Participación</th><th class="n">vs. ant.</th></tr></thead>
+              <tbody></tbody>
             </table>
           </div>
+          <div class="dash-hint" id="dash-top-pie"></div>
+        </div>
+        <div class="card dash-card">
+          <h2>Destinos <span class="sub" id="dash-pais-sub">por envíos</span>
+            <span class="der"><span class="seg" id="seg-pais"><button class="on" data-m="envios">Envíos</button><button data-m="kg">Kg</button><button data-m="venta">Venta</button></span></span></h2>
+          <div class="dash-chart h280"><canvas id="c-pais"></canvas></div>
         </div>
       </div>
 
-      <!-- Courier mix + Pending -->
-      <div class="dashboard-cols">
-        <div class="card">
-          <h2>Mix de couriers</h2>
-          <div id="courier-mix"></div>
+      <div class="card dash-card">
+        <h2>Estimado vs. real <span class="sub">lo que el sistema calculó al cargar el envío contra lo que facturó el courier · solo meses con facturas cruzadas</span></h2>
+        <div class="dash-grid3" id="dash-real">
+          <div><div class="dash-chart"><canvas id="c-compra"></canvas></div><div class="dash-cob" id="cob-compra"></div></div>
+          <div><div class="dash-chart"><canvas id="c-profit"></canvas></div><div class="dash-cob" id="cob-profit"></div></div>
+          <div><div class="dash-chart"><canvas id="c-peso"></canvas></div><div class="dash-cob" id="cob-peso"></div></div>
         </div>
-        <div class="card">
-          <h2>Accesos rápidos</h2>
-          <div class="actions" style="flex-direction:column;align-items:flex-start;gap:0.6rem">
-            <a href="pages/envios.html" class="btn btn-primary">Registrar envío</a>
-            <a href="pages/liquidaciones.html" class="btn btn-secondary">Nueva liquidación</a>
-            <a href="pages/clientes.html" class="btn btn-secondary">Gestionar clientes</a>
-          </div>
+        <div class="dash-aviso hidden" id="dash-real-aviso"></div>
+        <div class="dash-vacio hidden" id="dash-real-vacio">Todavía no hay guías cruzadas con la factura del courier en este período. Se cargan en Facturas.</div>
+      </div>
+
+      <div class="dash-grid3">
+        <div class="card dash-card">
+          <h2>Margen por mes <span class="sub">profit ÷ compra</span><span class="der"><span class="dash-hint" id="dash-margen-obj"></span></span></h2>
+          <div class="dash-chart"><canvas id="c-margen"></canvas></div>
         </div>
+        <div class="card dash-card">
+          <h2>Plata en la calle <span class="sub">hoy, todo el sistema</span></h2>
+          <table class="dash-tabla dash-mini" id="dash-plata"><tbody></tbody></table>
+          <div class="dash-hint">Cada renglón abre la pantalla que lo resuelve.</div>
+        </div>
+        <div class="card dash-card">
+          <h2>Ritmo <span class="sub">promedios del período</span></h2>
+          <table class="dash-tabla dash-mini" id="dash-ritmo"><tbody></tbody></table>
+        </div>
+      </div>
+
+      <div class="dash-footer">
+        <span>Σ de envíos con fecha en el período, sin los NO VOLÓ.</span>
+        <span>Profit = venta − compra estimada; cuando la factura del courier está aprobada se usa el costo real.</span>
       </div>
     </div>
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260910b"></script>
-<script src="js/api.js?v=20260910b"></script>
-<script src="js/main.js?v=20260910b"></script>
-<script src="js/modules/dashboard.js?v=20260910b"></script>
+<script src="/js/auth-guard.js?v=20260910c"></script>
+<script src="js/api.js?v=20260910c"></script>
+<script src="js/main.js?v=20260910c"></script>
+<script src="js/vendor/chart.umd.js?v=20260910c"></script>
+<script src="js/modules/dashboard.js?v=20260910c"></script>
 </body>
 </html>

@@ -77,6 +77,11 @@ mostrado antes cuando toque pantalla (regla del rediseño de Salidas).
   GIF de UPS de test viene de 1×1 px, no se pudo comprobar la orientación de verdad.
 - Tanda `test-guias-emision` → **106**.
 
+### C — HECHO (10/09, cache `?v=20260910c`, paquete `dashboard.tgz`)
+
+Ver `DASHBOARD-REDISENO.md` (maqueta aprobada, API `analitica`, pantalla con Chart.js
+vendorizado, margen objetivo en Configuración, comparación elegible, Excel, dos tandas).
+
 ## Orden propuesto
 
 1. **A** (cotizaciones) — es lo que más usan a diario y lo pidió la oficina.

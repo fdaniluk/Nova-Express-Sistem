@@ -277,4 +277,34 @@ router.get('/meses', async (req, res, next) => {
   }
 });
 
+// ── Analítica (rediseño 10/09/2026, DASHBOARD-REDISENO.md) ───────────────────
+// Todo lo que pinta el dashboard nuevo en una sola respuesta. Query:
+//   periodo=mes|12m|anio|rango  desde=YYYY-MM-DD hasta=YYYY-MM-DD (con rango)
+//   courier=UPS|DHL  tipo=exportacion|importacion  comparar=previo|anio
+const analitica = require('../services/analitica.service');
+const excelDashboard = require('../services/excel-dashboard.service');
+
+router.get('/analitica', async (req, res, next) => {
+  try {
+    res.json(await analitica.analitica(req.query || {}));
+  } catch (e) {
+    next(e);
+  }
+});
+
+// El Excel de lo que se ve: una hoja por bloque (KPIs, por mes, clientes, destinos,
+// estimado vs real). Mismos filtros que /analitica.
+router.get('/analitica.xlsx', async (req, res, next) => {
+  try {
+    const datos = await analitica.analitica(req.query || {});
+    const buffer = await excelDashboard.armar(datos);
+    const nombre = `dashboard_${datos.periodo.desde}_${datos.periodo.hasta}.xlsx`;
+    res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+    res.setHeader('Content-Disposition', `attachment; filename="${nombre}"`);
+    res.send(buffer);
+  } catch (e) {
+    next(e);
+  }
+});
+
 module.exports = router;

@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Configuración – Nova Express</title>
-  <link rel="stylesheet" href="../css/main.css?v=20260910b">
+  <link rel="stylesheet" href="../css/main.css?v=20260910c">
   <style>
     /* Cards de configuración (mudadas desde liquidaciones.css) */
     .fuel-cards {
@@ -174,6 +174,25 @@
       </section>
 
       <section class="card">
+        <h2>Margen objetivo del dashboard</h2>
+        <p class="config-hint">
+          El gráfico "Margen por mes" del dashboard dibuja una línea punteada con este porcentaje
+          (profit ÷ compra) para ver de un vistazo qué meses quedaron abajo. Vacío = sin línea.
+        </p>
+        <div class="fuel-cards">
+          <div class="fuel-card" id="margen-card">
+            <h4>Margen objetivo (%)</h4>
+            <div class="current" id="margen-actual">—</div>
+            <div class="form-group" style="margin-top:0.75rem">
+              <label>Nuevo objetivo (vacío para sacar la línea)</label>
+              <input type="number" id="margen-input" min="0" max="500" step="0.5">
+            </div>
+            <button class="btn btn-primary btn-sm" id="btn-margen-guardar">Guardar</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card">
         <h2>Numeración de proformas</h2>
         <p class="config-hint">
           Cuando se emite una guía con el Nº de proforma vacío, el sistema le pone el próximo número
@@ -225,9 +244,9 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260910b"></script>
-<script src="../js/api.js?v=20260910b"></script>
-<script src="../js/main.js?v=20260910b"></script>
-<script src="../js/modules/configuracion.js?v=20260910b"></script>
+<script src="/js/auth-guard.js?v=20260910c"></script>
+<script src="../js/api.js?v=20260910c"></script>
+<script src="../js/main.js?v=20260910c"></script>
+<script src="../js/modules/configuracion.js?v=20260910c"></script>
 </body>
 </html>
