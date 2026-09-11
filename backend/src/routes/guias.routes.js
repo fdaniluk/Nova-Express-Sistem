@@ -3,6 +3,7 @@ const { Router } = require('express');
 const guias = require('../models/guias.model');
 const ups = require('../services/ups-shipping.service');
 const proforma = require('../services/proforma.service');
+const etiquetaPdf = require('../services/etiqueta-pdf.service');
 
 const router = Router();
 
@@ -100,6 +101,23 @@ router.get('/:id/etiqueta.gif', async (req, res, next) => {
     const i = Math.max(0, (Number(req.query.bulto) || 1) - 1);
     const b64 = lista[i] || lista[0];
     res.type('image/gif').send(Buffer.from(b64, 'base64'));
+  } catch (e) {
+    next(e);
+  }
+});
+
+// La etiqueta térmica como PDF de 4×6 pulgadas exactas (una página por bulto), para mandar a
+// la Zebra al tamaño justo sin pelear con la ventana de imprimir del navegador. ?giro=180 la
+// da vuelta (es lo que hace el botón "Girar" de la hoja).
+router.get('/:id/etiqueta.pdf', async (req, res, next) => {
+  try {
+    const row = await guias.etiqueta(req.params.id);
+    if (!row) return res.status(404).send('La guía no tiene etiqueta');
+    const lista = JSON.parse(row.etiqueta_gif);
+    const pdf = etiquetaPdf.armarPdfEtiquetas(lista, { giro180: String(req.query.giro || '') === '180' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="etiqueta-${(row.numero_guia || req.params.id).toString().replace(/[^A-Za-z0-9]/g, '')}-4x6.pdf"`);
+    res.send(pdf);
   } catch (e) {
     next(e);
   }
@@ -208,12 +226,17 @@ router.get('/:id/etiqueta.html', async (req, res, next) => {
     aplicarGiro();
   }
   document.addEventListener('DOMContentLoaded', aplicarGiro);
+  function abrirPdf() {
+    var g = false; try { g = localStorage.getItem(CLAVE) === '1'; } catch (e) {}
+    window.open('etiqueta.pdf' + (g ? '?giro=180' : ''), '_blank');
+  }
 </script>
 </head>
 <body>
 <div class="barra">
   <button onclick="window.print()">Imprimir</button>
   <button class="sec" onclick="girar()" title="Si sale cabeza abajo, girarla 180°">↻ Girar</button>
+  ${termica ? `<button class="sec" onclick="abrirPdf()" title="La etiqueta como PDF de 4×6 exactas: se manda a la Zebra al tamaño justo, sin encabezados ni márgenes">PDF 4×6</button>` : ''}
   <span>Etiqueta ${esc(row.numero_guia || '')} · ${lista.length} bulto(s) · ${termica ? 'térmica 4×6 (solo la etiqueta)' : 'hoja A4 para doblar (instrucciones + etiqueta)'}${row.entorno === 'test' ? ' · PRUEBA (no válida para despachar)' : ''}</span>
   <a href="?formato=${termica ? 'a4' : 'termica'}">${termica ? 'ver la hoja A4' : 'ver para la térmica'}</a>
 </div>

@@ -21,6 +21,7 @@ const { prepararDb, abrirSesion, esperarServidor } = require('./_base-test');
 const PORT = process.env.PORT_TEST || 3933;
 const BASE = `http://localhost:${PORT}`;
 const DB = process.env.DB_PATH_TEST || '/tmp/test_guias_emision.db';
+const GIF_6x4 = 'R0lGODdhAwACAIEAAP///wAAAAAAAAAAACwAAAAAAwACAAAICAADABgIIEBAADs='; // GIF apaisado de 3×2 para la prueba del PDF
 const TOKEN = 'token-test-guias-emision';
 
 let ok = 0, fail = 0;
@@ -146,6 +147,23 @@ async function main() {
   const htmlT = await (await get(`/api/guias/${g.id}/etiqueta.html?formato=termica`)).text();
   check('  la térmica NO lleva instrucciones: solo la etiqueta a 4×6', !/Doble la etiqueta impresa/.test(htmlT) && /\.etq \{ width: 4in; height: 6in/.test(htmlT));
   check('  las dos tienen el botón Girar (por si la impresora la saca cabeza abajo)', /Girar/.test(html) && /Girar/.test(htmlT) && /function orientar/.test(htmlT));
+  // 10/09 (la oficina pelea con la ventana de imprimir): la térmica también como PDF de
+  // 4×6 pulgadas exactas, una página por bulto, hecho a mano a partir del GIF de UPS.
+  check('  la térmica tiene el botón "PDF 4×6"; la A4 no', /PDF 4×6/.test(htmlT) && !/PDF 4×6/.test(html));
+  r = await get(`/api/guias/${g.id}/etiqueta.pdf`);
+  const pdfBuf = Buffer.from(await r.arrayBuffer());
+  const pdfTxt = pdfBuf.toString('latin1');
+  check('GET etiqueta.pdf → application/pdf que empieza con %PDF', r.status === 200 && /application\/pdf/.test(r.headers.get('content-type')) && pdfTxt.startsWith('%PDF-1.4'), `${r.status} ${r.headers.get('content-type')}`);
+  check('  una página de 4×6 pulgadas (288×432 pt) por bulto', (pdfTxt.match(/\/Type \/Page\b/g) || []).length === 2 && /\/Count 2\b/.test(pdfTxt) && (pdfTxt.match(/\/MediaBox \[0 0 288 432\]/g) || []).length === 2);
+  check('  con la imagen adentro (XObject RGB comprimido) y el xref al final', (pdfTxt.match(/\/Subtype \/Image/g) || []).length === 2 && /\/FlateDecode/.test(pdfTxt) && /startxref\n\d+\n%%EOF\n$/.test(pdfTxt));
+  r = await get(`/api/guias/${g.id}/etiqueta.pdf?giro=180`);
+  check('  ?giro=180 también responde un PDF (la etiqueta dada vuelta)', r.status === 200 && (await r.text()).startsWith('%PDF'));
+  // Con una etiqueta apaisada de verdad (como la manda UPS) el PDF la para: queda vertical.
+  const etqPdf = require('../src/services/etiqueta-pdf.service');
+  const apaisada = etqPdf.decodificarGif(Buffer.from(GIF_6x4, 'base64'));
+  check('  un GIF apaisado se decodifica (omggif) con su ancho y alto', apaisada.width === 3 && apaisada.height === 2, `${apaisada.width}×${apaisada.height}`);
+  const pdfAp = etqPdf.armarPdfEtiquetas([GIF_6x4]).toString('latin1');
+  check('  y en el PDF entra girado: /Width 2 /Height 3 (vertical)', /\/Width 2 \/Height 3/.test(pdfAp));
   const p = await j(await get(`/api/guias/${g.id}/proforma`));
   check('proforma de la guía: shipper = cliente, consignee = destinatario, Nº, total 400', p.shipper.cuit === '30-22222222-3' && p.consignee.nombre === 'LONDON LEATHER LTD' && p.numero === '79122211' && p.total === 400 && p.guia_id === g.id, JSON.stringify(p).slice(0, 300));
   html = await (await get(`/api/guias/${g.id}/proforma.html`)).text();
@@ -392,11 +410,11 @@ async function main() {
     await page.fill('#g-bultos [data-f="peso_real"]', '2.5');
     await page.click('#g-emitir');
     await esperar(1200);
-    check('  emite y muestra el número, los 3 documentos y el aviso de prueba', await page.evaluate(() => {
+    check('  emite y muestra el número, los 4 documentos (térmica PDF, térmica, A4, proforma) y el aviso de prueba', await page.evaluate(() => {
       const r2 = document.getElementById('gui-resultado');
       return !document.getElementById('panel-resultado').classList.contains('hidden')
         && /^1Z/.test(r2.querySelector('.numero')?.textContent || '')
-        && r2.querySelectorAll('.docs a').length === 3
+        && r2.querySelectorAll('.docs a').length === 4 && /etiqueta.pdf/.test(r2.querySelector('.docs a.doc-termica')?.getAttribute('href') || '')
         && /PRUEBA/.test(r2.textContent);
     }), await page.evaluate(() => document.getElementById('gui-resultado').textContent.slice(0, 200)));
     const numeroUI = await page.evaluate(() => document.querySelector('#gui-resultado .numero').textContent.trim());

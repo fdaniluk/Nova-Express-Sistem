@@ -156,6 +156,7 @@ api.guias = {
   actualizar: (id, data) => api.put(`/guias/${id}`, data),
   anular: (id, nota) => api.post(`/guias/${id}/anular`, { nota }),
   etiquetaUrl: (id, formato) => `${API_BASE}/guias/${id}/etiqueta.html?formato=${formato || 'a4'}`,
+  etiquetaPdfUrl: (id, giro) => `${API_BASE}/guias/${id}/etiqueta.pdf${giro ? '?giro=180' : ''}`,
   etiquetaGifUrl: (id, bulto) => `${API_BASE}/guias/${id}/etiqueta.gif${bulto ? `?bulto=${bulto}` : ''}`,
   proformaUrl: (id) => `${API_BASE}/guias/${id}/proforma.html`,
 };

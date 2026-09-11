@@ -31,7 +31,7 @@ poner). Cache **`?v=20260908d`**. **69 tandas (72 archivos), verificar verde el 
 
 **Lo que viene, en orden:** (1) administración hace la primera guía de PRUEBA desde la
 pantalla con un envío real (UPS valida los datos como en producción: ciudad/CP/estado) y
-mira etiqueta térmica, A4 y proforma; (2) con eso OK, `UPS_SHIPPING_ENTORNO=prod` en el
+mira etiqueta térmica (ahora también PDF 4×6, 10/09 tarde — falta la respuesta de la oficina sobre qué les cuesta al imprimir), A4 y proforma; (2) con eso OK, `UPS_SHIPPING_ENTORNO=prod` en el
 `.env` del servidor + `pm2 restart nova --update-env`; (3) las dos preguntas abiertas: Nº
 de proforma (¿correlativo de la oficina o del sistema?) y quién figura como Shipper en la
 guía UPS (hoy Nova con la cuenta; ShipFrom = cliente/remitente); (4) liquidadores viejos

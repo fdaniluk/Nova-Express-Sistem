@@ -394,3 +394,27 @@ Cargar envío confirma la precarga). Las dos en
 4. ✅ Perfiles de remitente por cliente (hecho el 08/09, ver arriba).
 5. Etapa 3: paperless (subir la proforma a UPS), repetir último envío, impo por la
    misma vía (cuenta 3R6A45), DHL cuando haya API.
+
+## 8. La térmica como PDF de 4×6 (10/09, tarde)
+
+La oficina (por WhatsApp a Felipe): "la térmica está bien, el tema es cuando la imprimimos:
+UPS está conectado con la impresora de otra forma; no puedo imprimirla sin hacer un par de
+cosas". Los chicos ya se habían ido, así que no supimos cuáles son las "cosas". Lo que se
+hizo sin esperar, porque sirve igual:
+
+- `GET /api/guias/:id/etiqueta.pdf` (`services/etiqueta-pdf.service.js`): el GIF de UPS
+  decodificado con `omggif` (dependencia nueva, sin binarios), parado si viene apaisado, en
+  un PDF escrito a mano con páginas de **288×432 pt = 4×6 pulgadas exactas**, una por bulto.
+  `?giro=180` la da vuelta (la hoja térmica lo manda si el botón "Girar" está activo).
+- Pantalla Guías: el botón principal "Etiqueta térmica · PDF 4×6" abre ese PDF; queda
+  "Térmica · navegador" (la hoja HTML de antes) y "A4" y "Proforma" como estaban. La hoja
+  térmica HTML tiene un botón "PDF 4×6". `test-guias-emision` → 113.
+- Por qué debería resolverlo: el PDF trae su propio tamaño de página, así que la ventana de
+  imprimir de Chrome/Edge/Adobe ya sale en 4×6, sin encabezados del navegador, sin
+  márgenes y sin escalar; solo hay que elegir la Zebra la primera vez.
+
+**Pendiente (mañana, con la respuesta de la oficina):** si lo que quieren es que salga
+DIRECTO sin ventana, como CampusShip, hace falta la etiqueta en ZPL (UPS la da con
+`LabelImageFormat: ZPL`, pero es un formato por envío: habría que pedirla en ZPL y armar la
+vista A4 desde… no se puede; o usar Label Recovery) más Zebra Browser Print instalado en la
+PC de la oficina. Es otro día de trabajo; primero ver qué contestan.

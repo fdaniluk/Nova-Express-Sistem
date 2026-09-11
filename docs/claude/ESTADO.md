@@ -327,6 +327,12 @@ Colores Nova `#403754`/`#EE6C52`.
   logo sobre azul sin cuadro blanco. La imagen de la cotización y el cotizador público son
   neutros con acento por courier: sin cambios. Manual de marca: `MANUAL-DE-MARCA.md`;
   archivos en `C:\dev\Marca Nova Express`.
+- **10/09 (tarde) — TÉRMICA COMO PDF 4×6** (`GUIAS-UPS.md` §8): la oficina dice que imprimir
+  la térmica desde el navegador les pide "un par de cosas" (no dijeron cuáles; UPS imprime de
+  otra forma). Se agregó `GET /guias/:id/etiqueta.pdf` (páginas de 4×6 exactas, una por
+  bulto, `omggif` nuevo en package.json) y el botón principal "Etiqueta térmica · PDF 4×6".
+  **Mañana:** preguntar a la oficina qué hacen hoy; si quieren impresión directa sin ventana
+  (ZPL + Zebra Browser Print), es un trabajo aparte.
 - **10/09 — DASHBOARD REDISEÑADO (bloque C de la lista; paquete `dashboard.tgz`, cache
   `?v=20260910c`, esperando tandas de Felipe y push).** Maqueta mostrada y aprobada;
   `services/analitica.service.js` + `GET /api/dashboard/analitica` (+ `.xlsx`) devuelven

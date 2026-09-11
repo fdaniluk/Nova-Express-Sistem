@@ -565,12 +565,14 @@
   function docsHtml(g, chico) {
     if (chico) {
       return `
-      <a href="${NovaAPI.guias.etiquetaUrl(g.id, 'termica')}" target="_blank" rel="noopener" title="Etiqueta para la impresora térmica (4×6)">Térmica</a>
+      <a href="${NovaAPI.guias.etiquetaPdfUrl(g.id)}" target="_blank" rel="noopener" title="Etiqueta térmica en PDF de 4×6 exactas (para la Zebra)">Térmica PDF</a>
+      <a href="${NovaAPI.guias.etiquetaUrl(g.id, 'termica')}" target="_blank" rel="noopener" title="Etiqueta térmica en el navegador (4×6)">Térmica</a>
       <a href="${NovaAPI.guias.etiquetaUrl(g.id, 'a4')}" target="_blank" rel="noopener" title="Etiqueta en hoja A4 (una sola hoja)">A4</a>
       <a href="${NovaAPI.guias.proformaUrl(g.id)}" target="_blank" rel="noopener" title="Proforma / commercial invoice">Proforma</a>`;
     }
     return `
-      <a class="doc-termica" href="${NovaAPI.guias.etiquetaUrl(g.id, 'termica')}" target="_blank" rel="noopener"><span class="ico">🏷</span>Etiqueta térmica <small>4×6</small></a>
+      <a class="doc-termica" href="${NovaAPI.guias.etiquetaPdfUrl(g.id)}" target="_blank" rel="noopener" title="PDF de 4×6 exactas: se manda a la Zebra al tamaño justo"><span class="ico">🏷</span>Etiqueta térmica <small>PDF 4×6</small></a>
+      <a class="doc-termica sec" href="${NovaAPI.guias.etiquetaUrl(g.id, 'termica')}" target="_blank" rel="noopener" title="La misma etiqueta en el navegador"><span class="ico">🖨</span>Térmica <small>navegador</small></a>
       <a class="doc-a4" href="${NovaAPI.guias.etiquetaUrl(g.id, 'a4')}" target="_blank" rel="noopener"><span class="ico">📄</span>Etiqueta en A4</a>
       <a class="doc-proforma" href="${NovaAPI.guias.proformaUrl(g.id)}" target="_blank" rel="noopener"><span class="ico">🧾</span>Proforma</a>`;
   }
