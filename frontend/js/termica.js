@@ -18,13 +18,65 @@
 window.NovaTermica = (() => {
   const PLUGIN = 'http://127.0.0.1:4349';
   const LIST_URL = `${PLUGIN}/listPrinters?loc=es_AR&app=www.campusship&name=labelWindow&pref=UPSThermal2844`;
-  const K = { impresora: 'nova.termica.impresora', formato: 'nova.termica.formato' };
+  const K = { impresora: 'nova.termica.impresora', formato: 'nova.termica.formato', modo: 'nova.termica.modo' };
   const ls = { get: (k) => { try { return localStorage.getItem(k) || ''; } catch { return ''; } }, set: (k, v) => { try { localStorage.setItem(k, v); } catch { /* sin storage */ } } };
 
   function impresora() { return ls.get(K.impresora); }
   /** 'base64' (como se lo pasa CampusShip al plugin) o 'texto' (el ZPL tal cual). */
   function formato() { return ls.get(K.formato) || 'base64'; }
-  function configurada() { return !!impresora(); }
+  /** 'ventana' (abre la ventanita de UPS y le pasa la etiqueta, como CampusShip) o 'directo'
+   *  (POST al plugin desde el sistema; Chrome puede bloquearlo por ser red local). */
+  function modo() { return ls.get(K.modo) || 'ventana'; }
+  function configurada() { return modo() === 'ventana' || !!impresora(); }
+
+  // ── Por la ventanita de UPS ───────────────────────────────────────────────────
+  // La ventana del plugin escucha `message` y, con lo que recibe, hace el POST /print
+  // desde SU origen (sin problemas de red local ni CORS). Pero solo tiene el nombre de la
+  // impresora después de que el usuario apretó "Imprimir" ahí, y sus avisos al opener
+  // van dirigidos a campusship.ups.com (no nos llegan). Entonces: abrimos la ventana, la
+  // persona elige la impresora y aprieta Imprimir ahí, y después toca "Enviar etiqueta"
+  // acá: recién ahí le mandamos la etiqueta y sale el papel.
+  let ventana = null; let pendiente = null;
+  function abrirVentana() {
+    if (ventana && !ventana.closed) { ventana.focus(); return ventana; }
+    ventana = window.open(LIST_URL, 'nova_ups_termica', 'width=760,height=620');
+    return ventana;
+  }
+  function imprimirPorVentana(labelBytes, descripcion) {
+    pendiente = labelBytes;
+    const w = abrirVentana();
+    if (!w) throw new Error('Chrome bloqueó la ventana emergente: permitir ventanas emergentes para este sitio');
+    panel(descripcion);
+  }
+  function enviarPendiente() {
+    if (!pendiente) return false;
+    if (!ventana || ventana.closed) { abrirVentana(); return false; }
+    ventana.postMessage(pendiente, PLUGIN);
+    pendiente = null;
+    return true;
+  }
+  function panel(descripcion) {
+    let p = document.getElementById('termica-panel');
+    if (!p) { p = document.createElement('div'); p.id = 'termica-panel'; p.className = 'termica-panel'; document.body.appendChild(p); }
+    p.innerHTML = `
+      <div class="termica-panel-t">🖨 ${descripcion || 'Etiqueta lista'}</div>
+      <ol class="termica-pasos">
+        <li>En la <b>ventana de UPS</b> que se abrió, elegí la impresora y apretá <b>Imprimir</b>.</li>
+        <li>Volvé acá y tocá <b>Enviar etiqueta</b>: ahí sale el papel.</li>
+      </ol>
+      <div class="termica-acciones">
+        <button type="button" class="btn btn-secondary btn-sm" id="termica-panel-ventana">Ver ventana de UPS</button>
+        <span style="flex:1"></span>
+        <button type="button" class="btn btn-secondary btn-sm" id="termica-panel-cerrar">Cancelar</button>
+        <button type="button" class="btn btn-primary btn-sm" id="termica-panel-enviar">Enviar etiqueta</button>
+      </div>`;
+    p.querySelector('#termica-panel-ventana').onclick = () => abrirVentana();
+    p.querySelector('#termica-panel-cerrar').onclick = () => { pendiente = null; p.remove(); };
+    p.querySelector('#termica-panel-enviar').onclick = () => {
+      if (enviarPendiente()) { p.querySelector('.termica-panel-t').textContent = '✓ Etiqueta enviada a la ventana de UPS. Si no salió papel, en esa ventana apretá Imprimir y volvé a mandarla.'; p.querySelector('.termica-pasos').remove(); p.querySelector('#termica-panel-enviar').remove(); }
+      else p.querySelector('.termica-panel-t').textContent = 'La ventana de UPS estaba cerrada: la volví a abrir. Apretá Imprimir ahí y después Enviar etiqueta.';
+    };
+  }
 
   /** Pide la lista al plugin. Si el plugin no deja leer la respuesta (CORS), tira. */
   async function listar() {
@@ -51,9 +103,10 @@ window.NovaTermica = (() => {
 
   /** Imprime la(s) etiqueta(s) de una guía. Devuelve el nombre de la impresora usada. */
   async function imprimirGuia(id, opts = {}) {
+    const datos = await zplDeGuia(id, !!opts.giro180);
+    if (modo() === 'ventana') { imprimirPorVentana(datos, opts.descripcion || 'Etiqueta de la guía lista'); return 'ventana de UPS'; }
     const nombre = impresora();
     if (!nombre) { await configurar(); if (!impresora()) throw new Error('Sin impresora configurada'); }
-    const datos = await zplDeGuia(id, !!opts.giro180);
     await enviar(datos, impresora());
     return impresora();
   }
@@ -62,6 +115,7 @@ window.NovaTermica = (() => {
   async function imprimirPrueba() {
     const zpl = '^XA^PW812^LL1218^FO60,80^A0N,60,60^FDNOVA EXPRESS^FS^FO60,160^A0N,36,36^FDPrueba de impresora termica^FS^FO60,220^A0N,28,28^FDSi lee esto, el sistema imprime directo.^FS^FO60,300^GB690,3,3^FS^XZ';
     const datos = formato() === 'base64' ? btoa(zpl) : zpl;
+    if (modo() === 'ventana') { imprimirPorVentana(datos, 'Etiqueta de prueba lista'); return; }
     await enviar(datos, impresora());
   }
 
@@ -81,6 +135,11 @@ window.NovaTermica = (() => {
           <select id="termica-lista" class="termica-select hidden"></select>
           <label class="termica-lbl">Nombre de la impresora (como lo muestra el plugin de UPS, sin espacios)</label>
           <input type="text" id="termica-nombre" class="termica-input" placeholder="BIXOLONSRP770IIIBPLZ" value="${impresora().replace(/"/g, '&quot;')}">
+          <label class="termica-lbl">Cómo imprimir</label>
+          <select id="termica-modo" class="termica-select">
+            <option value="ventana">Por la ventana de UPS (como CampusShip)</option>
+            <option value="directo">Directo desde el sistema (si Chrome lo permite)</option>
+          </select>
           <label class="termica-lbl">Cómo mandar la etiqueta</label>
           <select id="termica-formato" class="termica-select">
             <option value="base64">Codificada (como CampusShip)</option>
@@ -97,6 +156,7 @@ window.NovaTermica = (() => {
       document.body.appendChild(m);
       const $ = (id) => m.querySelector(`#${id}`);
       $('termica-formato').value = formato();
+      $('termica-modo').value = modo();
       const estado = (t, mal) => { const e = $('termica-estado'); e.textContent = t; e.classList.toggle('mal', !!mal); };
       $('termica-buscar').onclick = async () => {
         estado('Buscando…');
@@ -111,17 +171,17 @@ window.NovaTermica = (() => {
           estado('No pude leer la lista del plugin (normal: no deja leerla desde otro sitio). Escribí el nombre a mano.', true);
         }
       };
-      const guardar = () => { ls.set(K.impresora, $('termica-nombre').value.trim().replace(/[^A-Za-z0-9]/g, '')); ls.set(K.formato, $('termica-formato').value); };
+      const guardar = () => { ls.set(K.impresora, $('termica-nombre').value.trim().replace(/[^A-Za-z0-9]/g, '')); ls.set(K.formato, $('termica-formato').value); ls.set(K.modo, $('termica-modo').value); };
       $('termica-prueba').onclick = async () => {
         guardar();
-        if (!impresora()) { estado('Poné el nombre de la impresora.', true); return; }
+        if (modo() === 'directo' && !impresora()) { estado('Poné el nombre de la impresora.', true); return; }
         estado('Enviando prueba…');
-        try { await imprimirPrueba(); estado('Prueba enviada. Si no salió papel, probá el otro formato.'); } catch (e) { estado(`No pude hablar con el plugin (${e.message}). ¿Está corriendo? ¿Chrome pidió permiso de red local?`, true); }
+        try { await imprimirPrueba(); estado(modo() === 'ventana' ? 'Se abrió la ventana de UPS: Imprimir ahí, después "Enviar etiqueta".' : 'Prueba enviada. Si no salió papel, probá el otro formato.'); } catch (e) { estado(`No pude hablar con el plugin (${e.message}). ¿Está corriendo? ¿Chrome pidió permiso de red local?`, true); }
       };
       $('termica-guardar').onclick = () => { guardar(); m.remove(); resolve(true); };
       $('termica-cerrar').onclick = () => { m.remove(); resolve(false); };
     });
   }
 
-  return { imprimirGuia, imprimirPrueba, configurar, configurada, impresora, formato, listar, enviar };
+  return { imprimirGuia, imprimirPrueba, configurar, configurada, impresora, formato, modo, listar, enviar, enviarPendiente };
 })();

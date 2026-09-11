@@ -331,8 +331,10 @@ Colores Nova `#403754`/`#EE6C52`.
   desde CampusShip con el UPS Thermal Printer plugin (`http://127.0.0.1:4349`, POST `/print`
   con `printerName=&labelBytes=`). El sistema ahora hace lo mismo: `etiqueta.zpl` (GIF →
   bitmap ^GFA 4×6) + `js/termica.js` + botón "⚡ Imprimir térmica" y modal "Impresora
-  térmica" (impresora y formato por PC en localStorage). Falta la prueba real en la oficina:
-  si con "Codificada" (base64) no sale papel, "Texto ZPL". Bixolon SRP-770III (BPL-Z) en una
+  térmica" (impresora y formato por PC en localStorage). Probado en la oficina: el POST directo se cuelga
+  (Chrome bloquea red local) → **modo "ventana"** predeterminado: abre la ventanita de UPS, Imprimir
+  ahí, después "Enviar etiqueta" en el sistema (§9). Si con "Codificada" (base64) no sale papel,
+  "Texto ZPL". Bixolon SRP-770III (BPL-Z) en una
   PC y Zebra en la otra.
 - **10/09 (tarde) — TÉRMICA COMO PDF 4×6** (`GUIAS-UPS.md` §8): la oficina dice que imprimir
   la térmica desde el navegador les pide "un par de cosas" (no dijeron cuáles; UPS imprime de

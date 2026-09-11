@@ -433,7 +433,7 @@ async function main() {
     check('  el botón "Impresora térmica" está en la cabecera', await page.$('#gui-impresora') !== null);
     const pedidosPlugin = [];
     await page.route('http://127.0.0.1:4349/**', (route) => { pedidosPlugin.push({ url: route.request().url(), method: route.request().method(), body: route.request().postData() || '' }); route.fulfill({ status: 200, contentType: 'text/plain', body: 'OK' }); });
-    await page.evaluate(() => { localStorage.setItem('nova.termica.impresora', 'BIXOLONSRP770IIIBPLZ'); localStorage.setItem('nova.termica.formato', 'base64'); });
+    await page.evaluate(() => { localStorage.setItem('nova.termica.impresora', 'BIXOLONSRP770IIIBPLZ'); localStorage.setItem('nova.termica.formato', 'base64'); localStorage.setItem('nova.termica.modo', 'directo'); });
     await page.click('#gui-resultado a.doc-directo');
     await esperar(1500);
     const pp = pedidosPlugin.find((x) => /\/print$/.test(x.url));
@@ -450,6 +450,32 @@ async function main() {
     await page.fill('#termica-nombre', 'ZEBRA GK420d'); await page.click('#termica-guardar'); await esperar(200);
     check('  guarda el nombre limpio (sin espacios ni símbolos) en esta PC', await page.evaluate(() => localStorage.getItem('nova.termica.impresora')) === 'ZEBRAGK420d');
     await page.evaluate(() => { localStorage.setItem('nova.termica.impresora', 'BIXOLONSRP770IIIBPLZ'); localStorage.setItem('nova.termica.formato', 'base64'); });
+    // Modo "ventana" (el de la oficina, 11/09): se abre la ventanita del plugin de UPS, la
+    // persona aprieta Imprimir ahí y después "Enviar etiqueta" acá. El plugin se simula con
+    // una página que hace lo mismo que la de UPS: escucha message y hace POST /print.
+    await page.unroute('http://127.0.0.1:4349/**');
+    const pedidosVentana = [];
+    const FAKE_PLUGIN = `<!DOCTYPE html><html><body><select id="thermalPrinters"><option value='zpl' label='BIXOLON SRP-770III - BPL-Z'>BIXOLONSRP770IIIBPLZ</option></select>
+      <input type="hidden" id="thermalPrinterName" value=""><input type="button" id="imprimir" value="Imprimir" onclick="document.getElementById('thermalPrinterName').value='BIXOLONSRP770IIIBPLZ'">
+      <script>window.addEventListener('message', function (ev) { var x = new XMLHttpRequest(); x.open('POST', 'http://127.0.0.1:4349/print', true); x.setRequestHeader('Content-type', 'application/x-www-form-urlencoded'); x.send('printerName=' + document.getElementById('thermalPrinterName').value + '&labelBytes=' + ev.data); });</script></body></html>`;
+    await page.context().route('http://127.0.0.1:4349/**', (route) => {
+      const u = route.request().url();
+      if (/listPrinters/.test(u)) return route.fulfill({ status: 200, contentType: 'text/html', body: FAKE_PLUGIN });
+      pedidosVentana.push({ url: u, body: route.request().postData() || '' });
+      return route.fulfill({ status: 200, contentType: 'text/plain', body: 'OK' });
+    });
+    await page.evaluate(() => { localStorage.setItem('nova.termica.modo', 'ventana'); });
+    const [popup] = await Promise.all([page.waitForEvent('popup'), page.click('#gui-resultado a.doc-directo')]);
+    await popup.waitForLoadState(); await esperar(500);
+    check('  modo "ventana": abre la ventanita del plugin de UPS (listPrinters) y muestra el panel con los dos pasos', /listPrinters/.test(popup.url()) && await page.$('#termica-panel-enviar') !== null, popup.url());
+    check('    todavía no mandó nada (espera a que aprieten Imprimir en la ventana de UPS)', pedidosVentana.length === 0);
+    await popup.click('#imprimir');
+    await page.click('#termica-panel-enviar'); await esperar(800);
+    const pv = pedidosVentana.find((x) => /\/print$/.test(x.url));
+    check('    "Enviar etiqueta" → la ventana de UPS hace el POST /print con la impresora y el ZPL en base64', !!pv && /^printerName=BIXOLONSRP770IIIBPLZ&labelBytes=/.test(pv.body) && /\^XA\^PW812/.test(Buffer.from(pv.body.split('labelBytes=')[1] || '', 'base64').toString('utf8')), JSON.stringify(pedidosVentana).slice(0, 200));
+    check('    y el panel avisa "enviada"', /enviada a la ventana de UPS/.test(await page.textContent('#termica-panel')));
+    await popup.close();
+    await page.evaluate(() => { document.getElementById('termica-panel')?.remove(); localStorage.setItem('nova.termica.modo', 'directo'); });
     await page.click('.tab[data-tab="listado"]');
     await esperar(800);
     check('  "Guías del día" la lista como Para confirmar', await page.evaluate((n) => [...document.querySelectorAll('#gui-tabla tbody tr')].some((tr) => tr.textContent.includes(n) && /Para confirmar/.test(tr.textContent)), numeroUI));

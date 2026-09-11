@@ -570,8 +570,9 @@
     if (a.dataset.ocupado) return;
     a.dataset.ocupado = '1'; const txt = a.innerHTML; a.innerHTML = '<span class="ico">⏳</span>Enviando…';
     try {
-      const imp = await NovaTermica.imprimirGuia(a.dataset.imprimir);
-      NovaUtils.showAlert(alertBox, `Etiqueta enviada a la impresora ${imp}. Si no salió papel: botón "Impresora térmica" arriba a la derecha → Imprimir prueba.`, 'success');
+      const imp = await NovaTermica.imprimirGuia(a.dataset.imprimir, { descripcion: `Etiqueta de la guía ${a.closest('tr')?.querySelector('.numero, td')?.textContent?.trim().slice(0, 20) || ''} lista` });
+      if (imp === 'ventana de UPS') NovaUtils.showAlert(alertBox, 'Se abrió la ventana de UPS: elegí la impresora y apretá Imprimir ahí; después "Enviar etiqueta" (abajo a la derecha).', 'success');
+      else NovaUtils.showAlert(alertBox, `Etiqueta enviada a la impresora ${imp}. Si no salió papel: botón "Impresora térmica" arriba a la derecha → Imprimir prueba.`, 'success');
     } catch (e) {
       NovaUtils.showAlert(alertBox, `No pude imprimir directo: ${e.message}. Usá "Térmica PDF 4×6".`, 'error');
     } finally { a.innerHTML = txt; delete a.dataset.ocupado; }

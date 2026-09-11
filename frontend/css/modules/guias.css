@@ -337,3 +337,8 @@
 .termica-ayuda { font-size: 12px; color: var(--color-muted); margin: 10px 0; }
 .termica-acciones { display: flex; gap: 8px; align-items: center; margin-top: 12px; }
 .page-header #gui-entorno { margin-left: auto; }
+/* Panel flotante del paso 2 ("Enviar etiqueta") cuando se imprime por la ventana de UPS. */
+.termica-panel { position: fixed; right: 18px; bottom: 18px; width: 380px; max-width: 94vw; background: #fff; border: 1px solid var(--color-border); border-left: 4px solid var(--color-accent); border-radius: 10px; padding: 14px 16px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); z-index: 60; font-size: 13px; }
+.termica-panel-t { font-weight: 700; color: var(--color-primary); margin-bottom: 6px; }
+.termica-pasos { margin: 0 0 6px; padding-left: 20px; }
+.termica-pasos li { margin-bottom: 4px; }

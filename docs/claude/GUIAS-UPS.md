@@ -452,3 +452,14 @@ Es el **UPS Thermal Printer plugin**, un servicio local en cada PC. Protocolo:
 Buscar impresoras (o tipear el nombre) → Imprimir prueba. Chrome puede preguntar si el
 sitio puede acceder a la red local: permitir. Si no sale papel con "Codificada", probar
 "Texto ZPL tal cual". Después, en una guía: "Imprimir térmica".
+
+**11/09, prueba en la oficina:** el POST directo desde el sistema se queda colgado en
+Chrome 152 ("Enviando prueba…" sin error): Chrome no deja que un sitio público le pegue a
+127.0.0.1 así nomás (acceso a red local). Se agregó el **modo "ventana"** (ahora el
+predeterminado): el sistema abre la ventanita de UPS (`listPrinters`) con `window.open`, la
+persona elige la impresora y aprieta **Imprimir** AHÍ (eso guarda el nombre en la ventana),
+y después toca **"Enviar etiqueta"** en el panel flotante del sistema: le manda la etiqueta
+por `postMessage` y la ventana de UPS hace el POST /print desde su propio origen, sin
+restricciones. Es exactamente lo que hace CampusShip, con un clic más. El modo "directo"
+queda como opción en el modal. `test-guias-emision` → 128 (la ventana de UPS simulada con
+`context.route`).
