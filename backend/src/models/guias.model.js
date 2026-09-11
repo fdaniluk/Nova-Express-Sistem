@@ -277,4 +277,56 @@ function comoEnvio(g) {
   };
 }
 
-module.exports = { buscarPorId, listar, pendientes, etiqueta, emitir, actualizar, anular, comoEnvio };
+// ── Borradores: guías a medio hacer (administración, 11/09) ─────────────────────────
+// Se guarda el formulario tal cual (lo que se tenga), sin validar y sin llamar a UPS, para
+// retomarlo después. `titulo` es para reconocerla en la lista (cliente · destinatario ·
+// contenido); si no viene, se arma con lo que haya.
+function mapBorrador(row) {
+  if (!row) return null;
+  let datos = {};
+  try { datos = JSON.parse(row.datos_json || '{}'); } catch { datos = {}; }
+  return { id: row.id, cliente_id: row.cliente_id, cliente_nombre: row.cliente_nombre || null, titulo: row.titulo, datos, usuario: row.usuario, created_at: row.created_at, updated_at: row.updated_at };
+}
+const FROM_B = `FROM guias_borradores b LEFT JOIN clientes c ON c.id = b.cliente_id`;
+const SEL_B = `b.*, COALESCE(c.nombre_nova, c.nombre) AS cliente_nombre`;
+
+function tituloBorrador(datos, clienteNombre) {
+  const partes = [clienteNombre, datos.destinatario_nombre, datos.contenido].map((x) => String(x || '').trim()).filter(Boolean);
+  return partes.length ? partes.join(' · ').slice(0, 120) : 'Guía sin datos';
+}
+
+async function listarBorradores() {
+  const rows = await getDb().prepare(`SELECT ${SEL_B} ${FROM_B} ORDER BY COALESCE(b.updated_at, b.created_at) DESC, b.id DESC`).all();
+  return rows.map(mapBorrador);
+}
+
+async function buscarBorrador(id) {
+  return mapBorrador(await getDb().prepare(`SELECT ${SEL_B} ${FROM_B} WHERE b.id = ?`).get(id));
+}
+
+async function guardarBorrador(input, usuario, id) {
+  const datos = input && typeof input.datos === 'object' && input.datos ? input.datos : {};
+  const clienteId = datos.cliente_id ? Number(datos.cliente_id) : null;
+  let clienteNombre = null;
+  if (clienteId) {
+    const c = await getDb().prepare('SELECT COALESCE(nombre_nova, nombre) AS n FROM clientes WHERE id = ?').get(clienteId);
+    if (!c) { const e = new Error('Cliente inexistente'); e.status = 400; throw e; }
+    clienteNombre = c.n;
+  }
+  const titulo = String(input.titulo || '').trim() || tituloBorrador(datos, clienteNombre);
+  const json = JSON.stringify(datos);
+  if (id) {
+    const r = await getDb().prepare(`UPDATE guias_borradores SET cliente_id = ?, titulo = ?, datos_json = ?, updated_at = datetime('now', 'localtime') WHERE id = ?`).run(clienteId, titulo, json, id);
+    if (!r.changes) { const e = new Error('Borrador inexistente'); e.status = 404; throw e; }
+    return buscarBorrador(id);
+  }
+  const r = await getDb().prepare('INSERT INTO guias_borradores (cliente_id, titulo, datos_json, usuario) VALUES (?, ?, ?, ?)').run(clienteId, titulo, json, usuario || null);
+  return buscarBorrador(r.lastInsertRowid);
+}
+
+async function borrarBorrador(id) {
+  const r = await getDb().prepare('DELETE FROM guias_borradores WHERE id = ?').run(id);
+  return r.changes > 0;
+}
+
+module.exports = { buscarPorId, listar, pendientes, etiqueta, emitir, actualizar, anular, comoEnvio, listarBorradores, buscarBorrador, guardarBorrador, borrarBorrador };

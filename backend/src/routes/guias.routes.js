@@ -33,6 +33,28 @@ router.get('/pendientes', async (req, res, next) => {
   }
 });
 
+// Borradores (guías a medio hacer, 11/09). Van ANTES de /:id para que "borradores" no se
+// lea como un id.
+router.get('/borradores', async (req, res, next) => {
+  try { res.json(await guias.listarBorradores()); } catch (e) { next(e); }
+});
+router.post('/borradores', async (req, res, next) => {
+  try {
+    const usuario = req.usuario ? req.usuario.usuario : null;
+    res.status(201).json(await guias.guardarBorrador(req.body || {}, usuario));
+  } catch (e) { next(e); }
+});
+router.put('/borradores/:id', async (req, res, next) => {
+  try { res.json(await guias.guardarBorrador(req.body || {}, null, Number(req.params.id))); } catch (e) { next(e); }
+});
+router.delete('/borradores/:id', async (req, res, next) => {
+  try {
+    const ok = await guias.borrarBorrador(Number(req.params.id));
+    if (!ok) return res.status(404).json({ error: 'Borrador inexistente' });
+    res.json({ ok: true });
+  } catch (e) { next(e); }
+});
+
 router.get('/', async (req, res, next) => {
   try {
     res.json(await guias.listar(req.query));
@@ -44,6 +66,7 @@ router.get('/', async (req, res, next) => {
 router.post('/', async (req, res, next) => {
   try {
     const usuario = req.usuario ? req.usuario.usuario : null;
+    const borradorId = req.body && req.body.borrador_id ? Number(req.body.borrador_id) : null;
     const r = await guias.emitir(req.body || {}, usuario);
     if (r.errores) {
       const status = r.tipo === 'ups' ? 502 : 400;
@@ -53,6 +76,7 @@ router.post('/', async (req, res, next) => {
         ups_status: r.status || null,
       });
     }
+    if (borradorId) await guias.borrarBorrador(borradorId).catch(() => {});
     res.status(201).json(r.guia);
   } catch (e) {
     next(e);

@@ -447,6 +447,19 @@ async function migrateGuias() {
     )
   `);
   await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_remitentes_cliente ON remitentes(cliente_id, activo)');
+  // Guías a medio hacer (administración, 11/09): el formulario guardado sin llamar a UPS.
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS guias_borradores (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      cliente_id     INTEGER REFERENCES clientes(id),
+      titulo         TEXT,
+      datos_json     TEXT NOT NULL,
+      usuario        TEXT,
+      created_at     TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+      updated_at     TEXT
+    )
+  `);
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_guias_borradores_cliente ON guias_borradores(cliente_id)');
   const colsG = (await dbApi.prepare('PRAGMA table_info(guias)').all()).map((c) => c.name);
   if (!colsG.includes('remitente_id')) await dbApi.exec('ALTER TABLE guias ADD COLUMN remitente_id INTEGER');
   // Remitente completo del cliente (para la guía y la proforma): teléfono y provincia. La

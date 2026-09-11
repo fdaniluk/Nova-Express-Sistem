@@ -463,3 +463,27 @@ por `postMessage` y la ventana de UPS hace el POST /print desde su propio origen
 restricciones. Es exactamente lo que hace CampusShip, con un clic más. El modo "directo"
 queda como opción en el modal. `test-guias-emision` → 128 (la ventana de UPS simulada con
 `context.route`).
+
+**11/09, 13 h: FUNCIONA.** Prueba impresa en la Bixolon con el modo ventana y el formato
+"Codificada" (base64): ese es el formato que entiende el plugin. Queda: probar con una guía
+de verdad (entorno de prueba de UPS) y en la PC de la Zebra.
+
+## 10. Guías en espera (borradores) — pedido de administración, 11/09
+
+"A veces empezamos a cargar la proforma antes de tener todos los datos de la guía; queremos
+dejarla guardada a medio hacer, retomarla después, y tener varias así en paralelo."
+
+- Tabla `guias_borradores` (id, cliente_id, titulo, datos_json, usuario, created_at,
+  updated_at) — migración en `db/index.js` + `schema.sql`. Es el **formulario tal cual**
+  (con lo que haya, sin validar, sin UPS). No es una guía: no aparece en guías del día,
+  pendientes, Salidas ni nada.
+- API: `GET/POST /api/guias/borradores`, `PUT/DELETE /api/guias/borradores/:id`. El título
+  se arma solo (cliente · destinatario · contenido). `POST /api/guias` con `borrador_id`
+  borra el borrador al emitir.
+- Pantalla Guías: botón **"⏸ Guardar para después"** debajo de "Pedir guía a UPS" (guarda y
+  limpia el formulario para empezar otra); pestaña **"En espera (n)"** con la lista
+  (guardada, cliente, destinatario · contenido, bultos, FOB, quién) y botones Retomar /
+  Borrar. Al retomar, el formulario se llena y aparece el chip ámbar "Retomando una guía en
+  espera" (con "soltar"); emitir desde ahí la borra sola; "Guardar para después" con un
+  borrador retomado lo actualiza en lugar de duplicarlo.
+- `test-guias-emision` → 140 (API 6-ter + pantalla).

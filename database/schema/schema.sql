@@ -407,6 +407,21 @@ CREATE TABLE IF NOT EXISTS remitentes (
 );
 CREATE INDEX IF NOT EXISTS idx_remitentes_cliente ON remitentes(cliente_id, activo);
 
+-- Guías a medio hacer (pedido de administración, 11/09/2026): el formulario de Guías
+-- guardado tal cual, sin llamar a UPS, para retomarlo después. Varias en paralelo. Se
+-- borra sola cuando la guía se emite desde ella.
+CREATE TABLE IF NOT EXISTS guias_borradores (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  cliente_id     INTEGER REFERENCES clientes(id),
+  titulo         TEXT,
+  datos_json     TEXT NOT NULL,
+  usuario        TEXT,
+  created_at     TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  updated_at     TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_guias_borradores_cliente ON guias_borradores(cliente_id);
+
+
 -- Pickups / retiros
 CREATE TABLE IF NOT EXISTS pickups (
   id               INTEGER PRIMARY KEY AUTOINCREMENT,

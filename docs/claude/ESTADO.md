@@ -327,14 +327,18 @@ Colores Nova `#403754`/`#EE6C52`.
   logo sobre azul sin cuadro blanco. La imagen de la cotización y el cotizador público son
   neutros con acento por courier: sin cambios. Manual de marca: `MANUAL-DE-MARCA.md`;
   archivos en `C:\dev\Marca Nova Express`.
+- **11/09 — GUÍAS EN ESPERA (borradores)** (`GUIAS-UPS.md` §10): administración pidió dejar
+  guías a medio hacer y retomarlas, varias en paralelo. Tabla `guias_borradores`, API
+  `/guias/borradores`, botón "Guardar para después", pestaña "En espera (n)", Retomar/Borrar,
+  se borra sola al emitir. `test-guias-emision` → 140.
 - **11/09 — TÉRMICA DIRECTA POR EL PLUGIN DE UPS** (`GUIAS-UPS.md` §9): la oficina imprime
   desde CampusShip con el UPS Thermal Printer plugin (`http://127.0.0.1:4349`, POST `/print`
   con `printerName=&labelBytes=`). El sistema ahora hace lo mismo: `etiqueta.zpl` (GIF →
   bitmap ^GFA 4×6) + `js/termica.js` + botón "⚡ Imprimir térmica" y modal "Impresora
   térmica" (impresora y formato por PC en localStorage). Probado en la oficina: el POST directo se cuelga
   (Chrome bloquea red local) → **modo "ventana"** predeterminado: abre la ventanita de UPS, Imprimir
-  ahí, después "Enviar etiqueta" en el sistema (§9). Si con "Codificada" (base64) no sale papel,
-  "Texto ZPL". Bixolon SRP-770III (BPL-Z) en una
+  ahí, después "Enviar etiqueta" en el sistema (§9). **Probado 11/09: sale el papel** con "Codificada" (base64) en la Bixolon.
+  Falta la guía real y la PC de la Zebra. Bixolon SRP-770III (BPL-Z) en una
   PC y Zebra en la otra.
 - **10/09 (tarde) — TÉRMICA COMO PDF 4×6** (`GUIAS-UPS.md` §8): la oficina dice que imprimir
   la térmica desde el navegador les pide "un par de cosas" (no dijeron cuáles; UPS imprime de

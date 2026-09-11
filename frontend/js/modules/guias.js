@@ -18,6 +18,8 @@
   const esc = (s) => String(s ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const money = (n) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
+  let borradorActual = null; // id del borrador que se está retomando (11/09)
+
   async function init() {
     $('g-fecha').value = NovaUtils.hoyLocal();
     $('gui-f-fecha').value = NovaUtils.hoyLocal();
@@ -32,6 +34,8 @@
     mostrarProximaProforma();
     agregarItem();
     agregarBulto();
+    bindBorradores();
+    contarBorradores();
     // ?cliente=ID desde otra pantalla
     const q = new URLSearchParams(location.search);
     if (q.get('cliente')) {
@@ -92,7 +96,9 @@
         $('panel-nueva').classList.toggle('hidden', name !== 'nueva');
         $('panel-resultado').classList.add('hidden');
         $('panel-listado').classList.toggle('hidden', name !== 'listado');
+        $('panel-borradores').classList.toggle('hidden', name !== 'borradores');
         if (name === 'listado') loadListado();
+        if (name === 'borradores') loadBorradores();
       });
     });
   }
@@ -501,12 +507,15 @@
       bultos: bultos.filter((b) => b.peso_real > 0 || (b.largo && b.ancho && b.alto)),
       pais_destino: d.pais,
       observaciones: $('g-observaciones').value.trim() || null,
+      borrador_id: borradorActual,
     };
     const btn = $('g-emitir');
     btn.disabled = true;
     $('g-estado').textContent = 'Pidiendo la guía a UPS…';
     try {
       const g = await NovaAPI.guias.emitir(payload);
+      soltarBorrador();
+      contarBorradores();
       mostrarResultado(g);
     } catch (err) {
       if (err.errores) mostrarErrores(err.errores, err.message);
@@ -559,7 +568,115 @@
     agregarItem();
     agregarBulto();
     $('g-errores').classList.add('hidden');
+    soltarBorrador();
     // Cliente y destinatario se mantienen: lo normal es emitir varias del mismo cliente.
+  }
+
+  // ── Guías en espera (borradores, pedido de administración 11/09) ───────────
+  // El formulario se guarda TAL CUAL está (con lo que haya, sin validar y sin UPS) y se
+  // retoma después. Se pueden dejar varias a medio hacer. Al emitir desde una, se borra.
+  function leerFormulario() {
+    const d = destSeleccionado();
+    return {
+      cliente_id: clienteActual ? clienteActual.id : null,
+      remitente_id: $('g-remitente-sel').value ? Number($('g-remitente-sel').value) : null,
+      destinatario_id: d ? d.id : null,
+      destinatario_nombre: d ? d.nombre : null,
+      fecha: $('g-fecha').value,
+      servicio: $('g-servicio').value,
+      ddp: $('g-ddp').checked ? 1 : 0,
+      contenido: $('g-contenido').value.trim(),
+      proforma_numero: $('g-proforma').value.trim() || null,
+      proforma_titulo_sel: $('g-proforma-titulo') ? $('g-proforma-titulo').value : null,
+      proforma_titulo_otro: $('g-proforma-titulo-otro') ? $('g-proforma-titulo-otro').value.trim() : '',
+      items: [...$('g-items').querySelectorAll('tbody tr')].map((tr) => ({
+        cantidad: tr.querySelector('[data-f="cantidad"]').value, descripcion: tr.querySelector('[data-f="descripcion"]').value, valor_unitario: tr.querySelector('[data-f="valor_unitario"]').value,
+      })),
+      bultos: leerBultos(),
+      observaciones: $('g-observaciones').value.trim() || null,
+    };
+  }
+
+  async function aplicarBorrador(b) {
+    const x = b.datos || {};
+    if (x.cliente_id) { $('g-cliente').value = String(x.cliente_id); clienteActual = clientes.find((c) => c.id === Number(x.cliente_id)) || null; await Promise.all([loadRemitentes(x.remitente_id || null), loadDestinatarios(x.destinatario_id || null)]); }
+    if (x.fecha) $('g-fecha').value = x.fecha;
+    if (x.servicio) $('g-servicio').value = x.servicio;
+    $('g-ddp').checked = !!x.ddp;
+    $('g-contenido').value = x.contenido || '';
+    $('g-proforma').value = x.proforma_numero || '';
+    if ($('g-proforma-titulo') && x.proforma_titulo_sel) { $('g-proforma-titulo').value = x.proforma_titulo_sel; $('g-proforma-titulo-otro').value = x.proforma_titulo_otro || ''; $('g-proforma-titulo-otro').classList.toggle('hidden', x.proforma_titulo_sel !== '__otro'); }
+    $('g-observaciones').value = x.observaciones || '';
+    $('g-items').querySelector('tbody').innerHTML = '';
+    (x.items && x.items.length ? x.items : [null]).forEach((it) => agregarItem(it));
+    $('g-bultos').querySelector('tbody').innerHTML = '';
+    (x.bultos && x.bultos.length ? x.bultos : [null]).forEach((bu) => agregarBulto(bu));
+    borradorActual = b.id;
+    $('g-borrador-chip').classList.remove('hidden');
+    $('g-errores').classList.add('hidden');
+    pintarResumen();
+  }
+
+  function soltarBorrador() { borradorActual = null; $('g-borrador-chip').classList.add('hidden'); }
+
+  async function guardarBorrador() {
+    const datos = leerFormulario();
+    const vacio = !datos.cliente_id && !datos.contenido && !datos.destinatario_id && !datos.items.some((i) => i.descripcion) && !datos.bultos.some((b) => b.peso_real > 0);
+    if (vacio) { NovaUtils.showAlert(alertBox, 'No hay nada cargado para guardar.', 'error'); return; }
+    const btn = $('g-guardar-borrador'); btn.disabled = true;
+    try {
+      const b = await NovaAPI.guias.borradores.guardar(datos, null, borradorActual);
+      NovaUtils.showAlert(alertBox, `Guardada en espera: ${b.titulo}. La retomás desde la pestaña "En espera".`, 'success');
+      soltarBorrador();
+      limpiarForm();
+      contarBorradores();
+    } catch (e) {
+      NovaUtils.showAlert(alertBox, e.message, 'error');
+    } finally { btn.disabled = false; }
+  }
+
+  async function contarBorradores() {
+    try { const l = await NovaAPI.guias.borradores.listar(); $('gui-badge-borradores').textContent = l.length ? String(l.length) : ''; } catch (_) { /* sin badge */ }
+  }
+
+  async function loadBorradores() {
+    const lista = await NovaAPI.guias.borradores.listar();
+    $('gui-badge-borradores').textContent = lista.length ? String(lista.length) : '';
+    const tb = $('gui-borradores').querySelector('tbody');
+    if (!lista.length) { tb.innerHTML = '<tr><td colspan="7" class="empty">No hay guías en espera.</td></tr>'; return; }
+    tb.innerHTML = lista.map((b) => {
+      const x = b.datos || {};
+      const bultos = (x.bultos || []).filter((u) => u.peso_real > 0);
+      const kg = bultos.reduce((a, u) => a + (Number(u.peso_real) || 0), 0);
+      const fob = (x.items || []).reduce((a, it) => a + (parseFloat(it.cantidad) || 0) * (parseFloat(it.valor_unitario) || 0), 0);
+      const cuando = (b.updated_at || b.created_at || '').slice(0, 16).replace('T', ' ');
+      return `<tr data-id="${b.id}">
+        <td>${esc(cuando)}</td>
+        <td>${esc(b.cliente_nombre || '—')}</td>
+        <td>${esc(x.destinatario_nombre || '—')}${x.contenido ? `<br><span class="gui-hint">${esc(x.contenido)}</span>` : ''}</td>
+        <td class="n">${bultos.length ? `${bultos.length} × ${esc(String(Math.round(kg * 10) / 10))} kg` : '—'}</td>
+        <td class="n">${fob ? money(fob) : '—'}</td>
+        <td>${esc(b.usuario || '—')}</td>
+        <td class="acc"><button type="button" class="btn btn-primary btn-sm" data-retomar="${b.id}">Retomar</button><button type="button" class="btn btn-secondary btn-sm" data-borrar="${b.id}">Borrar</button></td>
+      </tr>`;
+    }).join('');
+    tb.querySelectorAll('[data-retomar]').forEach((btn) => btn.addEventListener('click', async () => {
+      const b = lista.find((z) => z.id === Number(btn.dataset.retomar));
+      await aplicarBorrador(b);
+      document.querySelector('.tab[data-tab="nueva"]').click();
+      window.scrollTo({ top: 0 });
+    }));
+    tb.querySelectorAll('[data-borrar]').forEach((btn) => btn.addEventListener('click', async () => {
+      if (!window.confirm('¿Borrar esta guía en espera? No se puede recuperar.')) return;
+      await NovaAPI.guias.borradores.borrar(Number(btn.dataset.borrar));
+      if (borradorActual === Number(btn.dataset.borrar)) soltarBorrador();
+      loadBorradores();
+    }));
+  }
+
+  function bindBorradores() {
+    $('g-guardar-borrador').addEventListener('click', guardarBorrador);
+    $('g-borrador-soltar').addEventListener('click', soltarBorrador);
   }
 
   // Impresión directa (termica.js): el clic manda el ZPL al plugin de UPS de esta PC.

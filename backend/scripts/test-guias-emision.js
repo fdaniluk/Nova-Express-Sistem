@@ -356,6 +356,30 @@ async function main() {
   // Las precargas de esta sección se anulan: la sección 7 (pantallas) espera UNA pendiente.
   for (const gx of [gPA, gPC, gPD, gPE]) await post(`/api/guias/${gx.id}/anular`, { nota: 'prueba' });
 
+  console.log('\n6-ter. Guías en espera (borradores, administración 11/09)\n');
+  const del = (u) => fetch(BASE + u, { method: 'DELETE', headers: H });
+  r = await post('/api/guias/borradores', { datos: { cliente_id: cli.id, destinatario_id: dGB.id, destinatario_nombre: 'LONDON LEATHER LTD', contenido: 'Cueros', items: [{ cantidad: '2', descripcion: 'Hides', valor_unitario: '100' }], bultos: [{ peso_real: 3 }] } });
+  const b1 = await j(r);
+  check('POST /guias/borradores → 201 con título armado solo (cliente · destinatario · contenido)', r.status === 201 && b1.id > 0 && /CUEROS TEST SA · LONDON LEATHER LTD · Cueros/.test(b1.titulo), `${r.status} ${b1.titulo}`);
+  r = await post('/api/guias/borradores', { datos: { contenido: 'Sin cliente todavía' } });
+  const b2 = await j(r);
+  check('  se puede guardar sin cliente (con lo que haya)', r.status === 201 && b2.cliente_id === null && /Sin cliente todavía/.test(b2.titulo));
+  r = await post('/api/guias/borradores', { datos: { cliente_id: 999999 } });
+  check('  cliente inexistente → 400', r.status === 400);
+  let lb = await j(await get('/api/guias/borradores'));
+  check('GET /guias/borradores los lista (2), con el nombre del cliente y los datos', lb.length === 2 && lb.some((x) => x.id === b1.id && x.cliente_nombre === 'CUEROS TEST SA' && x.datos.items[0].descripcion === 'Hides'));
+  r = await put(`/api/guias/borradores/${b1.id}`, { datos: { cliente_id: cli.id, destinatario_id: dGB.id, destinatario_nombre: 'LONDON LEATHER LTD', contenido: 'Cueros curtidos', items: [], bultos: [] } });
+  const b1b = await j(r);
+  check('PUT actualiza el borrador y el título', r.status === 200 && b1b.datos.contenido === 'Cueros curtidos' && /Cueros curtidos/.test(b1b.titulo) && b1b.updated_at);
+  check('  no está en la lista de guías ni en pendientes', !(await j(await get('/api/guias?fecha=' + '2026-09-05'))).some((x) => x.id === b1.id && x.numero_guia == null) && !(await j(await get('/api/guias/pendientes'))).some((x) => x.contenido === 'Cueros curtidos'));
+  r = await del(`/api/guias/borradores/${b2.id}`);
+  check('DELETE lo borra; borrar de nuevo → 404', r.status === 200 && (await del(`/api/guias/borradores/${b2.id}`)).status === 404);
+  // Emitir desde el borrador lo borra solo.
+  r = await post('/api/guias', { cliente_id: cli.id, destinatario_id: dGB.id, fecha: '2026-09-05', servicio: 'UPS_SAV', contenido: 'Cueros curtidos', items: [{ cantidad: 1, descripcion: 'Hides', valor_unitario: 100 }], bultos: [{ peso_real: 3 }], pais_destino: 'Reino Unido', borrador_id: b1.id });
+  const gDesdeB = await j(r);
+  check('emitir con borrador_id → 201 y el borrador desaparece', r.status === 201 && !(await j(await get('/api/guias/borradores'))).some((x) => x.id === b1.id), `${r.status}`);
+  await post(`/api/guias/${gDesdeB.id}/anular`, { nota: 'prueba' });
+
   console.log('\n7. Pantallas: Guías (emitir) y Cargar envío (precarga → confirmar)\n');
   let chromium = null;
   try { ({ chromium } = require('playwright')); } catch { chromium = null; }
@@ -505,6 +529,23 @@ async function main() {
     envios = await j(await get('/api/envios'));
     const confirmado = envios.find((x) => x.numero_guia === numeroUI);
     check('  el envío existe con precio 120 y guía', confirmado && Number(confirmado.total_cobrado) === 120, JSON.stringify(confirmado && { t: confirmado.total_cobrado }));
+    // Guías en espera desde la pantalla (11/09): guardar a medio hacer, retomar, emitir.
+    await page.goto(BASE + '/pages/guias.html', { waitUntil: 'networkidle' }); await esperar(500);
+    await page.selectOption('#g-cliente', String(cli.id)); await esperar(400);
+    await page.selectOption('#g-destinatario', String(dBR.id)); await esperar(150);
+    await page.fill('#g-contenido', 'Muestras a medio cargar');
+    await page.fill('#g-items [data-f="descripcion"]', 'Samples'); await page.fill('#g-items [data-f="valor_unitario"]', '40');
+    await page.click('#g-guardar-borrador'); await esperar(800);
+    check('Guías: "Guardar para después" guarda el borrador, avisa y limpia el formulario', /Guardada en espera/.test(await page.textContent('#alert-box')) && (await page.inputValue('#g-contenido')) === '' && (await page.textContent('#gui-badge-borradores')) === '1', await page.textContent('#alert-box'));
+    await page.click('.tab[data-tab="borradores"]'); await esperar(500);
+    check('  la pestaña "En espera" la lista con cliente, destinatario, contenido y FOB', await page.evaluate(() => { const t = document.querySelector('#gui-borradores tbody').textContent; return /CUEROS TEST SA/.test(t) && /Muestras a medio cargar/.test(t) && /40\.00/.test(t); }), await page.evaluate(() => document.querySelector('#gui-borradores tbody').textContent.slice(0, 200)));
+    await page.click('#gui-borradores [data-retomar]'); await esperar(900);
+    check('  "Retomar" vuelve al formulario con todo cargado y el chip "Retomando"', await page.evaluate(() => !document.getElementById('panel-nueva').classList.contains('hidden') && document.getElementById('g-contenido').value === 'Muestras a medio cargar' && document.querySelector('#g-items [data-f="descripcion"]').value === 'Samples' && !document.getElementById('g-borrador-chip').classList.contains('hidden')) && (await page.inputValue('#g-destinatario')) === String(dBR.id));
+    await page.fill('#g-bultos [data-f="peso_real"]', '1.5');
+    await page.click('#g-emitir'); await esperar(1500);
+    check('  emitir desde el borrador → guía emitida y el borrador se borró solo', await page.evaluate(() => !document.getElementById('panel-resultado').classList.contains('hidden')) && (await page.textContent('#gui-badge-borradores')) === '', await page.textContent('#gui-badge-borradores'));
+    const ultimaDesdeBorrador = (await j(await get('/api/guias/pendientes'))).find((x) => x.contenido === 'Muestras a medio cargar');
+    if (ultimaDesdeBorrador) await post(`/api/guias/${ultimaDesdeBorrador.id}/anular`, { nota: 'prueba' });
     check('  otras pantallas tienen "Guías" en el menú', await page.evaluate(() => Boolean(document.querySelector('.nav-item[href="guias.html"]'))));
     check('ningún error de JavaScript', errores.length === 0, errores.slice(0, 3).join(' | '));
     await browser.close();

@@ -151,6 +151,11 @@ api.guias = {
     return api.get(`/guias${q ? `?${q}` : ''}`);
   },
   pendientes: () => api.get('/guias/pendientes'),
+  borradores: {
+    listar: () => api.get('/guias/borradores'),
+    guardar: (datos, titulo, id) => (id ? api.put(`/guias/borradores/${id}`, { datos, titulo }) : api.post('/guias/borradores', { datos, titulo })),
+    borrar: (id) => api.delete(`/guias/borradores/${id}`),
+  },
   obtener: (id) => api.get(`/guias/${id}`),
   emitir: (data) => api.post('/guias', data),
   actualizar: (id, data) => api.put(`/guias/${id}`, data),

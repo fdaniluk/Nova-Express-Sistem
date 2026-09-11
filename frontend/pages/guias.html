@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Guías — Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
-  <link rel="stylesheet" href="../css/main.css?v=20260911d">
-  <link rel="stylesheet" href="../css/modules/guias.css?v=20260911d">
+  <link rel="stylesheet" href="../css/main.css?v=20260911e">
+  <link rel="stylesheet" href="../css/modules/guias.css?v=20260911e">
 </head>
 <body>
 <div class="app-layout">
@@ -98,6 +98,7 @@
       <div class="tabs" role="tablist">
         <button class="tab active" data-tab="nueva">Nueva guía</button>
         <button class="tab" data-tab="listado">Guías del día <span class="tab-badge" id="gui-badge-dia"></span></button>
+        <button class="tab" data-tab="borradores">En espera <span class="tab-badge" id="gui-badge-borradores"></span></button>
       </div>
 
       <!-- ── Nueva guía ─────────────────────────────────────────────────────── -->
@@ -268,11 +269,16 @@
               <dt>Bultos</dt><dd data-r="bultos">—</dd>
               <dt>Valor declarado</dt><dd data-r="fob">US$ 0.00</dd>
             </dl>
+            <div class="gui-borrador-chip hidden" id="g-borrador-chip">
+              <span>✎ Retomando una guía en espera</span>
+              <button type="button" class="gui-link" id="g-borrador-soltar" title="Dejar de retomarla (queda guardada en espera)">soltar</button>
+            </div>
             <button type="submit" form="form-guia" class="btn btn-emitir" id="g-emitir">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/><line x1="13" y1="8" x2="13" y2="16"/><line x1="17" y1="8" x2="17" y2="16"/></svg>
               Pedir guía a UPS
             </button>
             <span class="gui-hint gui-estado-txt" id="g-estado"></span>
+            <button type="button" class="btn btn-ghost btn-block" id="g-guardar-borrador" title="Guardar lo cargado hasta ahora, sin pedir la guía, para retomarla después">⏸ Guardar para después</button>
             <p class="gui-resumen-pie">
               La guía queda como <b>precarga</b>: administración la revisa y la confirma a Salidas
               desde <a href="envios.html">Cargar envío</a>.
@@ -322,6 +328,19 @@
                 <th>Fecha</th><th>Guía</th><th>Cliente</th><th>Destinatario</th>
                 <th class="n">Bultos</th><th class="n">FOB</th><th>Estado</th><th>Documentos</th>
               </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <!-- ── Guías en espera (borradores, 11/09) ─────────────────────────────── -->
+      <section id="panel-borradores" class="card gui-listado hidden">
+        <p class="gui-hint" style="margin:0 0 .75rem">Guías guardadas a medio hacer, sin pedir a UPS. Se retoman desde acá y se borran solas cuando la guía sale.</p>
+        <div class="table-wrap">
+          <table id="gui-borradores">
+            <thead>
+              <tr><th>Guardada</th><th>Cliente</th><th>Destinatario · contenido</th><th class="n">Bultos</th><th class="n">FOB</th><th>Quién</th><th></th></tr>
             </thead>
             <tbody></tbody>
           </table>
@@ -453,11 +472,11 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260911d"></script>
-<script src="../js/api.js?v=20260911d"></script>
-<script src="../js/main.js?v=20260911d"></script>
-<script src="/shared/cotizador/cotizador-core.js?v=20260911d"></script>
-<script src="../js/termica.js?v=20260911d"></script>
-<script src="../js/modules/guias.js?v=20260911d"></script>
+<script src="/js/auth-guard.js?v=20260911e"></script>
+<script src="../js/api.js?v=20260911e"></script>
+<script src="../js/main.js?v=20260911e"></script>
+<script src="/shared/cotizador/cotizador-core.js?v=20260911e"></script>
+<script src="../js/termica.js?v=20260911e"></script>
+<script src="../js/modules/guias.js?v=20260911e"></script>
 </body>
 </html>
