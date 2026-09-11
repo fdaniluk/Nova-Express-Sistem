@@ -518,3 +518,13 @@ contador). No emite nada: la persona revisa y aprieta "Pedir guía a UPS". Reusa
 `test-guias-emision` → 149. **Buscador** en "Guías del día" (cliente, remitente, destinatario,
 Nº de guía, contenido; con texto busca en todas las fechas, sin acentos): para encontrar la
 guía a repetir. Tanda → 151.
+
+## 13. La etiqueta salía con los datos de Nova (11/09, primera térmica oficial)
+
+Administración emitió la primera guía real y la etiqueta mostró a Nova Express como
+remitente. Causa: el pedido a UPS iba con **Shipper = Nova** (cuenta) y **ShipFrom =
+cliente**, y UPS imprime en la etiqueta al Shipper, no al ShipFrom. Arreglo (como hace
+CampusShip): **Shipper = el remitente elegido** (cliente o perfil), con `ShipperNumber` =
+la cuenta de Nova (UPS factura a la cuenta, no al nombre); ShipFrom igual. Esto cierra la
+pregunta abierta "¿quién figura como Shipper?". `test-guias-emision` → 151 (mismo número,
+cambian los checks del pedido).

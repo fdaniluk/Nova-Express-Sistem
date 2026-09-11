@@ -327,6 +327,9 @@ Colores Nova `#403754`/`#EE6C52`.
   logo sobre azul sin cuadro blanco. La imagen de la cotización y el cotizador público son
   neutros con acento por courier: sin cambios. Manual de marca: `MANUAL-DE-MARCA.md`;
   archivos en `C:\dev\Marca Nova Express`.
+- **11/09 — ETIQUETA CON DATOS DE NOVA (arreglado)** (`GUIAS-UPS.md` §13): la primera guía real
+  salió con Nova como remitente porque UPS imprime al Shipper. Ahora Shipper = remitente (cliente
+  o perfil) con la cuenta de Nova. Cierra la pregunta abierta del Shipper.
 - **11/09 — REPETIR ENVÍO** (`GUIAS-UPS.md` §12): "↻ Repetir" en el listado y en el resultado
   llena el formulario con una guía anterior (fecha de hoy, proforma nueva) + buscador en el
   historial. Tanda → 151.

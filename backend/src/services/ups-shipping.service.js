@@ -178,16 +178,20 @@ function armarPedido({ remitente, destinatario, bultos, servicio, ddp, contenido
       },
       Shipment: {
         Description: recortar(contenido, 50),
+        // 11/09: la primera térmica oficial salió con los datos de Nova como remitente. En
+        // la etiqueta UPS imprime al SHIPPER, no al ShipFrom. Como en CampusShip, el shipper
+        // es el cliente/remitente (lo que se ve en la etiqueta) y la CUENTA sigue siendo la
+        // de Nova (ShipperNumber): UPS factura a la cuenta, no al nombre.
         Shipper: {
-          Name: recortar(nova.nombre, 35),
-          AttentionName: recortar(nova.atencion, 35),
-          Phone: { Number: soloDigitos(nova.telefono).slice(0, 15) },
+          Name: recortar(remitente.nombre, 35),
+          AttentionName: recortar(remitente.contacto || remitente.nombre, 35),
+          Phone: { Number: soloDigitos(remitente.telefono || nova.telefono).slice(0, 15) },
           ShipperNumber: cuenta,
           Address: {
-            AddressLine: [recortar(nova.direccion, 35)],
-            City: recortar(nova.ciudad, 30),
+            AddressLine: [recortar(remitente.direccion, 35)],
+            City: recortar(remitente.ciudad, 30),
             StateProvinceCode: nova.provincia,
-            PostalCode: recortar(nova.cp, 9),
+            PostalCode: recortar(remitente.codigo_postal, 9),
             CountryCode: 'AR',
           },
         },

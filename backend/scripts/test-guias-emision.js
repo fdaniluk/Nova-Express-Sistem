@@ -126,7 +126,7 @@ async function main() {
   const req = JSON.parse(fila.request_json).ShipmentRequest;
   check('pedido: servicio 08 (Expedited), Description ≤ 50', req.Shipment.Service.Code === '08' && req.Shipment.Description.length <= 50, `${req.Shipment.Service.Code} "${req.Shipment.Description}"`);
   check('  ShipTo con GB, dirección, teléfono solo dígitos, tax id', req.Shipment.ShipTo.Address.CountryCode === 'GB' && req.Shipment.ShipTo.Phone.Number === '442070000000' && req.Shipment.ShipTo.TaxIdentificationNumber === 'GB123456789', JSON.stringify(req.Shipment.ShipTo));
-  check('  Shipper = Nova con la cuenta; ShipFrom = el cliente', req.Shipment.Shipper.ShipperNumber === '327W09' && req.Shipment.Shipper.Name === 'NOVA EXPRESS' && req.Shipment.ShipFrom.Name === 'CUEROS TEST SA' && req.Shipment.ShipFrom.Address.PostalCode === '1661', JSON.stringify(req.Shipment.ShipFrom));
+  check('  Shipper = el cliente (lo que imprime la etiqueta) con la CUENTA de Nova; ShipFrom = el cliente', req.Shipment.Shipper.ShipperNumber === '327W09' && req.Shipment.Shipper.Name === 'CUEROS TEST SA' && req.Shipment.Shipper.Address.City === 'Bella Vista' && req.Shipment.ShipFrom.Name === 'CUEROS TEST SA' && req.Shipment.ShipFrom.Address.PostalCode === '1661', JSON.stringify(req.Shipment.ShipFrom));
   const cargos = req.Shipment.PaymentInformation.ShipmentCharge;
   check('  DDP → cargo 01 flete + cargo 02 impuestos, los dos a la cuenta de Nova', cargos.length === 2 && cargos[1].Type === '02' && cargos[1].BillShipper.AccountNumber === '327W09', JSON.stringify(cargos));
   check('  2 paquetes: uno con medidas en CM, el otro sin Dimensions', req.Shipment.Package.length === 2 && req.Shipment.Package[0].Dimensions?.UnitOfMeasurement.Code === 'CM' && !req.Shipment.Package[1].Dimensions, JSON.stringify(req.Shipment.Package));
@@ -270,7 +270,7 @@ async function main() {
   check('guía con remitente_id → 201 y lo devuelve', r.status === 201 && gR.remitente_id === rem.id && gR.remitente_nombre === 'CUEROS DEL SUR SRL', JSON.stringify(gR).slice(0, 200));
   const filaR = await new Promise((res, rej) => { const d2 = new sqlite3.Database(DB); d2.get('SELECT request_json FROM guias WHERE id = ?', [gR.id], (e2, row) => { d2.close(); e2 ? rej(e2) : res(row); }); });
   const reqR = JSON.parse(filaR.request_json).ShipmentRequest;
-  check('  ShipFrom = el perfil (nombre, dirección, CP, teléfono)', reqR.Shipment.ShipFrom.Name === 'CUEROS DEL SUR SRL' && reqR.Shipment.ShipFrom.Address.AddressLine[0] === 'Ruta 8 km 40' && reqR.Shipment.ShipFrom.Address.PostalCode === '1663' && reqR.Shipment.ShipFrom.Phone.Number === '1149990000', JSON.stringify(reqR.Shipment.ShipFrom));
+  check('  Shipper y ShipFrom = el perfil (nombre, dirección, CP, teléfono)', reqR.Shipment.Shipper.Name === 'CUEROS DEL SUR SRL' && reqR.Shipment.Shipper.Address.AddressLine[0] === 'Ruta 8 km 40' && reqR.Shipment.ShipFrom.Name === 'CUEROS DEL SUR SRL' && reqR.Shipment.ShipFrom.Address.AddressLine[0] === 'Ruta 8 km 40' && reqR.Shipment.ShipFrom.Address.PostalCode === '1663' && reqR.Shipment.ShipFrom.Phone.Number === '1149990000', JSON.stringify(reqR.Shipment.ShipFrom));
   const pR = await j(await get(`/api/guias/${gR.id}/proforma`));
   check('  la proforma sale con el perfil como Shipper y Manufacturer', pR.shipper.nombre === 'CUEROS DEL SUR SRL' && pR.shipper.cuit === '30-33333333-1' && pR.shipper.ciudad === 'Muñiz' && pR.manufacturer.cuit === '30-33333333-1', JSON.stringify(pR.shipper));
   const pendR = await j(await get('/api/guias/pendientes'));
