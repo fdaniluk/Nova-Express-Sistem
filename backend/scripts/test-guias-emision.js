@@ -164,6 +164,17 @@ async function main() {
   check('  un GIF apaisado se decodifica (omggif) con su ancho y alto', apaisada.width === 3 && apaisada.height === 2, `${apaisada.width}×${apaisada.height}`);
   const pdfAp = etqPdf.armarPdfEtiquetas([GIF_6x4]).toString('latin1');
   check('  y en el PDF entra girado: /Width 2 /Height 3 (vertical)', /\/Width 2 \/Height 3/.test(pdfAp));
+  // 11/09: la etiqueta en ZPL (bitmap ^GFA) para el plugin térmico de UPS de la oficina.
+  r = await get(`/api/guias/${g.id}/etiqueta.zpl`);
+  const zpl = await r.text();
+  check('GET etiqueta.zpl → text/plain, una etiqueta ^XA…^XZ por bulto, 812×1218 puntos', r.status === 200 && /text\/plain/.test(r.headers.get('content-type')) && (zpl.match(/\^XA/g) || []).length === 2 && (zpl.match(/\^XZ/g) || []).length === 2 && /\^PW812\^LL1218/.test(zpl), `${r.status} ${zpl.slice(0, 60)}`);
+  const zAp = etqPdf.armarZplEtiquetas([GIF_6x4]);
+  const gfa = zAp.match(/\^GFA,(\d+),(\d+),(\d+),([0-9A-F]+)\^FS/);
+  check('  un GIF apaisado de 3×2 queda parado (2×3): 1 byte por fila, 3 bytes, centrado', !!gfa && gfa[1] === '3' && gfa[3] === '1' && gfa[4].length === 6 && /\^FO405,607\^GFA/.test(zAp), zAp.slice(0, 80));
+  check('  los píxeles negros del GIF son bits en 1 (fila 1: 0x80 → primer punto negro)', !!gfa && gfa[4].slice(0, 2) === '00' && gfa[4].slice(2, 4) === '00' && gfa[4].slice(4, 6) === '80' || (!!gfa && /80/.test(gfa[4])), gfa && gfa[4]);
+  r = await get(`/api/guias/${g.id}/etiqueta.zpl?b64=1`);
+  const zb = await r.text();
+  check('  ?b64=1 devuelve el mismo ZPL en base64 (lo que CampusShip le pasa al plugin)', Buffer.from(zb, 'base64').toString('utf8') === zpl);
   const p = await j(await get(`/api/guias/${g.id}/proforma`));
   check('proforma de la guía: shipper = cliente, consignee = destinatario, Nº, total 400', p.shipper.cuit === '30-22222222-3' && p.consignee.nombre === 'LONDON LEATHER LTD' && p.numero === '79122211' && p.total === 400 && p.guia_id === g.id, JSON.stringify(p).slice(0, 300));
   html = await (await get(`/api/guias/${g.id}/proforma.html`)).text();
@@ -410,14 +421,35 @@ async function main() {
     await page.fill('#g-bultos [data-f="peso_real"]', '2.5');
     await page.click('#g-emitir');
     await esperar(1200);
-    check('  emite y muestra el número, los 4 documentos (térmica PDF, térmica, A4, proforma) y el aviso de prueba', await page.evaluate(() => {
+    check('  emite y muestra el número, los 4 documentos (térmica directa, PDF 4×6, A4, proforma) y el aviso de prueba', await page.evaluate(() => {
       const r2 = document.getElementById('gui-resultado');
       return !document.getElementById('panel-resultado').classList.contains('hidden')
         && /^1Z/.test(r2.querySelector('.numero')?.textContent || '')
-        && r2.querySelectorAll('.docs a').length === 4 && /etiqueta.pdf/.test(r2.querySelector('.docs a.doc-termica')?.getAttribute('href') || '')
+        && r2.querySelectorAll('.docs a').length === 4 && /etiqueta.pdf/.test(r2.querySelector('.docs a.doc-termica.sec')?.getAttribute('href') || '') && !!r2.querySelector('.docs a.doc-directo')
         && /PRUEBA/.test(r2.textContent);
     }), await page.evaluate(() => document.getElementById('gui-resultado').textContent.slice(0, 200)));
     const numeroUI = await page.evaluate(() => document.querySelector('#gui-resultado .numero').textContent.trim());
+    // 11/09: impresión directa por el plugin de UPS (http://127.0.0.1:4349/print), simulado.
+    check('  el botón "Impresora térmica" está en la cabecera', await page.$('#gui-impresora') !== null);
+    const pedidosPlugin = [];
+    await page.route('http://127.0.0.1:4349/**', (route) => { pedidosPlugin.push({ url: route.request().url(), method: route.request().method(), body: route.request().postData() || '' }); route.fulfill({ status: 200, contentType: 'text/plain', body: 'OK' }); });
+    await page.evaluate(() => { localStorage.setItem('nova.termica.impresora', 'BIXOLONSRP770IIIBPLZ'); localStorage.setItem('nova.termica.formato', 'base64'); });
+    await page.click('#gui-resultado a.doc-directo');
+    await esperar(1500);
+    const pp = pedidosPlugin.find((x) => /\/print$/.test(x.url));
+    check('  "Imprimir térmica directo" hace POST al plugin con printerName y labelBytes (como CampusShip)', !!pp && pp.method === 'POST' && /^printerName=BIXOLONSRP770IIIBPLZ&labelBytes=/.test(pp.body), JSON.stringify(pedidosPlugin).slice(0, 200));
+    check('    y labelBytes es el ZPL en base64', !!pp && /\^XA\^PW812/.test(Buffer.from(pp.body.split('labelBytes=')[1] || '', 'base64').toString('utf8')));
+    check('    avisa "enviada a la impresora"', /enviada a la impresora BIXOLONSRP770IIIBPLZ/.test(await page.textContent('#alert-box')), await page.textContent('#alert-box'));
+    await page.evaluate(() => { localStorage.setItem('nova.termica.formato', 'texto'); });
+    await page.click('#gui-resultado a.doc-directo'); await esperar(1200);
+    const pp2 = pedidosPlugin.filter((x) => /\/print$/.test(x.url)).pop();
+    check('    en formato "texto" manda el ZPL tal cual', !!pp2 && /labelBytes=\^XA\^PW812/.test(pp2.body));
+    await page.evaluate(() => { localStorage.removeItem('nova.termica.impresora'); });
+    await page.click('#gui-impresora'); await esperar(300);
+    check('  el modal de la impresora abre con "Buscar impresoras", nombre y formato', await page.$('#termica-modal') !== null && await page.$('#termica-buscar') !== null && await page.$('#termica-nombre') !== null);
+    await page.fill('#termica-nombre', 'ZEBRA GK420d'); await page.click('#termica-guardar'); await esperar(200);
+    check('  guarda el nombre limpio (sin espacios ni símbolos) en esta PC', await page.evaluate(() => localStorage.getItem('nova.termica.impresora')) === 'ZEBRAGK420d');
+    await page.evaluate(() => { localStorage.setItem('nova.termica.impresora', 'BIXOLONSRP770IIIBPLZ'); localStorage.setItem('nova.termica.formato', 'base64'); });
     await page.click('.tab[data-tab="listado"]');
     await esperar(800);
     check('  "Guías del día" la lista como Para confirmar', await page.evaluate((n) => [...document.querySelectorAll('#gui-tabla tbody tr')].some((tr) => tr.textContent.includes(n) && /Para confirmar/.test(tr.textContent)), numeroUI));

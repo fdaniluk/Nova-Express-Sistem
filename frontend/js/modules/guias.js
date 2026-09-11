@@ -562,17 +562,35 @@
     // Cliente y destinatario se mantienen: lo normal es emitir varias del mismo cliente.
   }
 
+  // Impresión directa (termica.js): el clic manda el ZPL al plugin de UPS de esta PC.
+  document.addEventListener('click', async (ev) => {
+    const a = ev.target.closest('a.doc-directo[data-imprimir]');
+    if (!a) return;
+    ev.preventDefault();
+    if (a.dataset.ocupado) return;
+    a.dataset.ocupado = '1'; const txt = a.innerHTML; a.innerHTML = '<span class="ico">⏳</span>Enviando…';
+    try {
+      const imp = await NovaTermica.imprimirGuia(a.dataset.imprimir);
+      NovaUtils.showAlert(alertBox, `Etiqueta enviada a la impresora ${imp}. Si no salió papel: botón "Impresora térmica" arriba a la derecha → Imprimir prueba.`, 'success');
+    } catch (e) {
+      NovaUtils.showAlert(alertBox, `No pude imprimir directo: ${e.message}. Usá "Térmica PDF 4×6".`, 'error');
+    } finally { a.innerHTML = txt; delete a.dataset.ocupado; }
+  });
+  const btnImp = document.getElementById('gui-impresora');
+  if (btnImp) btnImp.addEventListener('click', () => NovaTermica.configurar());
+
   function docsHtml(g, chico) {
     if (chico) {
       return `
-      <a href="${NovaAPI.guias.etiquetaPdfUrl(g.id)}" target="_blank" rel="noopener" title="Etiqueta térmica en PDF de 4×6 exactas (para la Zebra)">Térmica PDF</a>
+      <a href="#" class="doc-directo" data-imprimir="${g.id}" title="Mandar la etiqueta directo a la impresora térmica (plugin de UPS)">⚡ Térmica</a>
+      <a href="${NovaAPI.guias.etiquetaPdfUrl(g.id)}" target="_blank" rel="noopener" title="Etiqueta térmica en PDF de 4×6 exactas">PDF 4×6</a>
       <a href="${NovaAPI.guias.etiquetaUrl(g.id, 'termica')}" target="_blank" rel="noopener" title="Etiqueta térmica en el navegador (4×6)">Térmica</a>
       <a href="${NovaAPI.guias.etiquetaUrl(g.id, 'a4')}" target="_blank" rel="noopener" title="Etiqueta en hoja A4 (una sola hoja)">A4</a>
       <a href="${NovaAPI.guias.proformaUrl(g.id)}" target="_blank" rel="noopener" title="Proforma / commercial invoice">Proforma</a>`;
     }
     return `
-      <a class="doc-termica" href="${NovaAPI.guias.etiquetaPdfUrl(g.id)}" target="_blank" rel="noopener" title="PDF de 4×6 exactas: se manda a la Zebra al tamaño justo"><span class="ico">🏷</span>Etiqueta térmica <small>PDF 4×6</small></a>
-      <a class="doc-termica sec" href="${NovaAPI.guias.etiquetaUrl(g.id, 'termica')}" target="_blank" rel="noopener" title="La misma etiqueta en el navegador"><span class="ico">🖨</span>Térmica <small>navegador</small></a>
+      <a class="doc-termica doc-directo" href="#" data-imprimir="${g.id}" title="Sale directo de la impresora térmica, por el plugin de UPS (sin ventana de imprimir)"><span class="ico">⚡</span>Imprimir térmica <small>directo</small></a>
+      <a class="doc-termica sec" href="${NovaAPI.guias.etiquetaPdfUrl(g.id)}" target="_blank" rel="noopener" title="PDF de 4×6 exactas, por si la impresión directa no anda"><span class="ico">🏷</span>Térmica <small>PDF 4×6</small></a>
       <a class="doc-a4" href="${NovaAPI.guias.etiquetaUrl(g.id, 'a4')}" target="_blank" rel="noopener"><span class="ico">📄</span>Etiqueta en A4</a>
       <a class="doc-proforma" href="${NovaAPI.guias.proformaUrl(g.id)}" target="_blank" rel="noopener"><span class="ico">🧾</span>Proforma</a>`;
   }

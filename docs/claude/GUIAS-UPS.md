@@ -418,3 +418,37 @@ DIRECTO sin ventana, como CampusShip, hace falta la etiqueta en ZPL (UPS la da c
 `LabelImageFormat: ZPL`, pero es un formato por envío: habría que pedirla en ZPL y armar la
 vista A4 desde… no se puede; o usar Label Recovery) más Zebra Browser Print instalado en la
 PC de la oficina. Es otro día de trabajo; primero ver qué contestan.
+
+## 9. Impresión directa por el plugin de UPS (11/09)
+
+Felipe mandó el código de la ventanita que abre CampusShip al imprimir (`Codigo print.html`)
+y su dirección: `http://127.0.0.1:4349/listPrinters?loc=es_AR&app=www.campusship&name=labelWindow&pref=UPSThermal2844`.
+Es el **UPS Thermal Printer plugin**, un servicio local en cada PC. Protocolo:
+
+- `GET /listPrinters?…` → HTML con `<select id='thermalPrinters'>`; cada `<option value='zpl'|'epl2' label='BIXOLON SRP-770III - BPL-Z'>BIXOLONSRP770IIIBPLZ</option>` (el texto es el nombre sin espacios ni símbolos; es lo que se manda).
+- `POST /print` con `Content-Type: application/x-www-form-urlencoded` y cuerpo
+  `printerName=<nombre>&labelBytes=<etiqueta>` — **sin codificar** (así lo hace la ventana de UPS).
+  La etiqueta se la pasa CampusShip por `postMessage`; no vimos si va en base64 o en texto:
+  por eso el sistema tiene un selector (por defecto base64, que es como UPS entrega las
+  etiquetas en su API).
+- Impresoras de la oficina: una PC con **Bixolon SRP-770III en modo BPL-Z** (emulación
+  Zebra → ZPL) y otra con una **Zebra**. Las dos hablan ZPL.
+
+**Lo construido:**
+- `GET /api/guias/:id/etiqueta.zpl` (`etiqueta-pdf.service.js: armarZplEtiquetas`): el GIF
+  de UPS → bitmap 1 bit → `^XA^PW812^LL1218^FO…^GFA,…^FS^PQ1^XZ` por bulto (4×6 a 203 dpi,
+  centrado; si la imagen es más grande se reduce). `?b64=1` en base64, `?giro=180` dada vuelta.
+- `frontend/js/termica.js` (`NovaTermica`): `imprimirGuia(id)` trae el ZPL y hace el POST al
+  plugin con `mode: 'no-cors'` (la respuesta no se puede leer: el aviso es "enviada", la
+  prueba es el papel). Impresora y formato guardados en `localStorage` de cada PC
+  (`nova.termica.impresora`, `nova.termica.formato`). Modal "Impresora térmica" en la
+  cabecera de Guías: Buscar impresoras (intenta leer `listPrinters`; si el plugin no deja
+  por CORS, se tipea el nombre), formato, "Imprimir prueba" (etiqueta de texto).
+- Pantalla Guías: botón principal **"⚡ Imprimir térmica · directo"**; PDF 4×6, A4 y
+  proforma siguen. En el listado, "⚡ Térmica".
+- `test-guias-emision` → 124 (el plugin se simula con `page.route('http://127.0.0.1:4349/**')`).
+
+**Para probar en la oficina (primera vez, en cada PC):** Guías → "Impresora térmica" →
+Buscar impresoras (o tipear el nombre) → Imprimir prueba. Chrome puede preguntar si el
+sitio puede acceder a la red local: permitir. Si no sale papel con "Codificada", probar
+"Texto ZPL tal cual". Después, en una guía: "Imprimir térmica".

@@ -123,6 +123,21 @@ router.get('/:id/etiqueta.pdf', async (req, res, next) => {
   }
 });
 
+// La etiqueta como ZPL (bitmap ^GFA, 4×6 a 203 dpi, una por bulto) para el plugin térmico
+// de UPS que ya está en las PCs de la oficina (http://127.0.0.1:4349/print). ?b64=1 la
+// devuelve en base64 (así se la pasa CampusShip al plugin). ?giro=180 la da vuelta.
+router.get('/:id/etiqueta.zpl', async (req, res, next) => {
+  try {
+    const row = await guias.etiqueta(req.params.id);
+    if (!row) return res.status(404).send('La guía no tiene etiqueta');
+    const lista = JSON.parse(row.etiqueta_gif);
+    const zpl = etiquetaPdf.armarZplEtiquetas(lista, { giro180: String(req.query.giro || '') === '180' });
+    res.type('text/plain').send(String(req.query.b64 || '') === '1' ? Buffer.from(zpl, 'utf8').toString('base64') : zpl);
+  } catch (e) {
+    next(e);
+  }
+});
+
 // Hoja para imprimir la etiqueta (rehecha el 10/09/2026 con la guía impresa que mandó
 // Felipe — LISTA-OFICINA-10-09.md, B2/B3):
 //   ?formato=termica → SOLO la etiqueta, página de 4×6 pulgadas, vertical, para la impresora

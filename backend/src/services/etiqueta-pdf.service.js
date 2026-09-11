@@ -112,4 +112,63 @@ function armarPdfEtiquetas(gifsB64, opts = {}) {
   return Buffer.concat(partes);
 }
 
-module.exports = { armarPdfEtiquetas, decodificarGif, PT_W, PT_H };
+
+/* ── ZPL: la etiqueta como bitmap ^GFA para la impresora térmica ───────────────────────
+ * (11/09/2026) La oficina imprime desde CampusShip con el "plugin" de UPS: un servicio en
+ * la PC (http://127.0.0.1:4349) que recibe la etiqueta cruda (ZPL) y la manda a la Zebra o
+ * a la Bixolon (en modo BPL-Z, emulación Zebra). Para usar ese mismo camino desde el
+ * sistema, la imagen de UPS se pasa a un bitmap de 1 bit y se envuelve en ZPL: una
+ * etiqueta ^XA…^XZ por bulto, 812×1218 puntos (4×6 pulgadas a 203 dpi). No hace falta
+ * pedirle a UPS un segundo formato. */
+const DOTS_W = 812; // 4 in × 203 dpi
+const DOTS_H = 1218; // 6 in × 203 dpi
+
+/** Reduce (o deja) una imagen RGB para que entre en DOTS_W×DOTS_H, por promedio de área. */
+function encajar(img) {
+  const { width, height, rgb } = img;
+  const esc = Math.min(1, DOTS_W / width, DOTS_H / height);
+  if (esc === 1) return img;
+  const nw = Math.max(1, Math.floor(width * esc)); const nh = Math.max(1, Math.floor(height * esc));
+  const out = Buffer.alloc(nw * nh * 3);
+  for (let y = 0; y < nh; y++) {
+    const y0 = Math.floor(y / esc); const y1 = Math.min(height, Math.max(y0 + 1, Math.floor((y + 1) / esc)));
+    for (let x = 0; x < nw; x++) {
+      const x0 = Math.floor(x / esc); const x1 = Math.min(width, Math.max(x0 + 1, Math.floor((x + 1) / esc)));
+      let r = 0; let g = 0; let b = 0; let n = 0;
+      for (let yy = y0; yy < y1; yy++) for (let xx = x0; xx < x1; xx++) { const s = (yy * width + xx) * 3; r += rgb[s]; g += rgb[s + 1]; b += rgb[s + 2]; n++; }
+      const d = (y * nw + x) * 3; out[d] = r / n; out[d + 1] = g / n; out[d + 2] = b / n;
+    }
+  }
+  return { width: nw, height: nh, rgb: out };
+}
+
+/** RGB → bitmap 1 bit (1 = negro), bytes por fila redondeados a 8 puntos; devuelve hex. */
+function bitmapHex(img) {
+  const { width, height, rgb } = img;
+  const bpr = Math.ceil(width / 8);
+  const out = Buffer.alloc(bpr * height, 0);
+  for (let y = 0; y < height; y++) {
+    for (let x = 0; x < width; x++) {
+      const s = (y * width + x) * 3;
+      const lum = 0.299 * rgb[s] + 0.587 * rgb[s + 1] + 0.114 * rgb[s + 2];
+      if (lum < 128) out[y * bpr + (x >> 3)] |= (0x80 >> (x & 7));
+    }
+  }
+  return { hex: out.toString('hex').toUpperCase(), bytesPorFila: bpr, total: out.length, width, height };
+}
+
+/** Una etiqueta ZPL por bulto, concatenadas. `opts.giro180` la da vuelta. */
+function armarZplEtiquetas(gifsB64, opts = {}) {
+  return gifsB64.map((b64) => {
+    let img = decodificarGif(Buffer.from(b64, 'base64'));
+    if (img.width > img.height) img = girar90(img);
+    if (opts.giro180) img = girar180(img);
+    img = encajar(img);
+    const bm = bitmapHex(img);
+    const x = Math.max(0, Math.floor((DOTS_W - bm.width) / 2));
+    const y = Math.max(0, Math.floor((DOTS_H - bm.height) / 2));
+    return `^XA^PW${DOTS_W}^LL${DOTS_H}^LH0,0^FO${x},${y}^GFA,${bm.total},${bm.total},${bm.bytesPorFila},${bm.hex}^FS^PQ1^XZ`;
+  }).join('\n');
+}
+
+module.exports = { armarPdfEtiquetas, armarZplEtiquetas, decodificarGif, PT_W, PT_H, DOTS_W, DOTS_H };
