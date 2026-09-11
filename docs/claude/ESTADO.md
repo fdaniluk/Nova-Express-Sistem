@@ -327,6 +327,13 @@ Colores Nova `#403754`/`#EE6C52`.
   logo sobre azul sin cuadro blanco. La imagen de la cotización y el cotizador público son
   neutros con acento por courier: sin cambios. Manual de marca: `MANUAL-DE-MARCA.md`;
   archivos en `C:\dev\Marca Nova Express`.
+- **11/09 — REPETIR ENVÍO** (`GUIAS-UPS.md` §12): "↻ Repetir" en el listado y en el resultado
+  llena el formulario con una guía anterior (fecha de hoy, proforma nueva) + buscador en el
+  historial. Tanda → 151.
+- **11/09 — REMITENTE "PARA GUÍAS" + modal que arrastra la ficha** (`GUIAS-UPS.md` §11):
+  `remitentes.predeterminado` (uno por cliente) arranca elegido en Guías; "Nuevo remitente"
+  abre con los datos de la ficha (era el "no arrastra la localidad"). `test-guias-emision` → 146.
+  **UPS a producción:** Felipe pidió pasar `UPS_SHIPPING_ENTORNO=prod` (comando dado el 11/09).
 - **11/09 — GUÍAS EN ESPERA (borradores)** (`GUIAS-UPS.md` §10): administración pidió dejar
   guías a medio hacer y retomarlas, varias en paralelo. Tabla `guias_borradores`, API
   `/guias/borradores`, botón "Guardar para después", pestaña "En espera (n)", Retomar/Borrar,

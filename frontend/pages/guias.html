@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Guías — Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
-  <link rel="stylesheet" href="../css/main.css?v=20260911e">
-  <link rel="stylesheet" href="../css/modules/guias.css?v=20260911e">
+  <link rel="stylesheet" href="../css/main.css?v=20260911h">
+  <link rel="stylesheet" href="../css/modules/guias.css?v=20260911h">
 </head>
 <body>
 <div class="app-layout">
@@ -296,6 +296,7 @@
         <div class="gui-resultado" id="gui-resultado"></div>
         <div class="actions">
           <button type="button" class="btn btn-primary" id="gui-otra">+ Otra guía</button>
+          <button type="button" class="btn btn-secondary" id="gui-repetir" title="Otra guía igual a esta (como Repetir envío de UPS)">↻ Repetir esta guía</button>
           <button type="button" class="btn btn-ghost" id="gui-ver-lista">Ver guías del día</button>
         </div>
       </section>
@@ -319,6 +320,10 @@
           <div class="form-group">
             <label>&nbsp;</label>
             <button type="button" class="btn btn-secondary" id="gui-f-todas">Todas las fechas</button>
+          </div>
+          <div class="form-group" style="flex:1;min-width:220px">
+            <label for="gui-f-buscar">Buscar</label>
+            <input type="search" id="gui-f-buscar" placeholder="Cliente, destinatario, Nº de guía, contenido…" autocomplete="off">
           </div>
         </div>
         <div class="table-wrap">
@@ -462,6 +467,10 @@
           <input type="text" id="r-email" maxlength="50">
         </div>
       </div>
+      <label class="gui-check" style="margin-top:10px;display:flex;gap:8px;align-items:center;font-size:.85rem">
+        <input type="checkbox" id="r-predeterminado">
+        <span><b>Usar este remitente para las guías de este cliente</b> <span class="gui-hint">(arranca elegido en vez de la ficha del cliente)</span></span>
+      </label>
       <div class="gui-errores hidden" id="r-errores"></div>
     </div>
     <div class="modal-footer">
@@ -472,11 +481,11 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260911e"></script>
-<script src="../js/api.js?v=20260911e"></script>
-<script src="../js/main.js?v=20260911e"></script>
-<script src="/shared/cotizador/cotizador-core.js?v=20260911e"></script>
-<script src="../js/termica.js?v=20260911e"></script>
-<script src="../js/modules/guias.js?v=20260911e"></script>
+<script src="/js/auth-guard.js?v=20260911h"></script>
+<script src="../js/api.js?v=20260911h"></script>
+<script src="../js/main.js?v=20260911h"></script>
+<script src="/shared/cotizador/cotizador-core.js?v=20260911h"></script>
+<script src="../js/termica.js?v=20260911h"></script>
+<script src="../js/modules/guias.js?v=20260911h"></script>
 </body>
 </html>

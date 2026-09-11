@@ -27,12 +27,20 @@ function desdeCliente(c) {
     contacto: c.contacto || null,
     email: c.email || null,
     activo: 1,
+    predeterminado: 0,
   };
 }
 
 function desdeFila(r) {
   if (!r) return null;
-  return { ...r, principal: false };
+  return { ...r, principal: false, predeterminado: r.predeterminado ? 1 : 0 };
+}
+
+/** Marca (o desmarca) el perfil que arranca elegido en Guías; uno solo por cliente. */
+async function marcarPredeterminado(clienteId, id, valor) {
+  const db = getDb();
+  if (valor) await db.prepare('UPDATE remitentes SET predeterminado = 0 WHERE cliente_id = ? AND id <> ?').run(clienteId, id);
+  await db.prepare('UPDATE remitentes SET predeterminado = ? WHERE id = ? AND cliente_id = ?').run(valor ? 1 : 0, id, clienteId);
 }
 
 /**
@@ -82,6 +90,7 @@ async function crear(clienteId, body) {
   const result = await db
     .prepare(`INSERT INTO remitentes (cliente_id, ${cols.join(', ')}) VALUES (?, ${cols.map(() => '?').join(', ')})`)
     .run(clienteId, ...cols.map((c) => d[c]));
+  if (body.predeterminado !== undefined && body.predeterminado) await marcarPredeterminado(clienteId, result.lastInsertRowid, true);
   return desdeFila(await db.prepare('SELECT * FROM remitentes WHERE id = ?').get(result.lastInsertRowid));
 }
 
@@ -102,6 +111,7 @@ async function actualizar(clienteId, id, body) {
       .prepare(`UPDATE remitentes SET ${cols.map((c) => `${c} = ?`).join(', ')} WHERE id = ?`)
       .run(...cols.map((c) => d[c]), actual.id);
   }
+  if (body.predeterminado !== undefined) await marcarPredeterminado(clienteId, actual.id, !!body.predeterminado);
   return desdeFila(await db.prepare('SELECT * FROM remitentes WHERE id = ?').get(actual.id));
 }
 
@@ -109,7 +119,7 @@ async function desactivar(clienteId, id) {
   const db = getDb();
   const actual = await db.prepare('SELECT id FROM remitentes WHERE id = ? AND cliente_id = ?').get(id, clienteId);
   if (!actual) return false;
-  await db.prepare('UPDATE remitentes SET activo = 0 WHERE id = ?').run(actual.id);
+  await db.prepare('UPDATE remitentes SET activo = 0, predeterminado = 0 WHERE id = ?').run(actual.id);
   return true;
 }
 
@@ -118,4 +128,4 @@ async function tocar(id) {
   await getDb().prepare("UPDATE remitentes SET ultimo_uso = datetime('now', 'localtime') WHERE id = ?").run(id);
 }
 
-module.exports = { CAMPOS, desdeCliente, resolver, listar, crear, actualizar, desactivar, tocar };
+module.exports = { CAMPOS, desdeCliente, resolver, listar, crear, actualizar, desactivar, tocar, marcarPredeterminado };

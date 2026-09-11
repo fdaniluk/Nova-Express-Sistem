@@ -403,7 +403,8 @@ CREATE TABLE IF NOT EXISTS remitentes (
   email          TEXT,
   activo         INTEGER NOT NULL DEFAULT 1,
   ultimo_uso     TEXT,
-  created_at     TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+  created_at     TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  predeterminado INTEGER NOT NULL DEFAULT 0
 );
 CREATE INDEX IF NOT EXISTS idx_remitentes_cliente ON remitentes(cliente_id, activo);
 

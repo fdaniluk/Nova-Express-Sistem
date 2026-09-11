@@ -487,3 +487,34 @@ dejarla guardada a medio hacer, retomarla después, y tener varias así en paral
   espera" (con "soltar"); emitir desde ahí la borra sola; "Guardar para después" con un
   borrador retomado lo actualiza en lugar de duplicarlo.
 - `test-guias-emision` → 140 (API 6-ter + pantalla).
+
+## 11. Remitente "para guías" y el modal que arrastra la ficha (11/09)
+
+Felipe: "muchos clientes tienen datos de perfil distintos a los de la guía… perfiles dentro
+de los perfiles solo para envíos". Eso ya eran los **perfiles de remitente** (§7, 08/09). Lo
+que faltaba:
+
+- **Predeterminado por cliente:** `remitentes.predeterminado` (migración + schema, uno solo
+  por cliente; `PUT/POST /clientes/:id/remitentes` con `predeterminado: 1` desmarca los
+  demás; sacar de la libreta lo limpia). En Guías, al elegir el cliente arranca con ese
+  perfil (opción con "★ para guías") en vez de la ficha. Se marca en el modal del remitente
+  con la casilla "Usar este remitente para las guías de este cliente".
+- **"Nuevo remitente" arranca con los datos del remitente elegido** (dirección, CP,
+  localidad, provincia, teléfono, contacto, mail; el nombre vacío): era lo de "no arrastra
+  la localidad del perfil del cliente" — el modal abría en blanco.
+- Verificado con un test de punta a punta que la localidad del perfil del cliente SÍ llega
+  a la ficha de Guías (perfil → PUT → `/remitentes` → `ciudad`); si en la oficina hay un
+  cliente puntual al que no le aparece, pedir el nombre y mirar sus datos.
+- `test-guias-emision` → 146.
+
+## 12. Repetir envío (como UPS) — 11/09
+
+Botón **"↻ Repetir"** en cada guía del listado (cualquier estado) y **"↻ Repetir esta
+guía"** en el panel de resultado. Llena el formulario con la guía elegida (cliente,
+remitente, destinatario, servicio, DDP, contenido, título de proforma, renglones, bultos,
+observaciones), con la **fecha de hoy** y **sin número de proforma** (sale el siguiente del
+contador). No emite nada: la persona revisa y aprieta "Pedir guía a UPS". Reusa
+`aplicarBorrador` de los borradores (`repetirGuia(id)` en `guias.js`).
+`test-guias-emision` → 149. **Buscador** en "Guías del día" (cliente, remitente, destinatario,
+Nº de guía, contenido; con texto busca en todas las fechas, sin acentos): para encontrar la
+guía a repetir. Tanda → 151.

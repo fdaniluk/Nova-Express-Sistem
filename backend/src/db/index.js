@@ -447,6 +447,10 @@ async function migrateGuias() {
     )
   `);
   await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_remitentes_cliente ON remitentes(cliente_id, activo)');
+  // 11/09: el perfil que arranca elegido en Guías para ese cliente (uno por cliente; si no
+  // hay ninguno marcado, arranca la ficha del cliente).
+  const colsR = (await dbApi.prepare('PRAGMA table_info(remitentes)').all()).map((c) => c.name);
+  if (!colsR.includes('predeterminado')) await dbApi.exec('ALTER TABLE remitentes ADD COLUMN predeterminado INTEGER NOT NULL DEFAULT 0');
   // Guías a medio hacer (administración, 11/09): el formulario guardado sin llamar a UPS.
   await dbApi.exec(`
     CREATE TABLE IF NOT EXISTS guias_borradores (

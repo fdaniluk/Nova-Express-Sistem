@@ -19,6 +19,7 @@
   const money = (n) => Number(n || 0).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 
   let borradorActual = null; // id del borrador que se está retomando (11/09)
+  let ultimaEmitida = null; // id de la última guía emitida en esta pantalla (para Repetir)
 
   async function init() {
     $('g-fecha').value = NovaUtils.hoyLocal();
@@ -124,10 +125,11 @@
     for (const r of remitentes) {
       const opt = document.createElement('option');
       opt.value = r.id == null ? '' : String(r.id);
-      opt.textContent = r.principal ? `${r.nombre} (ficha del cliente)` : r.nombre;
+      opt.textContent = r.principal ? `${r.nombre} (ficha del cliente)` : `${r.nombre}${r.predeterminado ? ' ★ para guías' : ''}`;
       sel.appendChild(opt);
     }
-    sel.value = seleccionar ? String(seleccionar) : '';
+    const pred = remitentes.find((r) => !r.principal && r.predeterminado);
+    sel.value = seleccionar ? String(seleccionar) : (pred ? String(pred.id) : '');
     pintarRemitente();
   }
 
@@ -174,15 +176,20 @@
   function abrirModalRem(r) {
     remEditando = r || null;
     $('modal-rem-title').textContent = r ? 'Editar remitente' : 'Nuevo remitente';
-    $('r-nombre').value = r?.nombre || '';
-    $('r-cuit').value = r?.cuit || '';
-    $('r-direccion').value = r?.direccion || '';
-    $('r-cp').value = r?.codigo_postal || '';
-    $('r-ciudad').value = r?.ciudad || '';
-    $('r-provincia').value = r?.provincia || '';
-    $('r-telefono').value = r?.telefono || '';
-    $('r-contacto').value = r?.contacto || '';
-    $('r-email').value = r?.email || '';
+    // Nuevo: arranca con los datos del remitente que está elegido (la ficha del cliente, en
+    // general) para cambiar solo lo que difiere; el nombre no, porque un perfil nuevo casi
+    // siempre es otro nombre (11/09: "no arrastra la localidad").
+    const base = r || remSeleccionado() || {};
+    $('r-nombre').value = r ? (r.nombre || '') : '';
+    $('r-cuit').value = base.cuit || '';
+    $('r-direccion').value = base.direccion || '';
+    $('r-cp').value = base.codigo_postal || '';
+    $('r-ciudad').value = base.ciudad || '';
+    $('r-provincia').value = base.provincia || '';
+    $('r-telefono').value = base.telefono || '';
+    $('r-contacto').value = base.contacto || '';
+    $('r-email').value = base.email || '';
+    $('r-predeterminado').checked = !!(r && r.predeterminado);
     $('r-errores').classList.add('hidden');
     $('modal-rem-borrar').classList.toggle('hidden', !r);
     $('modal-rem').classList.remove('hidden');
@@ -205,6 +212,7 @@
       telefono: $('r-telefono').value.trim(),
       contacto: $('r-contacto').value.trim(),
       email: $('r-email').value.trim(),
+      predeterminado: $('r-predeterminado').checked ? 1 : 0,
     };
     const faltan = [];
     if (!data.nombre) faltan.push('el nombre');
@@ -468,6 +476,7 @@
       await emitir();
     });
     $('gui-ver-lista').addEventListener('click', () => document.querySelector('.tab[data-tab="listado"]').click());
+    $('gui-repetir').addEventListener('click', () => { if (ultimaEmitida) repetirGuia(ultimaEmitida); });
     // El resumen sigue al formulario.
     $('form-guia').addEventListener('input', pintarResumen);
     $('form-guia').addEventListener('change', pintarResumen);
@@ -611,13 +620,37 @@
     (x.items && x.items.length ? x.items : [null]).forEach((it) => agregarItem(it));
     $('g-bultos').querySelector('tbody').innerHTML = '';
     (x.bultos && x.bultos.length ? x.bultos : [null]).forEach((bu) => agregarBulto(bu));
-    borradorActual = b.id;
-    $('g-borrador-chip').classList.remove('hidden');
+    borradorActual = b.id || null;
+    $('g-borrador-chip').classList.toggle('hidden', !b.id);
     $('g-errores').classList.add('hidden');
     pintarResumen();
   }
 
   function soltarBorrador() { borradorActual = null; $('g-borrador-chip').classList.add('hidden'); }
+
+  // "Repetir envío" (como en UPS, pedido de Felipe 11/09): la guía anterior llena el
+  // formulario tal cual (cliente, remitente, destinatario, servicio, DDP, contenido,
+  // renglones y bultos) con la fecha de hoy y SIN número de proforma (sale el siguiente).
+  async function repetirGuia(id) {
+    const g = await NovaAPI.guias.obtener(id);
+    const titSel = $('g-proforma-titulo');
+    const titulos = titSel ? [...titSel.options].map((o) => o.value) : [];
+    const tit = (g.datos && g.datos.proforma_titulo) || 'COMMERCIAL INVOICE';
+    const datos = {
+      cliente_id: g.cliente_id, remitente_id: g.remitente_id || null, destinatario_id: g.destinatario_id, destinatario_nombre: g.destinatario_nombre,
+      fecha: NovaUtils.hoyLocal(), servicio: g.servicio, ddp: g.ddp ? 1 : 0, contenido: g.contenido || '',
+      proforma_numero: null,
+      proforma_titulo_sel: titulos.includes(tit) ? tit : '__otro', proforma_titulo_otro: titulos.includes(tit) ? '' : tit,
+      items: (g.items || []).map((it) => ({ cantidad: it.cantidad, descripcion: it.descripcion, valor_unitario: it.valor_unitario })),
+      bultos: (g.bultos || []).map((b) => ({ peso_real: b.peso_real, largo: b.largo, ancho: b.ancho, alto: b.alto })),
+      observaciones: (g.datos && g.datos.observaciones) || null,
+    };
+    await aplicarBorrador({ id: null, datos });
+    soltarBorrador();
+    document.querySelector('.tab[data-tab="nueva"]').click();
+    window.scrollTo({ top: 0 });
+    NovaUtils.showAlert(alertBox, `Formulario cargado con la guía ${g.numero_guia || '#' + g.id} (fecha de hoy, proforma nueva). Revisá y pedí la guía.`, 'success');
+  }
 
   async function guardarBorrador() {
     const datos = leerFormulario();
@@ -730,6 +763,7 @@
   }
 
   function mostrarResultado(g) {
+    ultimaEmitida = g.id;
     $('panel-nueva').classList.add('hidden');
     const box = $('gui-resultado');
     const kg = g.bultos.reduce((s, b) => s + (b.peso_real || 0), 0);
@@ -754,17 +788,26 @@
     $('gui-f-fecha').addEventListener('change', () => { listadoTodas = false; loadListado(); });
     $('gui-f-estado').addEventListener('change', loadListado);
     $('gui-f-todas').addEventListener('click', () => { listadoTodas = !listadoTodas; loadListado(); });
+    // Buscador (11/09, para encontrar la guía a repetir): con texto busca en TODAS las
+    // fechas; se filtra acá mismo sobre lo que vino (cliente, remitente, destinatario,
+    // número de guía, contenido).
+    let t = null;
+    $('gui-f-buscar').addEventListener('input', () => { clearTimeout(t); t = setTimeout(loadListado, 250); });
   }
+
+  function normalizarBusqueda(s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
 
   async function loadListado() {
     const params = {};
-    if (!listadoTodas && $('gui-f-fecha').value) params.fecha = $('gui-f-fecha').value;
+    const q = normalizarBusqueda($('gui-f-buscar').value.trim());
+    if (!q && !listadoTodas && $('gui-f-fecha').value) params.fecha = $('gui-f-fecha').value;
     if ($('gui-f-estado').value) params.estado = $('gui-f-estado').value;
     $('gui-f-todas').textContent = listadoTodas ? 'Solo esta fecha' : 'Todas las fechas';
-    const lista = await NovaAPI.guias.listar(params);
+    let lista = await NovaAPI.guias.listar(params);
+    if (q) lista = lista.filter((g) => normalizarBusqueda([g.cliente_nombre, g.remitente_nombre, g.destinatario_nombre, g.destinatario_ciudad, g.destinatario_pais, g.numero_guia, g.contenido].join(' ')).includes(q));
     const tb = $('gui-tabla').querySelector('tbody');
     if (!lista.length) {
-      tb.innerHTML = '<tr><td colspan="8" class="empty">No hay guías para mostrar.</td></tr>';
+      tb.innerHTML = `<tr><td colspan="8" class="empty">${q ? 'Ninguna guía coincide con la búsqueda.' : 'No hay guías para mostrar.'}</td></tr>`;
       return;
     }
     const labelEstado = { emitida: 'Para confirmar', confirmada: 'Confirmada', anulada: 'Anulada' };
@@ -778,9 +821,10 @@
         <td class="n">${money(g.fob)}</td>
         <td><span class="gui-estado ${esc(g.estado)}">${esc(labelEstado[g.estado] || g.estado)}</span>${g.envio_id ? `<br><span class="gui-hint">envío #${g.envio_id}</span>` : ''}</td>
         <td class="docs">${g.tiene_etiqueta ? docsHtml(g, true) : `<a href="${NovaAPI.guias.proformaUrl(g.id)}" target="_blank" rel="noopener">Proforma</a>`}
-          ${g.estado === 'emitida' ? `<br><a class="gui-confirmar" href="envios.html?guia=${g.id}">Confirmar →</a> · <button type="button" class="gui-quitar" data-anular="${g.id}" title="Anular la guía en UPS">Anular</button>` : ''}</td>
+          <br><button type="button" class="gui-link" data-repetir="${g.id}" title="Cargar el formulario con esta guía para hacer otra igual (como Repetir envío de UPS)">↻ Repetir</button>${g.estado === 'emitida' ? ` · <a class="gui-confirmar" href="envios.html?guia=${g.id}">Confirmar →</a> · <button type="button" class="gui-quitar" data-anular="${g.id}" title="Anular la guía en UPS">Anular</button>` : ''}</td>
       </tr>`).join('');
     tb.querySelectorAll('[data-anular]').forEach((b) => b.addEventListener('click', () => anular(b.dataset.anular)));
+    tb.querySelectorAll('[data-repetir]').forEach((b) => b.addEventListener('click', () => repetirGuia(Number(b.dataset.repetir))));
     const hoy = NovaUtils.hoyLocal();
     const pend = lista.filter((g) => g.estado === 'emitida').length;
     $('gui-badge-dia').textContent = pend && !listadoTodas && $('gui-f-fecha').value === hoy ? String(pend) : '';

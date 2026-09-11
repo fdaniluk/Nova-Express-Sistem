@@ -23,6 +23,7 @@ const BASE = `http://localhost:${PORT}`;
 const DB = process.env.DB_PATH_TEST || '/tmp/test_guias_emision.db';
 const GIF_6x4 = 'R0lGODdhAwACAIEAAP///wAAAAAAAAAAACwAAAAAAwACAAAICAADABgIIEBAADs='; // GIF apaisado de 3×2 para la prueba del PDF
 const TOKEN = 'token-test-guias-emision';
+const NovaUtils_hoy = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
 
 let ok = 0, fail = 0;
 function check(nombre, cond, detalle = '') {
@@ -249,6 +250,16 @@ async function main() {
   check('PUT parcial conserva el resto', rem2.telefono === '11 4999 0000' && rem2.direccion === 'Ruta 8 km 40');
   r = await put(`/api/clientes/${cliPelado.id}/remitentes/${rem.id}`, { nombre: 'HACK' });
   check('otro cliente no puede editarlo → 404', r.status === 404, String(r.status));
+  // 11/09: el perfil "para guías" (predeterminado) arranca elegido en la pantalla.
+  const rem3 = await j(await put(`/api/clientes/${cli.id}/remitentes/${rem.id}`, { predeterminado: 1 }));
+  check('PUT predeterminado=1 lo marca', rem3.predeterminado === 1);
+  const remB = await j(await post(`/api/clientes/${cli.id}/remitentes`, { nombre: 'OTRO PERFIL SA', direccion: 'Calle 9', codigo_postal: '1000', ciudad: 'CABA', predeterminado: 1 }));
+  rems = await j(await get(`/api/clientes/${cli.id}/remitentes`));
+  check('  crear otro con predeterminado=1 le saca la marca al anterior (uno solo por cliente)', remB.predeterminado === 1 && rems.find((x) => x.id === rem.id).predeterminado === 0 && rems.filter((x) => x.predeterminado).length === 1);
+  await put(`/api/clientes/${cli.id}/remitentes/${rem.id}`, { predeterminado: 1 });
+  r = await fetch(BASE + `/api/clientes/${cli.id}/remitentes/${remB.id}`, { method: 'DELETE', headers: H });
+  check('  sacar de la libreta también limpia la marca', r.status === 200 && !(await j(await get(`/api/clientes/${cli.id}/remitentes?todos=1`))).find((x) => x.id === remB.id).predeterminado);
+  await put(`/api/clientes/${cli.id}/remitentes/${rem.id}`, { predeterminado: 0 });
 
   // Guía con el perfil: ShipFrom y proforma salen con el perfil, no con la ficha.
   r = await post('/api/guias', {
@@ -279,7 +290,7 @@ async function main() {
   check('perfil sin dirección → 400 y nombra al remitente', r.status === 400 && e.errores.some((x) => /SIN DIRECCION SA.*dirección/i.test(x)), JSON.stringify(e.errores));
   r = await fetch(BASE + `/api/clientes/${cli.id}/remitentes/${remVacio.id}`, { method: 'DELETE', headers: H });
   rems = await j(await get(`/api/clientes/${cli.id}/remitentes`));
-  check('DELETE lo saca en blando (sigue con ?todos=1)', r.status === 200 && rems.length === 2 && (await j(await get(`/api/clientes/${cli.id}/remitentes?todos=1`))).length === 3);
+  check('DELETE lo saca en blando (sigue con ?todos=1)', r.status === 200 && rems.length === 2 && (await j(await get(`/api/clientes/${cli.id}/remitentes?todos=1`))).length === 4); // 4: la ficha + rem + remB (borrado el 11/09) + remVacio
   const envMix = await j(await put(`/api/envios/${envR.id}`, { remitente_id: null }));
   check('PUT /envios con remitente_id null vuelve a la ficha del cliente', envMix.remitente_id === null && envMix.remitente === null);
 
@@ -409,6 +420,7 @@ async function main() {
       return o.length === 2 && /ficha del cliente/.test(o[0]) && /CUEROS DEL SUR/.test(o[1]);
     }), await page.evaluate(() => [...document.querySelectorAll('#g-remitente-sel option')].map((x) => x.textContent).join(' | ')));
     await page.click('#g-rem-nuevo');
+    check('  "Nuevo remitente" arranca con la dirección, CP y localidad de la ficha del cliente (11/09)', (await page.inputValue('#r-ciudad')) === 'Bella Vista' && (await page.inputValue('#r-cp')) === '1661' && (await page.inputValue('#r-nombre')) === '', await page.inputValue('#r-ciudad'));
     await page.fill('#r-nombre', 'TERCER PERFIL SA');
     await page.fill('#r-direccion', 'Av. Siempreviva 742');
     await page.fill('#r-cp', '1661');
@@ -416,6 +428,14 @@ async function main() {
     await page.click('#modal-rem-guardar');
     await esperar(600);
     check('  el modal crea un perfil de remitente y lo deja elegido', await page.evaluate(() => document.getElementById('modal-rem').classList.contains('hidden') && /TERCER PERFIL SA/.test(document.getElementById('g-remitente').textContent) && !document.getElementById('g-rem-editar').classList.contains('hidden')), await page.evaluate(() => document.getElementById('g-remitente').textContent));
+    // Predeterminado: se marca en el modal y a partir de ahí arranca elegido para ese cliente.
+    await page.click('#g-rem-editar'); await esperar(200);
+    await page.check('#r-predeterminado'); await page.click('#modal-rem-guardar'); await esperar(600);
+    check('  marcado "para guías" en el modal: la opción lleva ★', await page.evaluate(() => /★ para guías/.test(document.querySelector('#g-remitente-sel option:checked')?.textContent || '')));
+    await page.selectOption('#g-cliente', String(cliPelado.id)); await esperar(400);
+    await page.selectOption('#g-cliente', String(cli.id)); await esperar(600);
+    check('  al volver a elegir el cliente, arranca con ese perfil en vez de la ficha', /TERCER PERFIL SA/.test(await page.evaluate(() => document.querySelector('#g-remitente-sel option:checked')?.textContent || '')), await page.evaluate(() => document.querySelector('#g-remitente-sel option:checked')?.textContent));
+    await page.click('#g-rem-editar'); await esperar(200); await page.uncheck('#r-predeterminado'); await page.click('#modal-rem-guardar'); await esperar(500);
     await page.selectOption('#g-remitente-sel', '');
     await esperar(100);
     check('  volver a la ficha esconde Editar', await page.evaluate(() => /CUEROS TEST SA/.test(document.getElementById('g-remitente').textContent) && document.getElementById('g-rem-editar').classList.contains('hidden')));
@@ -546,6 +566,33 @@ async function main() {
     check('  emitir desde el borrador → guía emitida y el borrador se borró solo', await page.evaluate(() => !document.getElementById('panel-resultado').classList.contains('hidden')) && (await page.textContent('#gui-badge-borradores')) === '', await page.textContent('#gui-badge-borradores'));
     const ultimaDesdeBorrador = (await j(await get('/api/guias/pendientes'))).find((x) => x.contenido === 'Muestras a medio cargar');
     if (ultimaDesdeBorrador) await post(`/api/guias/${ultimaDesdeBorrador.id}/anular`, { nota: 'prueba' });
+    // Repetir envío (como UPS, 11/09): desde el listado, la guía anterior llena el formulario.
+    await page.goto(BASE + '/pages/guias.html', { waitUntil: 'networkidle' }); await esperar(400);
+    await page.click('.tab[data-tab="listado"]'); await esperar(300);
+    await page.click('#gui-f-todas'); await esperar(600);
+    const filaRep = await page.$(`#gui-tabla tr[data-id="${g.id}"] [data-repetir]`);
+    check('Repetir: el listado tiene "↻ Repetir" en cada guía', filaRep !== null);
+    // Buscador del historial (11/09): busca en todas las fechas, sin acentos ni mayúsculas.
+    await page.fill('#gui-f-buscar', 'london'); await esperar(600);
+    const hallados = await page.evaluate(() => [...document.querySelectorAll('#gui-tabla tbody tr[data-id]')].length);
+    const hallaLondon = await page.evaluate(() => [...document.querySelectorAll('#gui-tabla tbody tr[data-id]')].every((tr) => /LONDON LEATHER/.test(tr.textContent)));
+    check('  el buscador filtra por destinatario (todas las fechas)', hallados >= 1 && hallaLondon, String(hallados));
+    await page.fill('#gui-f-buscar', 'zzz-nada'); await esperar(600);
+    check('  sin coincidencias lo dice', /Ninguna guía coincide/.test(await page.textContent('#gui-tabla tbody')));
+    await page.fill('#gui-f-buscar', ''); await esperar(600);
+    const filaRep2 = await page.$(`#gui-tabla tr[data-id="${g.id}"] [data-repetir]`);
+    await filaRep2.click(); await esperar(1200);
+    const rep = await page.evaluate(() => ({
+      nueva: !document.getElementById('panel-nueva').classList.contains('hidden'),
+      cliente: document.getElementById('g-cliente').value, dest: document.getElementById('g-destinatario').value,
+      serv: document.getElementById('g-servicio').value, ddp: document.getElementById('g-ddp').checked,
+      contenido: document.getElementById('g-contenido').value, fecha: document.getElementById('g-fecha').value,
+      proforma: document.getElementById('g-proforma').value, items: document.querySelectorAll('#g-items tbody tr').length,
+      bultos: document.querySelectorAll('#g-bultos tbody tr').length, peso: document.querySelector('#g-bultos [data-f="peso_real"]').value,
+      chip: document.getElementById('g-borrador-chip').classList.contains('hidden'),
+    }));
+    check('  llena el formulario con la guía elegida: cliente, destinatario, Expedited, DDP, contenido, el renglón corregido, 2 bultos', rep.nueva && rep.cliente === String(cli.id) && rep.dest === String(dGB.id) && rep.serv === 'UPS_EXP' && rep.ddp === true && rep.contenido === 'Cueros curtidos para tapicería y marroquinería de alta gama' && rep.items === 1 && rep.bultos === 2 && rep.peso === '12.4', JSON.stringify(rep));
+    check('  con la fecha de hoy, sin número de proforma (sale el siguiente) y sin chip de borrador', rep.fecha === NovaUtils_hoy() && rep.proforma === '' && rep.chip === true, JSON.stringify(rep));
     check('  otras pantallas tienen "Guías" en el menú', await page.evaluate(() => Boolean(document.querySelector('.nav-item[href="guias.html"]'))));
     check('ningún error de JavaScript', errores.length === 0, errores.slice(0, 3).join(' | '));
     await browser.close();
