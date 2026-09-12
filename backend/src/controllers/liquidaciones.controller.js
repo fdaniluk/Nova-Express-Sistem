@@ -48,8 +48,10 @@ async function preview(req, res, next) {
 
 async function crear(req, res, next) {
   try {
-    const { cliente_id, periodo_desde, periodo_hasta, envio_ids, cargos, cotizaciones, confirmar } =
-      req.body;
+    const {
+      cliente_id, periodo_desde, periodo_hasta, envio_ids, cargos, cotizaciones, confirmar,
+      reemplazar_borradores, permitir_duplicado,
+    } = req.body;
     if (!cliente_id || !periodo_desde || !periodo_hasta || !envio_ids?.length) {
       return res
         .status(400)
@@ -63,10 +65,14 @@ async function crear(req, res, next) {
       cargos: cargos || [],
       cotizaciones: cotizaciones || [],
       confirmar: Boolean(confirmar),
+      reemplazar_borradores: Array.isArray(reemplazar_borradores) ? reemplazar_borradores : [],
+      permitir_duplicado: Boolean(permitir_duplicado),
     });
     res.status(201).json(liq);
   } catch (e) {
     if (e.status === 400) return res.status(400).json({ error: e.message });
+    // Pendiente 52: 409 con la lista de borradores que ya tienen esos envíos.
+    if (e.status === 409) return res.status(409).json({ error: e.message, borradores: e.borradores || [] });
     next(e);
   }
 }

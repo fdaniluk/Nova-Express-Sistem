@@ -5,8 +5,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Registro de envíos – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
-  <link rel="stylesheet" href="../css/main.css?v=20260911h">
-  <link rel="stylesheet" href="../css/modules/envios.css?v=20260911h">
+  <link rel="stylesheet" href="../css/main.css?v=20260912b">
+  <link rel="stylesheet" href="../css/modules/guias.css?v=20260912b">
+  <link rel="stylesheet" href="../css/modules/envios.css?v=20260912b">
   <style>
     .cot-header {
       display: flex;
@@ -129,191 +130,270 @@
         <button class="tab" data-tab="importar">Importar Excel</button>
       </div>
 
-      <section id="panel-nuevo" class="card">
-        <!-- Guías emitidas desde el módulo Guías que todavía no son envíos (precargas).
-             "Cargar" llena este mismo formulario; administración revisa, cotiza, corrige
-             y guarda: recién ahí el envío existe (GUIAS-UPS.md 3-bis). -->
-        <div id="precargas-panel" class="precargas hidden">
-          <div class="precargas-head">
-            <b>Guías para confirmar</b> <span class="tab-badge" id="precargas-count"></span>
-            <span class="precargas-hint">Emitidas desde <a href="guias.html">Guías</a>. Cargá cada una, revisá el precio y guardá.</span>
-          </div>
-          <div id="precargas-lista"></div>
-        </div>
-        <h2 id="form-title">Cargar envío</h2>
-        <form id="form-envio">
+      <!-- ── Nuevo envío en 4 pasos (12/09/2026, maqueta aprobada por Felipe) ────────────
+           Mismo criterio que Guías: pasos numerados en tarjetas + resumen lateral fijo con el
+           botón principal. NINGÚN id cambió: la lógica de envios.js y las tandas siguen igual.
+           1 Cliente y courier · 2 Destino y bultos · 3 Valor y extras · 4 Precio. -->
+      <section id="panel-nuevo" class="env-layout">
+        <form id="form-envio" autocomplete="off" class="env-pasos">
           <input type="hidden" id="envio-id" value="">
           <input type="hidden" id="guia-id" value="">
-          <div class="form-grid">
-            <div class="form-group">
-              <label for="cliente_id">Cliente *</label>
-              <div class="cliente-row">
-                <select id="cliente_id" required></select>
-                <button type="button" class="btn btn-sm btn-secondary" id="btn-nuevo-cliente" title="Agregar cliente">+</button>
+
+          <!-- Guías emitidas desde el módulo Guías que todavía no son envíos (precargas).
+               "Cargar" llena este mismo formulario; administración revisa, cotiza, corrige
+               y guarda: recién ahí el envío existe (GUIAS-UPS.md 3-bis). -->
+          <div id="precargas-panel" class="precargas hidden">
+            <div class="precargas-head">
+              <b>Guías para confirmar</b> <span class="tab-badge" id="precargas-count"></span>
+              <span class="precargas-hint">Emitidas desde <a href="guias.html">Guías</a>. Cargá cada una, revisá el precio y guardá.</span>
+            </div>
+            <div id="precargas-lista"></div>
+          </div>
+
+          <h2 id="form-title" class="env-titulo">Cargar envío</h2>
+
+          <!-- Paso 1 -->
+          <div class="gui-paso env-paso" data-paso="1">
+            <div class="gui-paso-cab">
+              <span class="gui-num">1</span>
+              <div><h3>Cliente y courier</h3><p>De quién es el envío, por dónde sale y con qué guía.</p></div>
+            </div>
+            <div class="gui-paso-cuerpo">
+              <div class="form-grid env-grid">
+                <div class="form-group env-col-2">
+                  <label for="cliente_id">Cliente *</label>
+                  <div class="cliente-row">
+                    <select id="cliente_id" required></select>
+                    <button type="button" class="btn btn-sm btn-secondary" id="btn-nuevo-cliente" title="Agregar cliente">+</button>
+                  </div>
+                </div>
+                <div class="form-group">
+                  <label for="fecha">Fecha *</label>
+                  <input type="date" id="fecha" required>
+                </div>
+                <div class="form-group">
+                  <label for="courier">Courier *</label>
+                  <select id="courier" required>
+                    <option value="DHL">DHL</option>
+                    <option value="UPS">UPS</option>
+                  </select>
+                </div>
+                <!-- El selector de servicio UPS vivía en la cabecera del cotizador; ahora va
+                     al lado del courier. Mismo id (cot-ups-variante) y mismo wrap que se
+                     muestra/esconde según el courier. -->
+                <div class="form-group" id="cot-ups-wrap" style="display:none">
+                  <label for="cot-ups-variante">Servicio UPS *</label>
+                  <select id="cot-ups-variante">
+                    <option value="UPS_EXP">Expedited</option>
+                    <option value="UPS_SAV">Saver</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="numero_guia">Nº de guía *</label>
+                  <input type="text" id="numero_guia" required class="env-mono">
+                  <div id="aviso-guia" class="form-hint" style="display:none;color:#b45309;font-size:12px;margin-top:2px"></div>
+                </div>
+                <div class="form-group">
+                  <label for="tipo_envio">Dirección *</label>
+                  <select id="tipo_envio" required>
+                    <option value="exportacion">Exportación</option>
+                    <option value="importacion">Importación</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="tipo_paquete">Tipo de paquete</label>
+                  <select id="tipo_paquete">
+                    <option value="m">Mercadería</option>
+                    <option value="d">Documento</option>
+                  </select>
+                </div>
+                <!-- "Sin numerar" (salida 0): el envio recibe el 0 y no gasta numero de salida.
+                     Antes solo se podia marcar despues, desde Salidas; administracion pidio
+                     (14/08) poder dejarlo marcado ya en la carga. -->
+                <div class="form-group env-check-group">
+                  <label class="env-check" for="sin_numerar" title="El envío recibe el número 0 y no consume número de salida">
+                    <input type="checkbox" id="sin_numerar"> Sin numerar (salida 0)
+                  </label>
+                </div>
               </div>
             </div>
-            <div class="form-group">
-              <label for="fecha">Fecha *</label>
-              <input type="date" id="fecha" required>
+          </div>
+
+          <!-- Paso 2 -->
+          <div class="gui-paso env-paso" data-paso="2">
+            <div class="gui-paso-cab">
+              <span class="gui-num">2</span>
+              <div><h3>Destino y bultos</h3><p>A dónde va y qué se manda. El peso facturable se calcula solo.</p></div>
             </div>
-            <div class="form-group">
-              <label for="courier">Courier *</label>
-              <select id="courier" required>
-                <option value="DHL">DHL</option>
-                <option value="UPS">UPS</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="tipo_envio">Tipo *</label>
-              <select id="tipo_envio" required>
-                <option value="exportacion">Exportación</option>
-                <option value="importacion">Importación</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="tipo_paquete">Tipo de paquete</label>
-              <select id="tipo_paquete">
-                <option value="m">Mercadería</option>
-                <option value="d">Documento</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="numero_guia">Nº de guía *</label>
-              <input type="text" id="numero_guia" required>
-              <div id="aviso-guia" class="form-hint" style="display:none;color:#b45309;font-size:12px;margin-top:2px"></div>
-            </div>
-            <div class="form-group">
-              <label for="pais_destino" id="lbl_pais_destino">País destino *</label>
-              <select id="pais_destino" required></select>
-            </div>
-            <div class="form-group">
-              <label for="zona">Zona</label>
-              <input type="text" id="zona">
-            </div>
-            <div class="form-group">
-              <label for="cantidad_bultos">Cant. bultos</label>
-              <input type="number" id="cantidad_bultos" min="1" value="1">
-            </div>
-            <div class="form-group">
-              <label for="peso_real">Peso balanza (kg) *</label>
-              <input type="number" id="peso_real" step="0.001" min="0" required>
-            </div>
-            <div class="form-group">
-              <label for="largo">Largo (cm)</label>
-              <input type="number" id="largo" step="0.1" min="0">
-            </div>
-            <div class="form-group">
-              <label for="ancho">Ancho (cm)</label>
-              <input type="number" id="ancho" step="0.1" min="0">
-            </div>
-            <div class="form-group">
-              <label for="alto">Alto (cm)</label>
-              <input type="number" id="alto" step="0.1" min="0">
-            </div>
-            <div class="form-group">
-              <label for="fob">FOB (USD)</label>
-              <input type="number" id="fob" step="0.01" min="0" value="0">
-            </div>
-            <div class="form-group">
-              <label for="fuel_origen">Fuel</label>
-              <select id="fuel_origen">
-                <option value="nova" selected>Fuel Nova</option>
-                <option value="dhl">Fuel DHL</option>
-                <option value="ups">Fuel UPS</option>
-                <option value="manual">A mano</option>
-              </select>
-              <!-- El % queda de solo lectura salvo que se elija "A mano": si no, se podria
-                   editar el numero dejando la etiqueta diciendo otra cosa. -->
-              <input type="number" id="fuel_pct" step="0.1" min="0" readonly
-                     title="Se completa segun el fuel elegido. Para escribirlo, eleg&iacute; &quot;A mano&quot;.">
-              <!-- Aviso cuando el cliente tiene un fuel negociado y el elegido es otro.
-                   Felipe pidio que el predeterminado sea Nova SIEMPRE, pero que no pase en
-                   silencio: romper un acuerdo sin que nadie lo vea es lo que hay que evitar. -->
-              <p id="fuel-aviso-cliente" class="hint hidden" style="color:#b45309;font-weight:600"></p>
-            </div>
-            <div class="form-group">
-              <label for="asegurado">Asegurado</label>
-              <input type="checkbox" id="asegurado">
-            </div>
-            <div class="form-group">
-              <label for="ddp">DDP</label>
-              <input type="checkbox" id="ddp">
-            </div>
-            <!-- Servicio OPCIONAL de DHL (USD 7,50 por envio): se pide, no sale por defecto.
-                 Se oculta cuando el courier es UPS porque no existe de ese lado. -->
-            <div class="form-group" id="grupo-proteccion-doc">
-              <label for="proteccion_doc">Protección doc. (DHL)</label>
-              <input type="checkbox" id="proteccion_doc">
-            </div>
-            <div class="form-group">
-              <label for="entrega">Zona de entrega</label>
-              <select id="entrega">
-                <option value="normal">Normal</option>
-                <option value="extendida">Área extendida</option>
-                <option value="remota">Área remota</option>
-              </select>
-            </div>
-            <!-- "Sin numerar" (salida 0): el envio recibe el 0 y no gasta numero de salida.
-                 Antes solo se podia marcar despues, desde Salidas; administracion pidio
-                 (14/08) poder dejarlo marcado ya en la carga. -->
-            <div class="form-group">
-              <label for="sin_numerar" title="El envío recibe el número 0 y no consume número de salida">Sin numerar (salida 0)</label>
-              <input type="checkbox" id="sin_numerar">
-            </div>
-            <div class="form-group">
-              <label for="total_cobrado">Total cobrado (USD) *</label>
-              <input type="number" id="total_cobrado" step="0.01" min="0" required>
-              <small id="ctzr-sugerido" class="hidden" style="color:#8a6500;font-size:11px"></small>
-            </div>
-            <div class="form-group full">
-              <label for="observaciones">Observaciones</label>
-              <textarea id="observaciones" rows="2"></textarea>
+            <div class="gui-paso-cuerpo">
+              <div class="form-grid env-grid">
+                <div class="form-group env-col-2">
+                  <label for="pais_destino" id="lbl_pais_destino">País destino *</label>
+                  <select id="pais_destino" required></select>
+                </div>
+                <div class="form-group">
+                  <label for="zona">Zona</label>
+                  <input type="text" id="zona">
+                </div>
+                <div class="form-group">
+                  <label for="entrega">Zona de entrega</label>
+                  <select id="entrega">
+                    <option value="normal">Normal</option>
+                    <option value="extendida">Área extendida</option>
+                    <option value="remota">Área remota</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Bulto 1 (o el total, en multibulto: peso y medidas quedan bloqueados y
+                   salen de la tabla de abajo). Los ids son los de siempre. -->
+              <div class="env-bultos-cab">
+                <span class="env-bultos-titulo">Bultos</span>
+                <label class="env-cant" for="cantidad_bultos">Cantidad <input type="number" id="cantidad_bultos" min="1" value="1"></label>
+                <button type="button" class="btn btn-ghost btn-sm" id="btn-agregar-bulto" title="Suma un bulto a la cantidad">+ Agregar bulto</button>
+              </div>
+              <div class="form-grid env-grid-4 env-bulto1">
+                <div class="form-group">
+                  <label for="peso_real">Peso balanza (kg) *</label>
+                  <input type="number" id="peso_real" step="0.001" min="0" required>
+                </div>
+                <div class="form-group">
+                  <label for="largo">Largo (cm)</label>
+                  <input type="number" id="largo" step="0.1" min="0">
+                </div>
+                <div class="form-group">
+                  <label for="ancho">Ancho (cm)</label>
+                  <input type="number" id="ancho" step="0.1" min="0">
+                </div>
+                <div class="form-group">
+                  <label for="alto">Alto (cm)</label>
+                  <input type="number" id="alto" step="0.1" min="0">
+                </div>
+              </div>
+
+              <div id="bultos-extra" class="bultos-section hidden">
+                <h3>Dimensiones por bulto</h3>
+                <div class="bulto-row bulto-row-cab"><span></span><span>Largo</span><span>Ancho</span><span>Alto</span><span>Peso (kg)</span></div>
+                <div id="bultos-container"></div>
+              </div>
+
+              <div class="peso-preview" id="peso-preview" data-facturable="">
+                Peso volumétrico: — | Peso facturable: —
+              </div>
             </div>
           </div>
 
-          <div id="bultos-extra" class="bultos-section hidden">
-            <h3>Dimensiones por bulto</h3>
-            <div id="bultos-container"></div>
+          <!-- Paso 3 -->
+          <div class="gui-paso env-paso" data-paso="3">
+            <div class="gui-paso-cab">
+              <span class="gui-num">3</span>
+              <div><h3>Valor y extras</h3><p>Lo declarado, el fuel y los servicios que cambian el precio.</p></div>
+            </div>
+            <div class="gui-paso-cuerpo">
+              <div class="form-grid env-grid">
+                <div class="form-group">
+                  <label for="fob">FOB (USD)</label>
+                  <input type="number" id="fob" step="0.01" min="0" value="0">
+                </div>
+                <div class="form-group env-col-2">
+                  <label for="fuel_origen">Fuel</label>
+                  <div class="env-fuel">
+                    <select id="fuel_origen">
+                      <option value="nova" selected>Fuel Nova</option>
+                      <option value="dhl">Fuel DHL</option>
+                      <option value="ups">Fuel UPS</option>
+                      <option value="manual">A mano</option>
+                    </select>
+                    <!-- El % queda de solo lectura salvo que se elija "A mano": si no, se podria
+                         editar el numero dejando la etiqueta diciendo otra cosa. -->
+                    <input type="number" id="fuel_pct" step="0.1" min="0" readonly
+                           title="Se completa segun el fuel elegido. Para escribirlo, eleg&iacute; &quot;A mano&quot;.">
+                    <span class="env-muted">%</span>
+                  </div>
+                  <!-- Aviso cuando el cliente tiene un fuel negociado y el elegido es otro.
+                       Felipe pidio que el predeterminado sea Nova SIEMPRE, pero que no pase en
+                       silencio: romper un acuerdo sin que nadie lo vea es lo que hay que evitar. -->
+                  <p id="fuel-aviso-cliente" class="hint hidden" style="color:#b45309;font-weight:600"></p>
+                </div>
+                <div class="form-group env-col-3">
+                  <label>Extras</label>
+                  <div class="env-chips">
+                    <label class="env-check chip" for="asegurado"><input type="checkbox" id="asegurado"> Asegurado <small>FOB ≥ 100 se marca solo</small></label>
+                    <label class="env-check chip" for="ddp"><input type="checkbox" id="ddp"> DDP <small>impuestos a cargo de Nova</small></label>
+                    <!-- Servicio OPCIONAL de DHL (USD 7,50 por envio): se pide, no sale por defecto.
+                         Se oculta cuando el courier es UPS porque no existe de ese lado. -->
+                    <label class="env-check chip" for="proteccion_doc" id="grupo-proteccion-doc"><input type="checkbox" id="proteccion_doc"> Protección doc. <small>solo DHL</small></label>
+                  </div>
+                </div>
+                <div class="form-group env-col-3">
+                  <label for="observaciones">Observaciones</label>
+                  <textarea id="observaciones" rows="2"></textarea>
+                </div>
+              </div>
+            </div>
           </div>
 
-          <div class="peso-preview" id="peso-preview" data-facturable="">
-            Peso volumétrico: — | Peso facturable: —
-          </div>
-
-          <div class="cot-header">
-            <span>🧮 Cotizador automático</span>
-            <span id="cot-ups-wrap" style="display:none">
-              <label for="cot-ups-variante">Servicio:</label>
-              <select id="cot-ups-variante" style="width:auto;padding:4px 8px;font-size:12px">
-                <option value="UPS_EXP">Expedited</option>
-                <option value="UPS_SAV">Saver</option>
-              </select>
-            </span>
-            <label for="cot-profit">% Profit cliente:</label>
-            <input type="number" id="cot-profit" step="0.5" min="0" value="20">
-            <small style="color:#888;font-size:11px;">Se calcula al ingresar país y peso</small>
-          </div>
-          <div id="cot-panel" class="hidden">
-            <div id="cot-resultado"></div>
-          </div>
-
-          <!-- LAS COTIZACIONES DE ESTE CLIENTE (idea de Felipe, 25/08/2026). Van DEBAJO
-               del cotizador automático a pedido suyo (26/08): el automático se usa más, y
-               lo que más se usa va primero. La oficina ve el destino, el peso y las
-               medidas, reconoce cuál es este envío y se lleva el precio. El precio que
-               escribe es un SUGERIDO — se puede pisar. -->
-          <div class="cot-header" style="justify-content:space-between;margin-top:14px">
-            <span>📄 Cotizaciones de este cliente <small style="font-weight:400;color:#888">— últimos 30 días</small></span>
-            <button type="button" id="ctzr-refrescar" class="btn btn-secondary"
-                    style="padding:3px 10px;font-size:12px">Actualizar</button>
-          </div>
-          <div id="ctzr-panel" style="margin-bottom:14px"></div>
-
-          <div class="actions">
-            <button type="submit" class="btn btn-primary">Guardar envío</button>
-            <button type="button" class="btn btn-secondary" id="btn-cancelar-edit">Cancelar edición</button>
+          <!-- Paso 4 -->
+          <div class="gui-paso env-paso" data-paso="4">
+            <div class="gui-paso-cab">
+              <span class="gui-num">4</span>
+              <div><h3>Precio</h3><p>Lo que cotiza el sistema con la tarifa del cliente. Se puede pisar.</p></div>
+            </div>
+            <div class="gui-paso-cuerpo">
+              <div class="env-precio">
+                <div class="env-precio-calc">
+                  <div class="cot-header">
+                    <span>🧮 Cotizador automático</span>
+                    <label for="cot-profit">% Profit cliente:</label>
+                    <input type="number" id="cot-profit" step="0.5" min="0" value="20">
+                    <small style="color:#888;font-size:11px;">Se calcula al ingresar país y peso</small>
+                  </div>
+                  <div id="cot-panel" class="hidden">
+                    <div id="cot-resultado"></div>
+                  </div>
+                </div>
+                <div class="env-precio-final">
+                  <div class="form-group">
+                    <label for="total_cobrado">Total cobrado (USD) *</label>
+                    <input type="number" id="total_cobrado" step="0.01" min="0" required class="env-big">
+                    <small id="ctzr-sugerido" class="hidden" style="color:#8a6500;font-size:11px"></small>
+                  </div>
+                  <!-- LAS COTIZACIONES DE ESTE CLIENTE (idea de Felipe, 25/08/2026). La oficina
+                       ve el destino, el peso y las medidas, reconoce cuál es este envío y se
+                       lleva el precio. El precio que escribe es un SUGERIDO — se puede pisar. -->
+                  <div class="cot-header env-ctzr-cab">
+                    <span>📄 Cotizaciones de este cliente <small style="font-weight:400;color:#888">— 30 días</small></span>
+                    <button type="button" id="ctzr-refrescar" class="btn btn-secondary"
+                            style="padding:3px 10px;font-size:12px">Actualizar</button>
+                  </div>
+                  <div id="ctzr-panel"></div>
+                </div>
+              </div>
+            </div>
           </div>
         </form>
+
+        <!-- Resumen lateral + botón (lo llena envios.js: actualizarResumen) -->
+        <aside class="gui-lateral">
+          <div class="gui-resumen">
+            <h3>Resumen</h3>
+            <dl id="env-resumen">
+              <dt>Cliente</dt><dd data-r="cliente">—</dd>
+              <dt>Courier</dt><dd data-r="courier">—</dd>
+              <dt>Guía</dt><dd data-r="guia" class="env-mono">—</dd>
+              <dt>Destino</dt><dd data-r="destino">—</dd>
+              <dt>Bultos</dt><dd data-r="bultos">—</dd>
+              <dt>FOB</dt><dd data-r="fobr">—</dd>
+              <dt>Precio</dt><dd data-r="fob">—</dd>
+            </dl>
+            <div class="actions env-actions">
+              <button type="submit" form="form-envio" class="btn btn-emitir" id="btn-guardar-envio">Guardar envío</button>
+              <span class="gui-hint gui-estado-txt" id="env-estado">Va a Salidas con el próximo número</span>
+              <button type="button" class="btn btn-ghost btn-block" id="btn-cancelar-edit">Cancelar edición</button>
+            </div>
+            <p class="gui-resumen-pie">Si viene de una <b>precarga</b> de Guías, al guardar la guía deja de aparecer en "Guías para confirmar".</p>
+          </div>
+        </aside>
       </section>
 
       <section id="panel-listado" class="card hidden">
@@ -383,12 +463,12 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260911h"></script>
-<script src="../js/api.js?v=20260911h"></script>
-<script src="../js/main.js?v=20260911h"></script>
-<script src="/shared/cotizador/cotizador-core.js?v=20260911h"></script>
-<script src="/shared/guias/validar-guia.js?v=20260911h"></script>
-<script src="../js/cotizaciones-recientes.js?v=20260911h"></script>
-<script src="../js/modules/envios.js?v=20260911h"></script>
+<script src="/js/auth-guard.js?v=20260912b"></script>
+<script src="../js/api.js?v=20260912b"></script>
+<script src="../js/main.js?v=20260912b"></script>
+<script src="/shared/cotizador/cotizador-core.js?v=20260912b"></script>
+<script src="/shared/guias/validar-guia.js?v=20260912b"></script>
+<script src="../js/cotizaciones-recientes.js?v=20260912b"></script>
+<script src="../js/modules/envios.js?v=20260912b"></script>
 </body>
 </html>

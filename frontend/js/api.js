@@ -20,11 +20,14 @@ async function request(path, options = {}) {
   if (!res.ok) {
     let msg = `Error ${res.status}`;
     let errores = null;
+    let borradores = null;
     try {
       const data = await res.json();
       msg = data.error || msg;
       // Guías: la API devuelve la lista de lo que falta / lo que dijo UPS.
       if (Array.isArray(data.errores) && data.errores.length) errores = data.errores;
+      // Liquidaciones (pendiente 52): el 409 de crear trae los borradores que ya tienen esos envíos.
+      if (Array.isArray(data.borradores) && data.borradores.length) borradores = data.borradores;
     } catch {
       /* ignore */
     }
@@ -33,6 +36,7 @@ async function request(path, options = {}) {
     const err = new Error(msg);
     err.status = res.status;
     if (errores) err.errores = errores;
+    if (borradores) err.borradores = borradores;
     throw err;
   }
 

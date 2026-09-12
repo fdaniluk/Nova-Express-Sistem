@@ -42,6 +42,59 @@
       .addEventListener('click', pintarCotizacionesDelCliente);
     document.getElementById('btn-cancelar-edit').addEventListener('click', resetForm);
     document.getElementById('cantidad_bultos').addEventListener('change', renderBultos);
+    bindResumen();
+  }
+
+  // ── Resumen lateral (rediseño en pasos, 12/09/2026) ─────────────────────────
+  // Espeja lo cargado en la tarjeta de la derecha. Solo lectura: no decide nada.
+  function textoOpcion(sel) {
+    const el = document.getElementById(sel);
+    if (!el) return '';
+    const o = el.options && el.options[el.selectedIndex];
+    return o ? o.textContent.trim() : (el.value || '');
+  }
+  function actualizarResumen() {
+    const dl = document.getElementById('env-resumen');
+    if (!dl) return;
+    const set = (k, v) => { const dd = dl.querySelector(`[data-r="${k}"]`); if (dd) dd.textContent = v || '—'; };
+    const clienteId = document.getElementById('cliente_id').value;
+    set('cliente', clienteId ? textoOpcion('cliente_id') : '');
+    const courier = document.getElementById('courier').value;
+    const ups = document.getElementById('cot-ups-wrap').style.display !== 'none' ? textoOpcion('cot-ups-variante') : '';
+    set('courier', courier === 'UPS' ? `UPS ${ups}` : courier);
+    set('guia', document.getElementById('numero_guia').value.trim());
+    const pais = document.getElementById('pais_destino').value;
+    const zona = document.getElementById('zona').value;
+    set('destino', pais ? `${pais}${zona ? ' · zona ' + zona : ''}` : '');
+    const n = parseInt(document.getElementById('cantidad_bultos').value, 10) || 1;
+    const fact = document.getElementById('peso-preview').dataset.facturable;
+    set('bultos', `${n}${fact ? ' · ' + fact + ' kg facturables' : ''}`);
+    const fob = parseFloat(document.getElementById('fob').value) || 0;
+    set('fobr', `${fmt(fob)}${document.getElementById('asegurado').checked ? ' · asegurado' : ''}`);
+    const total = parseFloat(document.getElementById('total_cobrado').value);
+    set('fob', Number.isFinite(total) && total > 0 ? fmt(total) : '');
+  }
+  function bindResumen() {
+    const form = document.getElementById('form-envio');
+    if (!form) return;
+    form.addEventListener('input', actualizarResumen);
+    form.addEventListener('change', actualizarResumen);
+    // El peso facturable llega por API después del input: se refresca cuando cambia el preview.
+    const preview = document.getElementById('peso-preview');
+    if (preview && window.MutationObserver) {
+      new MutationObserver(actualizarResumen).observe(preview, { childList: true, characterData: true, subtree: true, attributes: true });
+    }
+    // "+ Agregar bulto": suma uno a la cantidad y dispara el mismo change de siempre.
+    const btnMas = document.getElementById('btn-agregar-bulto');
+    if (btnMas) {
+      btnMas.addEventListener('click', () => {
+        const inp = document.getElementById('cantidad_bultos');
+        inp.value = (parseInt(inp.value, 10) || 1) + 1;
+        inp.dispatchEvent(new Event('change'));
+        actualizarResumen();
+      });
+    }
+    actualizarResumen();
   }
 
   // ── Precargas del módulo Guías ─────────────────────────────────────────────
@@ -125,6 +178,7 @@
     aplicarBloqueoMultibulto();
     updatePesosYCotizacion();
     loadPrecargas();
+    actualizarResumen();
     document.getElementById('form-title').scrollIntoView({ block: 'start' });
   }
 
@@ -679,6 +733,7 @@
         const precio = parseFloat(document.getElementById('cot-precio-editable').value);
         if (!isNaN(precio) && precio > 0) {
           document.getElementById('total_cobrado').value = precio.toFixed(2);
+          actualizarResumen();
           panel.classList.add('cot-aplicado');
           document.getElementById('cot-estado').textContent = '✓ Precio aplicado al envío';
         }
@@ -799,6 +854,7 @@
     document.getElementById('ctzr-sugerido').classList.add('hidden');
     pintarCotizacionesDelCliente();
     updatePesos();
+    actualizarResumen();
   }
 
   async function editarEnvio(id) {
@@ -869,6 +925,7 @@
     // Tras cargar los pesos de cada bulto, sincronizar el peso balanza y el bloqueo.
     aplicarBloqueoMultibulto();
     updatePesosYCotizacion();
+    actualizarResumen();
   }
 
   function bindFilters() {
@@ -975,6 +1032,7 @@
         if (ctx && ctx.cotizacion) aplicarCotizacion(ctx.cotizacion, ctx.opcion);
         const campo = document.getElementById('total_cobrado');
         campo.value = Number(total).toFixed(2);
+        actualizarResumen();
         // El cotizador automatico pudo haber dejado su propio numero: se avisa cual quedo
         // puesto, para que nadie descubra despues que el precio salio de otro lado.
         const nota = document.getElementById('ctzr-sugerido');

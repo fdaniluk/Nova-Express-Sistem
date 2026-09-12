@@ -1,5 +1,12 @@
 # Pendientes
 
+**Actualizado 12/09/2026.** Hecho hoy sin Felipe: **pendiente 52** (aviso de borrador duplicado
+en Liquidaciones, tanda `test-borrador-duplicado` 34), **manual Word de Salidas** regenerado con el
+rediseño (`docs/manuales/manual-salidas.docx`) y **Cargar envío en 4 pasos** (estética ítem 1,
+maqueta aprobada e implementada el mismo día; tanda `test-pantalla-cargar-envio` 37). Chatbot de la oficina: plan en
+`IDEAS-COTIZACIONES-Y-BOT.md` §G. Pendiente de Felipe: confirmar push + deploy de `35538e0`
+cuando el dominio vuelva.
+
 **Actualizado 10/09/2026.** Felipe pasó la **lista de la oficina** → `LISTA-OFICINA-10-09.md`:
 (A) cotizaciones guardadas — volver a desplegarlas enteras para reenviar, no re-preguntar el
 servicio (los botones Guardar ya son por servicio), que al pincharla desde Cargar envío complete
@@ -47,12 +54,11 @@ punteado, estados como chips (ámbar pendiente / verde confirmado / gris anulado
 con cabecera gris y filas aireadas. Aplicar el mismo criterio al resto, uno por vez, cada
 uno con su tanda de pantalla verde antes de subir. Orden sugerido (los más usados primero):
 
-1. **Cargar envío** (`envios.html`): formulario largo sin separación de áreas → pasos
-   (cliente y courier · destino y bultos · valor y extras · precio) + el panel de precargas
-   ya está.
+1. ✅ **Cargar envío** (`envios.html`): **hecho el 12/09** en 4 pasos con resumen lateral
+   (maqueta aprobada por Felipe; tanda `test-pantalla-cargar-envio` 37). Ningún id cambió.
 2. **Salidas**: ✅ **Rediseño completo (Fases A, B y C, 09/09).** Queda: la "cuenta
    rápida" (seleccionar celdas y ver la suma al momento) cuando administración diga cómo
-   la quiere, y actualizar el manual Word de Salidas.
+   la quiere. ✅ Manual Word de Salidas actualizado el 12/09.
    Tipo y Dir se quedan (decisión de Felipe). Detalle: `SALIDAS-REDISENO.md`.
 3. **Cotizador** (`cotizador.html`): unificar con el look del sistema (hoy tiene su propio
    CSS), tarjetas de resultado, columna de oficina.
@@ -523,7 +529,7 @@ precio de venta** y el **envío #137**.
 | ~~29, 36-40, 42, 44-48~~ | cerrados 28/08-01/09 (topes, parser, sobreescribir, importador, residencial, Excel respaldo, filtro multibulto, semáforo automático, filtro semáforo + limpiar, doble vista, **A1/A5/A4/E6/E8**) | — |
 | **43** | **Punto "V6a" del listado impreso de Felipe** — los V7 (medidas) quedaron cerrados; falta que pase qué dice el V6a | de Felipe |
 | **49** | **¿Declarar 51 kg en los envíos de 41 a 50 kg?** A 50 kg todavía se paga GoGreen y a 51 no, así que **un envío de 51 kg sale MÁS BARATO que uno de 50**. Conviene desde ~41-47 kg según la zona; ahorro en un envío de 50 kg: **z1 39,99 · z2 51,46 · z3 22,15 · z4 89,68 · z5 107,58 · z6 103,94**. NO está implementado: declarar más peso del real es decisión comercial (`TARIFA-DHL-MAS-50.md`) | de Felipe |
-| **52** | **Avisar cuando se arma un borrador con envíos que ya están en OTRO borrador** (07/09). El 409 de confirmar solo frena los liquidados; hoy se puede crear un segundo borrador con los mismos envíos y el panel de salud lo marca como "envío en más de una liquidación". Pasó con Cueros Santa Cruz (#57 y #58) y GIANNASTACIO (#44 y #64); Felipe borró los viejos a mano. Propuesta: al calcular/crear, si algún envío ya está en un borrador, avisar con el número y la fecha de ese borrador (y ofrecer borrarlo) | 1 h |
+| ~~**52**~~ | ✅ **HECHO 12/09** (`test-borrador-duplicado`). ~~Avisar cuando se arma un borrador con envíos que ya están en OTRO borrador~~ (07/09). El 409 de confirmar solo frena los liquidados; hoy se puede crear un segundo borrador con los mismos envíos y el panel de salud lo marca como "envío en más de una liquidación". Pasó con Cueros Santa Cruz (#57 y #58) y GIANNASTACIO (#44 y #64); Felipe borró los viejos a mano. Propuesta: al calcular/crear, si algún envío ya está en un borrador, avisar con el número y la fecha de ese borrador (y ofrecer borrarlo) | 1 h |
 | **51** | **Tarifarios ya emitidos a clientes con destinos de zona 1 (Brasil/Chile/Uruguay) o zona 3 (EE.UU./México/Canadá) y pesos arriba de 50 kg quedaron desactualizados HACIA ARRIBA** desde la tarifa +50 (hasta **+12% a 300 kg en zona 1**): el cliente tiene impreso un precio más caro que el que hoy cotiza el sistema. Revisar `tarifario_emitidos` y decidir si se reemiten (02/09) | de Felipe |
 
 ## D. Decisiones de Felipe — no llevan código

@@ -91,3 +91,30 @@
 .crear-step {
   align-items: end;
 }
+
+/* Pendiente 52 (12/09/2026): envío que ya está en otro borrador. */
+.chip-borrador {
+  display: inline-block;
+  margin-left: 6px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 0.7rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.liq-aviso-borradores {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  border: 1px solid #f59e0b;
+  border-left-width: 5px;
+  border-radius: 8px;
+  background: #fffbeb;
+  color: #78350f;
+  font-size: 0.9rem;
+}
+.liq-aviso-borradores[hidden] { display: none; }
+.liq-aviso-borradores ul { margin: 6px 0 0; padding-left: 18px; }
+.liq-aviso-borradores li { margin: 4px 0; }
+.liq-aviso-borradores .btn { margin-left: 8px; }

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>MAQUETA · Cargar envío – Nova Express</title>
+  <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
+  <link rel="stylesheet" href="../css/main.css?v=20260912a">
+  <link rel="stylesheet" href="../css/modules/envios.css?v=20260912a">
+  <link rel="stylesheet" href="../css/modules/guias.css?v=20260912a">
+  <style>
+    .cot-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 16px 0 8px;
+      padding: 10px 14px;
+      background: #f0f4ff;
+      border-left: 4px solid #3b82f6;
+      border-radius: 6px;
+    }
+    .cot-header label { font-size: 13px; color: #555; font-weight: 500; }
+    .cot-header input[type="number"] { width: 80px; padding: 5px 8px; border: 1px solid #c7d2fe; border-radius: 5px; font-size: 13px; }
+    #cot-panel { background: #f8faff; border: 1px solid #c7d2fe; border-radius: 8px; padding: 14px 16px; margin-bottom: 12px; }
+    #cot-panel.hidden { display: none; }
+    #cot-panel.cot-aplicado { border-color: #86efac; background: #f0fdf4; }
+    .cot-desglose { display: grid; gap: 5px; margin-bottom: 12px; }
+    .cot-fila { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; border-bottom: 1px solid #e8edff; }
+    .cot-fila:last-child { border-bottom: none; }
+    .cot-fila span:first-child { color: #555; }
+    .cot-profit-row span { color: #2563eb; font-weight: 500; }
+    .cot-total-row { font-weight: 700; font-size: 14px; border-top: 2px solid #c7d2fe !important; padding-top: 6px !important; margin-top: 4px; }
+    .cot-utilidad-row { background: #f0fdf4; border-radius: 4px; padding: 5px 8px !important; margin-top: 4px; border-bottom: none !important; }
+    .cot-utilidad-row span { color: #16a34a; font-weight: 700; }
+    .cot-aplicar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-top: 10px; padding-top: 10px; border-top: 1px solid #c7d2fe; }
+    .cot-aplicar label { font-size: 12px; color: #666; }
+    .cot-aplicar input[type="number"] { width: 110px; padding: 6px 8px; border: 1px solid #c7d2fe; border-radius: 5px; font-size: 14px; font-weight: 600; }
+    .cot-estado { font-size: 12px; color: #16a34a; font-weight: 600; }
+    .cot-aviso { font-size: 13px; color: #b45309; margin: 0; }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+
+  <aside class="sidebar">
+    <a class="sidebar-brand" href="../index.html">
+      <span class="sidebar-logo"><img src="/assets/logos/isotipo.svg" alt="Nova Express"></span>
+      <div>
+        <div class="sidebar-title">Nova Express</div>
+        <div class="sidebar-subtitle">Courier DHL / UPS</div>
+      </div>
+    </a>
+    <nav class="sidebar-nav">
+      <a href="../index.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg></span>
+        <span>Dashboard</span>
+      </a>
+      <a href="clientes.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+        <span>Clientes</span>
+      </a>
+      <a href="envios.html" class="nav-item active">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg></span>
+        <span>Envíos</span>
+      </a>
+      <a href="guias.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="16" rx="2"/><line x1="7" y1="8" x2="7" y2="16"/><line x1="10" y1="8" x2="10" y2="16"/><line x1="13" y1="8" x2="13" y2="16"/><line x1="17" y1="8" x2="17" y2="16"/></svg></span>
+        <span>Guías</span>
+      </a>
+      <a href="salidas.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l2-1.14"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/><line x1="17" y1="18" x2="22" y2="18"/><polyline points="19 15 22 18 19 21"/></svg></span>
+        <span>Salidas</span>
+      </a>
+      <a href="liquidaciones.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
+        <span>Liquidaciones</span>
+      </a>
+      <a href="cobranzas.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+        <span>Cobranzas</span>
+      </a>
+      <a href="cotizador.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
+        <span>Cotizador</span>
+      </a>
+      <a href="pickups.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
+        <span>Pickups</span>
+      </a>
+      <a href="operaciones.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1" ry="1"/><path d="m9 12 2 2 4-4"/></svg></span>
+        <span>Operaciones</span>
+      </a>
+      <a href="facturas.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg></span>
+        <span>Facturas</span>
+      </a>
+      <a href="usuarios.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg></span>
+        <span>Usuarios</span>
+      </a>
+      <a href="configuracion.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
+        <span>Configuración</span>
+      </a>
+      <a href="salud.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></span>
+        <span>Salud</span>
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <button class="nav-item nav-logout" id="btn-logout">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg></span>
+        <span>Cerrar sesión</span>
+      </button>
+    </div>
+  </aside>
+
+  <div class="page-content">
+    <div class="page-header">
+      <h1>Cargar envío</h1>
+      <span class="maq-chip">MAQUETA · no funciona, es para mirar</span>
+    </div>
+
+    <div class="page-body">
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-tab="nuevo">Nuevo envío</button>
+        <button class="tab" data-tab="listado">Listado</button>
+        <button class="tab" data-tab="importar">Importar Excel</button>
+      </div>
+
+      <!-- Precargas: igual que hoy, arriba de todo -->
+      <div class="precargas maq-precargas">
+        <div class="precargas-head">
+          <b>Guías para confirmar</b> <span class="tab-badge">2</span>
+          <span class="precargas-hint">Emitidas desde Guías. Cargá cada una, revisá el precio y guardá.</span>
+        </div>
+        <div class="maq-precarga-row"><span class="badge-ups">UPS</span> <b>1Z327W096794727256</b> · Laboratorio Andes → Estados Unidos · 6 kg · 1 bulto <button type="button" class="btn btn-sm btn-primary">Cargar</button></div>
+        <div class="maq-precarga-row"><span class="badge-ups">UPS</span> <b>1Z327W096792517745</b> · Cueros del Sur → España · 18 kg · 3 bultos <button type="button" class="btn btn-sm btn-primary">Cargar</button></div>
+      </div>
+
+      <section class="gui-layout">
+        <div class="gui-pasos">
+
+          <div class="gui-paso">
+            <div class="gui-paso-cab">
+              <span class="gui-num">1</span>
+              <div><h3>Cliente y courier</h3><p>De quién es el envío, por dónde sale y con qué guía.</p></div>
+            </div>
+            <div class="gui-paso-cuerpo">
+              <div class="form-grid gui-grid-3">
+                <div class="form-group gui-col-2">
+                  <label>Cliente *</label>
+                  <div class="cliente-row"><select><option>Laboratorio Andes</option></select><button type="button" class="btn btn-sm btn-secondary">+</button></div>
+                </div>
+                <div class="form-group"><label>Fecha *</label><input type="date" value="2026-09-12"></div>
+                <div class="form-group">
+                  <label>Courier *</label>
+                  <div class="maq-seg"><button type="button" class="on">UPS</button><button type="button">DHL</button></div>
+                </div>
+                <div class="form-group">
+                  <label>Servicio UPS *</label>
+                  <div class="maq-seg"><button type="button" class="on">Expedited</button><button type="button">Saver</button></div>
+                </div>
+                <div class="form-group"><label>Nº de guía *</label><input type="text" value="1Z327W096794727256" class="mono"></div>
+                <div class="form-group">
+                  <label>Dirección</label>
+                  <div class="maq-seg"><button type="button" class="on">Exportación</button><button type="button">Importación</button></div>
+                </div>
+                <div class="form-group">
+                  <label>Tipo de paquete</label>
+                  <div class="maq-seg"><button type="button" class="on">Mercadería</button><button type="button">Documento</button></div>
+                </div>
+                <div class="form-group"><label>&nbsp;</label><label class="maq-check"><input type="checkbox"> Sin numerar (salida 0)</label></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="gui-paso">
+            <div class="gui-paso-cab">
+              <span class="gui-num">2</span>
+              <div><h3>Destino y bultos</h3><p>A dónde va y qué se manda. El peso facturable se calcula solo.</p></div>
+            </div>
+            <div class="gui-paso-cuerpo">
+              <div class="form-grid gui-grid-3">
+                <div class="form-group gui-col-2"><label>País destino *</label><select><option>Estados Unidos</option></select></div>
+                <div class="form-group"><label>Zona de entrega</label><select><option>Normal</option><option>Área extendida</option><option>Área remota</option></select></div>
+              </div>
+              <table class="gui-bultos maq-bultos">
+                <thead><tr><th>#</th><th>Peso balanza (kg)</th><th>Largo (cm)</th><th>Ancho (cm)</th><th>Alto (cm)</th><th>Volumétrico</th><th></th></tr></thead>
+                <tbody>
+                  <tr><td>1</td><td><input type="number" value="6"></td><td><input type="number" value="30"></td><td><input type="number" value="20"></td><td><input type="number" value="20"></td><td class="maq-muted">2.4 kg</td><td></td></tr>
+                  <tr><td>2</td><td><input type="number" value="4"></td><td><input type="number" value="40"></td><td><input type="number" value="30"></td><td><input type="number" value="20"></td><td class="maq-muted">4.8 kg</td><td><button type="button" class="gui-quitar" title="Quitar">✕</button></td></tr>
+                </tbody>
+              </table>
+              <div class="maq-bultos-pie">
+                <button type="button" class="btn btn-ghost">+ Agregar bulto</button>
+                <div class="maq-pesos"><span>Balanza <b>10.0 kg</b></span><span>Volumétrico <b>7.2 kg</b></span><span class="maq-fact">Facturable <b>10.0 kg</b></span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="gui-paso">
+            <div class="gui-paso-cab">
+              <span class="gui-num">3</span>
+              <div><h3>Valor y extras</h3><p>Lo declarado, el fuel y los servicios que cambian el precio.</p></div>
+            </div>
+            <div class="gui-paso-cuerpo">
+              <div class="form-grid gui-grid-3">
+                <div class="form-group"><label>FOB (USD)</label><input type="number" value="300"></div>
+                <div class="form-group">
+                  <label>Fuel</label>
+                  <div class="maq-fuel"><select><option>Fuel Nova</option><option>Fuel UPS</option><option>A mano</option></select><input type="number" value="28.5" readonly> <span class="maq-muted">%</span></div>
+                </div>
+                <div class="form-group gui-col-2" style="grid-column: span 3">
+                  <label>Extras</label>
+                  <div class="maq-chips">
+                    <label class="maq-check chip"><input type="checkbox" checked> Asegurado <small>FOB ≥ 100, se marca solo</small></label>
+                    <label class="maq-check chip"><input type="checkbox"> DDP <small>impuestos a cargo de Nova</small></label>
+                    <label class="maq-check chip maq-dhl"><input type="checkbox"> Protección doc. <small>solo DHL</small></label>
+                  </div>
+                </div>
+                <div class="form-group" style="grid-column: span 3"><label>Observaciones</label><textarea rows="2"></textarea></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="gui-paso">
+            <div class="gui-paso-cab">
+              <span class="gui-num">4</span>
+              <div><h3>Precio</h3><p>Lo que cotiza el sistema con la tarifa del cliente. Se puede pisar.</p></div>
+            </div>
+            <div class="gui-paso-cuerpo">
+              <div class="maq-precio">
+                <div class="maq-precio-calc">
+                  <div class="maq-precio-cab"><span>🧮 Cotizador automático</span><span class="maq-muted">Profit del cliente: <b>80 %</b> (matriz) · fuel Nova 28,5 %</span></div>
+                  <table class="maq-desglose">
+                    <tr><td>Flete UPS Expedited z3 · 10 kg</td><td>92.10</td></tr>
+                    <tr><td>Fuel 28,5 %</td><td>26.25</td></tr>
+                    <tr><td>Seguro 1,5 % del FOB</td><td>15.00</td></tr>
+                    <tr><td>Adicionales <small class="maq-muted">surge 3.30 · proces. internacional 2.50</small></td><td>5.80</td></tr>
+                    <tr class="maq-total"><td>Precio sugerido</td><td>USD 250.47</td></tr>
+                  </table>
+                  <div class="maq-interno">Solo para la oficina · costo UPS 139.15 · profit estimado 111.32 (80 %)</div>
+                </div>
+                <div class="maq-precio-final">
+                  <label>Total cobrado (USD) *</label>
+                  <input type="number" value="250.47" class="maq-big">
+                  <button type="button" class="btn btn-outline btn-block">↓ Usar el sugerido</button>
+                  <details class="maq-ctz" open><summary>📄 Cotizaciones de este cliente (2)</summary>
+                    <div class="maq-ctz-row"><b>CTZ-312</b> · aceptada 09/09 · Estados Unidos · 10 kg · <b>USD 248.00</b> <button type="button" class="btn btn-sm btn-secondary">Usar</button></div>
+                    <div class="maq-ctz-row"><b>CTZ-298</b> · emitida 02/09 · Brasil · 4 kg · USD 96.40</div>
+                  </details>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <aside class="gui-lateral">
+          <div class="gui-resumen">
+            <h3>Resumen</h3>
+            <dl>
+              <dt>Cliente</dt><dd>Laboratorio Andes</dd>
+              <dt>Courier</dt><dd>UPS Expedited</dd>
+              <dt>Guía</dt><dd class="mono">1Z327W0967…7256</dd>
+              <dt>Destino</dt><dd>Estados Unidos · zona 3</dd>
+              <dt>Bultos</dt><dd>2 · 10.0 kg facturables</dd>
+              <dt>FOB</dt><dd>US$ 300.00 · asegurado</dd>
+              <dt>Precio</dt><dd data-r="fob">US$ 250.47</dd>
+            </dl>
+            <button type="button" class="btn btn-emitir">Guardar envío</button>
+            <span class="gui-hint gui-estado-txt">Va a Salidas con el próximo número</span>
+            <button type="button" class="btn btn-ghost btn-block">Cancelar</button>
+            <p class="gui-resumen-pie">Si viene de una <b>precarga</b> de Guías, al guardar la guía deja de aparecer en "Guías para confirmar".</p>
+          </div>
+        </aside>
+      </section>
+    </div>
+  </div>
+  <style>
+    .maq-chip { margin-left: 12px; background: #fef3c7; color: #92400e; border: 1px solid #f5d67a; border-radius: 999px; padding: 3px 10px; font-size: 12px; font-weight: 700; }
+    .maq-precargas { margin-bottom: 1rem; }
+    .maq-precarga-row { display: flex; gap: 8px; align-items: center; padding: 6px 0; font-size: 0.9rem; border-top: 1px dashed var(--color-border); }
+    .maq-precarga-row .btn { margin-left: auto; }
+    .badge-ups { background: #fef3c7; color: #92400e; font-weight: 700; font-size: 11px; padding: 2px 8px; border-radius: 999px; }
+    .maq-seg { display: inline-flex; border: 1px solid var(--color-border); border-radius: 8px; overflow: hidden; }
+    .maq-seg button { border: 0; background: #fff; padding: 0.5rem 0.9rem; font: inherit; font-size: 0.9rem; cursor: pointer; color: var(--color-text); }
+    .maq-seg button + button { border-left: 1px solid var(--color-border); }
+    .maq-seg button.on { background: var(--color-primary); color: #fff; font-weight: 600; }
+    .maq-check { display: inline-flex; align-items: center; gap: 6px; font-size: 0.9rem; font-weight: 500; text-transform: none; letter-spacing: 0; }
+    .maq-check.chip { border: 1px solid var(--color-border); border-radius: 999px; padding: 6px 12px; background: #fff; }
+    .maq-check.chip small { color: var(--color-muted); font-weight: 400; }
+    .maq-check.chip.maq-dhl { opacity: 0.45; }
+    .maq-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+    .maq-fuel { display: flex; gap: 6px; align-items: center; }
+    .maq-fuel input { width: 80px; background: #f8fafc; }
+    .maq-bultos input { width: 100px; }
+    .maq-bultos td, .maq-bultos th { text-align: left; }
+    .maq-muted { color: var(--color-muted); }
+    .maq-bultos-pie { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    .maq-pesos { display: flex; gap: 18px; font-size: 0.85rem; color: var(--color-muted); }
+    .maq-pesos b { color: var(--color-text); }
+    .maq-pesos .maq-fact b { color: var(--color-primary); font-size: 1rem; }
+    .maq-precio { display: grid; grid-template-columns: minmax(0, 1fr) 280px; gap: 1.25rem; align-items: start; }
+    .maq-precio-calc { background: #f4f6fa; border: 1px solid #dfe5ee; border-radius: 10px; padding: 0.9rem 1rem; }
+    .maq-precio-cab { display: flex; justify-content: space-between; gap: 8px; font-weight: 600; margin-bottom: 0.5rem; font-size: 0.9rem; flex-wrap: wrap; }
+    .maq-desglose { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+    .maq-desglose td { padding: 4px 0; border-bottom: 1px dashed #dfe5ee; }
+    .maq-desglose td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+    .maq-desglose .maq-total td { font-weight: 700; color: var(--color-primary); font-size: 1rem; border-bottom: 0; padding-top: 8px; }
+    .maq-interno { margin-top: 8px; font-size: 0.75rem; color: #7c2d12; background: #fff7ed; border-left: 3px solid var(--color-accent); padding: 4px 8px; border-radius: 4px; }
+    .maq-precio-final { display: flex; flex-direction: column; gap: 8px; }
+    .maq-precio-final label { font-size: 0.8rem; font-weight: 600; color: var(--color-muted); text-transform: uppercase; letter-spacing: 0.3px; }
+    .maq-big { font-size: 1.6rem; font-weight: 700; color: var(--color-primary); text-align: right; padding: 0.6rem 0.8rem; }
+    .maq-ctz { font-size: 0.85rem; border: 1px solid var(--color-border); border-radius: 8px; padding: 6px 10px; }
+    .maq-ctz summary { cursor: pointer; font-weight: 600; }
+    .maq-ctz-row { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; padding: 6px 0; border-top: 1px dashed var(--color-border); }
+    .mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
+  </style>
+</body>
+</html>

@@ -112,7 +112,7 @@
               <tbody>
                 ${g.envios.map((e) => `<tr>
                   <td>${NovaUtils.formatDate(e.fecha)}</td>
-                  <td>${e.numero_guia}</td>
+                  <td>${e.numero_guia}${chipBorrador(e)}</td>
                   <td>${e.courier}</td>
                   <td>${e.pais_destino}</td>
                   <td>${NovaUtils.formatMoney(e.total_cobrado)}</td>
@@ -218,7 +218,7 @@
         <tr data-envio-id="${e.id}" ${sinPrecio ? 'style="background:#fffbeb" title="Sin precio de venta: si se liquidara, quedaría cobrado en CERO. Cargale el precio primero."' : ''}>
           <td><input type="checkbox" class="liq-envio-check" value="${e.id}" ${sinPrecio ? '' : 'checked'}></td>
           <td>${NovaUtils.formatDate(e.fecha)}</td>
-          <td>${e.numero_guia}${sinPrecio ? ' <span style="font-size:0.7rem;font-weight:700;color:#b45309">SIN PRECIO</span>' : ''}</td>
+          <td>${e.numero_guia}${sinPrecio ? ' <span style="font-size:0.7rem;font-weight:700;color:#b45309">SIN PRECIO</span>' : ''}${chipBorrador(e)}</td>
           <td>${e.courier}</td>
           <td>${NovaUtils.formatMoney(e.fob)}</td>
           <td>${NovaUtils.formatMoney(e.total_cobrado)}</td>
@@ -241,6 +241,57 @@
 
     } catch (err) {
       NovaUtils.showAlert(alertBox, err.message, 'error');
+    }
+  }
+
+  // Pendiente 52 (12/09): el envío que ya está en un borrador se marca en las dos listas.
+  function chipBorrador(e) {
+    if (!e.borrador_id) return '';
+    return ` <span class="chip-borrador" title="Este envío ya está en el borrador #${e.borrador_id}. Si armás otro con él, el sistema te va a avisar.">📝 en borrador #${e.borrador_id}</span>`;
+  }
+
+  // Pinta (o esconde) el aviso de la vista previa con los borradores que ya tienen envíos
+  // de la selección, con un botón para borrar cada uno.
+  function pintarAvisoBorradores(lista) {
+    let box = document.getElementById('liq-aviso-borradores');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'liq-aviso-borradores';
+      box.className = 'liq-aviso-borradores';
+      const prev = document.getElementById('liq-preview');
+      prev.insertBefore(box, prev.firstChild);
+    }
+    if (!lista || !lista.length) { box.hidden = true; box.innerHTML = ''; return; }
+    box.hidden = false;
+    box.innerHTML = `<strong>⚠ Ojo:</strong> ${lista.length === 1 ? 'hay un borrador anterior' : `hay ${lista.length} borradores anteriores`} con envíos de esta selección. Si seguís, el sistema te va a pedir borrarlo antes de crear uno nuevo.
+      <ul>${lista.map((b) => `<li>Borrador <strong>#${b.id}</strong> del ${NovaUtils.formatDate(b.fecha)} · ${b.guias.length} envío${b.guias.length === 1 ? '' : 's'} en común: ${b.guias.join(', ')}
+        <button type="button" class="btn btn-sm btn-secondary" data-borrar-previo="${b.id}">Borrar ese borrador</button></li>`).join('')}</ul>`;
+    box.querySelectorAll('[data-borrar-previo]').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = btn.dataset.borrarPrevio;
+        if (!confirm(`¿Borrar el borrador #${id}? Sus envíos siguen pendientes; no se pierde nada.`)) return;
+        try {
+          await NovaAPI.liquidaciones.eliminarBorrador(id);
+          NovaUtils.showAlert(alertBox, `Borrador #${id} borrado.`, 'success');
+          await calcularPreview();
+        } catch (err) {
+          NovaUtils.showAlert(alertBox, err.message, 'error');
+        }
+      });
+    });
+  }
+
+  // Crea la liquidación (borrador o confirmada). Si el servidor contesta 409 porque esos
+  // envíos ya están en otro borrador, pregunta y vuelve a intentar pidiendo reemplazarlo.
+  async function crearConAviso(datos) {
+    try {
+      return await NovaAPI.liquidaciones.crear(datos);
+    } catch (err) {
+      if (err.status !== 409 || !Array.isArray(err.borradores) || !err.borradores.length) throw err;
+      const detalle = err.borradores.map((b) => `• #${b.id} del ${NovaUtils.formatDate(b.fecha)}: ${b.guias.join(', ')}`).join('\n');
+      const ok = confirm(`Estos envíos ya están en otro borrador:\n${detalle}\n\n¿Borrar ${err.borradores.length === 1 ? 'ese borrador' : 'esos borradores'} y seguir con este? (Sus otros envíos siguen pendientes; no se pierde nada.)`);
+      if (!ok) throw new Error('No se creó la liquidación: los envíos siguen en el borrador anterior.');
+      return NovaAPI.liquidaciones.crear({ ...datos, reemplazar_borradores: err.borradores.map((b) => b.id) });
     }
   }
 
@@ -317,6 +368,7 @@
       document.getElementById('fuel-info').textContent =
         `Fuel aplicado: ${fuels.filter(Boolean).join(' · ')}`;
 
+      pintarAvisoBorradores(preview.en_borrador);
       document.getElementById('liq-preview').classList.remove('hidden');
       document.getElementById('btn-confirmar-liq').disabled = false;
       document.getElementById('btn-export-borrador').disabled = false;
@@ -339,7 +391,7 @@
         liq = await NovaAPI.liquidaciones.confirmar(lastLiquidacionId, getSelectedEnvios().envio_ids);
       } else {
         const { cliente_id, envio_ids, cargos, cotizaciones } = lastPreview;
-        liq = await NovaAPI.liquidaciones.crear({
+        liq = await crearConAviso({
           cliente_id,
           periodo_desde: document.getElementById('liq-desde').value,
           periodo_hasta: document.getElementById('liq-hasta').value,
@@ -380,7 +432,7 @@
       if (!lastPreview) return null;
     }
     const { cliente_id, envio_ids, cargos, cotizaciones } = lastPreview;
-    const liq = await NovaAPI.liquidaciones.crear({
+    const liq = await crearConAviso({
       cliente_id,
       periodo_desde: document.getElementById('liq-desde').value,
       periodo_hasta: document.getElementById('liq-hasta').value,

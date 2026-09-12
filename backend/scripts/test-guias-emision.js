@@ -543,7 +543,7 @@ async function main() {
     }));
     check('  "Cargar" llena el formulario con la guía', /Confirmar guía/.test(form.titulo) && form.guiaId && form.cliente === String(cli.id) && form.courier === 'UPS' && form.variante === 'UPS_SAV' && form.guia === numeroUI && form.pais === 'Alemania' && form.peso === '2.5' && form.fob === '150', JSON.stringify(form));
     await page.fill('#total_cobrado', '120');
-    await page.click('#form-envio button[type="submit"]');
+    await page.click('#btn-guardar-envio');
     await esperar(1500);
     check('  guardar confirma: aviso y el panel se vacía', await page.evaluate(() => /confirmada/i.test(document.getElementById('alert-box').textContent) && document.getElementById('precargas-panel').classList.contains('hidden')), await page.evaluate(() => document.getElementById('alert-box').textContent));
     envios = await j(await get('/api/envios'));

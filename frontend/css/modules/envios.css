@@ -74,3 +74,80 @@
 @media (max-width: 900px) {
   .precargas-row { grid-template-columns: 1fr 1fr; }
 }
+
+/* ── Cargar envío en 4 pasos (12/09/2026) ───────────────────────────────────────
+   Usa las tarjetas y el resumen lateral de guias.css (.gui-paso, .gui-num, .gui-lateral,
+   .gui-resumen, .btn-emitir, .btn-ghost). Acá va solo lo propio de esta pantalla. */
+.env-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 1.25rem;
+  align-items: start;
+}
+.env-layout.hidden { display: none; }
+.env-pasos { display: flex; flex-direction: column; gap: 1rem; min-width: 0; }
+.env-titulo { margin: 0 0 -0.25rem; font-size: 1.05rem; color: var(--color-primary); }
+.env-paso .form-grid { gap: 0.75rem 1rem; }
+.env-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.env-grid-4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.env-col-2 { grid-column: span 2; }
+.env-col-3 { grid-column: span 3; }
+.env-mono { font-family: ui-monospace, Menlo, Consolas, monospace; }
+.env-muted { color: var(--color-muted); }
+.env-check-group { justify-content: flex-end; }
+.env-check {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 0.9rem; font-weight: 500; text-transform: none; letter-spacing: 0;
+  cursor: pointer; color: var(--color-text);
+}
+.env-check input[type="checkbox"] { width: auto; margin: 0; }
+.env-check.chip { border: 1px solid var(--color-border); border-radius: 999px; padding: 6px 12px; background: #fff; }
+.env-check.chip:has(input:checked) { border-color: var(--color-primary); background: #eaf1f8; }
+.env-check.chip small { color: var(--color-muted); font-weight: 400; }
+.env-chips { display: flex; gap: 8px; flex-wrap: wrap; }
+.env-fuel { display: flex; gap: 6px; align-items: center; }
+.env-fuel select { flex: 1 1 140px; }
+.env-fuel input { width: 90px; background: #f8fafc; }
+
+/* Bultos */
+.env-bultos-cab { display: flex; align-items: center; gap: 0.75rem; flex-wrap: wrap; margin-top: 0.25rem; }
+.env-bultos-titulo { font-size: 0.8rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.3px; color: var(--color-muted); }
+.env-cant { display: inline-flex; align-items: center; gap: 6px; font-size: 0.85rem; color: var(--color-muted); }
+.env-cant input { width: 64px; padding: 0.35rem 0.5rem; }
+.env-bultos-cab .btn-ghost { margin-left: auto; }
+.env-paso .bultos-section { margin-top: 0.25rem; padding-top: 0.75rem; }
+.env-paso .bultos-section h3 { font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.3px; color: var(--color-muted); margin: 0 0 0.5rem; }
+.bulto-row-cab span { font-size: 0.72rem; font-weight: 700; text-transform: uppercase; color: var(--color-muted); padding-bottom: 0; }
+.env-paso .peso-preview {
+  margin-top: 0.25rem; padding: 0.6rem 0.9rem; border-radius: 8px;
+  background: #f4f6fa; border: 1px solid #dfe5ee; font-size: 0.9rem; color: var(--color-muted); font-weight: 500;
+}
+
+/* Precio */
+.env-precio { display: grid; grid-template-columns: minmax(0, 1fr) 300px; gap: 1.25rem; align-items: start; }
+.env-precio-calc .cot-header { margin-top: 0; }
+.env-precio-final .form-group { margin: 0 0 0.75rem; }
+.env-big { font-size: 1.5rem; font-weight: 700; color: var(--color-primary); text-align: right; padding: 0.55rem 0.8rem; }
+.env-ctzr-cab { margin: 0 0 8px; justify-content: space-between; }
+#ctzr-panel { font-size: 0.85rem; }
+
+/* Resumen lateral */
+.env-actions { display: flex; flex-direction: column; gap: 0.5rem; margin: 0; }
+.env-actions .btn-emitir { width: 100%; }
+#env-resumen dd[data-r="fob"] { font-size: 1rem; }
+
+@media (max-width: 1100px) {
+  .env-layout { grid-template-columns: 1fr; }
+  .gui-lateral { position: static; }
+  .env-precio { grid-template-columns: 1fr; }
+}
+@media (max-width: 760px) {
+  .env-grid, .env-grid-4 { grid-template-columns: 1fr 1fr; }
+  .env-col-2, .env-col-3 { grid-column: span 2; }
+}
+.env-paso .bulto-row { grid-template-columns: 64px repeat(4, minmax(0, 1fr)); }
+.env-paso .bulto-row input { min-width: 0; width: 100%; }
+.env-paso .bulto-row span { white-space: nowrap; }
+.env-precio-calc .cot-header { flex-wrap: wrap; row-gap: 6px; }
+.env-precio-calc .cot-header > span:first-child { flex: 1 1 100%; font-weight: 600; }
+.env-precio-calc .cot-header label { text-transform: none; letter-spacing: 0; font-size: 13px; margin: 0; }

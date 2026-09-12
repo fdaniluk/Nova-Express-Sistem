@@ -202,6 +202,32 @@ Seguridad: el QR lleva un token por cliente; **nunca** que el bot pida un dato a
 
 ---
 
+## G. Chatbot de la OFICINA sobre la base del sistema — DECIDIDO, NO EMPEZADO (12/09/2026)
+
+Idea de Felipe: un asistente que trabaje con la base del sistema para la oficina — *"que
+arme una cotización, que cargue un pick up, que consulte por alguna guía, cómo viene la
+venta del día"*. Distinto del punto F (ese es para clientes y cobranzas; este es interno).
+
+**Plan acordado con Felipe el 12/09:**
+
+1. **Un solo motor**, adentro del sistema: entiende el pedido (cotizar, pickup, guía,
+   venta del día) y llama a las mismas rutas de la API que usan las pantallas. Sin
+   duplicar lógica: si el cotizador cambia, el bot cambia solo.
+2. **Primero se prueba desde el sistema** con un panel de chat, con la sesión del usuario
+   logueado (permisos incluidos).
+3. **Después Telegram** como segundo canal del mismo motor — Felipe lo prefiere porque en
+   el sistema *"no tiene tan fácil acceso desde el celular"*. Bot por BotFather; cada
+   persona vincula su Telegram a su usuario del sistema con un código de una sola vez;
+   nadie sin vincular recibe respuesta.
+4. **Consultas primero** (guía, venta del día, cotizar: no tocan la base). Las **escrituras
+   (cargar pickup) piden confirmación explícita** antes de guardar, y queda quién lo pidió.
+5. WhatsApp queda para después: necesita la API oficial de Meta (número de empresa, costo
+   por conversación). Telegram es gratis y se arma en el día.
+
+Estimación: motor + panel en el sistema 2–3 días de trabajo; Telegram +1 día.
+
+---
+
 ## Orden acordado
 
 1. ~~Terminar bugs y pendientes~~ ✅ (auditoría cerrada el 18-20/08)
@@ -211,3 +237,4 @@ Seguridad: el QR lleva un token por cliente; **nunca** que el bot pida un dato a
 5. **El precio acordado en Salidas** (E, entrega 2)
 6. El link para clientes (A)
 7. Los pesos (D)
+8. El chatbot de la oficina (G) — cuando Felipe lo priorice

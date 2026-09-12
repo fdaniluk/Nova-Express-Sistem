@@ -137,6 +137,45 @@ async function calcularItem(envio, adicional = 0, cargosDetalle = []) {
   };
 }
 
+/**
+ * Pendiente 52 (12/09/2026): qué BORRADORES ya contienen alguno de estos envíos.
+ * Pasó con Cueros Santa Cruz (#57 y #58) y GIANNASTACIO (#44 y #64): un envío sin liquidar
+ * sigue apareciendo en Pendientes aunque ya esté en un borrador, así que la oficina armaba
+ * un segundo borrador con los mismos envíos sin enterarse. El 409 de confirmar solo frena
+ * lo ya liquidado; esto avisa ANTES, al armar.
+ * Devuelve [{ id, fecha, created_at, periodo_desde, periodo_hasta, envio_ids, guias }].
+ */
+async function borradoresConEnvios(envio_ids) {
+  if (!envio_ids || !envio_ids.length) return [];
+  const db = getDb();
+  const placeholders = envio_ids.map(() => '?').join(',');
+  const filas = await db
+    .prepare(
+      `SELECT l.id, l.fecha, l.created_at, l.periodo_desde, l.periodo_hasta,
+              li.envio_id, e.numero_guia
+       FROM liquidacion_items li
+       JOIN liquidaciones l ON l.id = li.liquidacion_id
+       JOIN envios e ON e.id = li.envio_id
+       WHERE l.estado = 'borrador' AND li.envio_id IN (${placeholders})
+       ORDER BY l.id, li.envio_id`
+    )
+    .all(...envio_ids);
+  const porBorrador = new Map();
+  for (const f of filas) {
+    if (!porBorrador.has(f.id)) {
+      porBorrador.set(f.id, {
+        id: f.id, fecha: f.fecha, created_at: f.created_at,
+        periodo_desde: f.periodo_desde, periodo_hasta: f.periodo_hasta,
+        envio_ids: [], guias: [],
+      });
+    }
+    const b = porBorrador.get(f.id);
+    b.envio_ids.push(f.envio_id);
+    b.guias.push(f.numero_guia);
+  }
+  return [...porBorrador.values()];
+}
+
 async function preview({ cliente_id, envio_ids, cargos = [], cotizaciones = [] }) {
   const db = getDb();
   const placeholders = envio_ids.map(() => '?').join(',');
@@ -170,11 +209,33 @@ async function preview({ cliente_id, envio_ids, cargos = [], cotizaciones = [] }
   );
   const total = redondear2(items.reduce((s, i) => s + i.total_usd, 0));
   const utilidadTotal = redondear2(items.reduce((s, i) => s + (i.utilidad_usd || 0), 0));
-  return { items, total, utilidad_total: utilidadTotal, cantidad: items.length };
+  // Pendiente 52: la vista previa avisa si alguno de estos envíos ya está en otro borrador.
+  const en_borrador = await borradoresConEnvios(envio_ids);
+  return { items, total, utilidad_total: utilidadTotal, cantidad: items.length, en_borrador };
 }
 
-async function crear({ cliente_id, periodo_desde, periodo_hasta, envio_ids, cargos = [], cotizaciones = [], confirmar = false }) {
+async function crear({
+  cliente_id, periodo_desde, periodo_hasta, envio_ids, cargos = [], cotizaciones = [], confirmar = false,
+  reemplazar_borradores = [], permitir_duplicado = false,
+}) {
   await migrarColumnas();
+  // Pendiente 52: si algún envío ya está en OTRO borrador, no se arma un segundo en
+  // silencio. La pantalla recibe 409 con la lista y ofrece borrar el viejo; vuelve con
+  // `reemplazar_borradores: [ids]` y acá se borran primero. `permitir_duplicado` deja
+  // crearlo igual (queda el chequeo del panel de salud para marcarlo).
+  const reemplazar = new Set((reemplazar_borradores || []).map(Number));
+  const previos = await borradoresConEnvios(envio_ids);
+  const bloquean = previos.filter((b) => !reemplazar.has(b.id));
+  if (bloquean.length && !permitir_duplicado) {
+    const lista = bloquean.map((b) => `#${b.id} (${b.fecha}, ${b.guias.length} envío${b.guias.length === 1 ? '' : 's'}: ${b.guias.join(', ')})`).join('; ');
+    const err = new Error(`Estos envíos ya están en otro borrador: ${lista}. Borrá ese borrador o sacalos de la selección.`);
+    err.status = 409;
+    err.borradores = bloquean;
+    throw err;
+  }
+  for (const b of previos) {
+    if (reemplazar.has(b.id)) await eliminarBorrador(b.id);
+  }
   const previewData = await preview({ cliente_id, envio_ids, cargos, cotizaciones });
   // ⚠️ Defecto 3 de AUDITORIA-NUMEROS.md: un envío sin precio entraba a la liquidación,
   // se confirmaba en CERO y quedaba liquidado para siempre — esa plata no se facturaba
@@ -464,6 +525,7 @@ async function eliminarBorrador(id) {
 module.exports = {
   migrarColumnas,
   eliminarBorrador,
+  borradoresConEnvios,
   preview,
   crear,
   confirmar,

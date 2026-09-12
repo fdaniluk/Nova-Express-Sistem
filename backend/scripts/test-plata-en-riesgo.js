@@ -104,12 +104,20 @@ async function main() {
   const b1 = await J('POST', '/api/liquidaciones', {
     cliente_id: cli.id, ...periodo, envio_ids: [e1.id, e2.id],
   });
-  const b2 = await J('POST', '/api/liquidaciones', {
+  // Pendiente 52 (12/09): un segundo borrador con los mismos envíos ya NO se crea en
+  // silencio: 409 con la lista. Con `permitir_duplicado` se crea igual (acá hace falta
+  // para probar que confirmar el segundo se rechaza).
+  const b2mal = await J('POST', '/api/liquidaciones', {
     cliente_id: cli.id, ...periodo, envio_ids: [e1.id, e2.id],
   });
-  check('dos borradores con los mismos envíos se pueden crear (como siempre)',
-    b1.status === 201 || b1.status === 200, `status ${b1.status}`);
-  check('el segundo también (el borrador no bloquea nada)',
+  const b2 = await J('POST', '/api/liquidaciones', {
+    cliente_id: cli.id, ...periodo, envio_ids: [e1.id, e2.id], permitir_duplicado: true,
+  });
+  check('el primer borrador se crea', b1.status === 201 || b1.status === 200, `status ${b1.status}`);
+  check('un segundo borrador con los mismos envíos se frena con 409 (pendiente 52)',
+    b2mal.status === 409 && (b2mal.body.borradores || []).some((b) => b.id === b1.body.id),
+    `status ${b2mal.status} ${JSON.stringify(b2mal.body).slice(0, 120)}`);
+  check('con permitir_duplicado se crea igual (para el chequeo del panel de salud)',
     b2.status === 201 || b2.status === 200, `status ${b2.status}`);
 
   const c1 = await J('PATCH', `/api/liquidaciones/${b1.body.id}/confirmar`);

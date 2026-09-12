@@ -308,7 +308,46 @@ Colores Nova `#403754`/`#EE6C52`.
 
 ---
 
-## 3. Dónde estamos (10-09-2026)
+## 3. Dónde estamos (12-09-2026)
+
+- **12/09 — TRES COSAS HECHAS SIN FELIPE (él revisaba el dominio):** (1) **pendiente 52 —
+  borradores duplicados en Liquidaciones**: Pendientes y la tabla de Crear marcan con un chip
+  "📝 en borrador #N" el envío que ya está en un borrador (`borrador_id` en
+  `listarPendientesPorCliente`); la vista previa devuelve `en_borrador` y muestra un aviso
+  amarillo con botón "Borrar ese borrador"; `POST /liquidaciones` contesta **409** con
+  `borradores` si algún envío ya está en otro borrador, acepta `reemplazar_borradores: [ids]`
+  (borra los viejos y crea) y `permitir_duplicado` (crea igual, para el chequeo del panel de
+  salud); la pantalla pregunta y, si aceptan, reemplaza. Tanda nueva
+  **`test-borrador-duplicado`** (34, puerto 3934, en `test-pantallas`); `test-plata-en-riesgo`
+  ajustada (el segundo borrador ahora es 409 salvo `permitir_duplicado`). Cache
+  **`?v=20260912a`**. (2) **Manual Word de Salidas v12/09** (`docs/manuales/manual-salidas.docx`,
+  7 páginas, capturas del rediseño con globitos): generado con `scripts/_capturas-salidas.js`
+  (capturas anotadas, base propia, puerto 3977) + `scripts/_manual-salidas-docx.js` (docx-js;
+  vive en el repo para que no se pierda con el contenedor). (3) **Maqueta de Cargar envío en
+  4 pasos** (`docs/maquetas/maqueta-cargar-envio.html` + `.png`): cliente y courier · destino
+  y bultos (tabla de bultos con "+ Agregar bulto" y pesos al pie) · valor y extras (chips) ·
+  precio (desglose + total cobrado + cotizaciones del cliente), con resumen lateral y botón
+  coral, mismo criterio que Guías. **Esperando el OK de Felipe; nada de envios.html cambió.**
+- **12/09 — CARGAR ENVÍO EN 4 PASOS (estética ítem 1, hecho con el OK de Felipe sobre la
+  maqueta).** `envios.html` reorganizado con las tarjetas y el resumen lateral de `guias.css`
+  (`.env-layout`, `.env-paso`, estilos propios en `envios.css`): 1 Cliente y courier (el
+  selector de servicio UPS `cot-ups-variante` pasó de la cabecera del cotizador al lado del
+  courier, mismo id y mismo wrap) · 2 Destino y bultos (cantidad + botón **"+ Agregar bulto"**
+  `#btn-agregar-bulto` que suma uno y dispara el `change` de siempre; filas de bulto con
+  cabecera de columnas; peso facturable al pie) · 3 Valor y extras (asegurado / DDP /
+  protección doc. como chips) · 4 Precio (cotizador automático a la izquierda, total cobrado
+  grande + cotizaciones del cliente a la derecha). Resumen lateral `#env-resumen` que llena
+  `actualizarResumen()` (cliente, courier, guía, destino, bultos, FOB, precio) y el botón
+  **`#btn-guardar-envio`** (`form="form-envio"`, fuera del form) con "Cancelar edición" abajo.
+  **NINGÚN id cambió**; `test-guias-emision` solo cambió el selector del submit. Tanda nueva
+  **`test-pantalla-cargar-envio`** (37, puerto 3947, en `test-pantallas`); las 18 tandas que
+  tocan la pantalla siguen verdes. Cache **`?v=20260912b`**. Maqueta en `docs/maquetas/`.
+- **12/09 — CHATBOT DE LA OFICINA, plan acordado** (`IDEAS-COTIZACIONES-Y-BOT.md` §G): motor
+  único adentro del sistema, panel de chat para probar, después Telegram como segundo canal;
+  consultas primero, escrituras con confirmación. No empezado.
+- **12/09 — DOMINIO CAÍDO (no era el servidor):** `novaexpress.com.ar` daba NXDOMAIN en NIC.ar;
+  Felipe lo reactivó y lo revisa él. Mientras, el sistema responde por la IP del VPS. Queda por
+  confirmar que `35538e0` (Shipper = remitente) esté pusheado y desplegado.
 
 - **10/09 — LOGO OFICIAL.** Felipe eligió el logo vectorizado a limpio con **azul #2A3661 y
   naranja #EA6749** ("desde ahora tomá ese como el logo oficial de Nova Express"). Está en
