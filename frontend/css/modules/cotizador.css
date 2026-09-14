@@ -250,3 +250,32 @@
 .btn-viaja.ocupado{opacity:.55;pointer-events:none}
 .bv-estado{font-size:.7rem;color:var(--color-muted);text-align:center;min-height:0}
 .bv-estado.err{color:var(--color-danger)}
+
+/* ── Teléfono (≤ 640 px) ─────────────────────────────────────────────────────────── */
+/* Felipe, 14/09, apenas desplegado: "en pc quedó muy bien, en teléfono quedó con cosas
+   superpuestas". Reproducido a 390 px: la fila de bulto de siete columnas apretaba los
+   rótulos uno encima de otro y dejaba el peso sin lugar; los pasos de tres campos cortaban
+   los desplegables; y en la tarjeta de resultado la línea de medidas se apilaba palabra por
+   palabra al costado del precio, que le quedaba encima. Acá todo pasa a UNA columna. */
+@media(max-width:640px){
+  .cot-grid2,.cot-grid3{grid-template-columns:1fr}
+  .cot-paso-cab{padding:.7rem .9rem}
+  .cot-paso-cuerpo{padding:.8rem .9rem 1rem}
+  /* Bultos: número arriba, los cuatro campos en dos filas de dos, los botones abajo. */
+  .bulto-row{grid-template-columns:1fr 1fr;grid-template-rows:none;padding:.6rem .7rem}
+  .bulto-num{grid-column:1/-1;padding-bottom:0}
+  .btn-dup,.btn-remove{justify-self:start;width:100%}
+  .bultos-pie{flex-direction:column;align-items:stretch}
+  .dup-grupo{min-width:0}
+  .dup-grupo .btn-dup-n{min-width:0}
+  /* La tarjeta de resultado: el precio va DEBAJO de la línea de medidas, nunca al lado. */
+  .result-header{flex-direction:column;align-items:stretch;gap:.5rem;padding:.75rem .9rem}
+  .result-header>div:last-child{justify-content:space-between;width:100%}
+  .result-total{font-size:1.35rem}
+  .result-body{padding:.7rem .9rem}
+  .brow{gap:.75rem}
+  .brow .bl{min-width:0}
+  .brow .br{white-space:nowrap}
+  .panel-compra{padding:.6rem .7rem}
+  .cot-resumen{padding:.9rem}
+}

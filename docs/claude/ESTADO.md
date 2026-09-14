@@ -325,6 +325,8 @@ Colores Nova `#403754`/`#EE6C52`.
 
 ## 3. Dónde estamos (14-09-2026)
 
+- **Último commit desplegado: `28a46f9`** (14/09, cotizador con la estética del sistema). **Después, el arreglo de TELÉFONO** (media query ≤ 640 px en `cotizador.css`, tanda 40, cache **`?v=20260914b`**) — entregado, pendiente de commit/push/deploy de Felipe. **77 tandas en el verificar** (la nueva `test-pantalla-cotizador`).
+
 - **14/09 — EL COTIZADOR CON LA ESTÉTICA DEL SISTEMA (ítem 3 de la lista de estética).**
   Maqueta mostrada y aprobada por Felipe antes de tocar nada. `cotizador.html` reorganizado en
   **cuatro pasos** con **resumen lateral fijo** (`#cot-resumen`: destino, operación, bultos,
@@ -335,7 +337,7 @@ Colores Nova `#403754`/`#EE6C52`.
   beige y el violeta viejo. **NINGÚN id cambió.** Tanda nueva **`test-pantalla-cotizador`**
   (34, puerto 3931, en `test-pantallas`); las 16 tandas que tocan el cotizador, verdes en el
   contenedor. Cache **`?v=20260914a`** (las 18 páginas + el v8 de `shared/`). Detalle en
-  `PENDIENTES.md`, "LO DEL 14/09". **Falta: `verificar` completo de Felipe, push y deploy.**
+  `PENDIENTES.md`, "LO DEL 14/09". **Verificar completo de Felipe: 76 tandas verdes. Commit `28a46f9`, PUSHEADO Y DESPLEGADO el 14/09 (`DESPLEGADO Y SANO · c14e980 → 28a46f9`).** El rojo que apareció en `test-motor-unico` venía del 12/09 (la maqueta de Cargar envío con un "3.30" de ejemplo): `maquetas` ahora se saltea. **`35538e0` (Shipper = remitente) confirmado pusheado y desplegado** — cierra el pendiente del viernes.
 - ⚠️ **14/09 — SE CAYÓ LA SHELL SOBRE LA CARPETA DE FELIPE.** Una actualización de Windows del
   08/09 rompe el montaje: `device_bash` contesta "no Plan9 drive shares mounted" y **no hay
   forma de correr nada en su máquina** (ni tar, ni git, ni tests). Leer y escribir archivos

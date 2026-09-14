@@ -230,7 +230,40 @@ async function main() {
     /solo para la oficina/i.test(tira) && /75/.test(tira), tira.slice(0, 140));
 
   // ── 6 ────────────────────────────────────────────────────────────────────────
-  console.log('\n6. Sin errores de JavaScript\n');
+  console.log('\n6. En el teléfono nada se pisa (Felipe, 14/09: "quedó con cosas superpuestas")\n');
+  /* Reproducido a 390 px el mismo día del deploy: la fila de bulto apretaba los rótulos uno
+     encima de otro y el precio de la tarjeta quedaba encima de la línea de medidas. Se mide
+     con las cajas reales de los elementos, no con la clase del CSS. */
+  await page.setViewportSize({ width: 390, height: 844 });
+  await esperar(500);
+  const tel = await page.evaluate(() => {
+    const r = (el) => el.getBoundingClientRect();
+    const meta = document.querySelector('.result-card .result-meta');
+    const total = document.querySelector('.result-card .result-total');
+    const peso = document.querySelector('.bulto-row .b-peso');
+    const largo = document.querySelector('.bulto-row .b-largo');
+    const labels = [...document.querySelector('.bulto-row').querySelectorAll('.cot-field label')].map(r);
+    const seVe = (b) => b.width > 1 && b.height > 1;
+    return {
+      totalDebajoDeMeta: r(total).top >= r(meta).bottom - 1,
+      pesoAncho: r(peso).width,
+      rotulosVisibles: labels.filter(seVe).length,
+      rotulosSeSolapan: labels.some((a, i) => labels.some((b, j) => i < j && seVe(a) && seVe(b)
+        && a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom)),
+      largoDebajoOAlLado: r(largo).left >= r(peso).right - 1 || r(largo).top >= r(peso).bottom - 1,
+      scrollHorizontal: document.scrollingElement.scrollWidth - window.innerWidth,
+    };
+  });
+  check('el precio de la tarjeta queda DEBAJO de la línea de medidas, no encima', tel.totalDebajoDeMeta);
+  check('el campo de peso del bulto tiene lugar para escribir (> 90 px)', tel.pesoAncho > 90, String(tel.pesoAncho));
+  check('los rótulos de la fila de bulto se ven (en el teléfono no hay cabecera)', tel.rotulosVisibles === 4, String(tel.rotulosVisibles));
+  check('   y no se pisan entre sí', !tel.rotulosSeSolapan);
+  check('   (largo va al lado o debajo del peso, nunca encima)', tel.largoDebajoOAlLado);
+  check('la página no se desborda a los costados', tel.scrollHorizontal <= 0, String(tel.scrollHorizontal));
+  await page.setViewportSize({ width: 1500, height: 950 });
+
+  // ── 7 ────────────────────────────────────────────────────────────────────────
+  console.log('\n7. Sin errores de JavaScript\n');
   const rel = errores.filter((x) => !/favicon|Failed to load resource/i.test(x));
   check('ningún error en la pantalla', rel.length === 0, rel.slice(0, 2).join(' | '));
 

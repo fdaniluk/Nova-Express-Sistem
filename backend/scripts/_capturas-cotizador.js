@@ -85,7 +85,7 @@ const SALIDA = path.join(__dirname, '..', '_capturas');
   await page.screenshot({ path: path.join(SALIDA, 'cotizador-2-resultado.png'), fullPage: true });
 
   // Como lo ve alguien con la pantalla angosta (la notebook de la oficina)
-  await page.setViewportSize({ width: 900, height: 1000 });
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(500);
   await page.screenshot({ path: path.join(SALIDA, 'cotizador-3-angosto.png'), fullPage: true });
 

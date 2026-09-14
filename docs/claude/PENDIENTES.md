@@ -6,8 +6,8 @@ extras como chips, tabla de bultos con cabecera de columnas, y el CSS propio que
 de `cotizador.html` (tipografía DM Sans traída de Google, fondo beige, violeta viejo) mudado a
 **`frontend/css/modules/cotizador.css`** con los tokens de `main.css`. **Ningún id cambió**: el
 JS de la pantalla es el mismo. Tanda nueva **`test-pantalla-cotizador`** (34, puerto 3931, en
-`test-pantallas`) + las 13 tandas del cotizador verdes. Cache **`?v=20260914a`**.
-Maqueta aprobada por Felipe antes de tocar nada. Detalle abajo, "LO DEL 14/09".
+`test-pantallas`) + las 13 tandas del cotizador verdes. Cache **`?v=20260914b`** (la `a` fue el deploy de la mañana; la `b`, el arreglo de teléfono).
+Maqueta aprobada por Felipe antes de tocar nada. **Commit `28a46f9`, pusheado y DESPLEGADO el 14/09 (`DESPLEGADO Y SANO · c14e980 → 28a46f9`).** Verificar completo corrido por Felipe: 76 tandas verdes (después del arreglo de `test-motor-unico`). Detalle abajo, "LO DEL 14/09".
 
 ⚠️ **EL PUENTE A LA CARPETA DE FELIPE CAMBIÓ (14/09):** `device_bash` dejó de andar (una
 actualización de Windows del 08/09 rompe el montaje de las carpetas). **Se sigue pudiendo leer
@@ -127,7 +127,16 @@ regla que en Salidas y Cargar envío): Felipe la aprobó y recién ahí se tocó
 puerto 3931, en `test-pantallas`) · cotizaciones 38 · cotización guardada 37 · recientes 31 ·
 fuel 28 · tarifa 50 **39** · impuestos impo 12 · protección doc 18 · seguro cliente 16 · topes
 15 · tarifa kg 50 · bultos duplicar 13 · cartel peso 9 · motor único 28 · cotización cliente 55
-· link público 20. **Falta que Felipe corra el `verificar` completo antes del deploy.**
+· link público 20. **Verificar completo corrido por Felipe el 14/09: 76 tandas, todo verde** (tras sumar `maquetas` a las carpetas salteadas de `test-motor-unico`). **Pusheado y desplegado: `28a46f9`.**
+
+**TELÉFONO (14/09, después del deploy).** Felipe: *"en pc quedó muy bien, en teléfono quedó con
+cosas superpuestas"*. Reproducido a 390 px: la fila de bulto de siete columnas pisaba los
+rótulos y dejaba el peso sin lugar; los pasos de tres campos cortaban los desplegables; y en
+la tarjeta la línea de medidas se apilaba palabra por palabra al lado del precio, que le
+quedaba encima. Media query **≤ 640 px** al final de `cotizador.css`: todo a una columna,
+bulto en dos filas de dos con los botones abajo, precio DEBAJO de la línea de medidas. La
+tanda mide las cajas reales (precio debajo de la meta, peso > 90 px, rótulos sin solaparse,
+sin scroll horizontal): `test-pantalla-cotizador` **34 → 40**. Cache **`?v=20260914b`**.
 
 **EL ROJO DEL `verificar` DEL 14/09 — `test-motor-unico`, y NO era del cotizador.** El control
 "ningún valor de tarifa aparece fuera de cotizador-core.js" venía fallando **desde el 12/09**:
