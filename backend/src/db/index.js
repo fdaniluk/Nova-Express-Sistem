@@ -923,6 +923,36 @@ async function migrateCotizaciones() {
 /* Links de cotización para clientes (punto A del doc de ideas). Primera puerta sin
    contraseña del sistema: el detalle de las reglas de seguridad está en schema.sql.
    Tabla nueva, vacía al migrar: no toca nada existente. */
+/* El asistente de la oficina (14/09/2026): las conversaciones y sus mensajes, en el formato
+   de bloques de la API (texto / tool_use / tool_result), para retomarlas y para que
+   Telegram, cuando llegue, use el mismo historial. `accion_pendiente` es la carga que el
+   asistente propuso y todavía nadie confirmó (hoy: un pickup). */
+async function migrateBot() {
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS bot_conversaciones (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      usuario_id       INTEGER REFERENCES usuarios(id),
+      usuario          TEXT,
+      canal            TEXT NOT NULL DEFAULT 'panel',
+      titulo           TEXT,
+      accion_pendiente TEXT,
+      creado_en        TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      actualizado_en   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    )
+  `);
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS bot_mensajes (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      conversacion_id  INTEGER NOT NULL REFERENCES bot_conversaciones(id) ON DELETE CASCADE,
+      rol              TEXT NOT NULL,
+      contenido        TEXT NOT NULL,
+      creado_en        TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    )
+  `);
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_bot_mensajes_conv ON bot_mensajes(conversacion_id, id)');
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_bot_conversaciones_usuario ON bot_conversaciones(usuario_id, actualizado_en)');
+}
+
 async function migrateCotizadorLinks() {
   await dbApi.exec(`
     CREATE TABLE IF NOT EXISTS cotizador_links (
@@ -973,6 +1003,7 @@ async function initSchema() {
   await migrateTarifario();
   await migrateCotizaciones();
   await migrateCotizadorLinks();
+  await migrateBot();
   await migrateIndices();
   await seedIfEmpty();
 }

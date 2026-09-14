@@ -202,7 +202,7 @@ Seguridad: el QR lleva un token por cliente; **nunca** que el bot pida un dato a
 
 ---
 
-## G. Chatbot de la OFICINA sobre la base del sistema — DECIDIDO, NO EMPEZADO (12/09/2026)
+## G. Chatbot de la OFICINA sobre la base del sistema — 🟡 ENTREGA 1 CONSTRUIDA (14/09/2026)
 
 Idea de Felipe: un asistente que trabaje con la base del sistema para la oficina — *"que
 arme una cotización, que cargue un pick up, que consulte por alguna guía, cómo viene la
@@ -226,6 +226,59 @@ venta del día"*. Distinto del punto F (ese es para clientes y cobranzas; este e
 
 Estimación: motor + panel en el sistema 2–3 días de trabajo; Telegram +1 día.
 
+### ✅ ENTREGA 1 — construida el 14/09 (pendiente de clave, tests de Felipe, push y deploy)
+
+**Decisiones de Felipe (14/09):** el motor entiende lenguaje natural **con IA (Claude, por la
+API de Anthropic)** — no comandos fijos; entran las cuatro consultas (guía, venta, cotizar,
+pendientes) **y también la carga de pickup**, con confirmación.
+
+**Lo construido:**
+- **`backend/src/services/bot.service.js`** — el motor. Recibe el mensaje, lo manda al
+  modelo con las HERRAMIENTAS, y cada herramienta llama a **las mismas rutas de la API que
+  usan las pantallas, con la cookie de la persona** (`/api/envios?q=`,
+  `/api/dashboard/analitica`, `/api/liquidaciones/cotizar`, `/api/pickups`,
+  `/api/salud/resumen`, `/api/liquidaciones/pendientes`, `/api/clientes`). Sin lógica
+  duplicada y con los permisos de siempre (un empleado sin `ver_dashboard` no saca la venta
+  ni por el chat — hay test).
+- **Herramientas:** `buscar_envios` · `venta_periodo` · `buscar_clientes` · `cotizar` ·
+  `pendientes` · `proponer_pickup` · `confirmar_pickup` · `cancelar_pendiente`.
+- **Escrituras en DOS pasos:** `proponer_pickup` valida y deja la ACCIÓN PENDIENTE en la
+  conversación (no graba); `confirmar_pickup` graba solo si hay pendiente y la persona
+  dijo que sí; "no" la descarta. En las notas del pickup queda *"Cargado por el asistente a
+  pedido de <usuario>"* (la tabla `pickups` no tiene columna de usuario).
+- **Cotizar no filtra el margen:** la ruta interna devuelve `precioBase`, `profitMonto`,
+  `utilidad`, `precio_kg`…; lo que ve el modelo pasa por **lista blanca** (precio final,
+  zona, surge, manejo, extras). El asistente no puede repetir el margen ni queriendo — hay
+  test que lee el `tool_result` guardado.
+- **Sin clave, sin asistente:** `ANTHROPIC_API_KEY` en el `.env` de la RAÍZ del repo (el
+  mismo de las UPS_*). Sin clave, `/api/bot/estado` dice `sin_clave` y el panel avisa.
+  `BOT_MODELO` opcional (por defecto `claude-sonnet-4-5`). Llama a la API con `fetch`
+  nativo: **sin dependencia nueva** en `package.json`.
+- **`BOT_MOCK=1`:** un motor de mentira, determinista, que reconoce el pedido por patrones y
+  usa LAS MISMAS herramientas. Es para las tandas: prueban el circuito entero sin clave,
+  sin red y sin gastar. NO prueba cuán bien entiende el modelo de verdad.
+- **Persistencia:** tablas `bot_conversaciones` (usuario, canal, `accion_pendiente`) y
+  `bot_mensajes` (bloques en el formato de la API: texto / tool_use / tool_result).
+  Migración `migrateBot` + `schema.sql` (los dos lados; check-schema verde con base de
+  cero). Cada uno ve SUS conversaciones; el admin ve todas.
+- **Rutas:** `GET /api/bot/estado` · `POST /api/bot/mensaje {texto, conversacion_id?}` ·
+  `GET /api/bot/conversaciones` · `GET /api/bot/conversaciones/:id`. Detrás de
+  `requireAuth`, como todo.
+- **Panel:** `pages/asistente.html` + `js/modules/asistente.js` + `css/modules/asistente.css`
+  — lista de conversaciones a la izquierda, chat a la derecha, cartel ámbar mientras hay
+  una carga pendiente de confirmar, sugerencias para arrancar, Enter envía. Ítem
+  **"Asistente"** en el menú de las 17 pantallas (después de Cotizador). En el teléfono la
+  lista se esconde y el chat ocupa todo.
+- **Tandas:** `test-bot` (**44**, puerto 3930, en `test`) y `test-pantalla-asistente`
+  (**26**, puerto 3929, en `test-pantallas`); atajo `npm run test-bot`.
+
+**Lo que falta para usarlo en serio:** (1) Felipe saca una clave en console.anthropic.com y
+la pone en el `.env` del servidor (`ANTHROPIC_API_KEY=sk-ant-…`) + `pm2 restart nova
+--update-env`; (2) probarlo a mano con pedidos reales de la oficina y ajustar el system
+prompt / las descripciones de las herramientas con lo que no entienda; (3) Telegram
+(etapa 2): mismo motor, `canal='telegram'` ya previsto en la conversación; (4) más
+escrituras solo cuando Felipe las pida, siempre en dos pasos.
+
 ---
 
 ## Orden acordado
@@ -237,4 +290,4 @@ Estimación: motor + panel en el sistema 2–3 días de trabajo; Telegram +1 dí
 5. **El precio acordado en Salidas** (E, entrega 2)
 6. El link para clientes (A)
 7. Los pesos (D)
-8. El chatbot de la oficina (G) — cuando Felipe lo priorice
+8. **El chatbot de la oficina (G) — ENTREGA 1 construida el 14/09** (Felipe lo priorizó por delante de la estética de Liquidaciones)

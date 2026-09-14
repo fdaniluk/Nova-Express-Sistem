@@ -360,4 +360,12 @@ api.cotizadorLinks = {
   darDeBaja: (id) => api.post(`/cotizador-links/${id}/baja`),
 };
 
+// El asistente de la oficina (14/09/2026). Misma sesion, mismas reglas.
+api.bot = {
+  estado: () => api.get('/bot/estado'),
+  mensaje: (texto, conversacion_id) => api.post('/bot/mensaje', { texto, conversacion_id: conversacion_id || null }),
+  conversaciones: () => api.get('/bot/conversaciones'),
+  conversacion: (id) => api.get(`/bot/conversaciones/${id}`),
+};
+
 window.NovaAPI = api;

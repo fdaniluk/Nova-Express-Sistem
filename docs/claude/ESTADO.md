@@ -325,7 +325,18 @@ Colores Nova `#403754`/`#EE6C52`.
 
 ## 3. Dónde estamos (14-09-2026)
 
-- **Último commit desplegado: `28a46f9`** (14/09, cotizador con la estética del sistema). **Después, el arreglo de TELÉFONO** (media query ≤ 640 px en `cotizador.css`, tanda 40, cache **`?v=20260914b`**) — entregado, pendiente de commit/push/deploy de Felipe. **77 tandas en el verificar** (la nueva `test-pantalla-cotizador`).
+- **14/09 (tarde) — EL ASISTENTE DE LA OFICINA, ENTREGA 1 (entregado, pendiente de tandas
+  de Felipe / commit / push / deploy + la clave).** Felipe pospuso Liquidaciones y arrancó el
+  bot: **con IA (Claude API)**, consultas (guía, venta, cotizar, pendientes) + carga de
+  pickup en dos pasos. `backend/src/services/bot.service.js` + `routes/bot.js` +
+  `migrateBot` (tablas `bot_conversaciones`, `bot_mensajes`, en migración Y schema.sql) +
+  `pages/asistente.html` / `js/modules/asistente.js` / `css/modules/asistente.css` + ítem
+  "Asistente" en el menú de 17 pantallas. Sin dependencia nueva (fetch nativo). Tandas
+  `test-bot` (44, puerto 3930, en `test`) y `test-pantalla-asistente` (26, puerto 3929, en
+  `test-pantallas`). Cache **`?v=20260914c`**. **`ANTHROPIC_API_KEY` va en el `.env` de la
+  RAÍZ del repo en el servidor** (el mismo de las `UPS_*`) + `pm2 restart nova
+  --update-env`. Todo el detalle: `IDEAS-COTIZACIONES-Y-BOT.md` §G.
+- **Último commit desplegado: el del arreglo de teléfono del cotizador** (14/09, después de `28a46f9`). **Después, el arreglo de TELÉFONO** (media query ≤ 640 px en `cotizador.css`, tanda 40, cache **`?v=20260914b`**) — **pusheado y desplegado el 14/09 por Felipe; confirmó que en el teléfono quedó bien.** **77 tandas en el verificar** (la nueva `test-pantalla-cotizador`).
 
 - **14/09 — EL COTIZADOR CON LA ESTÉTICA DEL SISTEMA (ítem 3 de la lista de estética).**
   Maqueta mostrada y aprobada por Felipe antes de tocar nada. `cotizador.html` reorganizado en

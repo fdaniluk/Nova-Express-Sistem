@@ -815,3 +815,28 @@ CREATE TABLE IF NOT EXISTS cotizador_links (
 );
 
 CREATE INDEX IF NOT EXISTS idx_cotizador_links_cliente ON cotizador_links(cliente_id, activo);
+
+-- ── El asistente de la oficina (14/09/2026) ─────────────────────────────────────────
+-- Conversaciones con el asistente y sus mensajes, guardados en el formato de bloques de
+-- la API del modelo (texto / tool_use / tool_result). `accion_pendiente` es la carga que
+-- el asistente propuso y todavia nadie confirmo (hoy: un pickup). El detalle esta en
+-- backend/src/services/bot.service.js.
+CREATE TABLE IF NOT EXISTS bot_conversaciones (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  usuario_id       INTEGER REFERENCES usuarios(id),
+  usuario          TEXT,
+  canal            TEXT NOT NULL DEFAULT 'panel',
+  titulo           TEXT,
+  accion_pendiente TEXT,
+  creado_en        TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  actualizado_en   TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE TABLE IF NOT EXISTS bot_mensajes (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  conversacion_id  INTEGER NOT NULL REFERENCES bot_conversaciones(id) ON DELETE CASCADE,
+  rol              TEXT NOT NULL,
+  contenido        TEXT NOT NULL,
+  creado_en        TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_bot_mensajes_conv ON bot_mensajes(conversacion_id, id);
+CREATE INDEX IF NOT EXISTS idx_bot_conversaciones_usuario ON bot_conversaciones(usuario_id, actualizado_en);

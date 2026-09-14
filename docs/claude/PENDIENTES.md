@@ -1,5 +1,17 @@
 # Pendientes
 
+**Actualizado 14/09/2026 (tarde). EL ASISTENTE DE LA OFICINA — ENTREGA 1 CONSTRUIDA.** Felipe
+dejó la estética de Liquidaciones para más adelante y arrancó el bot (§G de
+`IDEAS-COTIZACIONES-Y-BOT.md`). Decisiones: **con IA (Claude API)**, no comandos fijos; las
+cuatro consultas (guía, venta, cotizar, pendientes) **y la carga de pickup con
+confirmación**. Motor en `bot.service.js` que usa las mismas rutas de la API con la cookie
+del usuario; escrituras en dos pasos; cotizar por lista blanca (sin margen); `BOT_MOCK=1`
+para las tandas; panel `asistente.html` con ítem de menú en todas las pantallas. Tandas
+**`test-bot` 44** y **`test-pantalla-asistente` 26**, motor único 28, cotizador 40,
+check-schema verde con base de cero. Cache **`?v=20260914c`**. **Entregado archivo por
+archivo; falta: tandas de Felipe, commit, push, deploy, y LA CLAVE en el `.env` del
+servidor** (sin clave el panel avisa y no manda). Detalle: `IDEAS-COTIZACIONES-Y-BOT.md` §G.
+
 **Actualizado 14/09/2026.** **El cotizador pasó a la estética del sistema (ítem 3 de la lista
 de estética).** Cuatro pasos numerados, resumen lateral fijo con el botón Calcular en naranja,
 extras como chips, tabla de bultos con cabecera de columnas, y el CSS propio que vivía adentro
@@ -136,7 +148,7 @@ la tarjeta la línea de medidas se apilaba palabra por palabra al lado del preci
 quedaba encima. Media query **≤ 640 px** al final de `cotizador.css`: todo a una columna,
 bulto en dos filas de dos con los botones abajo, precio DEBAJO de la línea de medidas. La
 tanda mide las cajas reales (precio debajo de la meta, peso > 90 px, rótulos sin solaparse,
-sin scroll horizontal): `test-pantalla-cotizador` **34 → 40**. Cache **`?v=20260914b`**.
+sin scroll horizontal): `test-pantalla-cotizador` **34 → 40**. Cache **`?v=20260914b`**. **Desplegado el 14/09; Felipe: "listo, ya quedó".**
 
 **EL ROJO DEL `verificar` DEL 14/09 — `test-motor-unico`, y NO era del cotizador.** El control
 "ningún valor de tarifa aparece fuera de cotizador-core.js" venía fallando **desde el 12/09**:
