@@ -1,5 +1,22 @@
 # Pendientes
 
+**Actualizado 14/09/2026.** **El cotizador pasó a la estética del sistema (ítem 3 de la lista
+de estética).** Cuatro pasos numerados, resumen lateral fijo con el botón Calcular en naranja,
+extras como chips, tabla de bultos con cabecera de columnas, y el CSS propio que vivía adentro
+de `cotizador.html` (tipografía DM Sans traída de Google, fondo beige, violeta viejo) mudado a
+**`frontend/css/modules/cotizador.css`** con los tokens de `main.css`. **Ningún id cambió**: el
+JS de la pantalla es el mismo. Tanda nueva **`test-pantalla-cotizador`** (34, puerto 3931, en
+`test-pantallas`) + las 13 tandas del cotizador verdes. Cache **`?v=20260914a`**.
+Maqueta aprobada por Felipe antes de tocar nada. Detalle abajo, "LO DEL 14/09".
+
+⚠️ **EL PUENTE A LA CARPETA DE FELIPE CAMBIÓ (14/09):** `device_bash` dejó de andar (una
+actualización de Windows del 08/09 rompe el montaje de las carpetas). **Se sigue pudiendo leer
+y escribir archivos** (`device_stage_files` / `device_commit_files`), pero **no hay shell en su
+máquina**: no se puede hacer el tar, ni `git add/commit`, ni correr nada allá. La entrega ahora
+es **archivo por archivo con `device_commit_files`** (se escriben directo en el repo, sin
+tarball) y **los comandos de git los corre Felipe**. Para probar en el contenedor, el repo se
+levanta stageando los archivos y corriendo `npm install` en `backend/`.
+
 **Actualizado 12/09/2026.** Hecho hoy sin Felipe: **pendiente 52** (aviso de borrador duplicado
 en Liquidaciones, tanda `test-borrador-duplicado` 34), **manual Word de Salidas** regenerado con el
 rediseño (`docs/manuales/manual-salidas.docx`) y **Cargar envío en 4 pasos** (estética ítem 1,
@@ -60,8 +77,10 @@ uno con su tanda de pantalla verde antes de subir. Orden sugerido (los más usad
    rápida" (seleccionar celdas y ver la suma al momento) cuando administración diga cómo
    la quiere. ✅ Manual Word de Salidas actualizado el 12/09.
    Tipo y Dir se quedan (decisión de Felipe). Detalle: `SALIDAS-REDISENO.md`.
-3. **Cotizador** (`cotizador.html`): unificar con el look del sistema (hoy tiene su propio
-   CSS), tarjetas de resultado, columna de oficina.
+3. ✅ **Cotizador** (`cotizador.html`): **hecho el 14/09.** Unificado con el look del
+   sistema (el CSS propio salió a `css/modules/cotizador.css`), cuatro pasos, resumen
+   lateral, tarjetas de resultado y columna de oficina al costado. Tanda
+   `test-pantalla-cotizador` (34). Detalle: "LO DEL 14/09".
 4. **Liquidaciones**: vista previa y lista de borradores; botones Confirmar / Excel.
 5. **Clientes y perfil del cliente**: la ficha, las matrices, las libretas (destinatarios
    y remitentes todavía no se ven desde el perfil: sumarlas ahí).
@@ -69,6 +88,67 @@ uno con su tanda de pantalla verde antes de subir. Orden sugerido (los más usad
    **Operaciones**, **Configuración**, **Usuarios**, **Dashboard**.
 7. Al final: **menú lateral** (íconos y orden) y una pasada general de consistencia
    (mismos botones, mismos chips, mismas tarjetas en todas).
+
+## 🟢 LO DEL 14/09 — EL COTIZADOR CON LA ESTÉTICA DEL SISTEMA
+
+Pedido: el ítem 3 del orden de estética. **Primero la maqueta** (`docs/maquetas/` — la misma
+regla que en Salidas y Cargar envío): Felipe la aprobó y recién ahí se tocó la pantalla.
+
+**Lo que cambió, de arriba abajo:**
+- **Cuatro pasos numerados en tarjetas**, como Guías: 1 Destino y operación (país, tipo,
+  couriers a cotizar) · 2 Bultos del envío · 3 Valor y extras (valor, contenido, extracargos
+  y, solo en importación, el bloque de impuestos) · 4 Cliente y ganancia (cliente, %, fuel
+  y "la cotización que ve el cliente").
+- **Resumen lateral fijo** (`#cot-resumen`): destino, operación, bultos, **peso facturable**,
+  FOB, cliente y ganancia, **con el botón "Calcular cotización" en naranja adentro**. Antes el
+  botón estaba al fondo de una columna larga y había que bajar cada vez. El facturable se arma
+  con la MISMA regla que el motor (medio kilo para arriba POR BULTO y después se suman), así
+  nunca discute con el de la tarjeta — y la tanda lo compara contra la tarjeta, no contra un
+  número escrito a mano. Con cliente elegido la ganancia dice **"tarifa del cliente"** (el
+  campo se apaga porque el porcentaje sale de su matriz; decir "—" se leería como "sin
+  ganancia").
+- **Bultos en cabecera de columnas** (Peso real · Largo · Ancho · Alto): los rótulos por fila
+  los sigue escribiendo el JS y se esconden por CSS arriba de 760 px; abajo de 760 vuelven y
+  la cabecera desaparece, que es lo único legible cuando la fila se apila.
+- **Extras como chips** (zona de entrega, residencial, DDP, protección de documentos, logo y
+  validez). El chip entero se pinta cuando está puesto: la tilde dibujada a mano se mantiene
+  tal cual (la del 26/08, que la oficina no veía).
+- **Resultados en dos columnas**: la tarjeta (lo que se le manda al cliente) y al costado la
+  **columna de oficina** con el panel de compra y "Guardar este precio". La tira interna ámbar
+  y la regla de que el profit NUNCA entra en la tarjeta quedan igual — la tanda las cuida.
+- **El CSS salió del html** a `frontend/css/modules/cotizador.css`, con los tokens de
+  `main.css` (azul #2A3661, naranja #EA6749, Segoe UI). Se conservan los acentos por courier
+  (DHL dorado / UPS azul) y **las variables `--cot-border` y `--cot-text-tertiary`**, que el JS
+  usa en estilos inline del bloque de impuestos.
+- **La imagen que se le copia al cliente NO cambió**: se dibuja en canvas
+  (`cotizacion-imagen.js`), no es una captura de la tarjeta.
+
+**Tandas (corridas en el contenedor, todas verdes):** `test-pantalla-cotizador` **34** (nueva,
+puerto 3931, en `test-pantallas`) · cotizaciones 38 · cotización guardada 37 · recientes 31 ·
+fuel 28 · tarifa 50 **39** · impuestos impo 12 · protección doc 18 · seguro cliente 16 · topes
+15 · tarifa kg 50 · bultos duplicar 13 · cartel peso 9 · motor único 28 · cotización cliente 55
+· link público 20. **Falta que Felipe corra el `verificar` completo antes del deploy.**
+
+**EL ROJO DEL `verificar` DEL 14/09 — `test-motor-unico`, y NO era del cotizador.** El control
+"ningún valor de tarifa aparece fuera de cotizador-core.js" venía fallando **desde el 12/09**:
+la tanda escanea todos los `.js` y `.html` del repo salteando `node_modules`, `.git`,
+`database`, `facturas-ejemplo`, `_to_delete` y `scripts`, y **`docs/maquetas/` no estaba
+salteado**. La maqueta de Cargar envío (`maqueta-cargar-envio.html`, 12/09) escribe
+*"surge 3.30 · proces. internacional 2.50"* en un texto de muestra, y el 3.30 es el surge de
+Israel y E.A.U.: la tanda lo leyó como una tarifa suelta en el código. **Son fotos de diseño:
+no se sirven, no ejecutan nada y no pueden romper un control del código vivo.** Arreglo:
+`maquetas` entra a la lista de carpetas salteadas de `test-motor-unico.js`, con el porqué
+escrito arriba de la lista. Verificado: 28/28 con las dos maquetas en su lugar.
+(Que haya aparecido recién hoy quiere decir que **el verificar completo del 12/09 no se
+corrió** — el paquete de ese día se subió con las tandas de lo tocado.)
+
+**Archivos entregados (escritos directo en `C:\dev\Nova-Express-Sistem`):**
+`frontend/pages/cotizador.html` · `frontend/css/modules/cotizador.css` (nuevo) ·
+`backend/scripts/test-pantalla-cotizador.js` (nueva tanda) ·
+`backend/scripts/_capturas-cotizador.js` (saca las capturas de la pantalla, como el de Salidas)
+· `backend/package.json` (la tanda registrada en `test-pantallas` y con atajo propio) · `backend/scripts/test-motor-unico.js` (saltea `maquetas`) · las 18
+páginas + `shared/cotizador/cotizador_courier_v8.html` con el cache **`?v=20260914a`**.
+
 
 ## 🔵 LO PRIMERO
 

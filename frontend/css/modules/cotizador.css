@@ -1,0 +1,252 @@
+/* ════════════════════════════════════════════════════════════════════════════════════
+   COTIZADOR — estetica del sistema (14/09/2026)
+
+   Antes esta pantalla tenia su PROPIO sistema de diseno metido en un <style> adentro de
+   cotizador.html: tipografia DM Sans traida de Google, fondo beige, violeta viejo y una
+   escala de grises que no era la del resto de la app. Se veia distinta de todo lo demas.
+
+   Ahora sale de los tokens de main.css (azul #2A3661, naranja #EA6749, Segoe UI) con el
+   mismo criterio que Guias y Cargar envio: pasos numerados en tarjetas, resumen lateral
+   fijo, boton principal en naranja, secundarios con borde, "+ Agregar" punteado.
+
+   ⚠ LO QUE NO SE TOCA:
+   - Ningun id ni ninguna clase que use el JS de la pantalla. Las filas de bulto las dibuja
+     `agregarBulto()` y las tarjetas de resultado las dibuja `cotizar()`: este archivo se
+     adapta a ESE html, no al reves.
+   - Las variables --cot-border y --cot-text-tertiary siguen existiendo: el bloque de
+     impuestos de importacion las usa en estilos inline desde el JS.
+   - La tarjeta de resultado es lo que se le manda al cliente (como imagen). El profit, el
+     panel de compra y el boton de guardar van FUERA, en la columna de oficina.
+   - La imagen que se copia NO es una captura de la tarjeta: la dibuja cotizacion-imagen.js
+     en un canvas. Cambiar este CSS no la cambia.
+   ════════════════════════════════════════════════════════════════════════════════════ */
+
+:root{
+  /* Acentos por courier: se quedan. Son lo que separa una tarjeta DHL de una UPS de un
+     vistazo, y no compiten con la marca porque viven adentro de la tarjeta. */
+  --cot-dhl:#8a6500; --cot-dhl-bg:#fdf8ec; --cot-dhl-bd:#e8c96a;
+  --cot-ups:#2d5fa6; --cot-ups-bg:#eef3fb; --cot-ups-bd:#b8cef0;
+  --cot-verde:#15803d;
+  --cot-ambar:#b45309; --cot-ambar-bg:#fff8e6;
+  /* Las dos que usa el JS en estilos inline (bloque de impuestos). No borrar. */
+  --cot-border:#d8dee9;
+  --cot-text-tertiary:#94a3b8;
+}
+
+/* ── Cabecera de la pantalla ─────────────────────────────────────────────────────── */
+.cot-badges{display:flex;gap:.4rem;flex-wrap:wrap}
+.cot-badge{font-size:.7rem;font-weight:600;padding:.15rem .6rem;border-radius:999px;border:1px solid}
+.cot-badge-dhl{background:var(--cot-dhl-bg);color:var(--cot-dhl);border-color:var(--cot-dhl-bd)}
+.cot-badge-ups{background:var(--cot-ups-bg);color:var(--cot-ups);border-color:var(--cot-ups-bd)}
+
+/* ── Layout: pasos + resumen lateral ─────────────────────────────────────────────── */
+.cot-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:1.25rem;align-items:start}
+@media(max-width:1100px){.cot-layout{grid-template-columns:1fr}}
+.cot-pasos{display:flex;flex-direction:column;gap:1rem;min-width:0}
+
+.cot-paso{background:var(--color-surface);border:1px solid var(--color-border);
+  border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
+.cot-paso-cab{display:flex;align-items:center;gap:.75rem;padding:.8rem 1.25rem;
+  border-bottom:1px solid #eef2f7;background:#fbfcfe}
+.cot-paso-cab h3{margin:0;font-size:1rem;color:var(--color-primary)}
+.cot-paso-cab p{margin:.1rem 0 0;font-size:.8rem;color:var(--color-muted)}
+.cot-num{width:26px;height:26px;flex-shrink:0;border-radius:50%;background:var(--color-primary);
+  color:#fff;display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:700}
+.cot-paso-cuerpo{padding:1rem 1.25rem 1.25rem;display:flex;flex-direction:column;gap:.9rem}
+
+/* Las tarjetas viejas quedan como contenedor neutro adentro de un paso (el JS no las
+   toca, pero tampoco tienen que seguir dibujando una caja adentro de otra). */
+.cot-card{background:none;border:0;padding:0;margin:0;box-shadow:none}
+.cot-card-title{font-size:.72rem;font-weight:700;color:var(--color-muted);text-transform:uppercase;
+  letter-spacing:.4px;margin-bottom:.5rem}
+
+/* ── Campos ──────────────────────────────────────────────────────────────────────── */
+.cot-grid2{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.75rem}
+.cot-grid3{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:.75rem}
+.cot-field{display:flex;flex-direction:column;gap:.25rem;min-width:0}
+.cot-field label{font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;
+  color:var(--color-muted);font-weight:600}
+.cot-wrap input,.cot-wrap select{width:100%;padding:.45rem .6rem;border:1px solid var(--color-border);
+  border-radius:6px;background:#fff;color:var(--color-text);font:inherit;font-size:.9rem}
+.cot-wrap input:focus,.cot-wrap select:focus{outline:none;border-color:var(--color-primary);
+  box-shadow:0 0 0 3px rgba(42,54,97,.12)}
+.cot-hint{font-size:.78rem;color:var(--color-muted)}
+.cot-hint.active{color:var(--cot-verde)}
+.cot-hint.warn{color:var(--cot-ambar)}
+.cot-sep{border:0;border-top:1px solid #eef2f7;margin:.9rem 0}
+.cot-nota{font-size:.76rem;color:var(--color-muted);line-height:1.5}
+
+/* ── Bultos ──────────────────────────────────────────────────────────────────────── */
+/* La cabecera de columnas es estatica y los rotulos de cada fila los sigue escribiendo el
+   JS. Arriba de 760 px manda la cabecera y los rotulos de fila se esconden (si no, cada
+   caja repetiria "PESO REAL / LARGO / ANCHO / ALTO"); abajo de 760 la cabecera desaparece
+   y vuelven los rotulos, que es lo unico legible cuando la fila se apila. */
+.bultos-head{display:grid;grid-template-columns:auto 1fr 1fr 1fr 1fr auto auto;gap:.5rem;
+  padding:.35rem .75rem;background:#f1f5f9;border-radius:6px 6px 0 0;
+  font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--color-muted)}
+.bultos-head span:first-child{min-width:20px}
+.bultos-head .bh-acciones{width:76px}
+.bultos-wrap{display:grid;gap:.35rem}
+.bulto-row{display:grid;grid-template-columns:auto 1fr 1fr 1fr 1fr auto auto;gap:.5rem;align-items:end;
+  background:#fff;border:1px solid var(--color-border);border-radius:6px;padding:.5rem .75rem}
+.bulto-num{font-size:.8rem;font-weight:700;color:var(--color-muted);padding-bottom:.45rem;min-width:20px}
+@media(min-width:761px){
+  .bulto-row .cot-field label{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap}
+}
+@media(max-width:760px){
+  .bultos-head{display:none}
+  .bulto-row{grid-template-columns:auto 1fr 1fr auto auto;grid-template-rows:auto auto}
+}
+.bulto-info{font-size:.74rem;color:var(--color-muted);padding:.1rem .75rem .3rem}
+.bulto-warn{font-size:.74rem;color:var(--cot-ambar);font-weight:500;padding:.1rem .75rem .3rem}
+.btn-remove,.btn-dup{background:#fff;border:1px solid var(--color-border);border-radius:6px;
+  color:var(--color-muted);cursor:pointer;padding:.35rem .55rem;font-size:.85rem;height:32px;align-self:end}
+.btn-dup:hover{border-color:var(--color-primary);color:var(--color-primary)}
+.btn-remove:hover{border-color:#fca5a5;color:var(--color-danger);background:#fef2f2}
+.bultos-pie{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-top:.6rem}
+.btn-add,.btn-dup-n{flex:1;min-width:150px;display:flex;align-items:center;justify-content:center;gap:.4rem;
+  background:none;border:1px dashed #b9c2d0;border-radius:6px;color:var(--color-muted);
+  cursor:pointer;padding:.5rem .9rem;font:inherit;font-size:.86rem}
+.btn-add:hover,.btn-dup-n:hover{border-color:var(--color-primary);color:var(--color-primary);background:#f7f9fd}
+.dup-grupo{display:flex;gap:.4rem;align-items:center;flex:1;min-width:200px}
+.dup-grupo input{width:56px;text-align:center;padding:.45rem;border:1px solid var(--color-border);
+  border-radius:6px;font:inherit;font-size:.86rem}
+
+/* ── Chips (extracargos, impuestos, la cotizacion que ve el cliente) ─────────────── */
+/* Eran una grilla de renglones con tilde; ahora son chips en fila. La tilde se dibuja a
+   mano: `appearance:none` de los campos de texto tambien alcanzaba a las casillas y les
+   borraba el dibujo nativo, y la oficina creia que no se podian destildar (26/08). */
+.checks-grid{display:flex;flex-wrap:wrap;gap:.5rem}
+.check-label{display:inline-flex;align-items:center;gap:.45rem;padding:.4rem .75rem;
+  border:1px solid var(--color-border);border-radius:999px;background:#fff;
+  font-size:.85rem;font-weight:400;text-transform:none;letter-spacing:normal;
+  color:var(--color-muted);cursor:pointer}
+.check-label:hover{border-color:#b9c2d0}
+.check-label input[type=checkbox],.check-label input[type=radio]{
+  appearance:none;-webkit-appearance:none;width:16px;height:16px;flex-shrink:0;margin:0;padding:0;
+  border:1.5px solid #b9c2d0;background:#fff;border-radius:4px;position:relative;cursor:pointer}
+.check-label input[type=radio]{border-radius:50%}
+.check-label input[type=checkbox]:checked,.check-label input[type=radio]:checked{
+  background:var(--color-primary);border-color:var(--color-primary)}
+.check-label input[type=checkbox]:checked::after{content:'';position:absolute;left:5px;top:1px;
+  width:3.5px;height:8.5px;border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.check-label input[type=radio]:checked::after{content:'';position:absolute;left:3.5px;top:3.5px;
+  width:5px;height:5px;border-radius:50%;background:#fff}
+.check-label input:focus-visible{outline:2px solid rgba(42,54,97,.4);outline-offset:2px}
+/* Se pinta el chip entero: de un vistazo se ve que esta puesto, sin mirar tilde por tilde. */
+.check-label:has(input:checked){border-color:var(--color-primary);background:#eef2fb;
+  color:var(--color-text);font-weight:500}
+.check-label select,.check-label input[type=number]{width:auto;border:1px solid var(--color-border);
+  border-radius:5px;padding:.15rem .35rem;font-size:.82rem}
+.check-label select{border:0;background:none;padding:0 .15rem}
+
+/* ── Resumen lateral ─────────────────────────────────────────────────────────────── */
+.cot-lateral{position:sticky;top:1rem}
+.cot-resumen{background:var(--color-surface);border:1px solid var(--color-border);border-radius:10px;
+  box-shadow:var(--shadow);padding:1rem 1.1rem}
+.cot-resumen h3{margin:0 0 .75rem;font-size:.75rem;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--color-muted)}
+.cot-resumen dl{margin:0 0 .9rem;display:grid;grid-template-columns:auto 1fr;gap:.35rem .75rem;font-size:.86rem}
+.cot-resumen dt{color:var(--color-muted)}
+.cot-resumen dd{margin:0;font-weight:500;text-align:right;overflow-wrap:anywhere}
+.cot-resumen dd[data-r="pf"]{color:var(--color-primary);font-weight:700}
+.cot-resumen-pie{margin:.7rem 0 0;font-size:.76rem;color:var(--color-muted);line-height:1.45;text-align:center}
+/* El boton principal. Sigue siendo .btn-calc porque el JS lo busca asi para apagarlo
+   mientras cotiza. */
+.btn-calc{width:100%;padding:.8rem 1rem;border:0;border-radius:8px;background:var(--color-accent);
+  color:#fff;font:inherit;font-size:1rem;font-weight:600;cursor:pointer;
+  box-shadow:0 1px 2px rgba(234,103,73,.35)}
+.btn-calc:hover{background:#d4573a}
+.btn-calc:active{transform:translateY(1px)}
+.btn-calc:disabled{opacity:.6;cursor:wait}
+
+/* ── Errores ─────────────────────────────────────────────────────────────────────── */
+.cot-error-msg{font-size:.85rem;color:#7f1d1d;background:#fef2f2;border:1px solid #fca5a5;
+  border-radius:8px;padding:.6rem .8rem;margin:1rem 0 0;display:none}
+
+/* ── Tira interna: lo unico que NO puede salir en la imagen del cliente ──────────── */
+.tira-interna{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem;margin:1.25rem 0 .75rem;
+  padding:.5rem .8rem;background:var(--cot-ambar-bg);border:1px solid var(--cot-dhl-bd);
+  border-radius:8px;font-size:.8rem;color:#6b5a20}
+.tira-interna .ti-tag{font-weight:700;font-size:.68rem;text-transform:uppercase;letter-spacing:.6px;
+  background:var(--cot-dhl-bd);color:#4a3d10;padding:.15rem .55rem;border-radius:999px}
+.tira-interna .ti-item b{color:#4a3d10}
+/* La tarifa DHL +50 kg es una instruccion operativa (por que cuenta se emite la guia),
+   no un dato de precio: va aca y NUNCA adentro de la tarjeta. */
+.tira-interna .ti-50{background:#f59e0b;color:#3b2606;font-weight:700;padding:.15rem .55rem;border-radius:999px}
+
+/* ── Resultados ──────────────────────────────────────────────────────────────────── */
+.cot-results{display:grid;gap:1rem}
+.res-fila{display:grid;grid-template-columns:minmax(0,1fr) 232px;gap:.9rem;align-items:start}
+@media(max-width:900px){.res-fila{grid-template-columns:1fr}}
+.result-card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:10px;
+  overflow:hidden;box-shadow:0 2px 6px rgba(15,23,42,.07);animation:cotFade .2s ease}
+@keyframes cotFade{from{opacity:0;transform:translateY(5px)}to{opacity:1;transform:none}}
+.result-header{padding:.85rem 1.1rem;display:flex;justify-content:space-between;align-items:center;gap:1rem;
+  border-bottom:1px solid var(--color-border)}
+/* El bloque de texto se achica y el del precio no: la linea de medidas es larga y se
+   metia por abajo del total. */
+.result-header>div:first-child{min-width:0;flex:1 1 auto}
+.result-header>div:last-child{flex:0 0 auto}
+.result-header.dhl{background:var(--cot-dhl-bg);border-bottom-color:var(--cot-dhl-bd)}
+.result-header.ups{background:var(--cot-ups-bg);border-bottom-color:var(--cot-ups-bd)}
+.result-courier{font-size:1rem;font-weight:700;color:var(--color-text)}
+.result-meta{font-size:.74rem;color:var(--color-muted);margin-top:.15rem;font-variant-numeric:tabular-nums}
+/* El precio NUNCA se parte en dos renglones. */
+.result-total{font-size:1.55rem;font-weight:700;letter-spacing:-.02em;white-space:nowrap;
+  font-variant-numeric:tabular-nums;color:var(--color-text)}
+.result-body{padding:.85rem 1.1rem}
+.breakdown{display:grid;gap:1px}
+.brow{display:flex;justify-content:space-between;align-items:center;font-size:.86rem;padding:.2rem 0}
+.brow .bl{color:var(--color-muted)}
+.brow .br{font-weight:500;font-variant-numeric:tabular-nums}
+.brow.subtotal-row{border-top:1px solid var(--color-border);margin-top:.25rem;padding-top:.45rem}
+.brow.subtotal-row .bl{font-weight:600;color:var(--color-text)}
+.brow.total-row{border-top:2px solid var(--color-text);margin-top:.3rem;padding-top:.5rem}
+.brow.total-row .bl{font-weight:700;font-size:.92rem;color:var(--color-text)}
+.brow.total-row .br{font-size:1rem;font-weight:700}
+.brow.section-header{padding-top:.6rem;padding-bottom:0}
+.brow.section-header .bl{font-size:.68rem;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--cot-text-tertiary);font-weight:700}
+.bultos-summary{background:#f8fafc;border:1px solid var(--color-border);border-radius:6px;
+  padding:.5rem .65rem;margin-bottom:.6rem;font-size:.78rem;color:var(--color-muted);
+  line-height:1.6;white-space:pre-line}
+.badge-50{display:inline-block;font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+  background:#fdf8ec;color:var(--cot-dhl);border:1px solid var(--cot-dhl-bd);border-radius:4px;
+  padding:.1rem .4rem;margin-left:.4rem;vertical-align:middle}
+.btn-copiar{font:inherit;font-size:.78rem;font-weight:500;white-space:nowrap;padding:.35rem .7rem;
+  border:1px solid var(--color-border);border-radius:6px;background:#fff;color:var(--color-muted);cursor:pointer}
+.btn-copiar:hover{border-color:var(--color-primary);color:var(--color-primary)}
+.btn-copiar.ok{background:#f0fdf4;border-color:var(--cot-verde);color:var(--cot-verde)}
+.btn-copiar.err{background:#fef2f2;border-color:var(--color-danger);color:var(--color-danger)}
+
+/* ── Columna de oficina — nunca entra en la imagen del cliente ───────────────────── */
+.col-oficina{display:flex;flex-direction:column;gap:.55rem;min-width:0}
+.panel-compra{background:#f8fafc;border:1px solid var(--color-border);border-radius:10px;
+  padding:.7rem .8rem;font-size:.78rem;color:var(--color-muted);font-variant-numeric:tabular-nums}
+.panel-compra .pc-tit{font-weight:700;font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;
+  color:var(--cot-text-tertiary);padding-bottom:.4rem;margin-bottom:.4rem;border-bottom:1px solid var(--color-border)}
+.panel-compra .pc-row{display:flex;justify-content:space-between;gap:.5rem;padding:.1rem 0}
+/* La etiqueta se recorta con puntos suspensivos; el valor nunca se parte. */
+.panel-compra .pc-row>span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0}
+.panel-compra .pc-row>span:last-child{white-space:nowrap;flex-shrink:0}
+.panel-compra .pc-row.pc-tot{border-top:1px solid var(--color-border);margin-top:.35rem;padding-top:.35rem;
+  color:var(--color-text);font-weight:600}
+.panel-compra .pc-gan{border-top:2px solid var(--cot-verde);margin-top:.45rem;padding-top:.45rem;
+  color:var(--cot-verde);font-weight:700}
+.panel-compra .pc-gan .pc-pct{font-weight:500;opacity:.85}
+/* "Guardar este precio": es un boton y no una casilla porque una casilla tildada "apenas
+   se ve" (Felipe, 26/08). Marcado va en azul Nova lleno — no verde: en esta pantalla el
+   verde ya significa ganancia. */
+.btn-viaja{display:flex;align-items:center;justify-content:center;gap:.4rem;width:100%;
+  font:inherit;font-size:.82rem;font-weight:600;line-height:1.2;padding:.55rem .7rem;cursor:pointer;
+  border-radius:8px;border:1px dashed #b9c2d0;background:#fff;color:var(--color-muted)}
+.btn-viaja:hover{border-color:var(--color-primary);color:var(--color-primary)}
+.btn-viaja .bv-ico{display:inline-flex;align-items:center;justify-content:center;width:16px;height:16px;
+  border-radius:50%;background:#e2e8f0;color:var(--cot-text-tertiary);font-size:.7rem;font-weight:700;flex-shrink:0}
+.btn-viaja[aria-pressed="true"]{border:1px solid var(--color-primary);background:var(--color-primary);color:#fff}
+.btn-viaja[aria-pressed="true"]:hover{background:var(--color-primary-light)}
+.btn-viaja[aria-pressed="true"] .bv-ico{background:var(--color-accent);color:#fff}
+.btn-viaja.ocupado{opacity:.55;pointer-events:none}
+.bv-estado{font-size:.7rem;color:var(--color-muted);text-align:center;min-height:0}
+.bv-estado.err{color:var(--color-danger)}

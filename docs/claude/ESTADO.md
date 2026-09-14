@@ -113,6 +113,21 @@ precio por kilo rotulado. Servicio abreviado (`UPS W.E`/`UPS W.S`/`DHL`). WhatsA
 ## 1. Cómo trabajar (operativa probada)
 
 ### Circuito de entrega
+
+⚠️ **DESDE EL 14/09 NO HAY SHELL EN LA MÁQUINA DE FELIPE** (`device_bash` murió con una
+actualización de Windows del 08/09: "no Plan9 drive shares mounted"). Mientras dure:
+- **Entrega: archivo por archivo con `device_commit_files`**, escribiendo directo en
+  `C:\dev\Nova-Express-Sistem`. Sin tarball y sin extraer nada. `device_list_dir` sirve para
+  ver qué hay; `device_stage_files` para traerse archivos (50 por llamada).
+- **Para probar en el contenedor:** stagear `backend/src`, `backend/scripts`, `backend/package.json`,
+  `frontend/`, `shared/` y `database/schema/schema.sql` a `/home/claude/nova`, y correr
+  `npm install` en `backend/` (tarda segundos; `prepararDb(DB,{desdeProduccion:false})` arma la
+  base de cero, así que la `nova.db` no hace falta). Las tandas de pantalla corren igual, con el
+  Chromium de `/opt/pw-browsers`.
+- **Git lo corre FELIPE**: `git add/commit/push` en PowerShell, con los comandos en su formato.
+  Ya no hay baile de locks porque no escribe Claude.
+
+### Circuito de entrega (el de antes, mientras la shell andaba)
 Claude escribe el paquete en `C:\dev\Nova-Express-Sistem` (`device_commit_files` con
 file_uuid de `SendUserFile`) y lo extrae (`device_bash`, `tar --overwrite -xzf`, md5 de los
 dos lados) → **Felipe** corre las tandas **EN POWERSHELL, DENTRO DE `backend/`** → Claude
@@ -308,7 +323,25 @@ Colores Nova `#403754`/`#EE6C52`.
 
 ---
 
-## 3. Dónde estamos (12-09-2026)
+## 3. Dónde estamos (14-09-2026)
+
+- **14/09 — EL COTIZADOR CON LA ESTÉTICA DEL SISTEMA (ítem 3 de la lista de estética).**
+  Maqueta mostrada y aprobada por Felipe antes de tocar nada. `cotizador.html` reorganizado en
+  **cuatro pasos** con **resumen lateral fijo** (`#cot-resumen`: destino, operación, bultos,
+  peso facturable, FOB, cliente, ganancia) y el botón **Calcular en naranja adentro del
+  resumen**; extras como chips; bultos con cabecera de columnas; resultados en dos columnas
+  (tarjeta + columna de oficina). **El `<style>` que vivía adentro del html salió a
+  `frontend/css/modules/cotizador.css`** con los tokens de `main.css` — se fueron DM Sans, el
+  beige y el violeta viejo. **NINGÚN id cambió.** Tanda nueva **`test-pantalla-cotizador`**
+  (34, puerto 3931, en `test-pantallas`); las 16 tandas que tocan el cotizador, verdes en el
+  contenedor. Cache **`?v=20260914a`** (las 18 páginas + el v8 de `shared/`). Detalle en
+  `PENDIENTES.md`, "LO DEL 14/09". **Falta: `verificar` completo de Felipe, push y deploy.**
+- ⚠️ **14/09 — SE CAYÓ LA SHELL SOBRE LA CARPETA DE FELIPE.** Una actualización de Windows del
+  08/09 rompe el montaje: `device_bash` contesta "no Plan9 drive shares mounted" y **no hay
+  forma de correr nada en su máquina** (ni tar, ni git, ni tests). Leer y escribir archivos
+  **sigue andando** (`device_stage_files` / `device_commit_files`). **La operativa nueva está
+  en §1.**
+
 
 - **12/09 — TRES COSAS HECHAS SIN FELIPE (él revisaba el dominio):** (1) **pendiente 52 —
   borradores duplicados en Liquidaciones**: Pendientes y la tabla de Crear marcan con un chip

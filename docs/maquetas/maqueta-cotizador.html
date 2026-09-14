@@ -1,0 +1,419 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Maqueta — Cotizador Nova Express</title>
+<link rel="stylesheet" href="../css/main.css">
+<style>
+/* ─────────────────────────────────────────────────────────────────────────
+   MAQUETA del cotizador con el criterio de Guías / Cargar envío.
+   Todo lo de acá va a frontend/css/modules/cotizador.css.
+   Tokens: los de main.css (azul #2A3661, naranja #EA6749). Se sacan
+   DM Sans, el beige propio y el violeta viejo.
+   ───────────────────────────────────────────────────────────────────────── */
+:root{
+  --cot-dhl:#B8860B; --cot-dhl-bg:#fdf8ec; --cot-dhl-bd:#e8c96a;
+  --cot-ups:#2d5fa6; --cot-ups-bg:#eef3fb; --cot-ups-bd:#b8cef0;
+  --cot-verde:#15803d; --cot-verde-bg:#f0fdf4;
+  --cot-ambar:#b45309; --cot-ambar-bg:#fff8e6;
+}
+.cot-layout{display:grid;grid-template-columns:minmax(0,1fr) 320px;gap:1.25rem;align-items:start}
+@media(max-width:1100px){.cot-layout{grid-template-columns:1fr}}
+
+/* ── Pasos ─────────────────────────────────────────────────────────────── */
+.cot-pasos{display:flex;flex-direction:column;gap:1rem;min-width:0}
+.cot-paso{background:var(--color-surface);border:1px solid var(--color-border);
+  border-radius:10px;box-shadow:var(--shadow);overflow:hidden}
+.cot-paso-cab{display:flex;align-items:center;gap:.75rem;padding:.8rem 1.25rem;
+  border-bottom:1px solid #eef2f7;background:#fbfcfe}
+.cot-paso-cab h3{margin:0;font-size:1rem;color:var(--color-primary)}
+.cot-paso-cab p{margin:.1rem 0 0;font-size:.8rem;color:var(--color-muted)}
+.cot-num{width:26px;height:26px;flex-shrink:0;border-radius:50%;background:var(--color-primary);
+  color:#fff;display:flex;align-items:center;justify-content:center;font-size:.85rem;font-weight:700}
+.cot-paso-cuerpo{padding:1rem 1.25rem 1.25rem;display:flex;flex-direction:column;gap:.9rem}
+.cot-grid{display:grid;gap:.75rem;grid-template-columns:repeat(2,minmax(0,1fr))}
+.cot-grid-3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.cot-campo{display:flex;flex-direction:column;gap:.25rem;min-width:0}
+.cot-campo label{font-size:.72rem;text-transform:uppercase;letter-spacing:.4px;
+  color:var(--color-muted);font-weight:600}
+.cot-campo input,.cot-campo select{padding:.45rem .6rem;border:1px solid var(--color-border);
+  border-radius:6px;font:inherit;font-size:.9rem;background:#fff;color:var(--color-text)}
+.cot-hint{font-size:.78rem;color:var(--color-muted)}
+.cot-hint.ok{color:var(--cot-verde)}
+
+/* ── Tabla de bultos (igual que Guías) ─────────────────────────────────── */
+.cot-bultos{width:100%;border-collapse:separate;border-spacing:0;font-size:.9rem}
+.cot-bultos th{background:#f1f5f9;color:var(--color-muted);font-size:.72rem;text-transform:uppercase;
+  letter-spacing:.4px;text-align:left;padding:.4rem .45rem;font-weight:600}
+.cot-bultos th:first-child{border-radius:6px 0 0 0}.cot-bultos th:last-child{border-radius:0 6px 0 0}
+.cot-bultos td{padding:.3rem .45rem;border-bottom:1px solid #eef2f7;vertical-align:middle}
+.cot-bultos td.num{color:var(--color-muted);font-weight:600;width:2rem;text-align:center}
+.cot-bultos input{width:100%;padding:.35rem .4rem;border:1px solid var(--color-border);
+  border-radius:5px;font:inherit;font-size:.88rem;text-align:right}
+.cot-bultos .calc{font-size:.8rem;color:var(--color-muted);white-space:nowrap;text-align:right}
+.cot-quitar{background:none;border:0;color:#94a3b8;cursor:pointer;font-size:1rem;line-height:1}
+.cot-bultos-pie{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-top:.6rem}
+.btn-punteado{flex:1;min-width:150px;display:flex;align-items:center;justify-content:center;gap:.4rem;
+  background:none;border:1px dashed #b9c2d0;border-radius:6px;color:var(--color-muted);
+  cursor:pointer;padding:.5rem .9rem;font:inherit;font-size:.86rem}
+.btn-punteado:hover{border-color:var(--color-primary);color:var(--color-primary);background:#f7f9fd}
+.cot-bultos-tot{margin-left:auto;font-size:.85rem;color:var(--color-muted)}
+.cot-bultos-tot b{color:var(--color-primary);font-size:.95rem}
+
+/* ── Chips de extras ───────────────────────────────────────────────────── */
+.cot-chips{display:flex;flex-wrap:wrap;gap:.5rem}
+.cot-chip{text-transform:none;letter-spacing:normal;font-weight:400;display:inline-flex;align-items:center;gap:.45rem;padding:.4rem .7rem;border:1px solid var(--color-border);
+  border-radius:999px;font-size:.85rem;color:var(--color-muted);cursor:pointer;background:#fff}
+.cot-chip:hover{border-color:#b9c2d0}
+.cot-chip input{appearance:none;width:15px;height:15px;margin:0;border:1.5px solid #b9c2d0;border-radius:4px;
+  background:#fff;position:relative;cursor:pointer;flex-shrink:0}
+.cot-chip input:checked{background:var(--color-primary);border-color:var(--color-primary)}
+.cot-chip input:checked::after{content:'';position:absolute;left:4.5px;top:1px;width:3.5px;height:8px;
+  border:solid #fff;border-width:0 2px 2px 0;transform:rotate(45deg)}
+.cot-chip:has(input:checked){border-color:var(--color-primary);background:#eef2fb;color:var(--color-text);font-weight:500}
+.cot-chip select{border:0;background:none;font:inherit;font-size:.85rem;color:inherit;padding:0}
+.cot-nota{font-size:.76rem;color:var(--color-muted);line-height:1.5}
+
+/* ── Resumen lateral ───────────────────────────────────────────────────── */
+.cot-lateral{position:sticky;top:1rem;display:flex;flex-direction:column;gap:.75rem}
+.cot-resumen{background:var(--color-surface);border:1px solid var(--color-border);border-radius:10px;
+  box-shadow:var(--shadow);padding:1rem 1.1rem}
+.cot-resumen h3{margin:0 0 .75rem;font-size:.75rem;text-transform:uppercase;letter-spacing:.5px;color:var(--color-muted)}
+.cot-resumen dl{margin:0;display:grid;grid-template-columns:auto 1fr;gap:.35rem .75rem;font-size:.86rem}
+.cot-resumen dt{color:var(--color-muted)}
+.cot-resumen dd{margin:0;font-weight:500;text-align:right;overflow-wrap:anywhere}
+.cot-resumen dd.fuerte{color:var(--color-primary);font-weight:700}
+.cot-resumen hr{border:0;border-top:1px solid #eef2f7;margin:.75rem 0}
+.btn-calcular{width:100%;padding:.8rem 1rem;border:0;border-radius:8px;background:var(--color-accent);
+  color:#fff;font:inherit;font-size:1rem;font-weight:600;cursor:pointer;
+  box-shadow:0 1px 2px rgba(234,103,73,.4)}
+.btn-calcular:hover{background:#d4573a}
+.cot-resumen-pie{margin:.7rem 0 0;font-size:.76rem;color:var(--color-muted);line-height:1.45;text-align:center}
+
+/* ── Tira interna (lo que NO sale en la imagen del cliente) ────────────── */
+.tira-interna{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem;margin:1.25rem 0 .75rem;
+  padding:.5rem .8rem;background:var(--cot-ambar-bg);border:1px solid var(--cot-dhl-bd);border-radius:8px;
+  font-size:.8rem;color:#6b5a20}
+.tira-interna .ti-tag{font-weight:700;font-size:.68rem;text-transform:uppercase;letter-spacing:.6px;
+  background:var(--cot-dhl-bd);color:#4a3d10;padding:.15rem .5rem;border-radius:999px}
+.tira-interna .ti-50{background:#f59e0b;color:#3b2606;font-weight:700;padding:.15rem .55rem;border-radius:999px}
+
+/* ── Resultados ────────────────────────────────────────────────────────── */
+.cot-res-titulo{display:flex;align-items:baseline;gap:.6rem;margin:1.5rem 0 .75rem}
+.cot-res-titulo h2{margin:0;font-size:1.05rem;color:var(--color-primary)}
+.cot-res-titulo span{font-size:.8rem;color:var(--color-muted)}
+.cot-res-fila{display:grid;grid-template-columns:minmax(0,1fr) 232px;gap:.9rem;align-items:start;margin-bottom:1rem}
+@media(max-width:900px){.cot-res-fila{grid-template-columns:1fr}}
+.result-card{background:var(--color-surface);border:1px solid var(--color-border);border-radius:10px;
+  overflow:hidden;box-shadow:0 2px 6px rgba(15,23,42,.07)}
+.result-header{padding:.85rem 1.1rem;display:flex;justify-content:space-between;align-items:center;gap:1rem;
+  border-bottom:1px solid var(--color-border)}
+.result-header.dhl{background:var(--cot-dhl-bg);border-bottom-color:var(--cot-dhl-bd)}
+.result-header.ups{background:var(--cot-ups-bg);border-bottom-color:var(--cot-ups-bd)}
+.result-courier{font-size:1rem;font-weight:700;color:var(--color-text)}
+.result-meta{font-size:.76rem;color:var(--color-muted);margin-top:.15rem;font-variant-numeric:tabular-nums}
+.result-total{font-size:1.6rem;font-weight:700;letter-spacing:-.02em;white-space:nowrap;
+  font-variant-numeric:tabular-nums;color:var(--color-text)}
+.result-total small{display:block;font-size:.7rem;font-weight:600;color:var(--color-muted);
+  text-transform:uppercase;letter-spacing:.5px;text-align:right}
+.result-body{padding:.85rem 1.1rem}
+.brow{display:flex;justify-content:space-between;font-size:.86rem;padding:.22rem 0}
+.brow .bl{color:var(--color-muted)}
+.brow .br{font-weight:500;font-variant-numeric:tabular-nums}
+.brow.sec{padding-top:.6rem}
+.brow.sec .bl{font-size:.68rem;text-transform:uppercase;letter-spacing:.5px;font-weight:700;color:#94a3b8}
+.brow.total-row{border-top:2px solid var(--color-text);margin-top:.4rem;padding-top:.5rem}
+.brow.total-row .bl{font-weight:700;color:var(--color-text)}
+.brow.total-row .br{font-weight:700;font-size:1rem}
+.badge-50{display:inline-block;font-size:.62rem;font-weight:700;text-transform:uppercase;letter-spacing:.5px;
+  background:#fdf8ec;color:#8a6500;border:1px solid var(--cot-dhl-bd);border-radius:4px;padding:.1rem .4rem;
+  margin-left:.4rem;vertical-align:middle}
+
+/* Columna de oficina: panel de compra + acciones. NUNCA entra en la imagen del cliente. */
+.col-oficina{display:flex;flex-direction:column;gap:.6rem}
+.panel-compra{background:#f8fafc;border:1px solid var(--color-border);border-radius:10px;padding:.7rem .8rem;
+  font-size:.78rem;color:var(--color-muted);font-variant-numeric:tabular-nums}
+.panel-compra .pc-tit{font-weight:700;font-size:.66rem;text-transform:uppercase;letter-spacing:.5px;color:#94a3b8;
+  padding-bottom:.4rem;margin-bottom:.4rem;border-bottom:1px solid var(--color-border)}
+.panel-compra .pc-row{display:flex;justify-content:space-between;gap:.5rem;padding:.1rem 0}
+.panel-compra .pc-row>span:first-child{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.panel-compra .pc-row.pc-tot{border-top:1px solid var(--color-border);margin-top:.35rem;padding-top:.35rem;
+  color:var(--color-text);font-weight:600}
+.panel-compra .pc-gan{border-top:2px solid var(--cot-verde);margin-top:.45rem;padding-top:.45rem;
+  color:var(--cot-verde);font-weight:700}
+.btn-guardar-precio{display:flex;align-items:center;justify-content:center;gap:.4rem;width:100%;
+  padding:.55rem .7rem;border:1px dashed #b9c2d0;border-radius:8px;background:#fff;color:var(--color-muted);
+  font:inherit;font-size:.82rem;font-weight:600;cursor:pointer}
+.btn-guardar-precio:hover{border-color:var(--color-primary);color:var(--color-primary)}
+.btn-guardar-precio[aria-pressed="true"]{border:1px solid var(--color-primary);background:var(--color-primary);color:#fff}
+.btn-guardar-precio[aria-pressed="true"] .bv-ico{background:var(--color-accent);color:#fff}
+.bv-ico{width:16px;height:16px;border-radius:50%;background:#e2e8f0;color:#94a3b8;display:inline-flex;
+  align-items:center;justify-content:center;font-size:.7rem;font-weight:700}
+.btn-mini{width:100%;padding:.45rem .7rem;border:1px solid var(--color-border);border-radius:8px;background:#fff;
+  color:var(--color-muted);font:inherit;font-size:.8rem;cursor:pointer}
+.btn-mini:hover{border-color:var(--color-primary);color:var(--color-primary)}
+.bv-estado{font-size:.7rem;color:var(--color-muted);text-align:center}
+
+/* etiqueta de la maqueta */
+.mk-nota{background:#eef2fb;border:1px solid #c7d2fe;color:#312e81;border-radius:8px;padding:.5rem .8rem;
+  font-size:.8rem;margin-bottom:1rem}
+</style>
+</head>
+<body>
+<div class="app-layout">
+  <aside class="sidebar">
+    <a class="sidebar-brand" href="#">
+      <span class="sidebar-logo"><img src="/assets/logos/isotipo.svg" alt=""></span>
+      <div><div class="sidebar-title">Nova Express</div><div class="sidebar-subtitle">Courier DHL / UPS</div></div>
+    </a>
+    <nav class="sidebar-nav">
+      <a href="#" class="nav-item"><span>Dashboard</span></a>
+      <a href="#" class="nav-item"><span>Clientes</span></a>
+      <a href="#" class="nav-item"><span>Envíos</span></a>
+      <a href="#" class="nav-item"><span>Guías</span></a>
+      <a href="#" class="nav-item"><span>Salidas</span></a>
+      <a href="#" class="nav-item"><span>Liquidaciones</span></a>
+      <a href="#" class="nav-item"><span>Cobranzas</span></a>
+      <a href="#" class="nav-item active"><span>Cotizador</span></a>
+      <a href="#" class="nav-item"><span>Pickups</span></a>
+      <a href="#" class="nav-item"><span>Operaciones</span></a>
+      <a href="#" class="nav-item"><span>Facturas</span></a>
+    </nav>
+  </aside>
+
+  <div class="page-content">
+    <div class="page-header">
+      <h1>Cotizador de Envíos</h1>
+      <div style="font-size:.8rem;color:#64748b">Tarifas mayoristas 2026 · Argentina · v12</div>
+    </div>
+
+    <div class="page-body">
+      <div class="mk-nota"><b>MAQUETA</b> — así quedaría el cotizador con el mismo criterio que Guías y Cargar envío. Nada de <code>cotizador.html</code> está tocado todavía.</div>
+
+      <div class="cot-layout">
+        <!-- ══ PASOS ══ -->
+        <div class="cot-pasos">
+
+          <section class="cot-paso">
+            <div class="cot-paso-cab"><span class="cot-num">1</span>
+              <div><h3>Destino y operación</h3><p>A dónde va y con qué couriers comparamos</p></div>
+            </div>
+            <div class="cot-paso-cuerpo">
+              <div class="cot-grid cot-grid-3">
+                <div class="cot-campo"><label>País de destino</label>
+                  <select><option>Brasil — Zona 1</option></select></div>
+                <div class="cot-campo"><label>Tipo de operación</label>
+                  <select><option>Exportación (desde Argentina)</option></select></div>
+                <div class="cot-campo"><label>Couriers a cotizar</label>
+                  <select><option>DHL + UPS Expedited + UPS Saver</option></select></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="cot-paso">
+            <div class="cot-paso-cab"><span class="cot-num">2</span>
+              <div><h3>Bultos</h3><p>Peso y medidas de cada caja</p></div>
+            </div>
+            <div class="cot-paso-cuerpo">
+              <table class="cot-bultos">
+                <thead><tr><th></th><th>Peso real</th><th>Largo</th><th>Ancho</th><th>Alto</th><th style="text-align:right">Volumétrico</th><th style="text-align:right">Facturable</th><th></th></tr></thead>
+                <tbody>
+                  <tr><td class="num">1</td><td><input value="12,5"></td><td><input value="45"></td><td><input value="45"></td><td><input value="35"></td><td class="calc">14,18 kg</td><td class="calc"><b>14,5 kg</b></td><td><button class="cot-quitar">✕</button></td></tr>
+                  <tr><td class="num">2</td><td><input value="8,2"></td><td><input value="40"></td><td><input value="30"></td><td><input value="30"></td><td class="calc">7,20 kg</td><td class="calc"><b>8,5 kg</b></td><td><button class="cot-quitar">✕</button></td></tr>
+                </tbody>
+              </table>
+              <div class="cot-bultos-pie">
+                <button class="btn-punteado">+ Agregar bulto</button>
+                <button class="btn-punteado">⧉ Duplicar el último</button>
+                <input value="1" style="width:56px;text-align:center;padding:.45rem;border:1px solid #d8dee9;border-radius:6px">
+                <div class="cot-bultos-tot">2 bultos · facturable <b>23,0 kg</b></div>
+              </div>
+            </div>
+          </section>
+
+          <section class="cot-paso">
+            <div class="cot-paso-cab"><span class="cot-num">3</span>
+              <div><h3>Valor y extras</h3><p>Valor declarado, seguro y extracargos</p></div>
+            </div>
+            <div class="cot-paso-cuerpo">
+              <div class="cot-grid">
+                <div class="cot-campo"><label>Valor declarado (USD)</label><input value="250">
+                  <div class="cot-hint ok">Seguro automático: 1,5% → USD 17,50 (mínimo DHL)</div></div>
+                <div class="cot-campo"><label>Tipo de contenido</label>
+                  <select><option>Paquete / no documento</option></select></div>
+              </div>
+              <div class="cot-chips">
+                <label class="cot-chip">Zona de entrega <select><option>Normal</option></select></label>
+                <label class="cot-chip"><input type="checkbox"> Entrega residencial (UPS)</label>
+                <label class="cot-chip"><input type="checkbox" checked> DDP</label>
+                <label class="cot-chip"><input type="checkbox"> Protección de documentos (DHL · 7,50)</label>
+              </div>
+              <p class="cot-nota">El manejo adicional de UPS y los extracargos por dimensión de DHL se aplican solos según las medidas. Los topes de aceptación avisan pero no frenan.</p>
+            </div>
+          </section>
+
+          <section class="cot-paso">
+            <div class="cot-paso-cab"><span class="cot-num">4</span>
+              <div><h3>Cliente y ganancia</h3><p>De acá sale el precio de venta</p></div>
+            </div>
+            <div class="cot-paso-cuerpo">
+              <div class="cot-grid cot-grid-3">
+                <div class="cot-campo" style="grid-column:span 2"><label>Cliente</label>
+                  <select><option>ASAPLAST S.R.L.</option></select>
+                  <div class="cot-hint ok">Profit de su matriz: 75% (UPS W.E · zona 1)</div></div>
+                <div class="cot-campo"><label>% Ganancia</label><input value="75">
+                  <div class="cot-hint">Integrada en el precio final</div></div>
+              </div>
+              <div class="cot-grid cot-grid-3">
+                <div class="cot-campo"><label>Fuel</label><select><option>Fuel Nova</option></select></div>
+                <div class="cot-campo"><label>% Fuel</label><input value="30,5"></div>
+                <div class="cot-campo"><label>Nombre en la cotización</label><input value="ASAPLAST S.R.L."></div>
+              </div>
+              <div class="cot-chips">
+                <label class="cot-chip"><input type="checkbox" checked> Logo de Nova en la imagen</label>
+                <label class="cot-chip"><input type="checkbox"> Validez <input value="15" style="width:44px;text-align:center;border:1px solid #d8dee9;border-radius:4px"> días</label>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        <!-- ══ RESUMEN LATERAL ══ -->
+        <aside class="cot-lateral">
+          <div class="cot-resumen">
+            <h3>Resumen</h3>
+            <dl>
+              <dt>Destino</dt><dd>Brasil · Z1</dd>
+              <dt>Operación</dt><dd>Exportación</dd>
+              <dt>Bultos</dt><dd>2</dd>
+              <dt>Facturable</dt><dd class="fuerte">23,0 kg</dd>
+              <dt>Valor FOB</dt><dd>USD 250</dd>
+              <dt>Cliente</dt><dd>ASAPLAST</dd>
+              <dt>Ganancia</dt><dd>75%</dd>
+            </dl>
+            <hr>
+            <button class="btn-calcular">Calcular cotización</button>
+            <p class="cot-resumen-pie">Se comparan 3 servicios<br>DHL · UPS Expedited · UPS Saver</p>
+          </div>
+        </aside>
+      </div>
+
+      <!-- ══ RESULTADOS ══ -->
+      <div class="cot-res-titulo"><h2>Resultado</h2><span>3 servicios · 2 bultos · 23,0 kg facturables</span></div>
+
+      <div class="tira-interna">
+        <span class="ti-tag">Interno</span>
+        <span>Fuel <b>30,5%</b></span>
+        <span>Seguro <b>17,50</b></span>
+        <span>Zona DHL <b>1</b> · Zona UPS <b>2</b></span>
+        <span class="ti-50">Tarifa +50 kg: no aplica</span>
+        <button class="btn-mini" style="width:auto;margin-left:auto">Copiar para la oficina</button>
+      </div>
+
+      <!-- DHL -->
+      <div class="cot-res-fila">
+        <div class="result-card">
+          <div class="result-header dhl">
+            <div><div class="result-courier">DHL Express</div>
+              <div class="result-meta">Brasil · Zona 1 · 23,0 kg facturables · 2 bultos</div></div>
+            <div class="result-total">USD 312,40<small>precio al cliente</small></div>
+          </div>
+          <div class="result-body">
+            <div class="brow sec"><span class="bl">Flete</span></div>
+            <div class="brow"><span class="bl">Flete 23,0 kg</span><span class="br">198,50</span></div>
+            <div class="brow"><span class="bl">Fuel 30,5%</span><span class="br">60,54</span></div>
+            <div class="brow sec"><span class="bl">Adicionales</span></div>
+            <div class="brow"><span class="bl">GoGreen</span><span class="br">22,54</span></div>
+            <div class="brow"><span class="bl">Seguro (1,5% · mín. 17,50)</span><span class="br">17,50</span></div>
+            <div class="brow"><span class="bl">DDP</span><span class="br">13,32</span></div>
+            <div class="brow total-row"><span class="bl">Total</span><span class="br">USD 312,40</span></div>
+          </div>
+        </div>
+        <div class="col-oficina">
+          <div class="panel-compra">
+            <div class="pc-tit">Nuestra compra</div>
+            <div class="pc-row"><span>Flete</span><span>113,43</span></div>
+            <div class="pc-row"><span>Fuel</span><span>34,60</span></div>
+            <div class="pc-row"><span>GoGreen</span><span>22,54</span></div>
+            <div class="pc-row"><span>Seguro</span><span>3,75</span></div>
+            <div class="pc-row pc-tot"><span>Costo total</span><span>174,32</span></div>
+            <div class="pc-row pc-gan"><span>Ganancia</span><span>138,08 · 79%</span></div>
+          </div>
+          <button class="btn-guardar-precio"><span class="bv-ico">✓</span> Guardar este precio</button>
+          <button class="btn-mini">🖼 Copiar imagen</button>
+        </div>
+      </div>
+
+      <!-- UPS Expedited -->
+      <div class="cot-res-fila">
+        <div class="result-card">
+          <div class="result-header ups">
+            <div><div class="result-courier">UPS Expedited</div>
+              <div class="result-meta">Brasil · Zona 2 · 23,0 kg facturables · 2 bultos</div></div>
+            <div class="result-total">USD 289,15<small>precio al cliente</small></div>
+          </div>
+          <div class="result-body">
+            <div class="brow sec"><span class="bl">Flete</span></div>
+            <div class="brow"><span class="bl">Flete 23,0 kg</span><span class="br">181,20</span></div>
+            <div class="brow"><span class="bl">Fuel 30,5%</span><span class="br">55,27</span></div>
+            <div class="brow sec"><span class="bl">Adicionales</span></div>
+            <div class="brow"><span class="bl">Surge 0,50/kg</span><span class="br">11,50</span></div>
+            <div class="brow"><span class="bl">Seguro (1,5%)</span><span class="br">3,75</span></div>
+            <div class="brow"><span class="bl">DDP</span><span class="br">13,32</span></div>
+            <div class="brow total-row"><span class="bl">Total</span><span class="br">USD 289,15</span></div>
+          </div>
+        </div>
+        <div class="col-oficina">
+          <div class="panel-compra">
+            <div class="pc-tit">Nuestra compra</div>
+            <div class="pc-row"><span>Flete</span><span>103,54</span></div>
+            <div class="pc-row"><span>Fuel</span><span>31,58</span></div>
+            <div class="pc-row"><span>Surge + fuel</span><span>15,01</span></div>
+            <div class="pc-row"><span>Seguro</span><span>3,75</span></div>
+            <div class="pc-row pc-tot"><span>Costo total</span><span>153,88</span></div>
+            <div class="pc-row pc-gan"><span>Ganancia</span><span>135,27 · 88%</span></div>
+          </div>
+          <button class="btn-guardar-precio" aria-pressed="true"><span class="bv-ico">✓</span> Guardado · CTZ2284</button>
+          <button class="btn-mini">🖼 Copiar imagen</button>
+        </div>
+      </div>
+
+      <!-- UPS Saver -->
+      <div class="cot-res-fila">
+        <div class="result-card">
+          <div class="result-header ups">
+            <div><div class="result-courier">UPS Saver</div>
+              <div class="result-meta">Brasil · Zona 2 · 23,0 kg facturables · 2 bultos</div></div>
+            <div class="result-total">USD 341,70<small>precio al cliente</small></div>
+          </div>
+          <div class="result-body">
+            <div class="brow sec"><span class="bl">Flete</span></div>
+            <div class="brow"><span class="bl">Flete 23,0 kg</span><span class="br">221,40</span></div>
+            <div class="brow"><span class="bl">Fuel 30,5%</span><span class="br">67,53</span></div>
+            <div class="brow sec"><span class="bl">Adicionales</span></div>
+            <div class="brow"><span class="bl">Surge 0,50/kg</span><span class="br">11,50</span></div>
+            <div class="brow"><span class="bl">Seguro (1,5%)</span><span class="br">3,75</span></div>
+            <div class="brow"><span class="bl">DDP</span><span class="br">13,32</span></div>
+            <div class="brow total-row"><span class="bl">Total</span><span class="br">USD 341,70</span></div>
+          </div>
+        </div>
+        <div class="col-oficina">
+          <div class="panel-compra">
+            <div class="pc-tit">Nuestra compra</div>
+            <div class="pc-row"><span>Flete</span><span>126,51</span></div>
+            <div class="pc-row"><span>Fuel</span><span>38,58</span></div>
+            <div class="pc-row"><span>Surge + fuel</span><span>15,01</span></div>
+            <div class="pc-row"><span>Seguro</span><span>3,75</span></div>
+            <div class="pc-row pc-tot"><span>Costo total</span><span>183,85</span></div>
+            <div class="pc-row pc-gan"><span>Ganancia</span><span>157,85 · 86%</span></div>
+          </div>
+          <button class="btn-guardar-precio"><span class="bv-ico">✓</span> Guardar este precio</button>
+          <button class="btn-mini">🖼 Copiar imagen</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+</div>
+</body>
+</html>

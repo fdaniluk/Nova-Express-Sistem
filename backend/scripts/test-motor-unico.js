@@ -27,9 +27,17 @@ function check(nombre, cond, detalle = '') {
 }
 
 // Recorre el código del sistema, salteando dependencias, pruebas y el propio motor.
+//
+// `maquetas` se saltea desde el 14/09/2026: `docs/maquetas/` guarda las maquetas de diseño
+// que se le muestran a Felipe antes de tocar una pantalla. Son HTML estáticos con números
+// INVENTADOS de ejemplo, no se sirven y no ejecutan nada — pero uno de ellos
+// (`maqueta-cargar-envio.html`, 12/09) escribía "surge 3.30" en un texto de muestra y esta
+// tanda lo leía como una tarifa suelta en el código. El control es para el código vivo del
+// sistema; una foto de diseño no puede romperlo.
 function archivos() {
   const out = [];
-  const saltar = new Set(['node_modules', '.git', 'database', 'facturas-ejemplo', '_to_delete', 'scripts']);
+  const saltar = new Set(['node_modules', '.git', 'database', 'facturas-ejemplo', '_to_delete',
+    'scripts', 'maquetas']);
   (function walk(dir) {
     for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
       if (e.isDirectory()) { if (!saltar.has(e.name)) walk(path.join(dir, e.name)); continue; }
