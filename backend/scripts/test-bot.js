@@ -33,6 +33,11 @@ const { spawn } = require('child_process');
 const { prepararDb, abrirSesion, esperarServidor } = require('./_base-test');
 
 const PORT = process.env.PORT_TEST || 3930;
+/* Algunos controles llaman a una herramienta del asistente DIRECTO (sin pasar por el
+   chat). Esas herramientas le pegan a la API del propio servidor usando `config.port`,
+   y config lee PORT al cargarse — así que tiene que estar puesto ANTES de requerir
+   nada de src/, o apuntarían al 3000 de producción. */
+process.env.PORT = String(PORT);
 const BASE = `http://localhost:${PORT}`;
 const DB = process.env.DB_PATH_TEST || '/tmp/test_bot.db';
 const TOKEN = 'token-test-bot-admin';
@@ -129,6 +134,48 @@ async function main() {
   const porCliente = await chat('guía BOTERO');
   check('buscar por nombre de cliente trae los dos envíos', /2 envío/.test(porCliente.texto), porCliente.texto);
 
+  /* 2-bis (15/09). Felipe preguntó "de las guías que tenemos volando, ¿alguna fue
+     entregada hoy?" y el asistente dijo que no tenía con qué; después, por "los envíos de
+     ayer", contestó que no había habiendo. Las dos cosas eran la misma herramienta: `q`
+     era obligatorio (así que listar por fecha lo obligaba a inventar un texto que iba a un
+     LIKE) y no se podía filtrar por semáforo. */
+  console.log('\n2-bis. Listar sin texto de búsqueda: por fecha y por semáforo\n');
+  const ayer = require('../src/utils/fecha').hoyLocalMas(-1);
+  const eAyer = await alta({ numero_guia: '1Z999AA10123456786', fecha: ayer, total_cobrado: 90 });
+  check('(fixture) hay un envío de ayer', !!eAyer.id);
+  // Semáforo como lo deja el job de tracking: verde es terminal y tracking_fecha es cuándo lo vimos.
+  await run("UPDATE envios SET tracking_estado = 'verde', tracking_detalle = 'Delivered', tracking_fecha = datetime('now','localtime') WHERE id = ?", [e1.id]);
+  await run("UPDATE envios SET tracking_estado = 'amarillo', tracking_detalle = 'In Transit', tracking_fecha = datetime('now','localtime') WHERE id = ?", [e2.id]);
+  await run("UPDATE envios SET tracking_estado = 'verde', tracking_detalle = 'Delivered', tracking_fecha = ? WHERE id = ?", [ayer + ' 10:00:00', eAyer.id]);
+
+  const deAyer = await chat('revisá los envíos de ayer');
+  check('"los envíos de ayer" usó buscar_envios', deAyer.herramientas.includes('buscar_envios'), deAyer.herramientas.join(','));
+  check('   y LOS ENCUENTRA (no dice que no hay)', /1Z999AA10123456786/.test(deAyer.texto) && !/No encontré/.test(deAyer.texto), deAyer.texto);
+
+  const volando = await chat('qué guías tenemos volando');
+  check('"volando" filtra por semáforo y deja fuera las entregadas',
+    /1Z999AA10123456785/.test(volando.texto) && !/1Z999AA10123456784/.test(volando.texto), volando.texto);
+
+  const entregadasHoy = await chat('alguna fue entregada hoy?');
+  check('"entregada hoy" trae la de hoy y NO la de ayer',
+    /1Z999AA10123456784/.test(entregadasHoy.texto) && !/1Z999AA10123456786/.test(entregadasHoy.texto), entregadasHoy.texto);
+
+  // La herramienta, directo: el resumen del semáforo y que `q` ya no sea obligatorio.
+  const botSrv = require('../src/services/bot.service');
+  const ctxH = { cookie: `nova_session=${TOKEN}`, usuario: { id: 1, usuario: 'admin' } };
+  const sinQ = await botSrv.HERRAMIENTAS.buscar_envios.ejecutar({}, ctxH);
+  check('la herramienta corre SIN `q` y no rompe', sinQ.cantidad === 3, JSON.stringify(sinQ).slice(0, 160));
+  check('   y avisa en qué ventana miró', /30 días/.test(sinQ.ventana_mirada || ''), sinQ.ventana_mirada);
+  check('   el resumen del semáforo cuenta bien',
+    sinQ.resumen_semaforo.entregadas === 2 && sinQ.resumen_semaforo.volando === 1, JSON.stringify(sinQ.resumen_semaforo));
+  const enCurso = await botSrv.HERRAMIENTAS.buscar_envios.ejecutar({ semaforo: 'en_curso' }, ctxH);
+  check('semaforo=en_curso deja solo lo no entregado', enCurso.cantidad === 1 && enCurso.envios[0].guia === '1Z999AA10123456785', JSON.stringify(enCurso.envios.map((e) => e.guia)));
+  const entAyer = await botSrv.HERRAMIENTAS.buscar_envios.ejecutar({ entregadas_el: 'ayer' }, ctxH);
+  check('entregadas_el=ayer usa la fecha del semáforo, no la de despacho',
+    entAyer.cantidad === 1 && entAyer.envios[0].guia === '1Z999AA10123456786', JSON.stringify(entAyer.envios.map((e) => e.guia)));
+  const tope = await botSrv.HERRAMIENTAS.buscar_envios.ejecutar({ limite: 1 }, ctxH);
+  check('el límite recorta pero dice cuántos había', tope.cantidad === 1 && tope.total_encontrados === 3, JSON.stringify([tope.cantidad, tope.total_encontrados]));
+
   // ── 3 ──────────────────────────────────────────────────────────────────────
   console.log('\n3. La venta del día\n');
   const v = await chat('cómo viene la venta de hoy');
@@ -172,7 +219,11 @@ async function main() {
   console.log('\n5. Los pendientes de la oficina\n');
   const p = await chat('qué pendientes hay');
   check('usó pendientes', p.herramientas.includes('pendientes'), p.herramientas.join(','));
-  check('cuenta los pickups del día y lo que falta liquidar', /pickups 0/.test(p.texto) && /sin liquidar 2 envíos de 1 clientes/.test(p.texto), p.texto);
+  /* El número se saca de la base, no se escribe acá: si mañana la tanda agrega otro
+     envío de fixture, el control sigue valiendo en vez de romperse por el conteo. */
+  const sinLiq = await get('SELECT COUNT(*) n FROM envios WHERE liquidado = 0 AND no_volo = 0');
+  check('cuenta los pickups del día y lo que falta liquidar',
+    /pickups 0/.test(p.texto) && new RegExp(`sin liquidar ${sinLiq.n} envíos de 1 clientes`).test(p.texto), p.texto);
 
   // ── 6 ──────────────────────────────────────────────────────────────────────
   console.log('\n6. Cargar un pickup: NUNCA sin confirmar\n');

@@ -25,6 +25,33 @@ controles nuevos levantan un SEGUNDO servidor sin clave y sin mock (puerto `PORT
 vinculación funcione igual y que una pregunta de verdad conteste el motivo en vez de quedar
 muda. Cache del panel: **`asistente.js?v=20260915b`**.
 
+**Segundo arreglo del 15/09 — `buscar_envios` se quedaba corta.** Con la clave puesta,
+Felipe preguntó *"de las guías que tenemos volando, ¿alguna fue entregada hoy?"* y el
+asistente dijo que no tenía con qué; después, por "los envíos de ayer", contestó que no
+había **habiendo**. Las dos cosas eran la misma herramienta:
+1. **`q` era obligatorio**, así que para listar por fecha el modelo estaba forzado a
+   inventar un texto, y ese texto iba a un `LIKE` contra guía y nombre de cliente. De ahí
+   el "no hay envíos de ayer" falso. Ahora **todos los parámetros son opcionales**; sin
+   nada mira los últimos 30 días y devuelve `ventana_mirada` para que el modelo no diga
+   "no hay" cuando en realidad miró un mes.
+2. **No se podía filtrar por semáforo.** El tracking automático de UPS ya pintaba
+   verde/amarillo/rojo, pero la herramienta solo lo mostraba. Se sumaron `semaforo`
+   (incluido `en_curso` = todo lo no entregado), `entregadas_el`, `liquidado` y `limite`,
+   más un `resumen_semaforo` con los conteos.
+**"Entregada hoy" sin fecha de entrega de UPS:** verde es terminal — `tracking-auto` deja
+de consultar una guía apenas la ve entregada —, así que en un envío verde
+`tracking_fecha` es **cuándo la vimos llegar**, con hasta 4 h de atraso. Alcanza para la
+pregunta, y el system prompt le dice al modelo que lo aclare en vez de dar la hora como
+exacta. Tanda `test-bot` **44 → 55**.
+
+⚠️ El conteo de "sin liquidar" en `test-bot` ahora **se saca de la base**, no está
+escrito en el control: agregar un envío de fixture ya no rompe esa línea.
+
+⚠️ `test-pantalla-asistente` esperaba **600 ms** a que el simulador pidiera el código por
+red; en la máquina de Felipe tardaba más y daban 3 controles en rojo que no eran del
+sistema. Ahora espera **a que aparezca el código**. Regla para tandas con navegador: nunca
+esperar un reloj por algo que viaja por red.
+
 **NUEVO EN LA COLA (15/09):** el **sistema de gestión contable** (Felipe pasa el GECOM la
 semana que viene) y, atado a eso, **los pagos automáticos desde el banco**: lo averiguado y
 las cuatro opciones, en `IDEAS-COTIZACIONES-Y-BOT.md` §H.

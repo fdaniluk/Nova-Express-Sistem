@@ -122,31 +122,85 @@ function resolverFecha(v) {
    `ctx` = { cookie, usuario, conversacion }. Devuelven SOLO lo que el modelo puede
    contar; los errores vuelven como { error } para que el modelo los explique. */
 const HERRAMIENTAS = {
+  /* buscar_envios — la herramienta más usada, y la que el 15/09 se quedó corta.
+     Felipe preguntó "de las guías que tenemos volando, ¿alguna fue entregada hoy?" y el
+     asistente contestó que no tenía con qué. Dos motivos, los dos arreglados acá:
+       1. `q` era OBLIGATORIO. Para listar "los envíos de ayer" el modelo estaba forzado a
+          inventar un texto de búsqueda, y esa palabra terminaba en un LIKE que no
+          matcheaba nada — por eso dijo "no hay envíos registrados de ayer" habiendo.
+       2. No había forma de filtrar por SEMÁFORO. El semaforo de UPS ya está en la base
+          (rojo = sin escanear · amarillo = volando · verde = entregada), pero la
+          herramienta solo lo devolvía, no lo filtraba.
+     Sobre "entregada hoy": no guardamos la hora real de entrega de UPS. Lo que sí sirve es
+     que VERDE ES TERMINAL — el job de tracking-auto deja de consultar una guía apenas la
+     ve entregada —, así que en un envío verde `tracking_fecha` es CUÁNDO LA VIMOS
+     entregada, con hasta 4 horas de atraso (el job corre cada 4 h). Con eso alcanza para
+     "¿qué se entregó hoy?", y el modelo lo aclara porque se lo decimos en la descripción. */
   buscar_envios: {
     audiencia: ['interno'],
     definicion: {
       name: 'buscar_envios',
-      description: 'Busca envíos por número de guía (entero o parte) o por nombre de cliente. Devuelve hasta 20, los más nuevos primero, con destino, courier, kilos, venta, estado operativo, semáforo de UPS y si está liquidado.',
+      description: 'Lista y filtra envíos. TODOS los parámetros son opcionales: sin nada devuelve los más nuevos de los últimos 30 días. '
+        + 'Con "q" busca por número de guía (entero o parte) o por nombre de cliente; sin "q" lista por los otros filtros. '
+        + 'El semáforo es el tracking automático de UPS: verde = entregada, amarillo = volando (en tránsito), rojo = despachada pero UPS todavía no la escaneó, sin_dato = sin consultar (DHL no tiene semáforo automático). '
+        + 'Para "¿qué se entregó hoy?" usá entregadas_el: es la fecha en que NUESTRO semáforo la vio entregada (se consulta cada 4 horas), no la hora exacta de UPS — aclaralo al contestar. '
+        + 'Devuelve hasta "limite" (20 por defecto), los más nuevos primero, y un resumen con cuántos hay de cada color.',
       input_schema: {
         type: 'object',
         properties: {
-          q: { type: 'string', description: 'Número de guía o nombre (o parte) del cliente' },
-          fecha_desde: { type: 'string', description: 'YYYY-MM-DD, opcional' },
-          fecha_hasta: { type: 'string', description: 'YYYY-MM-DD, opcional' },
+          q: { type: 'string', description: 'Número de guía o nombre (o parte) del cliente. Opcional.' },
+          fecha_desde: { type: 'string', description: 'Fecha DE DESPACHO, YYYY-MM-DD (también vale hoy/ayer). Opcional.' },
+          fecha_hasta: { type: 'string', description: 'Fecha DE DESPACHO, YYYY-MM-DD (también vale hoy/ayer). Opcional.' },
           courier: { type: 'string', enum: ['UPS', 'DHL'], description: 'opcional' },
+          semaforo: { type: 'string', enum: ['verde', 'amarillo', 'rojo', 'sin_dato', 'en_curso'],
+            description: 'Filtra por el semáforo. "en_curso" = todo lo que todavía no está entregado (amarillo + rojo). Opcional.' },
+          entregadas_el: { type: 'string', description: 'YYYY-MM-DD, hoy o ayer: solo las que el semáforo vio ENTREGADAS ese día. Opcional.' },
+          liquidado: { type: 'boolean', description: 'true = solo liquidados, false = solo sin liquidar. Opcional.' },
+          limite: { type: 'integer', description: 'Cuántos devolver, 1 a 50. Por defecto 20.' },
         },
-        required: ['q'],
+        required: [],
       },
     },
     async ejecutar(a, ctx) {
       const qs = new URLSearchParams();
-      qs.set('q', String(a.q || '').trim());
+      const q = String(a.q || '').trim();
+      if (q) qs.set('q', q);
       if (a.fecha_desde) qs.set('fecha_desde', resolverFecha(a.fecha_desde));
       if (a.fecha_hasta) qs.set('fecha_hasta', resolverFecha(a.fecha_hasta));
+      /* Sin guía ni fechas la lista sería la tabla entera. 30 días cubre lo que la oficina
+         llama "lo que tenemos volando" sin traerse el histórico. Se avisa en la respuesta
+         para que el modelo no diga "no hay" cuando en realidad miró un mes. */
+      let ventana = null;
+      if (!q && !a.fecha_desde && !a.fecha_hasta) {
+        ventana = hoyLocalMas(-30);
+        qs.set('fecha_desde', ventana);
+      }
       if (a.courier) qs.set('courier', a.courier);
+      if (a.liquidado !== undefined && a.liquidado !== null) qs.set('liquidado', a.liquidado ? 'true' : 'false');
       const r = await api(ctx.cookie, 'GET', '/api/envios?' + qs.toString());
       if (r && r.error) return r;
-      const lista = (Array.isArray(r) ? r : []).slice(0, 20).map((e) => ({
+      let filas = Array.isArray(r) ? r : [];
+
+      const color = (e) => e.tracking_estado || 'sin_dato';
+      const resumen = { entregadas: 0, volando: 0, sin_escanear: 0, sin_dato: 0 };
+      for (const e of filas) {
+        const c = color(e);
+        if (c === 'verde') resumen.entregadas++;
+        else if (c === 'amarillo') resumen.volando++;
+        else if (c === 'rojo') resumen.sin_escanear++;
+        else resumen.sin_dato++;
+      }
+
+      if (a.semaforo === 'en_curso') filas = filas.filter((e) => color(e) !== 'verde');
+      else if (a.semaforo) filas = filas.filter((e) => color(e) === a.semaforo);
+      if (a.entregadas_el) {
+        const dia = resolverFecha(a.entregadas_el);
+        filas = filas.filter((e) => color(e) === 'verde' && String(e.tracking_fecha || '').slice(0, 10) === dia);
+      }
+
+      const tope = Math.min(Math.max(Number(a.limite) || 20, 1), 50);
+      const total = filas.length;
+      const lista = filas.slice(0, tope).map((e) => ({
         id: e.id,
         guia: e.numero_guia,
         fecha: e.fecha,
@@ -167,7 +221,13 @@ const HERRAMIENTAS = {
         fecha_liquidacion: e.fecha_liquidacion || null,
         no_volo: !!e.no_volo,
       }));
-      return { cantidad: lista.length, envios: lista };
+      return {
+        cantidad: lista.length,
+        total_encontrados: total,
+        ...(ventana ? { ventana_mirada: `desde ${ventana} (últimos 30 días; pedí fechas para mirar más atrás)` } : {}),
+        resumen_semaforo: resumen,
+        envios: lista,
+      };
     },
   },
 
@@ -474,6 +534,8 @@ function systemPrompt(usuario, audiencia = 'interno') {
     '- Importes en USD con dos decimales. Kilos con una coma decimal (14,5 kg). Fechas como 14/09.',
     '- Para cotizar necesitás país, bultos (peso y, si hay, medidas) y cliente o % de ganancia. Si falta algo, preguntá UNA cosa por vez. Devolvé cada opción con su total y, si te lo piden, el desglose. Nunca menciones costo, margen ni profit de una cotización.',
     '- Cargar un pickup es en DOS pasos: primero proponer_pickup (mostrás el resumen y preguntás "¿lo cargo?"), y confirmar_pickup SOLO cuando la persona dice que sí. Si dice que no, cancelar_pendiente.',
+    '- El semáforo de buscar_envios es el tracking automático de UPS: verde = entregada, amarillo = volando, rojo = despachada pero sin escanear todavía, sin_dato = no se consultó (DHL no tiene semáforo automático). Se actualiza cada 4 horas, así que las horas de entrega son aproximadas y conviene aclararlo.',
+    '- Antes de decir que no hay envíos, fijate en qué ventana miró la herramienta (campo ventana_mirada) y, si hace falta, volvé a buscar con otras fechas.',
     '- Si no sabés el cliente_id, buscalo con buscar_clientes. Si hay varios parecidos, preguntá cuál.',
     '- Sin markdown pesado: texto plano, guiones para listas, nada de tablas.',
   ].join('\n');
@@ -593,8 +655,11 @@ async function llamarModeloMock(system, mensajes, ctx) {
     let res; try { res = JSON.parse(tr.content); } catch { res = tr.content; }
     if (res && res.error) return texto(`[mock] ${nombre}: ${res.error}`);
     switch (nombre) {
-      case 'buscar_envios':
-        return texto(res.cantidad ? `[mock] Encontré ${res.cantidad} envío(s): ` + res.envios.map((e) => `guía ${e.guia} · ${e.cliente} · ${e.destino} · ${e.courier} · ${e.kg_facturable} kg · USD ${e.venta_usd} · ${e.liquidado ? 'liquidado' : 'sin liquidar'}${e.semaforo ? ' · ' + e.semaforo : ''}`).join(' | ') : '[mock] No encontré envíos con eso.');
+      case 'buscar_envios': {
+        const rs = res.resumen_semaforo || {};
+        const cola = ` [semáforo: ${rs.entregadas || 0} entregadas · ${rs.volando || 0} volando · ${rs.sin_escanear || 0} sin escanear · ${rs.sin_dato || 0} sin dato]`;
+        return texto((res.cantidad ? `[mock] Encontré ${res.cantidad} envío(s): ` + res.envios.map((e) => `guía ${e.guia} · ${e.cliente} · ${e.destino} · ${e.courier} · ${e.kg_facturable} kg · USD ${e.venta_usd} · ${e.liquidado ? 'liquidado' : 'sin liquidar'}${e.semaforo ? ' · ' + e.semaforo : ''}`).join(' | ') : '[mock] No encontré envíos con eso.') + cola);
+      }
       case 'venta_periodo':
         return texto(`[mock] Venta ${res.periodo}: ${res.envios} envíos · ${res.kg_facturables} kg · USD ${res.venta_usd} · profit USD ${res.profit_estimado_usd}`);
       case 'buscar_clientes':
@@ -622,6 +687,14 @@ async function llamarModeloMock(system, mensajes, ctx) {
   let m;
   if ((m = t.match(/1Z[0-9A-Z]{16}/i))) return uso('buscar_envios', { q: m[0] });
   if ((m = tl.match(/gu[ií]a\s+([0-9a-z]{4,})/))) return uso('buscar_envios', { q: m[1] });
+  /* Lo que el 15/09 el mock tampoco sabía contestar: listar por semáforo o por fecha, SIN
+     texto de búsqueda. Va antes que "venta" porque "¿se entregó algo hoy?" no es venta. */
+  if (/entregad/.test(tl)) return uso('buscar_envios', { entregadas_el: /ayer/.test(tl) ? 'ayer' : 'hoy' });
+  if (/volando|en curso|en tr[aá]nsito/.test(tl)) return uso('buscar_envios', { semaforo: 'en_curso' });
+  if (/env[ií]os?\s+(de\s+)?(hoy|ayer)/.test(tl)) {
+    const d = /ayer/.test(tl) ? 'ayer' : 'hoy';
+    return uso('buscar_envios', { fecha_desde: d, fecha_hasta: d });
+  }
   if (/pendiente/.test(tl)) { const f = (t.match(/\d{4}-\d{2}-\d{2}/) || [])[0]; return uso('pendientes', f ? { fecha: f } : (/mañana|manana/.test(tl) ? { fecha: 'mañana' } : {})); }
   if (/venta|vendimos|facturamos/.test(tl)) return uso('venta_periodo', { periodo: /ayer/.test(tl) ? 'ayer' : /mes/.test(tl) ? 'mes' : 'hoy', courier: /\bups\b/.test(tl) ? 'UPS' : /\bdhl\b/.test(tl) ? 'DHL' : undefined });
   if (/pickup|retiro/.test(tl)) {
