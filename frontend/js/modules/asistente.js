@@ -80,11 +80,13 @@
       else if (e.disponible) { estadoEl.textContent = 'listo · ' + e.modelo; estadoEl.className = 'asi-estado ok'; }
       else { estadoEl.textContent = 'sin configurar'; estadoEl.className = 'asi-estado error'; }
       if (e.canales) canalesDisponibles = e.canales;
+      /* Sin clave el MODELO no contesta, pero la pantalla NO se bloquea: vincular un
+         teléfono (mandar el código de 6 dígitos) y el simulador no necesitan modelo, y
+         cuando el mensaje sí lo necesita el servidor devuelve un 503 con el motivo. */
       if (e.sin_clave) {
-        avisoEl.innerHTML = 'El asistente no está configurado: falta <code>ANTHROPIC_API_KEY</code> en el <code>.env</code> del servidor. Hasta que esté, los mensajes no se pueden mandar.';
+        avisoEl.innerHTML = 'El asistente no está configurado: falta <code>ANTHROPIC_API_KEY</code> en el <code>.env</code> del servidor. '
+          + 'Hasta que esté, no va a poder contestar preguntas, pero sí podés vincular teléfonos y probar el simulador.';
         avisoEl.hidden = false;
-        btnEnviar.disabled = true;
-        texto.disabled = true;
       }
     } catch (err) {
       estadoEl.textContent = 'sin conexión'; estadoEl.className = 'asi-estado error';
@@ -166,7 +168,7 @@
       pintarMensaje('assistant', (err.message || String(err)), [], 'error');
     } finally {
       enviando = false;
-      btnEnviar.disabled = texto.disabled;
+      btnEnviar.disabled = false;
       texto.focus();
     }
   }

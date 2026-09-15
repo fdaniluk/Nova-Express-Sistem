@@ -13,6 +13,8 @@
  *  3. Que la lista de conversaciones se arme, y que abrir una vieja traiga sus mensajes.
  *  4. Que el ítem "Asistente" esté en el menú de las pantallas.
  *  5. Sin errores de JavaScript.
+ *  6. Que SIN clave de Anthropic la pantalla siga usable: cartel de aviso, pero se
+ *     puede escribir, vincular un teléfono y ver el motivo cuando hace falta el modelo.
  *
  *   cd backend && node scripts/test-pantalla-asistente.js
  */
@@ -214,6 +216,75 @@ async function main() {
   console.log('\n5. Sin errores de JavaScript\n');
   const rel = errores.filter((x) => !/favicon|Failed to load resource/i.test(x));
   check('ningún error en las pantallas', rel.length === 0, rel.slice(0, 2).join(' | '));
+
+  // ── 6 ───────────────────────────────────────────────────────────────────
+  /* Sin clave de Anthropic y sin mock: el modelo no puede contestar, pero la pantalla
+     NO se tiene que bloquear. Vincular un teléfono (mandar el código de 6 dígitos) y el
+     simulador pasan por bot-canales y no necesitan modelo; si de verdad hace falta, el
+     servidor contesta 503 con el motivo y eso se ve como un mensaje de error, no como
+     una pantalla muda. (15/09/2026 — lo reportó la oficina: "no me deja escribir".) */
+  console.log('\n6. Sin clave, la pantalla sigue usable\n');
+  const PORT2 = Number(PORT) + 40;
+  const BASE2 = `http://localhost:${PORT2}`;
+  const DB2 = DB.replace(/\.db$/, '_sinclave.db');
+  const TOKEN2 = TOKEN + '-sinclave';
+  prepararDb(DB2, { desdeProduccion: false });
+  const srv2 = spawn('node', [path.join(__dirname, '..', 'src', 'server.js')], {
+    env: { ...process.env, DB_PATH: DB2, PORT: String(PORT2), NODE_ENV: 'production', BOT_MOCK: '', ANTHROPIC_API_KEY: '' },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+  let logOut2 = '', logErr2 = '';
+  srv2.stdout.on('data', (d) => { logOut2 += d; });
+  srv2.stderr.on('data', (d) => { logErr2 += d; });
+  let srv2Muerto = false;
+  const matarSrv2 = () => { if (srv2Muerto) return; srv2Muerto = true; try { srv2.kill(); } catch {} };
+  process.on('exit', matarSrv2);
+  await esperarServidor(srv2, BASE2, () => logErr2, () => logOut2);
+  await abrirSesion(DB2, TOKEN2);
+
+  const ctx2 = await browser.newContext({ viewport: { width: 1400, height: 900 } });
+  await ctx2.addCookies([{ name: 'nova_session', value: TOKEN2, url: BASE2 }]);
+  const page2 = await ctx2.newPage();
+  const errores2 = [];
+  page2.on('pageerror', (e) => errores2.push(String(e)));
+  await page2.goto(BASE2 + '/pages/asistente.html', { waitUntil: 'networkidle' });
+  await esperar(600);
+
+  check('el estado de arriba dice "sin configurar"', /sin configurar/i.test(await page2.$eval('#asi-estado', (e) => e.textContent)));
+  check('   y aparece el cartel rojo explicando que falta la clave',
+    !(await page2.$eval('#asi-aviso', (e) => e.hidden)) && /ANTHROPIC_API_KEY/.test(await page2.$eval('#asi-aviso', (e) => e.textContent)));
+  check('el cuadro de texto SIGUE habilitado', !(await page2.$eval('#asi-texto', (e) => e.disabled)));
+  check('   y el botón Enviar también', !(await page2.$eval('#asi-enviar', (e) => e.disabled)));
+
+  const escribir2 = async (t) => {
+    await page2.fill('#asi-texto', t);
+    await page2.press('#asi-texto', 'Enter');
+    await page2.waitForFunction(() => !document.querySelector('.asi-msg.pensando') && !document.getElementById('asi-enviar').disabled, null, { timeout: 15000 });
+    await esperar(150);
+  };
+  const burbujas2 = () => page2.$$eval('.asi-msg:not(.pensando)', (ns) => ns.map((n) => n.textContent));
+
+  await page2.click('.asi-modo button[data-modo="telefono"]');
+  await page2.waitForFunction(() => document.querySelectorAll('.asi-msg').length >= 1, null, { timeout: 5000 });
+  await esperar(600);
+  const aviso2 = (await burbujas2()).join(' ');
+  const codigo2 = (aviso2.match(/mandá acá el código (\d{6})/) || [])[1];
+  check('el simulador saca el código igual que con clave', !!codigo2, aviso2.slice(0, 160));
+  await escribir2(codigo2 || '000000');
+  let b2 = await burbujas2();
+  check('   y mandando el código se vincula SIN modelo', /vinculado/i.test(b2[b2.length - 1]), b2[b2.length - 1]);
+  check('   el cuadro de texto sigue habilitado después de mandar', !(await page2.$eval('#asi-texto', (e) => e.disabled)));
+
+  await escribir2('cómo viene la venta de hoy');
+  b2 = await burbujas2();
+  check('una pregunta de verdad avisa que falta la clave, no queda muda',
+    /clave|configurad|ANTHROPIC/i.test(b2[b2.length - 1]), b2[b2.length - 1]);
+  check('   y se puede volver a escribir después del error', !(await page2.$eval('#asi-enviar', (e) => e.disabled)));
+  const rel2 = errores2.filter((x) => !/favicon|Failed to load resource/i.test(x));
+  check('ningún error de JavaScript sin clave', rel2.length === 0, rel2.slice(0, 2).join(' | '));
+
+  await ctx2.close();
+  matarSrv2();
 
   await new Promise((res) => db.close(() => res()));
   await browser.close();
