@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Asistente – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
-  <link rel="stylesheet" href="../css/main.css?v=20260914c">
-  <link rel="stylesheet" href="../css/modules/asistente.css?v=20260914c">
+  <link rel="stylesheet" href="../css/main.css?v=20260915a">
+  <link rel="stylesheet" href="../css/modules/asistente.css?v=20260915a">
 </head>
 <body>
 <div class="app-layout">
@@ -102,10 +102,32 @@
       <div class="asi-aviso" id="asi-aviso" hidden></div>
 
       <div class="asi-layout">
-        <!-- ══ La lista de conversaciones ══ -->
+        <!-- ══ Panel lateral: conversaciones y teléfonos ══ -->
         <aside class="asi-lista" id="asi-lista">
-          <h3>Conversaciones</h3>
-          <ul id="asi-conversaciones"></ul>
+          <div class="asi-tabs" role="tablist">
+            <button type="button" class="activa" data-tab="conversaciones">Conversaciones</button>
+            <button type="button" data-tab="telefonos">Teléfonos</button>
+          </div>
+
+          <div class="asi-tab" data-panel="conversaciones">
+            <ul id="asi-conversaciones"></ul>
+          </div>
+
+          <div class="asi-tab" data-panel="telefonos" hidden>
+            <p class="asi-ayuda">Vinculá tu teléfono para usar el asistente por mensaje. Sacás un código acá y lo mandás por el canal: sin eso, el asistente no le contesta a ningún número.</p>
+            <ul id="asi-vinculos"></ul>
+            <div class="asi-vincular">
+              <label for="asi-canal">Canal</label>
+              <select id="asi-canal">
+                <option value="prueba">Prueba (simulador, acá mismo)</option>
+                <option value="telegram">Telegram</option>
+                <option value="whatsapp">WhatsApp</option>
+              </select>
+              <input type="text" id="asi-etiqueta" maxlength="40" placeholder="Nombre (ej: mi celular)" />
+              <button type="button" class="btn-vincular" id="asi-vincular">Sacar código</button>
+            </div>
+            <div class="asi-codigo" id="asi-codigo" hidden></div>
+          </div>
         </aside>
 
         <!-- ══ El chat ══ -->
@@ -122,6 +144,12 @@
             </div>
           </div>
           <div class="asi-pendiente" id="asi-pendiente" hidden></div>
+          <div class="asi-modo">
+            <span>Escribiendo desde:</span>
+            <button type="button" class="activa" data-modo="panel">El sistema</button>
+            <button type="button" data-modo="telefono">📱 Simulador de teléfono</button>
+            <span class="asi-modo-nota" id="asi-modo-nota"></span>
+          </div>
           <form class="asi-entrada" id="asi-form" autocomplete="off">
             <textarea id="asi-texto" rows="1" placeholder="Escribí qué necesitás… (Enter envía, Shift+Enter baja de línea)" maxlength="2000"></textarea>
             <button type="submit" class="btn-enviar" id="asi-enviar">Enviar</button>
@@ -132,9 +160,9 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260914c"></script>
-<script src="../js/api.js?v=20260914c"></script>
-<script src="../js/main.js?v=20260914c"></script>
-<script src="../js/modules/asistente.js?v=20260914c"></script>
+<script src="/js/auth-guard.js?v=20260915a"></script>
+<script src="../js/api.js?v=20260915a"></script>
+<script src="../js/main.js?v=20260915a"></script>
+<script src="../js/modules/asistente.js?v=20260915a"></script>
 </body>
 </html>

@@ -12,11 +12,60 @@
  */
 const { Router } = require('express');
 const bot = require('../services/bot.service');
+const canales = require('../services/bot-canales.service');
 
 const router = Router();
 
 router.get('/estado', (req, res) => {
-  res.json(bot.estado());
+  res.json({ ...bot.estado(), canales: canales.estadoCanales() });
+});
+
+/* ── Teléfonos vinculados ──────────────────────────────────────────────────────────
+   El código sale de acá (de una persona con sesión) y viaja por el canal. Es lo que ata
+   un teléfono a un usuario: sin eso, el asistente no le contesta a nadie por Telegram ni
+   por WhatsApp. */
+router.get('/vinculos', async (req, res, next) => {
+  try { res.json(await canales.listarVinculos(req.usuario)); } catch (err) { next(err); }
+});
+
+router.post('/vinculos', async (req, res, next) => {
+  try {
+    const { canal, etiqueta } = req.body || {};
+    res.status(201).json(await canales.crearCodigo(req.usuario, { canal, etiqueta }));
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
+});
+
+router.delete('/vinculos/:id', async (req, res, next) => {
+  try {
+    const ok = await canales.darDeBaja(Number(req.params.id), req.usuario);
+    if (!ok) return res.status(404).json({ error: 'Vínculo no encontrado' });
+    res.json({ ok: true });
+  } catch (err) { next(err); }
+});
+
+/* El simulador del panel: escribe COMO SI fuera el teléfono, por el mismo camino que van
+   a usar Telegram y WhatsApp (canales.recibirMensaje). Lo único que no pasa es el último
+   paso, el de entregar el mensaje: la respuesta vuelve por la pantalla.
+
+   ⚠ El canal y el identificador NO se toman del pedido: son siempre el canal 'prueba' y el
+   teléfono simulado de QUIEN está logueado. Si se aceptaran del body, cualquiera con
+   sesión podría escribir haciéndose pasar por el teléfono vinculado de otro —y contestaría
+   con los permisos de ese otro. El simulador es para probarse a uno mismo. */
+router.post('/simular', async (req, res, next) => {
+  try {
+    const out = await canales.recibirMensaje({
+      canal: 'prueba',
+      identificador: `sim-${req.usuario.id}`,
+      texto: (req.body || {}).texto,
+    });
+    res.json(out);
+  } catch (err) {
+    if (err.status) return res.status(err.status).json({ error: err.message });
+    next(err);
+  }
 });
 
 router.post('/mensaje', async (req, res, next) => {

@@ -123,6 +123,7 @@ function resolverFecha(v) {
    contar; los errores vuelven como { error } para que el modelo los explique. */
 const HERRAMIENTAS = {
   buscar_envios: {
+    audiencia: ['interno'],
     definicion: {
       name: 'buscar_envios',
       description: 'Busca envíos por número de guía (entero o parte) o por nombre de cliente. Devuelve hasta 20, los más nuevos primero, con destino, courier, kilos, venta, estado operativo, semáforo de UPS y si está liquidado.',
@@ -171,6 +172,7 @@ const HERRAMIENTAS = {
   },
 
   venta_periodo: {
+    audiencia: ['interno'],
     definicion: {
       name: 'venta_periodo',
       description: 'Venta, kilos, envíos y margen de un período: hoy, ayer, este mes, un rango de fechas. Opcional por courier. Los importes son USD.',
@@ -217,6 +219,7 @@ const HERRAMIENTAS = {
   },
 
   buscar_clientes: {
+    audiencia: ['interno'],
     definicion: {
       name: 'buscar_clientes',
       description: 'Busca clientes por nombre (o parte). Sirve para conseguir el cliente_id que piden cotizar y proponer_pickup.',
@@ -244,6 +247,7 @@ const HERRAMIENTAS = {
   },
 
   cotizar: {
+    audiencia: ['interno'],
     definicion: {
       name: 'cotizar',
       description: 'Cotiza un envío con el motor del sistema y devuelve las opciones (DHL, UPS Expedited, UPS Saver) con el precio de venta y su desglose. Con cliente_id usa la tarifa de ese cliente; sin cliente hace falta profit_pct. NO devuelve costo ni margen.',
@@ -321,6 +325,7 @@ const HERRAMIENTAS = {
   },
 
   pendientes: {
+    audiencia: ['interno'],
     definicion: {
       name: 'pendientes',
       description: 'Lo que la oficina tiene pendiente hoy: pickups del día y cuáles faltan confirmar, envíos sin liquidar por cliente, y las alertas rojas del panel de salud.',
@@ -360,6 +365,7 @@ const HERRAMIENTAS = {
   },
 
   proponer_pickup: {
+    audiencia: ['interno'],
     definicion: {
       name: 'proponer_pickup',
       description: 'PASO 1 de 2 para cargar un pickup (retiro en lo del cliente). NO guarda: valida los datos, deja la carga pendiente y devuelve el resumen para que la persona lo confirme. Si no se conoce la dirección, usa la de recolección del cliente.',
@@ -409,6 +415,7 @@ const HERRAMIENTAS = {
   },
 
   confirmar_pickup: {
+    audiencia: ['interno'],
     definicion: {
       name: 'confirmar_pickup',
       description: 'PASO 2 de 2: graba el pickup que quedó pendiente con proponer_pickup. Llamar SOLO después de que la persona confirmó explícitamente.',
@@ -428,6 +435,7 @@ const HERRAMIENTAS = {
   },
 
   cancelar_pendiente: {
+    audiencia: ['interno'],
     definicion: {
       name: 'cancelar_pendiente',
       description: 'Descarta la carga pendiente (el pickup propuesto) cuando la persona dice que no.',
@@ -440,10 +448,25 @@ const HERRAMIENTAS = {
   },
 };
 
-const DEFINICIONES = Object.values(HERRAMIENTAS).map((h) => h.definicion);
+/* Las herramientas que ve el modelo dependen de QUIÉN escribe. Hoy todas son 'interno'
+   (la oficina). El día que un CLIENTE le escriba al bot por WhatsApp para ver su estado de
+   cuenta o pagar —lo que quiere Felipe más adelante— sus herramientas se marcan
+   'cliente' y esta lista cambia sola: un cliente no puede ni ver la lista de herramientas
+   de la oficina, mucho menos usarlas. */
+function definicionesPara(audiencia = 'interno') {
+  return Object.values(HERRAMIENTAS)
+    .filter((h) => (h.audiencia || ['interno']).includes(audiencia))
+    .map((h) => h.definicion);
+}
+function permitida(nombre, audiencia = 'interno') {
+  const h = HERRAMIENTAS[nombre];
+  return !!h && (h.audiencia || ['interno']).includes(audiencia);
+}
 
-function systemPrompt(usuario) {
+function systemPrompt(usuario, audiencia = 'interno') {
   return [
+    /* Un solo lugar donde se dice quién es y qué no hace. Cuando exista la audiencia
+       'cliente', acá va SU texto: nunca datos de la oficina, nunca de otro cliente. */
     'Sos el asistente interno de Nova Express, un courier internacional de Buenos Aires (DHL y UPS). Hablás con la gente de la oficina, en español rioplatense (vos), corto y directo.',
     `Hoy es ${hoyLocal()}. Usuario: ${(usuario && usuario.usuario) || 'desconocido'}.`,
     'REGLAS:',
@@ -536,11 +559,11 @@ function mensajesParaPantalla(mensajes) {
 }
 
 /* ── El modelo ──────────────────────────────────────────────────────────────────── */
-async function llamarModeloReal(system, mensajes) {
+async function llamarModeloReal(system, mensajes, audiencia = 'interno') {
   const r = await fetch(API_URL, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json', 'x-api-key': apiKey(), 'anthropic-version': API_VERSION },
-    body: JSON.stringify({ model: modelo(), max_tokens: 1200, system, tools: DEFINICIONES, messages: mensajes }),
+    body: JSON.stringify({ model: modelo(), max_tokens: 1200, system, tools: definicionesPara(audiencia), messages: mensajes }),
   });
   const datos = await r.json().catch(() => null);
   if (!r.ok) {
@@ -638,7 +661,7 @@ async function llamarModeloMock(system, mensajes, ctx) {
  * @param {{usuario:object, cookie:string, texto:string, conversacion_id?:number, canal?:string}} p
  * @returns {{conversacion_id:number, texto:string, herramientas:string[], pendiente:object|null}}
  */
-async function procesarMensaje({ usuario, cookie, texto, conversacion_id, canal = 'panel' }) {
+async function procesarMensaje({ usuario, cookie, texto, conversacion_id, canal = 'panel', audiencia = 'interno' }) {
   const est = estado();
   if (!est.disponible) {
     const e = new Error('El asistente no está configurado: falta ANTHROPIC_API_KEY en el .env del servidor.');
@@ -654,13 +677,13 @@ async function procesarMensaje({ usuario, cookie, texto, conversacion_id, canal 
   const ctx = { cookie, usuario, conversacion };
 
   await guardarMensaje(conversacion.id, 'user', [{ type: 'text', text: limpio }]);
-  const system = systemPrompt(usuario);
+  const system = systemPrompt(usuario, audiencia);
   const usadas = [];
   let respuestaTexto = '';
 
   for (let vuelta = 0; vuelta < MAX_VUELTAS; vuelta++) {
     const mensajes = historialParaApi(await leerMensajes(conversacion.id));
-    const salida = esMock() ? await llamarModeloMock(system, mensajes, ctx) : await llamarModeloReal(system, mensajes);
+    const salida = esMock() ? await llamarModeloMock(system, mensajes, ctx) : await llamarModeloReal(system, mensajes, audiencia);
     const content = salida.content || [];
     await guardarMensaje(conversacion.id, 'assistant', content);
     const usos = content.filter((b) => b.type === 'tool_use');
@@ -669,10 +692,10 @@ async function procesarMensaje({ usuario, cookie, texto, conversacion_id, canal 
 
     const resultados = [];
     for (const u of usos) {
-      const h = HERRAMIENTAS[u.name];
+      const h = permitida(u.name, audiencia) ? HERRAMIENTAS[u.name] : null;
       let res;
       try {
-        res = h ? await h.ejecutar(u.input || {}, ctx) : { error: `Herramienta desconocida: ${u.name}` };
+        res = h ? await h.ejecutar(u.input || {}, ctx) : { error: `Herramienta no disponible: ${u.name}` };
       } catch (err) {
         res = { error: 'Falló la herramienta: ' + (err.message || String(err)) };
       }
@@ -711,5 +734,5 @@ async function listarConversaciones(usuario, limite = 20) {
 
 module.exports = {
   estado, procesarMensaje, listarConversaciones, leerConversacion, leerMensajes, mensajesParaPantalla,
-  HERRAMIENTAS, pesoFacturable, resolverFecha,
+  HERRAMIENTAS, definicionesPara, pesoFacturable, resolverFecha,
 };

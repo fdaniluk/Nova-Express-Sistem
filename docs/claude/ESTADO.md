@@ -323,7 +323,28 @@ Colores Nova `#403754`/`#EE6C52`.
 
 ---
 
-## 3. Dónde estamos (14-09-2026)
+## 3. Dónde estamos (15-09-2026)
+
+- **15/09 — EL ASISTENTE POR TELÉFONO (entrega 2 del bot), en modo prueba** (entregado,
+  pendiente de tandas de Felipe / commit / push / deploy). `bot-canales.service.js` +
+  `routes/bot-webhook.js` + tabla `bot_vinculos` (migración Y schema.sql) + pestaña
+  **Teléfonos** y **simulador** en el panel del asistente. Reglas que sostienen el módulo:
+  **sin vínculo activo el bot no contesta nada**, el código dura 15 minutos y es de un solo
+  uso, la **sesión efímera** (5 min) se borra siempre y lleva los permisos del usuario del
+  vínculo, el simulador no puede hacerse pasar por el teléfono de otro, y un canal sin token
+  en el `.env` ni escucha (404). Tandas **`test-bot-canales` 36** (puerto 3927, en `test`) y
+  `test-pantalla-asistente` **37**. Cache **`?v=20260915a`**. Detalle:
+  `IDEAS-COTIZACIONES-Y-BOT.md` §G entrega 2.
+- **15/09 — LA CLAVE DEL ASISTENTE, PENDIENTE DE FELIPE** (la consola de Anthropic le pide
+  DNI y no tiene la billetera a mano). Sin clave el panel avisa; el resto del sistema no se
+  entera.
+- **15/09 — LO QUE VIENE, según Felipe:** (1) probar el asistente con la clave y, si va
+  bien, **encender WhatsApp** (cuenta de Meta Business verificada + número dedicado; las
+  respuestas dentro de las 24 h no se cobran); (2) el **sistema de gestión contable** — pasa
+  el **GECOM** la semana que viene para analizarlo; (3) **pagos automáticos desde el banco**
+  (§H de `IDEAS-COTIZACIONES-Y-BOT.md`: no hay open banking obligatorio en el país, así que
+  se arranca por importar el extracto y, si se quiere cobro online, un agregador). La
+  estética de **Liquidaciones** quedó pospuesta por decisión de Felipe.
 
 - **14/09 (tarde) — EL ASISTENTE DE LA OFICINA, ENTREGA 1 (entregado, pendiente de tandas
   de Felipe / commit / push / deploy + la clave).** Felipe pospuso Liquidaciones y arrancó el

@@ -158,6 +158,50 @@ async function main() {
   check('abrir la vieja trae sus mensajes (los 8 del hilo del pickup)', b.length === 8 && /1Z777AA10123456700/.test(b[0].texto) && /cargado/i.test(b[7].texto), JSON.stringify(b.map((x) => x.texto.slice(0, 40))));
   check('   sin cartel pendiente (ya se confirmó)', await page.$eval('#asi-pendiente', (e) => e.hidden));
 
+  // ── 3-bis ────────────────────────────────────────────────────────────────────
+  console.log('\n3-bis. Teléfonos y simulador (15/09)\n');
+  await page.click('.asi-tabs button[data-tab="telefonos"]');
+  await esperar(300);
+  check('la pestaña Teléfonos se abre y arranca vacía',
+    !(await page.$eval('.asi-tab[data-panel="telefonos"]', (e) => e.hidden))
+    && /todavía no hay teléfonos/i.test(await page.$eval('#asi-vinculos', (e) => e.textContent)));
+  await page.selectOption('#asi-canal', 'whatsapp');
+  await page.fill('#asi-etiqueta', 'celu de prueba');
+  await page.click('#asi-vincular');
+  await page.waitForFunction(() => !document.getElementById('asi-codigo').hidden, null, { timeout: 5000 });
+  const cartel = await page.$eval('#asi-codigo', (e) => e.textContent);
+  check('"Sacar código" muestra un código de 6 dígitos y dice qué hacer con él',
+    /\d{6}/.test(cartel) && /WhatsApp/i.test(cartel), cartel);
+  check('   y el teléfono queda listado como pendiente',
+    /esperando el código/i.test(await page.$eval('#asi-vinculos', (e) => e.textContent)));
+  const codigoPanel = (cartel.match(/\d{6}/) || [])[0];
+  check('   el código del cartel es el que guardó el servidor',
+    codigoPanel === String((await get('SELECT codigo FROM bot_vinculos ORDER BY id DESC LIMIT 1')).codigo), codigoPanel);
+
+  /* El simulador: escribe como si fuera un teléfono, por el camino de WhatsApp. */
+  await page.click('.asi-modo button[data-modo="telefono"]');
+  await page.waitForFunction(() => document.querySelectorAll('.asi-msg').length >= 1, null, { timeout: 5000 });
+  await esperar(600);
+  check('el chat se pone en modo teléfono', await page.$eval('.asi-chat', (e) => e.classList.contains('telefono')));
+  const avisoSim = (await burbujas()).map((x) => x.texto).join(' ');
+  check('   avisa que sin vínculo no va a contestar y da el código para vincularlo',
+    /no está vinculado|no te va a contestar|no te va a contestar nada/i.test(avisoSim) && /\d{6}/.test(avisoSim), avisoSim.slice(0, 200));
+  const codigoSim = (avisoSim.match(/mandá acá el código (\d{6})/) || [])[1];
+  await escribir('cómo viene la venta de hoy');
+  b = await burbujas();
+  check('un teléfono sin vincular NO obtiene datos', /no te tengo vinculado/i.test(b[b.length - 1].texto), b[b.length - 1].texto);
+  await escribir(codigoSim);
+  b = await burbujas();
+  check('mandando el código queda vinculado', /vinculado/i.test(b[b.length - 1].texto), b[b.length - 1].texto);
+  await escribir('cómo viene la venta de hoy');
+  b = await burbujas();
+  check('   y ahora sí contesta, por el mismo camino que usará WhatsApp', /USD/.test(b[b.length - 1].texto), b[b.length - 1].texto);
+  check('   la conversación quedó guardada con el canal de prueba',
+    (await get("SELECT COUNT(*) n FROM bot_conversaciones WHERE canal = 'prueba'")).n === 1);
+  await page.click('.asi-modo button[data-modo="panel"]');
+  await esperar(300);
+  check('volver al sistema saca el modo teléfono', !(await page.$eval('.asi-chat', (e) => e.classList.contains('telefono'))));
+
   // ── 4 ────────────────────────────────────────────────────────────────────────
   console.log('\n4. El menú\n');
   check('la pantalla tiene "Asistente" activo en el menú', await page.$eval('.sidebar-nav a[href$="asistente.html"]', (a) => a.classList.contains('active')));

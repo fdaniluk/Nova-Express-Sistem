@@ -272,6 +272,54 @@ pendientes) **y también la carga de pickup**, con confirmación.
 - **Tandas:** `test-bot` (**44**, puerto 3930, en `test`) y `test-pantalla-asistente`
   (**26**, puerto 3929, en `test-pantallas`); atajo `npm run test-bot`.
 
+### ✅ ENTREGA 2 — el asistente por TELÉFONO, en modo prueba (15/09)
+
+Felipe: *"si no está en WhatsApp no va a terminar siendo tan útil como debería... la
+verdadera gracia sería que esté al tiro de cualquiera y se pueda usar desde cualquier
+teléfono"*. Acordado: se arma el canal completo **en modo prueba**, y cuando funcione bien
+se enciende WhatsApp.
+
+- **`backend/src/services/bot-canales.service.js`** — la puerta de los canales:
+  - **VÍNCULOS.** Un teléfono contesta solo si está atado a un usuario del sistema. El
+    código lo saca la persona desde el panel (Asistente → Teléfonos), dura **15 minutos**,
+    es de un solo uso y se manda por el canal. Sin vínculo activo, lo único que devuelve el
+    bot es *"no te tengo vinculado"*: ni un dato, ni un "no encontré esa guía".
+  - **PERMISOS.** Por teléfono no hay sesión, así que se abre una **sesión efímera** (5
+    min) del usuario del vínculo, se usa y **se borra siempre** (`finally`). Resultado: el
+    que escribe por WhatsApp puede exactamente lo mismo que en las pantallas — hay test con
+    una empleada sin `ver_dashboard` que no saca la venta ni por el chat.
+  - **HILO.** Se sigue la última conversación de ese canal si es reciente (**6 h**); si no,
+    una nueva. Es lo que hace que el "sí" que confirma un pickup caiga donde tiene que caer.
+  - Tope de **60 mensajes por hora** por vínculo y teléfonos guardados normalizados (solo
+    dígitos), mostrados tapados en la lista (`…2047`).
+- **El canal `prueba`**: no entrega a ningún lado, pero entra por la **misma función**
+  (`recibirMensaje`) que van a usar Telegram y WhatsApp. El panel tiene un **simulador**
+  ("Escribiendo desde: el sistema / 📱 simulador de teléfono") que escribe por ahí. Lo que
+  se prueba hoy es el camino de verdad; lo único que falta encender es el último paso.
+  ⚠ El simulador **fuerza** el canal de prueba y el teléfono del usuario logueado: si
+  aceptara el que le manden, cualquiera con sesión podría hacerse pasar por el teléfono de
+  otro y contestar con SUS permisos.
+- **Webhooks** (`routes/bot-webhook.js`), único grupo del asistente sin sesión: Telegram
+  con secreto (en la URL o en su cabecera), WhatsApp con la verificación de Meta. **Si el
+  canal no tiene su token en el `.env`, la ruta ni escucha (404).** Siempre contestan 200 y
+  atienden aparte: si devolvieran error, Telegram y Meta reintentan el mismo mensaje y el
+  asistente contestaría (y gastaría) cinco veces.
+- **`audiencia` en las herramientas y en el vínculo** (`interno` | `cliente`): hoy todas son
+  internas. Es la puerta para lo que quiere Felipe después — que un CLIENTE escriba por
+  WhatsApp para ver su estado de cuenta y pagar: ese día sus herramientas se marcan
+  `cliente` y el modelo ni ve las de la oficina.
+- **Tabla `bot_vinculos`** (migración + schema.sql; check-schema verde con base de cero).
+- **Tanda `test-bot-canales`** (**36**, puerto 3927, en `test`); `test-pantalla-asistente`
+  26 → **37**. Cache **`?v=20260915a`**.
+
+**Para encender WhatsApp (cuando Felipe quiera):** cuenta de Meta Business verificada +
+número dedicado + `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID`, `WHATSAPP_VERIFY_TOKEN` en el
+`.env` y el webhook apuntado a `https://sistema.novaexpress.com.ar/api/bot/webhook/whatsapp`.
+**Costo:** las respuestas dentro de la ventana de servicio de 24 h (la persona escribe
+primero) **no se cobran**; solo se cobran las plantillas, que este bot no usa. El trámite de
+verificación de Meta es lo lento (días a semanas). Telegram es lo mismo pero gratis y en el
+día: `TELEGRAM_BOT_TOKEN` + `TELEGRAM_WEBHOOK_SECRETO`.
+
 **Lo que falta para usarlo en serio:** (1) Felipe saca una clave en console.anthropic.com y
 la pone en el `.env` del servidor (`ANTHROPIC_API_KEY=sk-ant-…`) + `pm2 restart nova
 --update-env`; (2) probarlo a mano con pedidos reales de la oficina y ajustar el system
@@ -291,3 +339,39 @@ escrituras solo cuando Felipe las pida, siempre en dos pasos.
 6. El link para clientes (A)
 7. Los pesos (D)
 8. **El chatbot de la oficina (G) — ENTREGA 1 construida el 14/09** (Felipe lo priorizó por delante de la estética de Liquidaciones)
+
+---
+
+## H. El sistema de gestión contable — PLANTEADO (15/09/2026)
+
+Felipe: *"ya está llegando el momento de ponernos a crear el sistema de gestión contable,
+quizá la semana que viene te puedo pasar el GECOM y lo analizás para entender de qué se
+trata"*. **Pendiente: que Felipe pase el GECOM** (capturas, exportaciones, el plan de
+cuentas que usan) para entender qué reemplaza y qué no.
+
+**Lo que ya se sabe que va a hacer falta**, porque el sistema hoy no lo tiene:
+- **Cuenta corriente por cliente**: `cobranzas` es un registro suelto, sin vínculo con las
+  liquidaciones. Sin eso no hay estado de cuenta, y sin estado de cuenta no hay ni bot de
+  cobranzas (punto F) ni "pagá acá".
+- Asientos / libro diario, y la conciliación contra lo que factura ARCA.
+
+### Los pagos automáticos desde el banco — lo averiguado el 15/09
+
+Pregunta de Felipe: *"vincular las APIs de los bancos para que los pagos se registren
+automáticamente, ¿es posible?"*. **Sí, pero no hay un solo camino y ninguno es "prendé la
+API del banco":** en Argentina el open banking **no es obligatorio**, así que cada banco da
+(o no da) acceso por convenio. Las opciones reales, de menos a más trabajo:
+
+1. **Importar el extracto** (CSV/TXT/Excel bajado del homebanking) y conciliarlo contra la
+   cuenta corriente. No depende de nadie, funciona con cualquier banco y es el 80% del
+   beneficio. **Es por donde conviene empezar.**
+2. **Cobro online con un agregador** (Mercado Pago es el más accesible: API pública y
+   webhook por cada pago). Ahí el pago entra **identificado**, se registra solo y es lo que
+   hace posible el "link para pagar" que quiere Felipe. Cobra comisión.
+3. **API del banco** (algunos bancos tienen; otros solo Interbanking/Datanet, que es un
+   servicio pago para empresas). Da el movimiento en el momento, pero hay que pedirlo,
+   firmar convenio y que el banco lo habilite para esa cuenta.
+4. **Una cuenta/CVU o alias por cliente**, para que cada transferencia venga con el nombre
+   puesto y la conciliación no dependa de adivinar quién pagó.
+
+**Antes de elegir hay que saber con qué banco trabaja Nova** y qué ofrece hoy para empresas.

@@ -66,3 +66,40 @@
   font-weight:600;cursor:pointer;white-space:nowrap}
 .btn-enviar:hover{background:#d4573a}
 .btn-enviar:disabled{opacity:.6;cursor:wait}
+
+/* ── Pestañas del lateral: conversaciones / teléfonos (15/09/2026) ───────────────── */
+.asi-tabs{display:flex;gap:.25rem;margin-bottom:.7rem;border-bottom:1px solid var(--color-border)}
+.asi-tabs button{flex:1;font:inherit;font-size:.78rem;font-weight:600;padding:.4rem .2rem;border:0;background:none;
+  color:var(--color-muted);cursor:pointer;border-bottom:2px solid transparent;margin-bottom:-1px}
+.asi-tabs button.activa{color:var(--color-primary);border-bottom-color:var(--color-accent)}
+.asi-ayuda{font-size:.76rem;color:var(--color-muted);line-height:1.45;margin:0 0 .7rem}
+#asi-vinculos{list-style:none;margin:0 0 .8rem;padding:0;display:flex;flex-direction:column;gap:.4rem}
+#asi-vinculos li{border:1px solid var(--color-border);border-radius:8px;padding:.5rem .6rem;font-size:.82rem;
+  display:flex;align-items:flex-start;gap:.4rem}
+#asi-vinculos li .v-datos{flex:1;min-width:0}
+#asi-vinculos li .v-canal{font-weight:600;color:var(--color-primary);text-transform:capitalize}
+#asi-vinculos li .v-detalle{display:block;font-size:.72rem;color:var(--color-muted);margin-top:.1rem}
+#asi-vinculos li.pendiente{background:#fff8e6;border-color:#e8c96a}
+#asi-vinculos .v-baja{background:none;border:0;color:#94a3b8;cursor:pointer;font-size:.9rem;line-height:1;padding:.1rem}
+#asi-vinculos .v-baja:hover{color:var(--color-danger)}
+.asi-vincular{display:flex;flex-direction:column;gap:.4rem}
+.asi-vincular label{font-size:.7rem;text-transform:uppercase;letter-spacing:.4px;color:var(--color-muted);font-weight:600}
+.asi-vincular select,.asi-vincular input{font:inherit;font-size:.82rem;padding:.4rem .5rem;border:1px solid var(--color-border);
+  border-radius:6px;background:#fff;width:100%}
+.btn-vincular{font:inherit;font-size:.82rem;font-weight:600;padding:.45rem .7rem;border:1px dashed #b9c2d0;border-radius:8px;
+  background:#fff;color:var(--color-muted);cursor:pointer}
+.btn-vincular:hover{border-color:var(--color-primary);color:var(--color-primary)}
+.asi-codigo{margin-top:.7rem;padding:.6rem .7rem;border-radius:8px;background:#eef2fb;border:1px solid #c7d2fe;
+  font-size:.8rem;color:#312e81;line-height:1.5}
+.asi-codigo b.num{display:block;font-size:1.5rem;letter-spacing:.2em;color:var(--color-primary);text-align:center;margin:.3rem 0}
+
+/* ── Desde dónde se escribe: el sistema o el simulador de teléfono ───────────────── */
+.asi-modo{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;padding:.5rem 1.1rem 0;font-size:.76rem;color:var(--color-muted)}
+.asi-modo button{font:inherit;font-size:.76rem;padding:.2rem .6rem;border:1px solid var(--color-border);border-radius:999px;
+  background:#fff;color:var(--color-muted);cursor:pointer}
+.asi-modo button.activa{border-color:var(--color-primary);background:#eef2fb;color:var(--color-primary);font-weight:600}
+.asi-modo-nota{color:var(--cot-ambar,#b45309)}
+/* En modo teléfono se ve distinto: lo que se escribe no está pasando por la pantalla. */
+.asi-chat.telefono .asi-mensajes{background:#eef2f7}
+.asi-chat.telefono .asi-entrada{background:#f8fafc;border-top-color:#c7d2fe}
+.asi-msg.tel.user{background:var(--cot-verde,#15803d)}

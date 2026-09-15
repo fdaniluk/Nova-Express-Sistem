@@ -1,5 +1,23 @@
 # Pendientes
 
+**Actualizado 15/09/2026. EL ASISTENTE POR TELÉFONO, EN MODO PRUEBA (entrega 2 del bot).**
+Felipe: *"si no está en WhatsApp no va a ser tan útil"*. Se armó el canal completo —
+vínculo de teléfono con código de un solo uso, sesión efímera con los permisos del usuario,
+hilo por canal, webhooks de Telegram y WhatsApp apagados hasta que estén sus tokens— y un
+**simulador en el panel** que escribe por el MISMO camino. Tandas **`test-bot-canales` 36**
+y `test-pantalla-asistente` **37**; bot 44, motor único 28, check-schema verde con base de
+cero. Cache **`?v=20260915a`**. Detalle: `IDEAS-COTIZACIONES-Y-BOT.md` §G, entrega 2.
+**Falta: tandas de Felipe, commit, push, deploy.**
+
+⚠️ **LA CLAVE DEL ASISTENTE SIGUE PENDIENTE (15/09):** Felipe no pudo sacarla porque la
+consola de Anthropic le pide DNI y no encuentra la billetera; la busca en un par de días.
+Sin `ANTHROPIC_API_KEY` el panel avisa y no manda nada — todo lo demás del sistema anda
+igual.
+
+**NUEVO EN LA COLA (15/09):** el **sistema de gestión contable** (Felipe pasa el GECOM la
+semana que viene) y, atado a eso, **los pagos automáticos desde el banco**: lo averiguado y
+las cuatro opciones, en `IDEAS-COTIZACIONES-Y-BOT.md` §H.
+
 **Actualizado 14/09/2026 (tarde). EL ASISTENTE DE LA OFICINA — ENTREGA 1 CONSTRUIDA.** Felipe
 dejó la estética de Liquidaciones para más adelante y arrancó el bot (§G de
 `IDEAS-COTIZACIONES-Y-BOT.md`). Decisiones: **con IA (Claude API)**, no comandos fijos; las

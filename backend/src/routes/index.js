@@ -22,6 +22,7 @@ const publicoRoutes = require('./publico.routes');
 const cotizadorLinksRoutes = require('./cotizador-links.routes');
 const usuariosRoutes = require('./usuarios.routes');
 const botRoutes = require('./bot');
+const botWebhookRoutes = require('./bot-webhook');
 const { requireAuth, requireDashboard, requireSalud, requireAdmin } = require('../middleware/auth');
 
 const router = Router();
@@ -32,6 +33,11 @@ router.use('/auth', authRoutes);
 // La cara publica de los links de cotizacion. UNICO grupo sin sesion ademas de /auth:
 // solo cotiza, con codigo aleatorio, vencimiento y tope diario (ver publico.routes.js).
 router.use('/publico', publicoRoutes);
+
+// Los webhooks del asistente (Telegram, WhatsApp). Del otro lado hay un servidor, no una
+// persona logueada: van sin sesión, con el secreto de cada canal, y un teléfono sin
+// vínculo activo no obtiene NADA (ver bot-canales.service.js).
+router.use('/bot/webhook', botWebhookRoutes);
 
 // A partir de acá todo requiere sesión válida
 router.use(requireAuth);

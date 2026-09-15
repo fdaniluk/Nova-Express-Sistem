@@ -366,6 +366,12 @@ api.bot = {
   mensaje: (texto, conversacion_id) => api.post('/bot/mensaje', { texto, conversacion_id: conversacion_id || null }),
   conversaciones: () => api.get('/bot/conversaciones'),
   conversacion: (id) => api.get(`/bot/conversaciones/${id}`),
+  // Telefonos vinculados: el codigo sale de aca y viaja por el canal.
+  vinculos: () => api.get('/bot/vinculos'),
+  vincular: (canal, etiqueta) => api.post('/bot/vinculos', { canal, etiqueta }),
+  desvincular: (id) => api.delete(`/bot/vinculos/${id}`),
+  // El simulador: el servidor fuerza canal 'prueba' y el telefono del usuario logueado.
+  simular: (texto) => api.post('/bot/simular', { texto }),
 };
 
 window.NovaAPI = api;

@@ -840,3 +840,27 @@ CREATE TABLE IF NOT EXISTS bot_mensajes (
 );
 CREATE INDEX IF NOT EXISTS idx_bot_mensajes_conv ON bot_mensajes(conversacion_id, id);
 CREATE INDEX IF NOT EXISTS idx_bot_conversaciones_usuario ON bot_conversaciones(usuario_id, actualizado_en);
+
+-- Telefonos vinculados al asistente (15/09/2026). Sin vinculo activo el asistente no
+-- contesta por Telegram ni WhatsApp. `audiencia` y `cliente_id` quedan previstos para el
+-- dia que un CLIENTE pueda escribirle al bot (estado de cuenta, pagos); hoy solo 'interno'.
+CREATE TABLE IF NOT EXISTS bot_vinculos (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  canal            TEXT NOT NULL,
+  identificador    TEXT,
+  usuario_id       INTEGER REFERENCES usuarios(id),
+  usuario          TEXT,
+  audiencia        TEXT NOT NULL DEFAULT 'interno',
+  cliente_id       INTEGER REFERENCES clientes(id),
+  etiqueta         TEXT,
+  codigo           TEXT,
+  codigo_vence_en  TEXT,
+  estado           TEXT NOT NULL DEFAULT 'pendiente',
+  creado_en        TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  vinculado_en     TEXT,
+  ultimo_uso_en    TEXT,
+  baja_en          TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_bot_vinculos_activo ON bot_vinculos(canal, identificador) WHERE estado = 'activo';
+CREATE INDEX IF NOT EXISTS idx_bot_vinculos_usuario ON bot_vinculos(usuario_id, estado);
+CREATE INDEX IF NOT EXISTS idx_bot_vinculos_codigo ON bot_vinculos(codigo) WHERE estado = 'pendiente';

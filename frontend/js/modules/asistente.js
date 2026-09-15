@@ -26,6 +26,11 @@
 
   let conversacionId = null;
   let enviando = false;
+  /* 'panel' = esta pantalla. 'telefono' = el simulador: lo que se escribe entra por el
+     MISMO camino que van a usar Telegram y WhatsApp (el servidor fuerza el canal de
+     prueba y el teléfono del usuario logueado). */
+  let modo = 'panel';
+  const chatEl = document.querySelector('.asi-chat');
 
   const fmtFecha = (s) => {
     if (!s) return '';
@@ -38,7 +43,7 @@
   function pintarMensaje(rol, txt, herramientas = [], clase = '') {
     if (bienvenida) bienvenida.hidden = true;
     const div = document.createElement('div');
-    div.className = `asi-msg ${rol}${clase ? ' ' + clase : ''}`;
+    div.className = `asi-msg ${rol}${clase ? ' ' + clase : ''}${modo === 'telefono' ? ' tel' : ''}`;
     div.textContent = txt;
     if (herramientas && herramientas.length) {
       const h = document.createElement('span');
@@ -74,6 +79,7 @@
       if (e.mock) { estadoEl.textContent = 'modo de prueba (mock)'; estadoEl.className = 'asi-estado mock'; }
       else if (e.disponible) { estadoEl.textContent = 'listo · ' + e.modelo; estadoEl.className = 'asi-estado ok'; }
       else { estadoEl.textContent = 'sin configurar'; estadoEl.className = 'asi-estado error'; }
+      if (e.canales) canalesDisponibles = e.canales;
       if (e.sin_clave) {
         avisoEl.innerHTML = 'El asistente no está configurado: falta <code>ANTHROPIC_API_KEY</code> en el <code>.env</code> del servidor. Hasta que esté, los mensajes no se pueden mandar.';
         avisoEl.hidden = false;
@@ -118,6 +124,7 @@
   }
 
   function nueva() {
+    if (modo === 'telefono') cambiarModo('panel');
     conversacionId = null;
     limpiarChat();
     listaEl.querySelectorAll('li').forEach((li) => li.classList.remove('activa'));
@@ -134,6 +141,15 @@
     ajustarAlto();
     const pensando = pintarMensaje('assistant', 'Pensando', [], 'pensando');
     try {
+      if (modo === 'telefono') {
+        const r = await NovaAPI.bot.simular(t);
+        pensando.remove();
+        pintarMensaje('assistant', r.respuesta || '(sin respuesta)', r.herramientas || []);
+        pintarPendiente(r.pendiente);
+        if (r.recien_vinculado) { cargarVinculos(); notaModo(''); }
+        else if (r.vinculado === false) notaModo('este teléfono todavía no está vinculado');
+        return;
+      }
       const r = await NovaAPI.bot.mensaje(t, conversacionId);
       const esNueva = conversacionId !== r.conversacion_id;
       conversacionId = r.conversacion_id;
@@ -159,6 +175,100 @@
     texto.style.height = 'auto';
     texto.style.height = Math.min(texto.scrollHeight, 140) + 'px';
   }
+
+  /* ── Pestañas del lateral ─────────────────────────────────────────────────────── */
+  function cambiarTab(nombre) {
+    document.querySelectorAll('.asi-tabs button').forEach((b) => b.classList.toggle('activa', b.dataset.tab === nombre));
+    document.querySelectorAll('.asi-tab').forEach((d) => { d.hidden = d.dataset.panel !== nombre; });
+    if (nombre === 'telefonos') cargarVinculos();
+  }
+  document.querySelectorAll('.asi-tabs button').forEach((b) => b.addEventListener('click', () => cambiarTab(b.dataset.tab)));
+
+  /* ── Teléfonos vinculados ─────────────────────────────────────────────────────── */
+  const vinculosEl = $('asi-vinculos');
+  const codigoEl = $('asi-codigo');
+  let canalesDisponibles = { prueba: true, telegram: false, whatsapp: false };
+
+  async function cargarVinculos() {
+    try {
+      const lista = await NovaAPI.bot.vinculos();
+      vinculosEl.innerHTML = '';
+      if (!lista.length) { vinculosEl.innerHTML = '<li class="vacio">Todavía no hay teléfonos vinculados.</li>'; return; }
+      for (const v of lista) {
+        const li = document.createElement('li');
+        if (v.estado === 'pendiente') li.classList.add('pendiente');
+        const detalle = v.estado === 'pendiente'
+          ? `esperando el código ${v.codigo}`
+          : `${v.identificador || ''}${v.ultimo_uso_en ? ' · último uso ' + fmtFecha(v.ultimo_uso_en) : ''}`;
+        li.innerHTML = `<span class="v-datos"><span class="v-canal">${escapar(v.canal)}</span>`
+          + `${v.etiqueta ? ' · ' + escapar(v.etiqueta) : ''}`
+          + `<span class="v-detalle">${escapar(detalle)}${v.usuario ? ' · ' + escapar(v.usuario) : ''}</span></span>`;
+        const baja = document.createElement('button');
+        baja.type = 'button'; baja.className = 'v-baja'; baja.title = 'Dar de baja'; baja.textContent = '✕';
+        baja.addEventListener('click', async () => {
+          if (!confirm('¿Dar de baja este teléfono? Desde ese número el asistente deja de contestar.')) return;
+          try { await NovaAPI.bot.desvincular(v.id); cargarVinculos(); }
+          catch (err) { alert(err.message || err); }
+        });
+        li.appendChild(baja);
+        vinculosEl.appendChild(li);
+      }
+    } catch (err) {
+      vinculosEl.innerHTML = `<li class="vacio">No se pudo cargar: ${escapar(err.message || err)}</li>`;
+    }
+  }
+
+  const INSTRUCCIONES = {
+    prueba: 'Escribí ese número acá abajo con el simulador de teléfono prendido.',
+    telegram: 'Abrí el chat del bot en Telegram y mandale ese número.',
+    whatsapp: 'Mandale ese número por WhatsApp al número del bot.',
+  };
+
+  async function sacarCodigo(canal, etiqueta) {
+    const r = await NovaAPI.bot.vincular(canal, etiqueta);
+    codigoEl.innerHTML = `Código para vincular <b>${escapar(canal)}</b>:<b class="num">${escapar(r.codigo)}</b>`
+      + `${escapar(INSTRUCCIONES[canal] || '')} Vence en ${r.minutos} minutos.`;
+    codigoEl.hidden = false;
+    cargarVinculos();
+    return r;
+  }
+
+  $('asi-vincular').addEventListener('click', async () => {
+    const canal = $('asi-canal').value;
+    if (canal !== 'prueba' && !canalesDisponibles[canal]) {
+      alert(`El canal ${canal} todavía no está configurado en el servidor. Se puede vincular igual, pero recién va a contestar cuando esté.`);
+    }
+    try { await sacarCodigo(canal, $('asi-etiqueta').value); }
+    catch (err) { alert(err.message || err); }
+  });
+
+  /* ── Desde dónde se escribe ───────────────────────────────────────────────────── */
+  function notaModo(txt) { $('asi-modo-nota').textContent = txt || ''; }
+
+  async function cambiarModo(nuevo) {
+    if (modo === nuevo) return;
+    modo = nuevo;
+    document.querySelectorAll('.asi-modo button').forEach((b) => b.classList.toggle('activa', b.dataset.modo === nuevo));
+    chatEl.classList.toggle('telefono', nuevo === 'telefono');
+    limpiarChat();
+    notaModo('');
+    if (nuevo === 'telefono') {
+      conversacionId = null;
+      listaEl.querySelectorAll('li').forEach((li) => li.classList.remove('activa'));
+      pintarMensaje('assistant', 'Simulador de teléfono. Lo que escribas entra por el mismo camino que va a usar WhatsApp: si este teléfono no está vinculado, el asistente no te va a contestar nada.', []);
+      try {
+        const lista = await NovaAPI.bot.vinculos();
+        const activo = lista.some((v) => v.canal === 'prueba' && v.estado === 'activo');
+        if (!activo) {
+          const r = await sacarCodigo('prueba', 'simulador');
+          cambiarTab('telefonos');
+          pintarMensaje('assistant', `Para vincularlo, mandá acá el código ${r.codigo} (como lo haría alguien desde su teléfono).`, []);
+        }
+      } catch (err) { notaModo(err.message || String(err)); }
+    }
+    texto.focus();
+  }
+  document.querySelectorAll('.asi-modo button').forEach((b) => b.addEventListener('click', () => cambiarModo(b.dataset.modo)));
 
   form.addEventListener('submit', (ev) => { ev.preventDefault(); enviar(); });
   texto.addEventListener('keydown', (ev) => {

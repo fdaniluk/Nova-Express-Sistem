@@ -953,6 +953,39 @@ async function migrateBot() {
   await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_bot_conversaciones_usuario ON bot_conversaciones(usuario_id, actualizado_en)');
 }
 
+/* Los teléfonos vinculados al asistente (15/09/2026). Un vínculo ata un identificador de
+   un canal (chat de Telegram, teléfono de WhatsApp) a un usuario del sistema, y sin vínculo
+   activo el asistente NO contesta. `audiencia` y `cliente_id` están de entrada pensando en
+   el paso siguiente que quiere Felipe: que un día un CLIENTE pueda escribirle al bot por
+   WhatsApp para ver su estado de cuenta y pagar. Hoy solo se usa 'interno'. */
+async function migrateBotCanales() {
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS bot_vinculos (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      canal            TEXT NOT NULL,
+      identificador    TEXT,
+      usuario_id       INTEGER REFERENCES usuarios(id),
+      usuario          TEXT,
+      audiencia        TEXT NOT NULL DEFAULT 'interno',
+      cliente_id       INTEGER REFERENCES clientes(id),
+      etiqueta         TEXT,
+      codigo           TEXT,
+      codigo_vence_en  TEXT,
+      estado           TEXT NOT NULL DEFAULT 'pendiente',
+      creado_en        TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      vinculado_en     TEXT,
+      ultimo_uso_en    TEXT,
+      baja_en          TEXT
+    )
+  `);
+  /* Un mismo teléfono no puede estar vinculado a dos usuarios A LA VEZ. El índice es
+     parcial (solo sobre los activos) para que las bajas y los códigos sin usar no
+     estorben. */
+  await dbApi.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_bot_vinculos_activo ON bot_vinculos(canal, identificador) WHERE estado = 'activo'");
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_bot_vinculos_usuario ON bot_vinculos(usuario_id, estado)');
+  await dbApi.exec("CREATE INDEX IF NOT EXISTS idx_bot_vinculos_codigo ON bot_vinculos(codigo) WHERE estado = 'pendiente'");
+}
+
 async function migrateCotizadorLinks() {
   await dbApi.exec(`
     CREATE TABLE IF NOT EXISTS cotizador_links (
@@ -1004,6 +1037,7 @@ async function initSchema() {
   await migrateCotizaciones();
   await migrateCotizadorLinks();
   await migrateBot();
+  await migrateBotCanales();
   await migrateIndices();
   await seedIfEmpty();
 }

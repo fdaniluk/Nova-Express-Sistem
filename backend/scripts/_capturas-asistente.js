@@ -114,6 +114,9 @@ async function main() {
   await escribir('sí');
   await escribir('cotizame 10 kg 40x30x30 a Brasil, cliente ' + cli.id + ', fob 100');
   await page.screenshot({ path: path.join(SALIDA, 'asistente-3-chat.png') });
+  await page.click('.asi-tabs button[data-tab="telefonos"]');
+  await esperar(300);
+  await page.screenshot({ path: path.join(SALIDA, 'asistente-5-telefonos.png') });
   await page.setViewportSize({ width: 390, height: 844 });
   await esperar(400);
   await page.screenshot({ path: path.join(SALIDA, 'asistente-4-telefono.png') });
