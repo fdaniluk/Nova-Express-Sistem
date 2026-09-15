@@ -7,12 +7,23 @@ hilo por canal, webhooks de Telegram y WhatsApp apagados hasta que estén sus to
 **simulador en el panel** que escribe por el MISMO camino. Tandas **`test-bot-canales` 36**
 y `test-pantalla-asistente` **37**; bot 44, motor único 28, check-schema verde con base de
 cero. Cache **`?v=20260915a`**. Detalle: `IDEAS-COTIZACIONES-Y-BOT.md` §G, entrega 2.
-**Falta: tandas de Felipe, commit, push, deploy.**
+**Verificar completo de Felipe: todo verde. Commit `a26f78b`, pusheado y DESPLEGADO el 15/09 (`DESPLEGADO Y SANO · 595d0f0 → a26f78b`).**
 
 ⚠️ **LA CLAVE DEL ASISTENTE SIGUE PENDIENTE (15/09):** Felipe no pudo sacarla porque la
 consola de Anthropic le pide DNI y no encuentra la billetera; la busca en un par de días.
-Sin `ANTHROPIC_API_KEY` el panel avisa y no manda nada — todo lo demás del sistema anda
+Sin `ANTHROPIC_API_KEY` el panel avisa con un cartel rojo — todo lo demás del sistema anda
 igual.
+
+**Arreglo del mismo día (`2f61f6c`, desplegado):** sin clave la pantalla se bloqueaba sola
+(`texto.disabled = true`) y Felipe no podía ni escribir — *"el problema ahora es que no me
+deja escribir"*. Pero **vincular un teléfono y el simulador no necesitan el modelo**: pasan
+por `bot-canales` y contestan solos. Ahora queda el cartel de aviso y la escritura
+habilitada; cuando el mensaje sí necesita el modelo, el 503 del servidor se ve como una
+burbuja de error con el motivo. `test-pantalla-asistente` pasó de 37 a **47**: los 10
+controles nuevos levantan un SEGUNDO servidor sin clave y sin mock (puerto `PORT+40`, base
+`_sinclave.db`) y verifican que `#asi-texto` no quede deshabilitado, que el código de
+vinculación funcione igual y que una pregunta de verdad conteste el motivo en vez de quedar
+muda. Cache del panel: **`asistente.js?v=20260915b`**.
 
 **NUEVO EN LA COLA (15/09):** el **sistema de gestión contable** (Felipe pasa el GECOM la
 semana que viene) y, atado a eso, **los pagos automáticos desde el banco**: lo averiguado y
