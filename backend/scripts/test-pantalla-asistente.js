@@ -15,6 +15,9 @@
  *  5. Sin errores de JavaScript.
  *  6. Que SIN clave de Anthropic la pantalla siga usable: cartel de aviso, pero se
  *     puede escribir, vincular un teléfono y ver el motivo cuando hace falta el modelo.
+ *  7. Que en un TELÉFONO de verdad (390×844) nada se pise, la barra de escribir no
+ *     quede debajo del teclado, el menú y la lista salgan como hojas, y el texto mida
+ *     16px para que Safari no haga zoom.
  *
  *   cd backend && node scripts/test-pantalla-asistente.js
  */
@@ -182,8 +185,14 @@ async function main() {
 
   /* El simulador: escribe como si fuera un teléfono, por el camino de WhatsApp. */
   await page.click('.asi-modo button[data-modo="telefono"]');
-  await page.waitForFunction(() => document.querySelectorAll('.asi-msg').length >= 1, null, { timeout: 5000 });
-  await esperar(600);
+  /* El simulador pide el código por red (GET /vinculos + POST /vincular). Esperar 600 ms
+     alcanzaba acá y no en la máquina de Felipe (15/09: tres controles en rojo por eso).
+     Se espera A QUE APAREZCA EL CÓDIGO, que es la señal de que terminó. */
+  await page.waitForFunction(
+    () => [...document.querySelectorAll('.asi-msg')].some((n) => /\d{6}/.test(n.textContent)),
+    null, { timeout: 15000 },
+  );
+  await esperar(150);
   check('el chat se pone en modo teléfono', await page.$eval('.asi-chat', (e) => e.classList.contains('telefono')));
   const avisoSim = (await burbujas()).map((x) => x.texto).join(' ');
   check('   avisa que sin vínculo no va a contestar y da el código para vincularlo',
@@ -265,8 +274,14 @@ async function main() {
   const burbujas2 = () => page2.$$eval('.asi-msg:not(.pensando)', (ns) => ns.map((n) => n.textContent));
 
   await page2.click('.asi-modo button[data-modo="telefono"]');
-  await page2.waitForFunction(() => document.querySelectorAll('.asi-msg').length >= 1, null, { timeout: 5000 });
-  await esperar(600);
+  /* El simulador pide el código por red (GET /vinculos + POST /vincular). Esperar 600 ms
+     alcanzaba acá y no en la máquina de Felipe (15/09: tres controles en rojo por eso).
+     Se espera A QUE APAREZCA EL CÓDIGO, que es la señal de que terminó. */
+  await page2.waitForFunction(
+    () => [...document.querySelectorAll('.asi-msg')].some((n) => /\d{6}/.test(n.textContent)),
+    null, { timeout: 15000 },
+  );
+  await esperar(150);
   const aviso2 = (await burbujas2()).join(' ');
   const codigo2 = (aviso2.match(/mandá acá el código (\d{6})/) || [])[1];
   check('el simulador saca el código igual que con clave', !!codigo2, aviso2.slice(0, 160));
@@ -285,6 +300,94 @@ async function main() {
 
   await ctx2.close();
   matarSrv2();
+
+  // ── 7 ───────────────────────────────────────────────────────────────────
+  /* El asistente en un teléfono (15/09/2026). Se mide con un iPhone chico de verdad
+     (390×844), no "a ojo con la ventana angosta": lo que rompe en el teléfono son cajas
+     que se pisan, cosas que quedan debajo del teclado y el zoom de Safari al enfocar.
+     Cada control de acá mide UNA caja real, no una clase de CSS. */
+  console.log('\n7. El teléfono (390×844)\n');
+  const ctxT = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 3 });
+  await ctxT.addCookies([{ name: 'nova_session', value: TOKEN, url: BASE }]);
+  const tel = await ctxT.newPage();
+  const erroresT = [];
+  tel.on('pageerror', (e) => erroresT.push(String(e)));
+  await tel.goto(BASE + '/pages/asistente.html', { waitUntil: 'networkidle' });
+  await esperar(700);
+
+  const caja = (sel) => tel.$eval(sel, (e) => { const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, top: r.top, bottom: r.bottom, left: r.left, right: r.right }; });
+  const alto = await tel.evaluate(() => window.innerHeight);
+  const ancho = await tel.evaluate(() => window.innerWidth);
+
+  check('la página no se va para el costado (sin scroll horizontal)',
+    (await tel.evaluate(() => document.documentElement.scrollWidth)) <= ancho + 1,
+    String(await tel.evaluate(() => document.documentElement.scrollWidth)));
+  const entrada = await caja('.asi-entrada');
+  check('la barra de escribir entra en la pantalla (no queda tapada abajo)',
+    entrada.bottom <= alto + 1 && entrada.bottom > alto - 160, `bottom ${Math.round(entrada.bottom)} de ${alto}`);
+  const msgs = await caja('.asi-mensajes');
+  check('   y NO se pisa con los mensajes', msgs.bottom <= entrada.top + 1,
+    `mensajes hasta ${Math.round(msgs.bottom)}, entrada desde ${Math.round(entrada.top)}`);
+  check('el chat ocupa casi toda la pantalla', msgs.h > alto * 0.5, `${Math.round(msgs.h)} de ${alto}`);
+  const letraTexto = await tel.$eval('#asi-texto', (e) => parseFloat(getComputedStyle(e).fontSize));
+  check('el cuadro de texto mide 16px o más (si no, Safari hace zoom al tocarlo)', letraTexto >= 16, String(letraTexto));
+
+  /* El menú del sistema: afuera hasta que lo pedís, y que no robe ancho al chat. */
+  const menuCerrado = await caja('.sidebar');
+  check('el menú arranca afuera de la pantalla', menuCerrado.right <= 1, `right ${Math.round(menuCerrado.right)}`);
+  check('   así el chat tiene el ancho entero', msgs.w > ancho * 0.9, `${Math.round(msgs.w)} de ${ancho}`);
+  await tel.click('#asi-menu');
+  await tel.waitForFunction(() => document.querySelector('.sidebar').getBoundingClientRect().left > -5, null, { timeout: 4000 });
+  check('el botón ☰ lo abre', (await caja('.sidebar')).left > -5);
+  check('   y se leen los nombres, no solo los íconos',
+    await tel.$eval('.sidebar-nav a[href$="salidas.html"] span:last-child', (e) => getComputedStyle(e).display !== 'none'));
+  // A la derecha, fuera del menú: en el medio el toque cae sobre el menú mismo.
+  await tel.click('#asi-fondo', { position: { x: ancho - 30, y: Math.round(alto / 2) } });
+  await tel.waitForFunction(() => document.querySelector('.sidebar').getBoundingClientRect().right <= 1, null, { timeout: 4000 });
+  check('   tocando afuera se cierra', (await caja('.sidebar')).right <= 1);
+
+  /* La hoja de Conversaciones / Teléfonos: en el teléfono el lateral no existe, y sin
+     esto no habría forma de sacar un código de vinculación desde el celular. */
+  check('la lista lateral arranca escondida', (await caja('#asi-lista')).top >= alto - 1);
+  await tel.click('#asi-panel');
+  await tel.waitForFunction(() => document.getElementById('asi-lista').getBoundingClientRect().top < window.innerHeight - 50, null, { timeout: 4000 });
+  await esperar(350);   // que termine de subir antes de medirla
+  const hoja = await caja('#asi-lista');
+  check('el botón ▤ sube la hoja de conversaciones', hoja.top < alto - 50 && hoja.bottom <= alto + 1, `top ${Math.round(hoja.top)}`);
+  await tel.click('.asi-tabs button[data-tab="telefonos"]');
+  await esperar(300);
+  check('   y desde el teléfono se llega a la pestaña Teléfonos',
+    await tel.$eval('.asi-tab[data-panel="telefonos"]', (e) => !e.hidden));
+  await tel.fill('#asi-etiqueta', 'celular de Felipe');
+  await tel.click('#asi-vincular');
+  await tel.waitForFunction(() => !document.getElementById('asi-codigo').hidden, null, { timeout: 5000 });
+  check('   y se puede sacar un código de vinculación', /\d{6}/.test(await tel.$eval('#asi-codigo', (e) => e.textContent)));
+  await tel.click('#asi-cerrar-panel');
+  await tel.waitForFunction(() => document.getElementById('asi-lista').getBoundingClientRect().top >= window.innerHeight - 1, null, { timeout: 4000 });
+  check('   la ✕ la baja', (await caja('#asi-lista')).top >= alto - 1);
+
+  /* Y que el chat ande: mandar con el botón (en el teléfono el Enter baja de línea). */
+  await tel.fill('#asi-texto', 'cómo viene la venta de hoy');
+  await tel.click('#asi-enviar');
+  await tel.waitForFunction(() => !document.querySelector('.asi-msg.pensando') && document.querySelectorAll('.asi-msg.assistant').length >= 1, null, { timeout: 15000 });
+  await esperar(200);
+  const burbujasT = await tel.$$eval('.asi-msg', (ns) => ns.map((n) => ({ texto: n.textContent, w: n.getBoundingClientRect().width, right: n.getBoundingClientRect().right })));
+  check('manda con el botón y contesta', /USD/.test(burbujasT[burbujasT.length - 1].texto), burbujasT[burbujasT.length - 1].texto.slice(0, 120));
+  check('   las burbujas no se salen de la pantalla', burbujasT.every((b) => b.right <= ancho + 1 && b.w <= ancho));
+  const entrada2 = await caja('.asi-entrada');
+  const msgs2 = await caja('.asi-mensajes');
+  check('   y después de escribir nada se pisa', msgs2.bottom <= entrada2.top + 1 && entrada2.bottom <= alto + 1);
+
+  /* Acostado: queda la mitad de alto y la barra de escribir tiene que seguir entrando. */
+  await tel.setViewportSize({ width: 844, height: 390 });
+  await esperar(400);
+  const entradaH = await caja('.asi-entrada');
+  check('acostado, la barra de escribir sigue entrando', entradaH.bottom <= 391, `bottom ${Math.round(entradaH.bottom)}`);
+  check('   y el chat sigue teniendo lugar', (await caja('.asi-mensajes')).h > 120, String(Math.round((await caja('.asi-mensajes')).h)));
+
+  const relT = erroresT.filter((x) => !/favicon|Failed to load resource/i.test(x));
+  check('ningún error de JavaScript en el teléfono', relT.length === 0, relT.slice(0, 2).join(' | '));
+  await ctxT.close();
 
   await new Promise((res) => db.close(() => res()));
   await browser.close();

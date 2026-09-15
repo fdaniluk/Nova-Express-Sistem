@@ -1,5 +1,34 @@
 # Pendientes
 
+**EL ASISTENTE EN EL TELÉFONO (15/09/2026).** Felipe: *"andá armando una versión que ande
+cómoda para celulares, iOS y Android"*. Decidió **arrancar solo por el Asistente** (no todo
+el sistema) y **sin app instalable**: *"por ahora desde el sistema, total el día de mañana
+la idea es migrarlo a WhatsApp"*. Todo el CSS nuevo cuelga de `body.pagina-asistente`, así
+que **las otras 17 pantallas no se tocan**. Abajo de 700px (y en teléfono acostado, hasta
+900×520):
+- **Pantalla completa, y el chat es lo único que scrollea.** `100vh` en iOS mide de más y
+  deja la barra de escribir tapada: se usa `100dvh` y, mejor, `--vh-real`, que el JS saca de
+  `visualViewport` — la única medida que achica cuando se abre el teclado.
+- **Menú y lateral como hojas.** ☰ trae el menú del sistema desde la izquierda, ▤ sube
+  Conversaciones/Teléfonos desde abajo. Con las dos cerradas el chat tiene el ancho entero.
+  La hoja del lateral aparece desde **900px**, no 700: ahí es donde la regla vieja lo
+  escondía, y sin esto la pestaña Teléfonos quedaba inalcanzable en tablet.
+- **Enter baja de línea, se manda con el botón** (solo en punteros gruesos: `(hover:none)
+  and (pointer:coarse)`). En un teclado de teléfono el Enter es "nueva línea" para todo el
+  mundo.
+- **Textarea en 16px EXACTOS**: con menos, Safari hace zoom al enfocar y se va la pantalla
+  de lugar. Lo mismo para el select y el input de la vinculación.
+- `env(safe-area-inset-bottom)` en la barra de entrada + `viewport-fit=cover` en el `<head>`
+  (sin lo segundo, lo primero vale 0).
+- Nada de foco automático al abrir ni después de cada respuesta: levantaba el teclado solo.
+- El estado pasa a **puntito de color** (verde / violeta prueba / rojo sin configurar): el
+  texto completo no entra en 390px y truncado no dice nada. Queda en el `title`.
+Tanda `test-pantalla-asistente` **47 → 68**: los controles nuevos **miden cajas reales**
+(que la barra de escribir entre en la pantalla, que no se pise con los mensajes, que no haya
+scroll horizontal, que las hojas abran y cierren, el tamaño de letra del textarea), tanto
+parado como acostado. Cache: **`asistente.css` y `asistente.js` en `?v=20260915c`**.
+
+
 **Actualizado 15/09/2026. EL ASISTENTE POR TELÉFONO, EN MODO PRUEBA (entrega 2 del bot).**
 Felipe: *"si no está en WhatsApp no va a ser tan útil"*. Se armó el canal completo —
 vínculo de teléfono con código de un solo uso, sesión efímera con los permisos del usuario,

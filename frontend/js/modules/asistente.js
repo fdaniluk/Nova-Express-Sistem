@@ -24,6 +24,15 @@
   const estadoEl = $('asi-estado');
   const bienvenida = $('asi-bienvenida');
 
+  /* ── El teléfono (15/09/2026) ──────────────────────────────────────────────────
+     Dos preguntas distintas, y conviene no mezclarlas:
+       · `esPantallaChica()` es de ANCHO: decide si el menú y el lateral son hojas.
+       · `esTactil()` es de DEDO: decide si Enter manda o baja de línea. En un teclado
+         de teléfono el Enter es "nueva línea" para todo el mundo (WhatsApp incluido),
+         y mandar sin querer un mensaje a medio escribir es molesto. */
+  const esPantallaChica = () => window.matchMedia('(max-width: 700px)').matches;
+  const esTactil = () => window.matchMedia('(hover: none) and (pointer: coarse)').matches;
+
   let conversacionId = null;
   let enviando = false;
   /* 'panel' = esta pantalla. 'telefono' = el simulador: lo que se escribe entra por el
@@ -79,6 +88,7 @@
       if (e.mock) { estadoEl.textContent = 'modo de prueba (mock)'; estadoEl.className = 'asi-estado mock'; }
       else if (e.disponible) { estadoEl.textContent = 'listo · ' + e.modelo; estadoEl.className = 'asi-estado ok'; }
       else { estadoEl.textContent = 'sin configurar'; estadoEl.className = 'asi-estado error'; }
+      estadoEl.title = estadoEl.textContent;   // en el teléfono se ve como un puntito
       if (e.canales) canalesDisponibles = e.canales;
       /* Sin clave el MODELO no contesta, pero la pantalla NO se bloquea: vincular un
          teléfono (mandar el código de 6 dígitos) y el simulador no necesitan modelo, y
@@ -119,7 +129,8 @@
       for (const m of c.mensajes) pintarMensaje(m.rol, m.texto, m.rol === 'assistant' ? m.herramientas : []);
       pintarPendiente(c.pendiente);
       listaEl.querySelectorAll('li').forEach((li) => li.classList.toggle('activa', Number(li.dataset.id) === c.id));
-      texto.focus();
+      cerrarHojas();
+      if (!esTactil()) texto.focus();
     } catch (err) {
       pintarMensaje('assistant', 'No pude abrir esa conversación: ' + (err.message || err), [], 'error');
     }
@@ -130,7 +141,8 @@
     conversacionId = null;
     limpiarChat();
     listaEl.querySelectorAll('li').forEach((li) => li.classList.remove('activa'));
-    texto.focus();
+    cerrarHojas();
+    if (!esTactil()) texto.focus();
   }
 
   async function enviar() {
@@ -169,7 +181,7 @@
     } finally {
       enviando = false;
       btnEnviar.disabled = false;
-      texto.focus();
+      if (!esTactil()) texto.focus();   // no reabrir el teclado después de cada respuesta
     }
   }
 
@@ -268,13 +280,16 @@
         }
       } catch (err) { notaModo(err.message || String(err)); }
     }
-    texto.focus();
+    if (!esTactil()) texto.focus();
   }
   document.querySelectorAll('.asi-modo button').forEach((b) => b.addEventListener('click', () => cambiarModo(b.dataset.modo)));
 
   form.addEventListener('submit', (ev) => { ev.preventDefault(); enviar(); });
   texto.addEventListener('keydown', (ev) => {
-    if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); enviar(); }
+    if (ev.key !== 'Enter' || ev.shiftKey) return;
+    if (esTactil()) return;              // en el teléfono el Enter baja de línea
+    ev.preventDefault();
+    enviar();
   });
   texto.addEventListener('input', ajustarAlto);
   $('asi-nueva').addEventListener('click', nueva);
@@ -282,13 +297,56 @@
     b.addEventListener('click', () => {
       texto.value = b.dataset.sug || '';
       ajustarAlto();
-      texto.focus();
+      texto.focus();   // acá sí: la persona tocó una sugerencia para seguir escribiendo
       // Las que terminan con espacio son para completar (la guía); las otras se mandan.
       if (!/\s$/.test(texto.value)) enviar();
     });
   });
 
+  /* ── Hojas del teléfono: el menú del sistema y el lateral ───────────────────────
+     En pantalla grande no hacen nada (las dos cosas están siempre a la vista); acá solo
+     se prenden y apagan clases, y el CSS las desliza. */
+  const fondo = $('asi-fondo');
+  function cerrarHojas() {
+    document.body.classList.remove('menu-abierto', 'panel-abierto');
+    if (fondo) fondo.hidden = true;
+  }
+  function abrirHoja(cual) {
+    const yaEstaba = document.body.classList.contains(cual);
+    cerrarHojas();
+    if (yaEstaba) return;
+    document.body.classList.add(cual);
+    if (fondo) fondo.hidden = false;
+  }
+  if (fondo) fondo.addEventListener('click', cerrarHojas);
+  $('asi-menu').addEventListener('click', () => abrirHoja('menu-abierto'));
+  $('asi-panel').addEventListener('click', () => abrirHoja('panel-abierto'));
+  $('asi-cerrar-panel').addEventListener('click', cerrarHojas);
+  document.addEventListener('keydown', (ev) => { if (ev.key === 'Escape') cerrarHojas(); });
+  /* Al girar el teléfono o pasar a pantalla grande, una hoja abierta queda de adorno. */
+  window.addEventListener('resize', () => { if (!esPantallaChica()) cerrarHojas(); });
+
+  /* ── El alto de verdad ───────────────────────────────────────────────────────────
+     `100vh` en iOS mide la pantalla SIN la barra del navegador, así que la barra de
+     escribir queda tapada; y cuando se abre el teclado, `100dvh` tampoco siempre achica.
+     `visualViewport` es lo único que mide lo que de verdad se ve. El CSS usa
+     --vh-real y cae a 100dvh si el navegador no la tiene. */
+  const vv = window.visualViewport;
+  if (vv) {
+    const medir = () => {
+      document.documentElement.style.setProperty('--vh-real', vv.height + 'px');
+      scrollAbajo();
+    };
+    vv.addEventListener('resize', medir);
+    medir();
+  }
+
   cargarEstado();
   cargarLista();
-  texto.focus();
+  /* Enfocar al abrir levanta el teclado apenas entrás y no se ve nada más: en el
+     teléfono se enfoca recién cuando la persona toca el cuadro. */
+  /* En el teléfono el Enter baja de línea, así que el cartelito del cuadro no puede
+     seguir diciendo lo contrario — y encima ocupaba tres renglones. */
+  if (esTactil()) texto.placeholder = 'Escribí qué necesitás…';
+  if (!esTactil()) texto.focus();
 })();

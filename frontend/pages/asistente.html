@@ -2,14 +2,15 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Asistente – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260915a">
-  <link rel="stylesheet" href="../css/modules/asistente.css?v=20260915a">
+  <link rel="stylesheet" href="../css/modules/asistente.css?v=20260915c">
 </head>
-<body>
+<body class="pagina-asistente">
 <div class="app-layout">
+<div class="asi-fondo" id="asi-fondo" hidden></div>
 
   <aside class="sidebar">
     <a class="sidebar-brand" href="../index.html">
@@ -91,9 +92,11 @@
 
   <div class="page-content">
     <div class="page-header">
+      <button type="button" class="asi-icono asi-solo-tel" id="asi-menu" aria-label="Menú del sistema">☰</button>
       <h1>Asistente</h1>
       <div class="period-selector">
         <span class="asi-estado" id="asi-estado">…</span>
+        <button type="button" class="asi-icono asi-solo-tel" id="asi-panel" aria-label="Conversaciones y teléfonos">▤</button>
         <button class="btn btn-secondary" id="asi-nueva">+ Nueva conversación</button>
       </div>
     </div>
@@ -104,6 +107,7 @@
       <div class="asi-layout">
         <!-- ══ Panel lateral: conversaciones y teléfonos ══ -->
         <aside class="asi-lista" id="asi-lista">
+          <button type="button" class="asi-cerrar-panel asi-solo-tel" id="asi-cerrar-panel" aria-label="Cerrar">✕</button>
           <div class="asi-tabs" role="tablist">
             <button type="button" class="activa" data-tab="conversaciones">Conversaciones</button>
             <button type="button" data-tab="telefonos">Teléfonos</button>
@@ -145,9 +149,9 @@
           </div>
           <div class="asi-pendiente" id="asi-pendiente" hidden></div>
           <div class="asi-modo">
-            <span>Escribiendo desde:</span>
+            <span class="asi-largo">Escribiendo desde:</span>
             <button type="button" class="activa" data-modo="panel">El sistema</button>
-            <button type="button" data-modo="telefono">📱 Simulador de teléfono</button>
+            <button type="button" data-modo="telefono">📱 <span class="asi-largo">Simulador de teléfono</span><span class="asi-corto">Teléfono</span></button>
             <span class="asi-modo-nota" id="asi-modo-nota"></span>
           </div>
           <form class="asi-entrada" id="asi-form" autocomplete="off">
@@ -163,6 +167,6 @@
 <script src="/js/auth-guard.js?v=20260915a"></script>
 <script src="../js/api.js?v=20260915a"></script>
 <script src="../js/main.js?v=20260915a"></script>
-<script src="../js/modules/asistente.js?v=20260915b"></script>
+<script src="../js/modules/asistente.js?v=20260915c"></script>
 </body>
 </html>
