@@ -1,5 +1,24 @@
 # Pendientes
 
+**BUSCADOR POR CLIENTE EN LIQUIDACIONES (15/09/2026).** Felipe: *"si bien ya lo tenemos
+organizado por orden alfabético, no estaría de más un buscador como el del módulo de
+clientes"*. Eligió ponerlo **solo en "Envíos sin liquidar"** (el desplegable de Crear y el
+Historial quedan como están). Mismo criterio que `clientes.js`: **filtra en memoria** lo ya
+traído, sin tildes ni mayúsculas, y cada palabra tiene que aparecer en algún lado
+("martinez hnos"). Busca por nombre de cliente **y también por número de guía** (pasa
+seguido tener la guía a mano y no acordarse del cliente). Contador al lado ("2 de 6"), Esc
+limpia sin sacar el foco.
+- ⚠️ **Filtrar NO vuelve a pedirle nada al servidor**: si lo hiciera, se perderían los
+  filtros de fecha / courier / tipo de cobro de arriba. Hay un control que cuenta los
+  pedidos a `/api/liquidaciones/pendientes` y verifica que escribir no dispare ninguno.
+- ⚠️ El botón **Liquidar** busca el grupo en la lista ENTERA (`gruposPendientes`), no en lo
+  filtrado: si no, con el buscador puesto podía saltar al cliente equivocado. Hay control.
+- `loadPendientes` quedó partido en dos: **trae** (servidor) y `renderPendientes()`
+  **dibuja** (memoria). Cualquier filtro nuevo de pantalla va del lado del render.
+Tanda nueva **`test-pantalla-liq-buscador` (22)**, sumada a `test-pantallas` y con atajo
+`npm run test-liq-buscador`. Cache: **`liquidaciones.js` en `?v=20260915c`**.
+
+
 **SUMAR CELDAS EN SALIDAS, ESTILO EXCEL (15/09/2026).** Esto cierra el pendiente que quedó
 abierto el 09/09, cuando la barra de totales fija duró un día (*"tapa mucha pantalla y son
 datos que no tienen que estar a simple vista"*). Lo que quería era otra cosa, y el 15/09 lo

@@ -28,6 +28,13 @@
     .liq-interno { color: #15803d; font-weight: 600; white-space: nowrap; background: #f0fdf4; }
     th.liq-interno { color: #166534; font-size: 11px; }
     .liq-interno .neg { color: #dc2626; }
+    /* Buscador de la lista de pendientes: mismo aspecto que el del módulo de Clientes. */
+    .liq-buscador { display: flex; align-items: center; gap: 0.75rem; margin: 0.2rem 0 0.9rem; }
+    .liq-buscador input { flex: 1; max-width: 420px; padding: 0.5rem 0.75rem;
+      border: 1px solid var(--color-border); border-radius: 8px; font-size: 0.9rem; }
+    .liq-buscador input:focus { outline: none; border-color: #2a78d6;
+      box-shadow: 0 0 0 3px rgba(42,120,214,.12); }
+    .liq-buscador-cuenta { font-size: 0.8rem; color: var(--color-muted); white-space: nowrap; }
     .liq-interno .em { color: var(--color-muted); font-weight: 400; }
     /* Desglose del Adicional, debajo del número: surge, GoGreen, manejo… (07/09). */
     .liq-adic-detalle { display: block; font-size: 11px; color: var(--color-muted); font-weight: 400; margin-top: 2px; line-height: 1.35; }
@@ -162,6 +169,13 @@
           <button type="button" class="btn btn-primary" id="btn-pend-filtrar">Filtrar</button>
           <button type="button" class="btn btn-secondary" id="btn-pend-todo" title="Borra las fechas y muestra todo lo pendiente">Ver todo</button>
         </div>
+        <!-- Buscador por cliente (15/09/2026, pedido de Felipe: "como el del módulo de
+             clientes"). Filtra EN MEMORIA lo que ya se trajo: no vuelve a pedirle nada al
+             servidor, así que no pierde los filtros de arriba ni tarda. -->
+        <div class="liq-buscador">
+          <input type="search" id="buscador-pendientes" placeholder="Buscar cliente…" autocomplete="off">
+          <span class="liq-buscador-cuenta" id="buscador-pendientes-cuenta"></span>
+        </div>
         <div id="pendientes-list"></div>
       </section>
 
@@ -264,6 +278,6 @@
 <script src="/js/auth-guard.js?v=20260915a"></script>
 <script src="../js/api.js?v=20260915a"></script>
 <script src="../js/main.js?v=20260915a"></script>
-<script src="../js/modules/liquidaciones.js?v=20260915a"></script>
+<script src="../js/modules/liquidaciones.js?v=20260915c"></script>
 </body>
 </html>

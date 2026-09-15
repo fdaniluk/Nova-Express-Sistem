@@ -78,6 +78,43 @@
       document.getElementById('pend-hasta').value = '';
       loadPendientes();
     });
+    bindBuscadorPendientes();
+  }
+
+  /* ── Buscador por cliente (15/09/2026) ────────────────────────────────────────────
+     Felipe: *"agregame en liquidaciones un buscador por cliente, como el del módulo de
+     clientes"*. Es el MISMO criterio que clientes.js: filtra en memoria lo que ya se
+     trajo, sin tildes ni mayúsculas, y cada palabra tipeada tiene que aparecer en algún
+     lado. Filtrar acá NO vuelve a pedirle nada al servidor: los filtros de arriba (fechas,
+     courier, tipo de cobro) siguen valiendo y la lista no parpadea. */
+  let gruposPendientes = [];
+  let busquedaPend = '';
+
+  function normalizarTxt(s) {
+    return String(s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  }
+
+  function pendientesFiltrados() {
+    const q = normalizarTxt(busquedaPend).trim();
+    if (!q) return gruposPendientes;
+    const palabras = q.split(/\s+/);
+    return gruposPendientes.filter((g) => {
+      // Se busca por cliente, y de yapa por las guías del grupo: pasa seguido que uno tiene
+      // el número de guía a mano y no se acuerda de qué cliente era.
+      const pajar = normalizarTxt([g.cliente_nombre, ...(g.envios || []).map((e) => e.numero_guia)]
+        .filter(Boolean).join(' '));
+      return palabras.every((p) => pajar.includes(p));
+    });
+  }
+
+  function bindBuscadorPendientes() {
+    const input = document.getElementById('buscador-pendientes');
+    if (!input) return;
+    input.addEventListener('input', () => { busquedaPend = input.value; renderPendientes(); });
+    // Escape limpia y devuelve la lista entera, sin sacar el foco del campo.
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') { input.value = ''; busquedaPend = ''; renderPendientes(); }
+    });
   }
 
   async function loadPendientes() {
@@ -90,60 +127,79 @@
     if (courier) params.courier = courier;
     if (tc) params.tipo_cobro = tc;
 
-    const container = document.getElementById('pendientes-list');
     try {
-      const grupos = await NovaAPI.liquidaciones.pendientes(params);
-      if (!grupos.length) {
-        container.innerHTML = '<p class="empty">No hay envíos pendientes de liquidar</p>';
-        return;
-      }
-      container.innerHTML = grupos
-        .map(
-          (g) => `
-        <div class="cliente-grupo">
-          <div class="cliente-grupo-header">
-            <strong>${g.cliente_nombre}</strong>
-            <span>${NovaUtils.tipoCobroLabel(g.tipo_cobro)} · ${g.envios.length} envío(s) · ${NovaUtils.formatMoney(g.total_cobrado)}</span>
-            <button type="button" class="btn btn-sm btn-primary" data-liq-cliente="${g.cliente_id}">Liquidar</button>
-          </div>
-          <div class="cliente-grupo-body">
-            <table>
-              <thead><tr><th>Fecha</th><th>Guía</th><th>Courier</th><th>País</th><th>Total</th></tr></thead>
-              <tbody>
-                ${g.envios.map((e) => `<tr>
-                  <td>${NovaUtils.formatDate(e.fecha)}</td>
-                  <td>${e.numero_guia}${chipBorrador(e)}</td>
-                  <td>${e.courier}</td>
-                  <td>${e.pais_destino}</td>
-                  <td>${NovaUtils.formatMoney(e.total_cobrado)}</td>
-                </tr>`).join('')}
-              </tbody>
-            </table>
-          </div>
-        </div>`
-        )
-        .join('');
-
-      container.querySelectorAll('[data-liq-cliente]').forEach((btn) => {
-        btn.addEventListener('click', () => {
-          // El período de la liquidación tiene que ABARCAR lo que se acaba de ver en
-          // pendientes. Antes se saltaba a Crear con el mes en curso y los envíos de meses
-          // anteriores del mismo grupo desaparecían: era la segunda forma de que se pasaran
-          // de largo. Desde = el envío más viejo del grupo; hasta = hoy.
-          const grupo = grupos.find((g) => String(g.cliente_id) === String(btn.dataset.liqCliente));
-          if (grupo && grupo.envios.length) {
-            const fechas = grupo.envios.map((e) => e.fecha).filter(Boolean).sort();
-            document.getElementById('liq-desde').value = fechas[0];
-            document.getElementById('liq-hasta').value = NovaUtils.hoyLocal(new Date());
-          }
-          document.querySelector('.tab[data-tab="crear"]').click();
-          document.getElementById('liq-cliente').value = btn.dataset.liqCliente;
-          document.getElementById('btn-cargar-envios').click();
-        });
-      });
+      gruposPendientes = await NovaAPI.liquidaciones.pendientes(params);
+      renderPendientes();
     } catch (err) {
       NovaUtils.showAlert(alertBox, err.message, 'error');
     }
+  }
+
+  function renderPendientes() {
+    const container = document.getElementById('pendientes-list');
+    const cuenta = document.getElementById('buscador-pendientes-cuenta');
+    const grupos = pendientesFiltrados();
+
+    if (cuenta) {
+      cuenta.textContent = busquedaPend.trim()
+        ? `${grupos.length} de ${gruposPendientes.length}`
+        : (gruposPendientes.length ? `${gruposPendientes.length} cliente(s)` : '');
+    }
+    if (!gruposPendientes.length) {
+      container.innerHTML = '<p class="empty">No hay envíos pendientes de liquidar</p>';
+      return;
+    }
+    if (!grupos.length) {
+      container.innerHTML = '<p class="empty">Ningún cliente coincide con la búsqueda.</p>';
+      return;
+    }
+
+    container.innerHTML = grupos
+      .map(
+        (g) => `
+      <div class="cliente-grupo">
+        <div class="cliente-grupo-header">
+          <strong>${g.cliente_nombre}</strong>
+          <span>${NovaUtils.tipoCobroLabel(g.tipo_cobro)} · ${g.envios.length} envío(s) · ${NovaUtils.formatMoney(g.total_cobrado)}</span>
+          <button type="button" class="btn btn-sm btn-primary" data-liq-cliente="${g.cliente_id}">Liquidar</button>
+        </div>
+        <div class="cliente-grupo-body">
+          <table>
+            <thead><tr><th>Fecha</th><th>Guía</th><th>Courier</th><th>País</th><th>Total</th></tr></thead>
+            <tbody>
+              ${g.envios.map((e) => `<tr>
+                <td>${NovaUtils.formatDate(e.fecha)}</td>
+                <td>${e.numero_guia}${chipBorrador(e)}</td>
+                <td>${e.courier}</td>
+                <td>${e.pais_destino}</td>
+                <td>${NovaUtils.formatMoney(e.total_cobrado)}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>`
+      )
+      .join('');
+
+    container.querySelectorAll('[data-liq-cliente]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        // El período de la liquidación tiene que ABARCAR lo que se acaba de ver en
+        // pendientes. Antes se saltaba a Crear con el mes en curso y los envíos de meses
+        // anteriores del mismo grupo desaparecían: era la segunda forma de que se pasaran
+        // de largo. Desde = el envío más viejo del grupo; hasta = hoy.
+        // OJO: se busca en gruposPendientes (la lista ENTERA), no en lo que quedó filtrado:
+        // el grupo es el mismo y así el botón no depende de lo que esté tipeado.
+        const grupo = gruposPendientes.find((g) => String(g.cliente_id) === String(btn.dataset.liqCliente));
+        if (grupo && grupo.envios.length) {
+          const fechas = grupo.envios.map((e) => e.fecha).filter(Boolean).sort();
+          document.getElementById('liq-desde').value = fechas[0];
+          document.getElementById('liq-hasta').value = NovaUtils.hoyLocal(new Date());
+        }
+        document.querySelector('.tab[data-tab="crear"]').click();
+        document.getElementById('liq-cliente').value = btn.dataset.liqCliente;
+        document.getElementById('btn-cargar-envios').click();
+      });
+    });
   }
 
   // EL BORRADOR PEGADO (sospecha 6 de la auditoría, confirmada el 15/08): exportar creaba
