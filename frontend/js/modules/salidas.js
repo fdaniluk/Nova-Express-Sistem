@@ -126,6 +126,7 @@
     bindBultoGuiaEdit();
     bindDetailToggle();
     bindGridNav();
+    bindSeleccionCeldas();
     bindCopiarGuias();
     bindSelectAllGuias();
     bindCopiarN();
@@ -414,6 +415,10 @@
     // El tbody se reconstruyó: re-resolver la celda activa por coordenadas y reaplicar
     // el resaltado (o limpiarlo si la coordenada ya no existe).
     reconcileActiveCell();
+    /* La selección se suelta al re-renderizar: filtrar u ordenar cambia qué fila es
+       cada número, y arrastrar una selección vieja a filas nuevas daría una suma de
+       celdas que nadie eligió. */
+    limpiarSeleccion();
 
     // Plegar/desplegar el bloque UPS (clase de la tabla + botón) ANTES de medir sticky: con
     // table-layout auto, ocultar columnas redistribuye anchos y mueve los offsets sticky.
@@ -908,6 +913,10 @@
     document.querySelectorAll('.salidas-table th[data-col]').forEach((th) => {
       th.addEventListener('click', (e) => {
         if (e.target.classList.contains('filter-btn')) return;
+        /* Shift+click en el rótulo elige la COLUMNA ENTERA para la cuenta, como en Excel
+           al clickear la letra de la columna — y no ordena. Con Ctrl se agrega a lo que ya
+           estaba elegido. */
+        if (e.shiftKey) { seleccionarColumna(th.cellIndex, e.ctrlKey || e.metaKey); return; }
         const col = th.dataset.col;
         if (sortCol === col) {
           sortDir = sortDir === 'asc' ? 'desc' : 'asc';
@@ -4053,7 +4062,9 @@
       copiarCelda(td);
       return;
     }
-    if (e.key === 'Escape' && activeCell) {
+    if (e.key === 'Escape' && (selCeldas.size || activeCell)) {
+      // Primero suelta la selección (lo que está a la vista); un segundo Esc suelta la celda.
+      if (selCeldas.size) { limpiarSeleccion(); return; }
       activeCell = null;
       clearActiveCellHighlight();
       return;
@@ -4063,6 +4074,25 @@
 
     const rows = getDataRows();
     if (!rows.length) return;
+
+    /* Shift+flechas estira la selección desde el ancla, como en Excel. El ancla es la celda
+       donde estabas cuando apretaste Shift la primera vez. */
+    if (e.shiftKey && activeCell) {
+      if (!selAncla) { selAncla = { ...activeCell }; selBase = new Set(); }
+      let r = activeCell.rowIndex, c = activeCell.colIndex;
+      if (e.key === 'ArrowUp') r = Math.max(0, r - 1);
+      else if (e.key === 'ArrowDown') r = Math.min(rows.length - 1, r + 1);
+      else if (e.key === 'ArrowLeft') c = prevVisibleCol(c);
+      else if (e.key === 'ArrowRight') c = nextVisibleCol(c);
+      if (r === activeCell.rowIndex && c === activeCell.colIndex) return;
+      e.preventDefault();
+      setActiveCell(r, c, true);
+      selCeldas = new Set([...selBase, ...rectanguloSel(selAncla, { rowIndex: r, colIndex: c })]);
+      pintarSeleccion();
+      return;
+    }
+    // Una flecha sin Shift arranca de cero: es lo que hace Excel al moverse.
+    if (selCeldas.size) limpiarSeleccion();
 
     // Sin celda activa: la primera flecha activa la primera celda de datos navegable
     // (col GRID_MIN_COL, saltando el checkbox de la columna 0).
@@ -4135,6 +4165,288 @@
         wrap.scrollTop = cellBottom - wrap.clientHeight + 8;
       }
     }
+  }
+
+
+  /* ══ SELECCIONAR CELDAS Y VER LA CUENTA — la barra de estado de Excel (15/09/2026) ══
+
+     Historia: el 09/09 se hizo una barra de totales fija abajo y Felipe la mandó sacar el
+     mismo día ("tapa mucha pantalla y son datos que no tienen que estar a simple vista").
+     Lo que quería era otra cosa, y lo dijo clarito el 15/09:
+
+       "Pensá siempre en Excel. Marcás las celdas que querés sumar y simplemente abajo te
+        aparece el resultado. No necesito una barra nueva abajo que esté constantemente
+        mostrándome valores. Quiero elegir a la hora de sumar o no sumar, o qué sumar o qué
+        no sumar, o hasta dónde sumar."
+
+     Entonces: NADA a la vista mientras no haya selección. Se eligen celdas y recién ahí
+     aparece la pastilla con Recuento / Suma / Promedio; se suelta la selección y desaparece.
+
+     CÓMO SE ELIGE (igual que Excel, y sin romper nada de lo que ya hacía la tabla):
+       · arrastrar          → rectángulo desde donde apretaste hasta donde soltás;
+       · Shift + click      → estira el rectángulo hasta esa celda;
+       · Ctrl/⌘ + click     → suma o saca UNA celda suelta (el "qué no sumar");
+       · Ctrl/⌘ + arrastrar → agrega otro bloque sin perder lo anterior;
+       · Shift + flechas    → estira con el teclado;
+       · Shift + click en el rótulo de una columna → la columna entera, como en Excel;
+       · Esc                → suelta la selección.
+
+     EL CLICK SIMPLE SIGUE ABRIENDO EL ENVÍO. Es la regla de oro acá: la tabla ya usa el
+     click para abrir el modal, así que seleccionar NO puede empezar con un click pelado.
+     Empieza cuando el mouse se MUEVE con el botón apretado (o con Shift/Ctrl). Y cuando
+     hubo arrastre, el click que viene después se come en fase de captura para que el modal
+     no se abra por accidente.
+
+     LO QUE SUMA es lo que se VE en la celda, como Excel: se lee el texto (sin el ▾, el
+     lápiz ni el "kg"), y lo que no es número (guías, fechas, "—") se cuenta pero no se
+     suma. Las columnas de % no se suman —sumar porcentajes no quiere decir nada— y ahí la
+     pastilla muestra solo el promedio. Las columnas UPS plegadas no entran: no se puede
+     sumar algo que no está a la vista. */
+
+  let selCeldas = new Set();     // claves "fila:columna" de lo seleccionado
+  let selAncla = null;           // esquina fija del rectángulo, { rowIndex, colIndex }
+  let selBase = new Set();       // lo que había antes de este arrastre (para Ctrl+arrastrar)
+  let selArrastrando = false;
+  let selHuboArrastre = false;   // para comerse el click que viene después del arrastre
+
+  const claveSel = (r, c) => `${r}:${c}`;
+
+  // Rótulo de cada columna → unidad. Por TEXTO y no por número de columna: si mañana se
+  // agrega una columna en el medio, esto sigue valiendo.
+  const UNIDAD_POR_ROTULO = {
+    'Largo': 'cm', 'Ancho': 'cm', 'Alto': 'cm',
+    'P.Balanza': 'kg', 'P.Volumétrico': 'kg', 'P.Fact': 'kg', 'Peso UPS': 'kg', 'Dif Peso': 'kg',
+    'FOB': 'USD', 'Venta Total': 'USD', 'Flete': 'USD', 'Dscto': 'USD', 'Seguro': 'USD',
+    'Fuel': 'USD', 'Derechos': 'USD', 'Adic': 'USD', 'Otros': 'USD', 'Compra Total': 'USD',
+    'Profit': 'USD', 'Costo UPS': 'USD', 'Profit Real': 'USD',
+    '%': '%', '% Real': '%',
+  };
+  let unidadPorCol = null;
+  function unidadDeColumna(colIndex) {
+    if (!unidadPorCol) {
+      unidadPorCol = {};
+      document.querySelectorAll('.salidas-table tr.th-cols th').forEach((th, i) => {
+        const inner = th.querySelector('.th-inner');
+        const clon = inner ? inner.cloneNode(true) : th.cloneNode(true);
+        clon.querySelectorAll('button, .sort-icon').forEach((n) => n.remove());
+        unidadPorCol[i] = UNIDAD_POR_ROTULO[(clon.textContent || '').trim()] || '';
+      });
+    }
+    return unidadPorCol[colIndex] || '';
+  }
+
+  // ¿Esta columna se puede elegir? El checkbox no, y las UPS plegadas tampoco: sumar una
+  // columna que no está a la vista es la forma más fácil de dar un número que nadie entiende.
+  function colSeleccionable(c) {
+    if (c < GRID_MIN_COL || c > GRID_MAX_COL) return false;
+    if (!upsVisible && c >= UPS_COL_START && c <= UPS_COL_END) return false;
+    return true;
+  }
+
+  function coordDeEvento(ev) {
+    const td = ev.target.closest('td');
+    const tr = ev.target.closest('tr[data-envio-id]');
+    if (!td || !tr || td.parentElement !== tr) return null;
+    const rowIndex = dataRowIndexOf(tr);
+    if (rowIndex < 0 || !colSeleccionable(td.cellIndex)) return null;
+    return { rowIndex, colIndex: td.cellIndex };
+  }
+
+  function rectanguloSel(a, b) {
+    const claves = [];
+    const r1 = Math.min(a.rowIndex, b.rowIndex), r2 = Math.max(a.rowIndex, b.rowIndex);
+    const c1 = Math.min(a.colIndex, b.colIndex), c2 = Math.max(a.colIndex, b.colIndex);
+    for (let r = r1; r <= r2; r++) {
+      for (let c = c1; c <= c2; c++) if (colSeleccionable(c)) claves.push(claveSel(r, c));
+    }
+    return claves;
+  }
+
+  function limpiarSeleccion() {
+    if (!selCeldas.size && !selAncla) return;
+    selCeldas = new Set();
+    selAncla = null;
+    selBase = new Set();
+    pintarSeleccion();
+  }
+
+  function pintarSeleccion() {
+    const tbody = document.getElementById('salidas-body');
+    if (!tbody) return;
+    tbody.querySelectorAll('td.cell-sel').forEach((td) => td.classList.remove('cell-sel'));
+    const filas = getDataRows();
+    for (const k of selCeldas) {
+      const [r, c] = k.split(':').map(Number);
+      const tr = filas[r];
+      const td = tr && tr.cells[c];
+      if (td) td.classList.add('cell-sel');
+    }
+    actualizarPastillaSuma();
+  }
+
+  // Lo que dice la celda, sin los adornos. Mismo criterio que copiarCelda: lo que se ve.
+  function textoDeCelda(td) {
+    const clon = td.cloneNode(true);
+    clon.querySelectorAll('button, .unit, .bulto-guia-edit, .alert-icon, .track-btn').forEach((n) => n.remove());
+    return (clon.textContent || '').replace(/\s+/g, ' ').trim();
+  }
+
+  function numeroDeCelda(td) {
+    const t = textoDeCelda(td).replace(/\$/g, '').replace(/%/g, '').trim();
+    if (!t || t === '—' || t === '-') return null;
+    // Formato de la grilla: punto decimal y sin separador de miles. Igual se tolera la coma
+    // por si alguna celda viene en es-AR.
+    const n = Number(t.includes(',') && !t.includes('.') ? t.replace(',', '.') : t);
+    return Number.isFinite(n) ? n : null;
+  }
+
+  function actualizarPastillaSuma() {
+    const caja = document.getElementById('sal-suma');
+    if (!caja) return;
+    const filas = getDataRows();
+    let cuenta = 0, cuentaNum = 0, suma = 0, decimales = 0;
+    const unidades = new Set();
+    for (const k of selCeldas) {
+      const [r, c] = k.split(':').map(Number);
+      const tr = filas[r];
+      const td = tr && tr.cells[c];
+      if (!td) continue;
+      const txt = textoDeCelda(td);
+      if (txt && txt !== '—') cuenta++;
+      const n = numeroDeCelda(td);
+      if (n === null) continue;
+      cuentaNum++;
+      suma += n;
+      const dec = (String(n).split('.')[1] || '').length;
+      if (dec > decimales) decimales = Math.min(dec, 2);
+      unidades.add(unidadDeColumna(c));
+    }
+
+    // Una sola celda no muestra nada, igual que Excel: la pastilla es para comparar o sumar.
+    if (selCeldas.size < 2 || cuenta === 0) { caja.hidden = true; caja.innerHTML = ''; return; }
+
+    const unidad = unidades.size === 1 ? [...unidades][0] : '';
+    const fmt = (v) => {
+      const txt = v.toLocaleString('es-AR', { minimumFractionDigits: decimales, maximumFractionDigits: decimales });
+      if (unidad === 'USD') return 'USD ' + txt;
+      if (unidad === 'kg') return txt + ' kg';
+      if (unidad === 'cm') return txt + ' cm';
+      if (unidad === '%') return txt + '%';
+      return txt;
+    };
+
+    const partes = [`<span class="ss-item"><span class="ss-rot">Recuento</span> <b id="ss-cuenta">${cuenta}</b></span>`];
+    if (cuentaNum) {
+      // Sumar porcentajes no significa nada: cuando todo lo elegido es %, va solo el promedio.
+      if (unidad !== '%') {
+        partes.push(`<span class="ss-item ss-suma" title="Click para copiar"><span class="ss-rot">Suma</span> <b id="ss-suma-valor">${fmt(suma)}</b></span>`);
+      }
+      partes.push(`<span class="ss-item"><span class="ss-rot">Promedio</span> <b id="ss-promedio">${fmt(suma / cuentaNum)}</b></span>`);
+    }
+    caja.innerHTML = partes.join('')
+      + '<button type="button" class="ss-cerrar" id="sal-suma-cerrar" title="Soltar la selección (Esc)">✕</button>';
+    caja.hidden = false;
+    caja.dataset.suma = String(Math.round(suma * 100) / 100);
+  }
+
+  function bindSeleccionCeldas() {
+    const tbody = document.getElementById('salidas-body');
+    const caja = document.getElementById('sal-suma');
+    if (!tbody || !caja) return;
+
+    tbody.addEventListener('mousedown', (ev) => {
+      if (ev.button !== 0) return;
+      /* Los CAMPOS de texto y los links quedan afuera: adentro de un input se arrastra para
+         marcar texto, y arrastrar un link dispara el arrastre del navegador.
+         Los BOTONES de la celda (el ▾ del desglose, el ▾ de bultos, el ✓ de revisión, el
+         checkbox) SÍ dejan empezar: si no, en columnas como Venta Total — que tiene el ▾
+         pegado al número — apretar en el medio de la celda no seleccionaba nada. Empezar no
+         es hacer: mientras no se mueva el mouse, el click llega al botón como siempre; si se
+         mueve, el click se come más abajo y el botón no se entera. */
+      if (ev.target.closest('a, input[type="text"], input[type="number"], select, textarea, .bulto-guia-edit-box')) return;
+      const coord = coordDeEvento(ev);
+      if (!coord) return;
+      const conCtrl = ev.ctrlKey || ev.metaKey;
+
+      if (ev.shiftKey && selAncla) {
+        // Shift+click: estirar hasta acá. No abre el modal.
+        ev.preventDefault();
+        selHuboArrastre = true;
+        selCeldas = new Set([...(conCtrl ? selBase : []), ...rectanguloSel(selAncla, coord)]);
+        pintarSeleccion();
+        return;
+      }
+      if (conCtrl) {
+        // Ctrl+click: una celda suelta entra o sale. Es el "qué no sumar".
+        ev.preventDefault();
+        selHuboArrastre = true;
+        const k = claveSel(coord.rowIndex, coord.colIndex);
+        if (selCeldas.has(k)) selCeldas.delete(k); else selCeldas.add(k);
+        selAncla = coord;
+        selBase = new Set(selCeldas);
+        pintarSeleccion();
+        return;
+      }
+
+      // Click pelado: todavía NO es una selección (si no se mueve, abre el envío como siempre).
+      selAncla = coord;
+      selBase = new Set();
+      selArrastrando = true;
+      selHuboArrastre = false;
+    });
+
+    tbody.addEventListener('mousemove', (ev) => {
+      if (!selArrastrando || !selAncla) return;
+      const coord = coordDeEvento(ev);
+      if (!coord) return;
+      if (!selHuboArrastre && coord.rowIndex === selAncla.rowIndex && coord.colIndex === selAncla.colIndex) return;
+      if (!selHuboArrastre) {
+        selHuboArrastre = true;
+        tbody.classList.add('sel-arrastrando');   // apaga la selección de texto del navegador
+      }
+      ev.preventDefault();
+      selCeldas = new Set([...selBase, ...rectanguloSel(selAncla, coord)]);
+      pintarSeleccion();
+    });
+
+    document.addEventListener('mouseup', () => {
+      selArrastrando = false;
+      tbody.classList.remove('sel-arrastrando');
+    });
+
+    /* El click que viene después de arrastrar se come ACÁ, en fase de captura: así no llega
+       a bindRowEdit y el modal no se abre sin que nadie lo pidiera. */
+    tbody.addEventListener('click', (ev) => {
+      if (!selHuboArrastre) return;
+      selHuboArrastre = false;
+      ev.stopPropagation();
+      ev.preventDefault();
+    }, true);
+
+    caja.addEventListener('click', (ev) => {
+      if (ev.target.closest('#sal-suma-cerrar')) { limpiarSeleccion(); return; }
+      // Click en la suma: al portapapeles, para pegarla donde sea.
+      const item = ev.target.closest('.ss-suma');
+      if (!item) return;
+      try {
+        navigator.clipboard.writeText(String(caja.dataset.suma || ''));
+        item.classList.add('ss-copiada');
+        setTimeout(() => item.classList.remove('ss-copiada'), 600);
+      } catch (_) { /* sin portapapeles: nada que hacer */ }
+    });
+  }
+
+  // Shift+click en el rótulo de una columna: la columna entera (con Ctrl, se suma a lo que
+  // ya había). Lo engancha bindSortHeaders antes de ordenar.
+  function seleccionarColumna(colIndex, acumular) {
+    if (!colSeleccionable(colIndex)) return;
+    const filas = getDataRows();
+    if (!filas.length) return;
+    if (!acumular) selCeldas = new Set();
+    for (let r = 0; r < filas.length; r++) selCeldas.add(claveSel(r, colIndex));
+    selAncla = { rowIndex: 0, colIndex };
+    selBase = new Set(selCeldas);
+    pintarSeleccion();
   }
 
   init();

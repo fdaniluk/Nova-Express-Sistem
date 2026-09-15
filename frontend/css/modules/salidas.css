@@ -1629,3 +1629,55 @@ body.salidas-page .page-header.sal-header {
 .sal-ley-item .sw-borde { background: #fff; border-left: 3px solid; }
 .sal-ley-item .bulto-estado-dot { margin-right: 0; }
 .sal-ley-item .badge { font-size: 10.5px; }
+
+/* ════════════════════════════════════════════════════════════════════════════════════
+   SELECCIONAR CELDAS Y VER LA CUENTA (15/09/2026)
+
+   La barra de totales fija del 09/09 duró un día: "tapa mucha pantalla y son datos que no
+   tienen que estar a simple vista". Esto es lo otro — la barra de estado de Excel. Mientras
+   no hay nada elegido no se ve NADA; con dos celdas o más aparece la pastilla abajo a la
+   derecha, y se va sola al soltar la selección.
+   ════════════════════════════════════════════════════════════════════════════════════ */
+.salidas-table td.cell-sel {
+  background: rgba(42, 54, 97, 0.10);
+  box-shadow: inset 0 0 0 1px rgba(42, 54, 97, 0.22);
+}
+/* Gana sobre el rayado de filas y sobre la fila marcada, si no la selección no se ve. */
+.salidas-table tbody tr:nth-child(even) td.cell-sel,
+.salidas-table tbody tr.row-marked td.cell-sel { background: rgba(42, 54, 97, 0.14); }
+/* Mientras se arrastra, el navegador no tiene que ir seleccionando el texto de las celdas. */
+#salidas-body.sel-arrastrando { user-select: none; -webkit-user-select: none; }
+
+.sal-suma {
+  position: fixed;
+  right: 18px;
+  bottom: 30px;              /* arriba de la barra de scroll flotante (22px) */
+  z-index: 45;
+  display: flex;
+  align-items: center;
+  gap: 0.9rem;
+  padding: 0.45rem 0.55rem 0.45rem 0.9rem;
+  background: var(--color-primary);
+  color: #fff;
+  border-radius: 999px;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.28);
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.sal-suma .ss-item { display: inline-flex; align-items: center; gap: 0.35rem; }
+.sal-suma .ss-rot { color: #b9c2d8; font-size: 0.74rem; text-transform: uppercase; letter-spacing: 0.04em; }
+.sal-suma b { font-weight: 700; font-variant-numeric: tabular-nums; }
+.sal-suma .ss-suma { cursor: pointer; border-radius: 6px; padding: 0.1rem 0.35rem; margin: -0.1rem -0.35rem; }
+.sal-suma .ss-suma:hover { background: rgba(255, 255, 255, 0.12); }
+.sal-suma .ss-suma.ss-copiada { background: var(--color-success); }
+.sal-suma .ss-cerrar {
+  font: inherit; font-size: 0.95rem; line-height: 1;
+  border: 0; background: rgba(255, 255, 255, 0.14); color: #fff;
+  width: 22px; height: 22px; border-radius: 50%; cursor: pointer;
+}
+.sal-suma .ss-cerrar:hover { background: rgba(255, 255, 255, 0.28); }
+
+@media (max-width: 700px) {
+  .sal-suma { right: 10px; left: 10px; bottom: 28px; justify-content: center; gap: 0.6rem;
+    font-size: 0.8rem; padding-left: 0.7rem; }
+}

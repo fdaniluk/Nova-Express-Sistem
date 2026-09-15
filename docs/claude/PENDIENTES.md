@@ -1,5 +1,43 @@
 # Pendientes
 
+**SUMAR CELDAS EN SALIDAS, ESTILO EXCEL (15/09/2026).** Esto cierra el pendiente que quedó
+abierto el 09/09, cuando la barra de totales fija duró un día (*"tapa mucha pantalla y son
+datos que no tienen que estar a simple vista"*). Lo que quería era otra cosa, y el 15/09 lo
+dijo entero: *"Pensá siempre en Excel. Marcás las celdas que querés sumar y simplemente
+abajo te aparece el resultado. Quiero elegir a la hora de sumar o no sumar, o qué sumar o
+qué no sumar, o hasta dónde sumar."*
+
+Mientras no hay nada elegido **no se ve nada**. Con dos celdas o más aparece una pastilla
+abajo a la derecha con **Recuento · Suma · Promedio**, y se va al soltar la selección.
+- **Arrastrar** = rectángulo · **Shift+click** estira · **Ctrl/⌘+click** mete o saca UNA
+  celda (el "qué no sumar") · **Ctrl+arrastrar** agrega otro bloque · **Shift+flechas**
+  estira con el teclado · **Shift+click en el rótulo** elige la columna entera (y no ordena)
+  · **Esc** o la **✕** sueltan · click en la Suma la copia al portapapeles.
+- ⚠️ **LA REGLA DE ORO: el click simple sigue abriendo el envío.** La tabla ya usaba el click
+  para el modal, así que la selección NO puede empezar con un click pelado: empieza cuando
+  el mouse se MUEVE con el botón apretado (o con Shift/Ctrl), y el click que viene después
+  se come en **fase de captura** para que el modal no se abra solo. Hay dos controles en la
+  tanda cuidando las dos mitades.
+- Los botones de la celda (el ▾ del desglose, el de bultos, el checkbox) SÍ dejan empezar un
+  arrastre: en columnas como Venta Total el ▾ está pegado al número y apretar en el medio de
+  la celda no seleccionaba nada. Empezar no es hacer: sin movimiento, el click llega al
+  botón como siempre. Los inputs de texto y los links quedan afuera.
+- La suma lleva la **unidad** de la columna (USD / kg / cm); mezclando columnas, número
+  pelado. **Las columnas de % no se suman** —no significa nada—: ahí va solo el promedio.
+- Las **columnas UPS plegadas no entran**: no se suma algo que no está a la vista.
+- **Filtrar u ordenar suelta la selección**: cambian las filas, y sumar coordenadas viejas
+  daría celdas que nadie eligió.
+Tanda nueva **`test-pantalla-suma-salidas` (33)**, sumada a `test-pantallas` y con atajo
+`npm run test-suma-salidas`. **Ninguna suma está escrita en el test**: se comparan contra los
+envíos que la propia tanda cargó y contra las celdas leídas de la pantalla. Cache:
+**`salidas.css` y `salidas.js` en `?v=20260915c`**.
+
+⚠️ Para tandas con navegador sobre esta tabla: es **más ancha que la pantalla**, así que
+antes de mover el mouse a una celda hay que traerla a la vista (`scrollIntoViewIfNeeded`);
+si no, el mouse va a coordenadas fuera del viewport y no pasa nada. Y `nth-of-type` NO sirve
+para numerar filas: el tbody también tiene las sub-filas de detalle.
+
+
 **EL ASISTENTE EN EL TELÉFONO (15/09/2026).** Felipe: *"andá armando una versión que ande
 cómoda para celulares, iOS y Android"*. Decidió **arrancar solo por el Asistente** (no todo
 el sistema) y **sin app instalable**: *"por ahora desde el sistema, total el día de mañana
