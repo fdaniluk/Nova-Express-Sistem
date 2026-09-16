@@ -145,6 +145,7 @@
         ? `${grupos.length} de ${gruposPendientes.length}`
         : (gruposPendientes.length ? `${gruposPendientes.length} cliente(s)` : '');
     }
+    pintarContadorPendientes();
     if (!gruposPendientes.length) {
       container.innerHTML = '<p class="empty">No hay envíos pendientes de liquidar</p>';
       return;
@@ -160,19 +161,23 @@
       <div class="cliente-grupo">
         <div class="cliente-grupo-header">
           <strong>${g.cliente_nombre}</strong>
-          <span>${NovaUtils.tipoCobroLabel(g.tipo_cobro)} · ${g.envios.length} envío(s) · ${NovaUtils.formatMoney(g.total_cobrado)}</span>
+          <span class="cliente-grupo-meta">
+            <span class="liq-chip cobro">${NovaUtils.tipoCobroLabel(g.tipo_cobro)}</span>
+            <span>${g.envios.length} envío(s)</span>
+            <span class="cliente-grupo-total">${NovaUtils.formatMoney(g.total_cobrado)}</span>
+          </span>
           <button type="button" class="btn btn-sm btn-primary" data-liq-cliente="${g.cliente_id}">Liquidar</button>
         </div>
         <div class="cliente-grupo-body">
           <table>
-            <thead><tr><th>Fecha</th><th>Guía</th><th>Courier</th><th>País</th><th>Total</th></tr></thead>
+            <thead><tr><th>Fecha</th><th>Guía</th><th>Courier</th><th>País</th><th class="n">Total</th></tr></thead>
             <tbody>
               ${g.envios.map((e) => `<tr>
                 <td>${NovaUtils.formatDate(e.fecha)}</td>
-                <td>${e.numero_guia}${chipBorrador(e)}</td>
-                <td>${e.courier}</td>
+                <td><span class="guia-num">${e.numero_guia}</span>${chipBorrador(e)}</td>
+                <td>${chipCourier(e.courier)}</td>
                 <td>${e.pais_destino}</td>
-                <td>${NovaUtils.formatMoney(e.total_cobrado)}</td>
+                <td class="n">${NovaUtils.formatMoney(e.total_cobrado)}</td>
               </tr>`).join('')}
             </tbody>
           </table>
@@ -217,6 +222,7 @@
     document.getElementById('liq-preview').classList.add('hidden');
     document.getElementById('btn-confirmar-liq').disabled = true;
     document.getElementById('btn-export-borrador').disabled = true;
+    actualizarResumen();
   }
 
   function bindCrear() {
@@ -237,6 +243,13 @@
     document.getElementById('liq-cliente').addEventListener('change', invalidarBorrador);
     document.getElementById('liq-desde').addEventListener('change', invalidarBorrador);
     document.getElementById('liq-hasta').addEventListener('change', invalidarBorrador);
+    // Cualquier toque saca el "confirmada" del pie y vuelve al estado normal.
+    ['liq-cliente', 'liq-desde', 'liq-hasta', 'liq-envios-body'].forEach((id) => {
+      ['change', 'input'].forEach((ev) => document.getElementById(id).addEventListener(ev, () => {
+        document.getElementById('liq-resumen-pie').classList.remove('ok');
+        actualizarResumen();
+      }));
+    });
     document.getElementById('btn-preview').addEventListener('click', calcularPreview);
     document.getElementById('btn-confirmar-liq').addEventListener('click', confirmarLiquidacion);
     document.getElementById('btn-export-borrador').addEventListener('click', exportarActual);
@@ -262,6 +275,7 @@
       if (!enviosPendientesCliente.length) {
         document.getElementById('liq-envios-wrap').classList.remove('hidden');
         tbody.innerHTML = '<tr><td colspan="7" class="empty">Sin envíos en el período</td></tr>';
+        actualizarResumen();
         return;
       }
 
@@ -271,14 +285,14 @@
       tbody.innerHTML = enviosPendientesCliente.map((e) => {
         const sinPrecio = !(Number(e.total_cobrado) > 0);
         return `
-        <tr data-envio-id="${e.id}" ${sinPrecio ? 'style="background:#fffbeb" title="Sin precio de venta: si se liquidara, quedaría cobrado en CERO. Cargale el precio primero."' : ''}>
+        <tr data-envio-id="${e.id}" ${sinPrecio ? 'class="sin-precio" title="Sin precio de venta: si se liquidara, quedaría cobrado en CERO. Cargale el precio primero."' : ''}>
           <td><input type="checkbox" class="liq-envio-check" value="${e.id}" ${sinPrecio ? '' : 'checked'}></td>
           <td>${NovaUtils.formatDate(e.fecha)}</td>
-          <td>${e.numero_guia}${sinPrecio ? ' <span style="font-size:0.7rem;font-weight:700;color:#b45309">SIN PRECIO</span>' : ''}${chipBorrador(e)}</td>
-          <td>${e.courier}</td>
-          <td>${NovaUtils.formatMoney(e.fob)}</td>
-          <td>${NovaUtils.formatMoney(e.total_cobrado)}</td>
-          <td><input type="number" class="liq-adicional" step="0.01" min="0" value="0" style="width:80px"></td>
+          <td><span class="guia-num">${e.numero_guia}</span>${sinPrecio ? ' <span class="liq-chip sin-precio">SIN PRECIO</span>' : ''}${chipBorrador(e)}</td>
+          <td>${chipCourier(e.courier)}</td>
+          <td class="n">${NovaUtils.formatMoney(e.fob)}</td>
+          <td class="n">${NovaUtils.formatMoney(e.total_cobrado)}</td>
+          <td class="n"><input type="number" class="liq-adicional" step="0.01" min="0" value="0"></td>
         </tr>
       `; }).join('');
 
@@ -288,6 +302,7 @@
       lastPreview = null;
       document.getElementById('btn-confirmar-liq').disabled = true;
       document.getElementById('btn-export-borrador').disabled = true;
+      actualizarResumen();
 
       // El botón "Cotizar" por fila se sacó (29/07). Recalculaba y mostraba un precio,
       // pero el resultado NUNCA llegaba a la liquidación: el backend ignora `cotizaciones`
@@ -398,12 +413,12 @@
       // El desglose del Adicional (surge con fuel, GoGreen, manejo…) va debajo del número.
       tbody.innerHTML = preview.items.map((i) => `
         <tr>
-          <td>${i.envio?.numero_guia || i.envio_id}</td>
-          <td>${NovaUtils.formatMoney(i.flete)}</td>
-          <td>${NovaUtils.formatMoney(i.fuel)}</td>
-          <td>${NovaUtils.formatMoney(i.seguro)}</td>
-          <td>${NovaUtils.formatMoney(i.adicional)}${adicDetalleHtml(i.adicional_detalle)}</td>
-          <td>${NovaUtils.formatMoney(i.total_usd)}</td>
+          <td><span class="guia-num">${i.envio?.numero_guia || i.envio_id}</span></td>
+          <td class="n">${NovaUtils.formatMoney(i.flete)}</td>
+          <td class="n">${NovaUtils.formatMoney(i.fuel)}</td>
+          <td class="n">${NovaUtils.formatMoney(i.seguro)}</td>
+          <td class="n">${NovaUtils.formatMoney(i.adicional)}${adicDetalleHtml(i.adicional_detalle)}</td>
+          <td class="n">${NovaUtils.formatMoney(i.total_usd)}</td>
           <td class="liq-interno">${profitInternoHtml(i)}</td>
         </tr>`).join('');
 
@@ -428,6 +443,7 @@
       document.getElementById('liq-preview').classList.remove('hidden');
       document.getElementById('btn-confirmar-liq').disabled = false;
       document.getElementById('btn-export-borrador').disabled = false;
+      actualizarResumen();
     } catch (err) {
       NovaUtils.showAlert(alertBox, err.message, 'error');
     }
@@ -465,8 +481,12 @@
       );
       enviosPendientesCliente = [];
       document.getElementById('liq-envios-wrap').classList.add('hidden');
+      document.getElementById('liq-envios-body').innerHTML = '';
       lastPreview = null;
       lastLiquidacionId = null;
+      actualizarResumen();
+      document.getElementById('liq-resumen-pie').textContent = `Liquidación #${liq.id} confirmada.`;
+      document.getElementById('liq-resumen-pie').classList.add('ok');
     } catch (err) {
       NovaUtils.showAlert(alertBox, err.message, 'error');
     }
@@ -524,13 +544,13 @@
       tbody.innerHTML = list.map((l) => `
         <tr>
           <td>${NovaUtils.formatDate(l.fecha)}</td>
-          <td>${l.cliente_nombre}</td>
+          <td><strong>${l.cliente_nombre}</strong></td>
           <td>${NovaUtils.formatDate(l.periodo_desde)} – ${NovaUtils.formatDate(l.periodo_hasta)}</td>
-          <td>${l.cantidad_envios}</td>
-          <td>${NovaUtils.formatMoney(l.total)}</td>
-          <td><span class="badge ${l.estado === 'confirmada' ? 'badge-liquidado' : 'badge-pendiente'}">${l.estado}</span></td>
-          <td style="display:flex;gap:0.35rem">
-            <button type="button" class="btn btn-sm btn-secondary" data-export="${l.id}">Excel</button>
+          <td class="n">${l.cantidad_envios}</td>
+          <td class="n"><strong>${NovaUtils.formatMoney(l.total)}</strong></td>
+          <td><span class="liq-chip ${l.estado === 'confirmada' ? 'confirmada' : 'borrador'}">${l.estado}</span> <span class="liq-num-id">#${l.id}</span></td>
+          <td class="acciones">
+            <button type="button" class="btn btn-sm btn-outline" data-export="${l.id}">Excel</button>
             ${l.estado !== 'confirmada' ? `<button type="button" class="btn btn-sm btn-danger" data-borrar="${l.id}" title="Borrar este borrador. No toca ningún envío: los envíos de un borrador siguen pendientes.">Borrar</button>` : ''}
           </td>
         </tr>`
@@ -554,6 +574,72 @@
       });
     } catch (err) {
       NovaUtils.showAlert(alertBox, err.message, 'error');
+    }
+  }
+
+  // ── Rediseño (16/09/2026): chips, contador y resumen lateral ─────────────────
+  function chipCourier(c) {
+    const k = String(c || '').toUpperCase();
+    return k ? `<span class="liq-chip courier-${k}">${k}</span>` : '';
+  }
+
+  // Cuántos clientes hay sin liquidar y por cuánto: en la pestaña y en la cabecera.
+  function pintarContadorPendientes() {
+    const n = gruposPendientes.length;
+    const total = gruposPendientes.reduce((s, g) => s + (Number(g.total_cobrado) || 0), 0);
+    const badge = document.getElementById('tab-badge-pendientes');
+    if (badge) { badge.textContent = String(n); badge.hidden = !n; }
+    const pill = document.getElementById('liq-pill-pendientes');
+    if (pill) {
+      pill.textContent = n ? `${n} cliente${n === 1 ? '' : 's'} sin liquidar · ${NovaUtils.formatMoney(total)}` : '';
+      pill.classList.toggle('vacio', !n);
+    }
+  }
+
+  // El resumen lateral de Crear: se arma SIEMPRE de lo que está en pantalla (cliente
+  // elegido, tildes, adicionales tipeados) y, una vez calculada, de la vista previa. No
+  // recalcula nada: el total sale del preview del servidor, que es el que manda.
+  function actualizarResumen() {
+    const q = (r) => document.querySelector(`.liq-resumen [data-r="${r}"]`);
+    if (!q('cliente')) return;
+    const sel = document.getElementById('liq-cliente');
+    const nombreCli = sel && sel.value ? sel.options[sel.selectedIndex].textContent.replace(/\s*\([^)]*\)\s*$/, '') : '';
+    q('cliente').textContent = nombreCli || '—';
+    const d = document.getElementById('liq-desde').value, h = document.getElementById('liq-hasta').value;
+    q('periodo').textContent = d && h ? `${NovaUtils.formatDate(d)} – ${NovaUtils.formatDate(h)}` : '—';
+
+    const filas = [...document.querySelectorAll('#liq-envios-body tr[data-envio-id]')];
+    const marcadas = filas.filter((r) => r.querySelector('.liq-envio-check')?.checked);
+    q('envios').textContent = filas.length ? `${marcadas.length} de ${filas.length}` : '—';
+    const adic = marcadas.reduce((s, r) => s + (parseFloat(r.querySelector('.liq-adicional')?.value) || 0), 0);
+    q('adicionales').textContent = filas.length ? (adic > 0 ? NovaUtils.formatMoney(adic) : '—') : '—';
+
+    const preview = lastPreview && lastPreview.preview;
+    q('total').textContent = preview ? NovaUtils.formatMoney(preview.total) : '—';
+    const box = document.getElementById('liq-res-profit');
+    if (box) {
+      if (preview) {
+        const util = preview.items.reduce((s, i) => s + (Number(i.utilidad_usd) || 0), 0);
+        const costo = preview.items.reduce((s, i) => s + ((Number(i.precio_cotizado) || 0) - (Number(i.utilidad_usd) || 0)), 0);
+        const pct = costo > 0 ? (util / costo) * 100 : null;
+        box.querySelector('[data-r="profit"]').textContent = `${pct != null ? pct.toFixed(1) + '% · ' : ''}${NovaUtils.formatMoney(util)}`;
+        box.classList.remove('hidden');
+      } else {
+        box.classList.add('hidden');
+      }
+    }
+
+    // Los pasos 2 y 3 se "prenden" cuando tienen algo que mostrar.
+    document.getElementById('liq-paso-2').classList.toggle('apagado', !filas.length);
+    document.getElementById('liq-paso-2-vacio').classList.toggle('hidden', !!filas.length);
+    document.getElementById('liq-paso-2-extra').textContent = filas.length ? `${marcadas.length} marcado${marcadas.length === 1 ? '' : 's'}` : '';
+    document.getElementById('liq-paso-3').classList.toggle('apagado', !preview);
+    document.getElementById('liq-paso-3-vacio').classList.toggle('hidden', !!preview);
+    const pie = document.getElementById('liq-resumen-pie');
+    if (pie && !pie.classList.contains('ok')) {
+      pie.textContent = preview
+        ? 'Listo para confirmar o exportar. Si cambiás la selección, hay que recalcular.'
+        : (filas.length ? 'Apretá Calcular para ver el desglose y el total.' : 'Elegí el cliente y el período, y cargá sus envíos.');
     }
   }
 

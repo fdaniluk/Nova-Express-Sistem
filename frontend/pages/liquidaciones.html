@@ -6,41 +6,7 @@
   <title>Liquidaciones – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260915a">
-  <link rel="stylesheet" href="../css/modules/liquidaciones.css?v=20260915a">
-  <style>
-    .cot-panel { background: #f8f9ff; }
-    .cotizador-inline { padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; border-top: 2px solid #e0e4ff; }
-    .cot-campos { display: flex; flex-wrap: wrap; gap: 10px; }
-    .cot-campos .form-group { min-width: 120px; margin: 0; }
-    .cot-campos label { font-size: 11px; color: #666; margin-bottom: 3px; display: block; }
-    .cot-campos input, .cot-campos select { padding: 6px 8px; font-size: 13px; border: 1px solid #ccc; border-radius: 5px; width: 100%; }
-    .cot-detalle { width: 100%; margin-top: 8px; }
-    .cot-desglose { display: grid; gap: 4px; background: #fff; border: 1px solid #e0e4ff; border-radius: 6px; padding: 10px 14px; }
-    .cot-fila { display: flex; justify-content: space-between; font-size: 13px; padding: 3px 0; }
-    .cot-profit-row { color: #2563eb; }
-    .cot-total-row { font-weight: 600; border-top: 1px solid #e0e4ff; padding-top: 6px; margin-top: 2px; }
-    .cot-utilidad-row { color: #16a34a; font-weight: 600; background: #f0fdf4; border-radius: 4px; padding: 5px 8px; margin-top: 4px; }
-    .badge-cotizado { background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; border-radius: 12px; padding: 2px 8px; font-size: 12px; font-weight: 600; }
-    .util-badge { display: block; font-size: 11px; color: #16a34a; font-weight: 600; margin-top: 2px; }
-    .util-total { display: inline-block; background: #f0fdf4; color: #15803d; border: 1px solid #bbf7d0; border-radius: 6px; padding: 6px 14px; font-size: 14px; margin-top: 8px; }
-    #liq-utilidad-total.hidden { display: none; }
-    /* Profit por envío en la vista previa (07/09): SOLO pantalla, para la oficina. Nunca al Excel. */
-    .liq-interno { color: #15803d; font-weight: 600; white-space: nowrap; background: #f0fdf4; }
-    th.liq-interno { color: #166534; font-size: 11px; }
-    .liq-interno .neg { color: #dc2626; }
-    /* Buscador de la lista de pendientes: mismo aspecto que el del módulo de Clientes. */
-    .liq-buscador { display: flex; align-items: center; gap: 0.75rem; margin: 0.2rem 0 0.9rem; }
-    .liq-buscador input { flex: 1; max-width: 420px; padding: 0.5rem 0.75rem;
-      border: 1px solid var(--color-border); border-radius: 8px; font-size: 0.9rem; }
-    .liq-buscador input:focus { outline: none; border-color: #2a78d6;
-      box-shadow: 0 0 0 3px rgba(42,120,214,.12); }
-    .liq-buscador-cuenta { font-size: 0.8rem; color: var(--color-muted); white-space: nowrap; }
-    .liq-interno .em { color: var(--color-muted); font-weight: 400; }
-    /* Desglose del Adicional, debajo del número: surge, GoGreen, manejo… (07/09). */
-    .liq-adic-detalle { display: block; font-size: 11px; color: var(--color-muted); font-weight: 400; margin-top: 2px; line-height: 1.35; }
-    .liq-adic-detalle span { white-space: nowrap; }
-    .cot-resultado { min-width: 110px; }
-  </style>
+  <link rel="stylesheet" href="../css/modules/liquidaciones.css?v=20260916a">
 </head>
 <body>
 <div class="app-layout">
@@ -126,30 +92,45 @@
   <div class="page-content">
     <div class="page-header">
       <h1>Liquidaciones</h1>
+      <div class="liq-cab-info">
+        <span class="liq-pill vacio" id="liq-pill-pendientes"></span>
+      </div>
     </div>
 
     <div class="page-body">
       <div id="alert-box"></div>
 
       <div class="tabs">
-        <button class="tab active" data-tab="pendientes">Pendientes</button>
+        <button class="tab active" data-tab="pendientes">Pendientes <span class="tab-badge" id="tab-badge-pendientes" hidden></span></button>
         <button class="tab" data-tab="crear">Crear liquidación</button>
         <button class="tab" data-tab="historial">Historial</button>
       </div>
 
-      <section id="panel-pendientes" class="card">
-        <h2>Envíos sin liquidar</h2>
+      <!-- ═══ PENDIENTES ══════════════════════════════════════════════════════════ -->
+      <section id="panel-pendientes" class="card liq-panel">
         <!-- Sin fechas = TODO lo pendiente (03/09/2026, pedido de Felipe). Antes arrancaba
              filtrado por el mes en curso y lo de meses anteriores se pasaba de largo. -->
-        <div class="filters">
-          <div class="form-group">
-            <label>Desde <span class="em" style="font-weight:400">(vacío = todo)</span></label><input type="date" id="pend-desde">
+        <div class="liq-toolbar">
+          <div class="form-group ancho">
+            <label for="buscador-pendientes">Buscar cliente o guía</label>
+            <!-- Buscador por cliente (15/09/2026, pedido de Felipe: "como el del módulo de
+                 clientes"). Filtra EN MEMORIA lo que ya se trajo: no vuelve a pedirle nada al
+                 servidor, así que no pierde los filtros de al lado ni tarda. -->
+            <div class="liq-buscador">
+              <input type="search" id="buscador-pendientes" placeholder="Nombre del cliente o número de guía…" autocomplete="off">
+              <span class="liq-buscador-cuenta" id="buscador-pendientes-cuenta"></span>
+            </div>
           </div>
           <div class="form-group">
-            <label>Hasta <span class="em" style="font-weight:400">(vacío = todo)</span></label><input type="date" id="pend-hasta">
+            <label for="pend-desde">Desde <span class="em">(vacío = todo)</span></label>
+            <input type="date" id="pend-desde">
           </div>
           <div class="form-group">
-            <label>Courier</label>
+            <label for="pend-hasta">Hasta <span class="em">(vacío = todo)</span></label>
+            <input type="date" id="pend-hasta">
+          </div>
+          <div class="form-group">
+            <label for="pend-courier">Courier</label>
             <select id="pend-courier">
               <option value="">Todos</option>
               <option value="DHL">DHL</option>
@@ -157,7 +138,7 @@
             </select>
           </div>
           <div class="form-group">
-            <label>Tipo cobro</label>
+            <label for="pend-tipo-cobro">Tipo cobro</label>
             <select id="pend-tipo-cobro">
               <option value="">Todos</option>
               <option value="D">Diario</option>
@@ -166,109 +147,159 @@
               <option value="CC">Cuenta Corriente</option>
             </select>
           </div>
-          <button type="button" class="btn btn-primary" id="btn-pend-filtrar">Filtrar</button>
-          <button type="button" class="btn btn-secondary" id="btn-pend-todo" title="Borra las fechas y muestra todo lo pendiente">Ver todo</button>
-        </div>
-        <!-- Buscador por cliente (15/09/2026, pedido de Felipe: "como el del módulo de
-             clientes"). Filtra EN MEMORIA lo que ya se trajo: no vuelve a pedirle nada al
-             servidor, así que no pierde los filtros de arriba ni tarda. -->
-        <div class="liq-buscador">
-          <input type="search" id="buscador-pendientes" placeholder="Buscar cliente…" autocomplete="off">
-          <span class="liq-buscador-cuenta" id="buscador-pendientes-cuenta"></span>
+          <div class="liq-acciones">
+            <button type="button" class="btn btn-primary" id="btn-pend-filtrar">Filtrar</button>
+            <button type="button" class="btn btn-outline" id="btn-pend-todo" title="Borra las fechas y muestra todo lo pendiente">Ver todo</button>
+          </div>
         </div>
         <div id="pendientes-list"></div>
       </section>
 
-      <section id="panel-crear" class="card hidden">
-        <h2>Nueva liquidación</h2>
-        <div class="form-grid crear-step">
-          <div class="form-group">
-            <label>Cliente *</label>
-            <select id="liq-cliente"></select>
-          </div>
-          <div class="form-group">
-            <label>Período desde *</label>
-            <input type="date" id="liq-desde" required>
-          </div>
-          <div class="form-group">
-            <label>Período hasta *</label>
-            <input type="date" id="liq-hasta" required>
-          </div>
-          <button type="button" class="btn btn-secondary" id="btn-cargar-envios">Cargar envíos pendientes</button>
-        </div>
+      <!-- ═══ CREAR ═══════════════════════════════════════════════════════════════ -->
+      <section id="panel-crear" class="card liq-panel hidden">
+        <div class="liq-layout">
+          <div class="liq-pasos">
 
-        <div id="liq-envios-wrap" class="hidden">
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th><input type="checkbox" id="liq-select-all" checked></th>
-                  <th>Fecha</th><th>Guía</th><th>Courier</th><th>FOB</th>
-                  <th>Total cobrado</th><th>Adicional (USD)</th>
-                </tr>
-              </thead>
-              <tbody id="liq-envios-body"></tbody>
-            </table>
-          </div>
-
-          <div id="liq-preview" class="liq-preview hidden">
-            <h3>Desglose calculado</h3>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>Guía</th><th>Flete</th><th>Fuel</th><th>Seguro</th>
-                    <th>Adicional</th><th>Total USD</th>
-                    <th class="liq-interno" title="Dato interno: no va al Excel del cliente">Profit (interno)</th>
-                  </tr>
-                </thead>
-                <tbody id="liq-preview-body"></tbody>
-                <tfoot>
-                  <tr>
-                    <td colspan="5"><strong>Total liquidación</strong></td>
-                    <td id="liq-total"><strong>—</strong></td>
-                    <td id="liq-profit-total" class="liq-interno"></td>
-                  </tr>
-                </tfoot>
-              </table>
+            <div class="liq-paso" id="liq-paso-1">
+              <div class="liq-paso-cab">
+                <span class="liq-num">1</span>
+                <div><h3>Cliente y período</h3><p>Qué cliente se liquida y qué fechas abarca.</p></div>
+              </div>
+              <div class="liq-paso-cuerpo">
+                <div class="liq-grid crear-step">
+                  <div class="form-group">
+                    <label for="liq-cliente">Cliente *</label>
+                    <select id="liq-cliente"></select>
+                  </div>
+                  <div class="form-group">
+                    <label for="liq-desde">Período desde *</label>
+                    <input type="date" id="liq-desde" required>
+                  </div>
+                  <div class="form-group">
+                    <label for="liq-hasta">Período hasta *</label>
+                    <input type="date" id="liq-hasta" required>
+                  </div>
+                  <button type="button" class="btn btn-outline" id="btn-cargar-envios">Cargar envíos pendientes</button>
+                </div>
+                <p class="liq-hint">Desde Pendientes, el botón "Liquidar" de un cliente completa esto solo y trae sus envíos.</p>
+              </div>
             </div>
-            <div id="liq-utilidad-total" class="hidden"></div>
-            <p class="fuel-info" id="fuel-info"></p>
+
+            <div class="liq-paso apagado" id="liq-paso-2">
+              <div class="liq-paso-cab">
+                <span class="liq-num">2</span>
+                <div><h3>Envíos a liquidar</h3><p>Destildá los que no entran. El adicional es un cargo extra manual, en USD.</p></div>
+                <span class="liq-paso-extra" id="liq-paso-2-extra"></span>
+              </div>
+              <div class="liq-paso-cuerpo">
+                <div id="liq-envios-wrap" class="hidden">
+                  <div class="liq-tabla-wrap">
+                    <table class="liq-tabla">
+                      <thead>
+                        <tr>
+                          <th><input type="checkbox" id="liq-select-all" checked title="Marcar / desmarcar todos"></th>
+                          <th>Fecha</th><th>Guía</th><th>Courier</th><th class="n">FOB</th>
+                          <th class="n">Total cobrado</th><th class="n">Adicional (USD)</th>
+                        </tr>
+                      </thead>
+                      <tbody id="liq-envios-body"></tbody>
+                    </table>
+                  </div>
+                </div>
+                <p class="liq-hint" id="liq-paso-2-vacio">Todavía no se cargaron envíos. Elegí el cliente y el período arriba.</p>
+              </div>
+            </div>
+
+            <div class="liq-paso apagado" id="liq-paso-3">
+              <div class="liq-paso-cab">
+                <span class="liq-num">3</span>
+                <div><h3>Desglose de la liquidación</h3><p>Lo que va a ver el cliente: flete, fuel, seguro y adicionales por guía.</p></div>
+              </div>
+              <div class="liq-paso-cuerpo">
+                <div id="liq-preview" class="liq-preview hidden">
+                  <div class="liq-tabla-wrap">
+                    <table class="liq-tabla">
+                      <thead>
+                        <tr>
+                          <th>Guía</th><th class="n">Flete</th><th class="n">Fuel</th><th class="n">Seguro</th>
+                          <th class="n">Adicional</th><th class="n">Total USD</th>
+                          <th class="liq-interno" title="Dato interno: no va al Excel del cliente">Profit (interno)</th>
+                        </tr>
+                      </thead>
+                      <tbody id="liq-preview-body"></tbody>
+                      <tfoot>
+                        <tr>
+                          <td colspan="5">Total liquidación</td>
+                          <td class="n" id="liq-total"><strong>—</strong></td>
+                          <td id="liq-profit-total" class="liq-interno"></td>
+                        </tr>
+                      </tfoot>
+                    </table>
+                  </div>
+                  <div id="liq-utilidad-total" class="hidden"></div>
+                  <p class="fuel-info" id="fuel-info"></p>
+                </div>
+                <p class="liq-hint" id="liq-paso-3-vacio">Apretá "Calcular" en el resumen para ver el desglose.</p>
+              </div>
+            </div>
+
           </div>
 
-          <div class="actions">
-            <button type="button" class="btn btn-secondary" id="btn-preview">Calcular</button>
-            <button type="button" class="btn btn-accent" id="btn-export-borrador" disabled>Exportar Excel</button>
-            <button type="button" class="btn btn-primary" id="btn-confirmar-liq" disabled>Confirmar liquidación</button>
-          </div>
+          <aside class="liq-lateral">
+            <div class="liq-resumen">
+              <h3>Resumen</h3>
+              <dl>
+                <dt>Cliente</dt><dd data-r="cliente">—</dd>
+                <dt>Período</dt><dd data-r="periodo">—</dd>
+                <dt>Envíos</dt><dd data-r="envios">—</dd>
+                <dt>Adicionales</dt><dd data-r="adicionales">—</dd>
+                <div class="liq-res-sep"></div>
+                <dt>Total</dt><dd data-r="total">—</dd>
+              </dl>
+              <!-- Profit de la liquidación: dato interno, solo oficina. Nunca al Excel. -->
+              <div class="liq-interno-box hidden" id="liq-res-profit">
+                <span>Profit <small>solo oficina</small></span><b data-r="profit">—</b>
+              </div>
+              <div class="liq-res-botones">
+                <button type="button" class="btn btn-outline" id="btn-preview">Calcular</button>
+                <button type="button" class="btn btn-outline" id="btn-export-borrador" disabled>Exportar Excel</button>
+                <button type="button" class="btn btn-confirmar" id="btn-confirmar-liq" disabled>Confirmar liquidación</button>
+              </div>
+              <p class="liq-resumen-pie" id="liq-resumen-pie">Calculá antes de confirmar: cualquier cambio en la selección pide recalcular.</p>
+            </div>
+          </aside>
         </div>
       </section>
 
-      <section id="panel-historial" class="card hidden">
-        <h2>Historial de liquidaciones</h2>
-        <div class="filters">
-          <div class="form-group">
-            <label>Cliente</label>
+      <!-- ═══ HISTORIAL ═══════════════════════════════════════════════════════════ -->
+      <section id="panel-historial" class="card liq-panel hidden">
+        <div class="liq-toolbar">
+          <div class="form-group ancho">
+            <label for="hist-cliente">Cliente</label>
             <select id="hist-cliente"><option value="">Todos</option></select>
           </div>
           <div class="form-group">
-            <label>Desde</label><input type="date" id="hist-desde">
+            <label for="hist-desde">Desde</label><input type="date" id="hist-desde">
           </div>
           <div class="form-group">
-            <label>Hasta</label><input type="date" id="hist-hasta">
+            <label for="hist-hasta">Hasta</label><input type="date" id="hist-hasta">
           </div>
-          <button type="button" class="btn btn-primary" id="btn-hist-filtrar">Buscar</button>
+          <div class="liq-acciones">
+            <button type="button" class="btn btn-primary" id="btn-hist-filtrar">Buscar</button>
+          </div>
         </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Fecha</th><th>Cliente</th><th>Período</th>
-                <th>Envíos</th><th>Total</th><th>Estado</th><th></th>
-              </tr>
-            </thead>
-            <tbody id="hist-body"></tbody>
-          </table>
+        <div class="liq-hist">
+          <div class="liq-tabla-wrap">
+            <table class="liq-tabla">
+              <thead>
+                <tr>
+                  <th>Fecha</th><th>Cliente</th><th>Período</th>
+                  <th class="n">Envíos</th><th class="n">Total</th><th>Estado</th><th></th>
+                </tr>
+              </thead>
+              <tbody id="hist-body"></tbody>
+            </table>
+          </div>
         </div>
       </section>
     </div>
@@ -278,6 +309,6 @@
 <script src="/js/auth-guard.js?v=20260915a"></script>
 <script src="../js/api.js?v=20260915a"></script>
 <script src="../js/main.js?v=20260915a"></script>
-<script src="../js/modules/liquidaciones.js?v=20260915c"></script>
+<script src="../js/modules/liquidaciones.js?v=20260916a"></script>
 </body>
 </html>

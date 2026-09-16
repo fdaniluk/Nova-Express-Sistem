@@ -1,3 +1,17 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Maqueta — Liquidaciones Nova Express</title>
+<link rel="stylesheet" href="../../frontend/css/main.css">
+<style>
+/* ─────────────────────────────────────────────────────────────────────────
+   MAQUETA de Liquidaciones con el criterio de Guías / Cargar envío / Cotizador
+   (16/09/2026). Es una FOTO de diseño con datos inventados: no se sirve ni
+   ejecuta nada. El CSS real vive en frontend/css/modules/liquidaciones.css
+   (copiado acá tal cual para que la maqueta se vea sola).
+   ───────────────────────────────────────────────────────────────────────── */
 /* ════════════════════════════════════════════════════════════════════════════════════
    LIQUIDACIONES — estetica del sistema (16/09/2026, item 4 del orden de estetica)
 
@@ -220,3 +234,90 @@ th.liq-interno { color: #166534; font-size: .7rem; }
   .liq-preview .liq-tabla { font-size: .78rem; }
   .liq-lateral { position: static; }
 }
+
+body { padding: 1.25rem 1.5rem; }
+.maq-titulo { font-size: .8rem; color: var(--color-muted); margin: 0 0 1rem; text-transform: uppercase; letter-spacing: .5px; }
+.maq-bloque { margin-bottom: 2.5rem; }
+</style>
+</head>
+<body>
+
+<div class="maq-bloque">
+<p class="maq-titulo">Pestaña Pendientes</p>
+<div class="page-header" style="border:1px solid var(--color-border);border-radius:10px 10px 0 0"><h1>Liquidaciones</h1>
+  <div class="liq-cab-info"><span class="liq-pill">2 clientes sin liquidar · US$ 1.864,20</span></div></div>
+<div class="tabs" style="margin-top:1rem"><button class="tab active">Pendientes <span class="tab-badge">2</span></button><button class="tab">Crear liquidación</button><button class="tab">Historial</button></div>
+<div class="liq-toolbar">
+  <div class="form-group ancho"><label>Buscar cliente o guía</label><div class="liq-buscador"><input type="search" placeholder="Nombre del cliente o número de guía…"><span class="liq-buscador-cuenta">2 cliente(s)</span></div></div>
+  <div class="form-group"><label>Desde <span class="em">(vacío = todo)</span></label><input type="date"></div>
+  <div class="form-group"><label>Hasta <span class="em">(vacío = todo)</span></label><input type="date"></div>
+  <div class="form-group"><label>Courier</label><select><option>Todos</option></select></div>
+  <div class="form-group"><label>Tipo cobro</label><select><option>Todos</option></select></div>
+  <div class="liq-acciones"><button class="btn btn-primary">Filtrar</button><button class="btn btn-outline">Ver todo</button></div>
+</div>
+<div class="cliente-grupo">
+  <div class="cliente-grupo-header"><strong>ASAPLAST S.R.L.</strong>
+    <span class="cliente-grupo-meta"><span class="liq-chip cobro">Semanal</span><span>3 envío(s)</span><span class="cliente-grupo-total">US$ 757,30</span></span>
+    <button class="btn btn-sm btn-primary">Liquidar</button></div>
+  <div class="cliente-grupo-body"><table><thead><tr><th>Fecha</th><th>Guía</th><th>Courier</th><th>País</th><th class="n">Total</th></tr></thead><tbody>
+    <tr><td>07/09/2026</td><td><span class="guia-num">1Z327W090491234567</span></td><td><span class="liq-chip courier-UPS">UPS</span></td><td>Estados Unidos</td><td class="n">US$ 236,40</td></tr>
+    <tr><td>10/09/2026</td><td><span class="guia-num">1Z327W090491234580</span> <span class="chip-borrador">📝 en borrador #14</span></td><td><span class="liq-chip courier-UPS">UPS</span></td><td>Chile</td><td class="n">US$ 118,20</td></tr>
+    <tr><td>14/09/2026</td><td><span class="guia-num">4412345678</span></td><td><span class="liq-chip courier-DHL">DHL</span></td><td>España</td><td class="n">US$ 402,70</td></tr>
+  </tbody></table></div>
+</div>
+<div class="cliente-grupo">
+  <div class="cliente-grupo-header"><strong>CUEROS SANTA CRUZ</strong>
+    <span class="cliente-grupo-meta"><span class="liq-chip cobro">Cuenta Corriente</span><span>2 envío(s)</span><span class="cliente-grupo-total">US$ 1.106,90</span></span>
+    <button class="btn btn-sm btn-primary">Liquidar</button></div>
+  <div class="cliente-grupo-body"><table><thead><tr><th>Fecha</th><th>Guía</th><th>Courier</th><th>País</th><th class="n">Total</th></tr></thead><tbody>
+    <tr><td>04/09/2026</td><td><span class="guia-num">1Z327W090491234601</span></td><td><span class="liq-chip courier-UPS">UPS</span></td><td>Italia</td><td class="n">US$ 566,10</td></tr>
+    <tr><td>12/09/2026</td><td><span class="guia-num">1Z327W090491234615</span></td><td><span class="liq-chip courier-UPS">UPS</span></td><td>Italia</td><td class="n">US$ 540,80</td></tr>
+  </tbody></table></div>
+</div>
+</div>
+
+<div class="maq-bloque">
+<p class="maq-titulo">Pestaña Crear liquidación (ya calculada)</p>
+<div class="liq-layout">
+  <div class="liq-pasos">
+    <div class="liq-paso"><div class="liq-paso-cab"><span class="liq-num">1</span><div><h3>Cliente y período</h3><p>Qué cliente se liquida y qué fechas abarca.</p></div></div>
+      <div class="liq-paso-cuerpo"><div class="liq-grid">
+        <div class="form-group"><label>Cliente *</label><select><option>ASAPLAST S.R.L. (Semanal)</option></select></div>
+        <div class="form-group"><label>Período desde *</label><input type="date" value="2026-09-07"></div>
+        <div class="form-group"><label>Período hasta *</label><input type="date" value="2026-09-16"></div>
+        <button class="btn btn-outline">Cargar envíos pendientes</button></div>
+        <p class="liq-hint">Desde Pendientes, el botón "Liquidar" de un cliente completa esto solo y trae sus envíos.</p></div></div>
+    <div class="liq-paso"><div class="liq-paso-cab"><span class="liq-num">2</span><div><h3>Envíos a liquidar</h3><p>Destildá los que no entran. El adicional es un cargo extra manual, en USD.</p></div><span class="liq-paso-extra">3 marcados</span></div>
+      <div class="liq-paso-cuerpo"><div class="liq-tabla-wrap"><table class="liq-tabla"><thead><tr><th><input type="checkbox" checked></th><th>Fecha</th><th>Guía</th><th>Courier</th><th class="n">FOB</th><th class="n">Total cobrado</th><th class="n">Adicional (USD)</th></tr></thead><tbody>
+        <tr><td><input type="checkbox" checked></td><td>07/09/2026</td><td><span class="guia-num">1Z327W090491234567</span></td><td><span class="liq-chip courier-UPS">UPS</span></td><td class="n">US$ 500,00</td><td class="n">US$ 236,40</td><td class="n"><input class="liq-adicional" type="number" value="0"></td></tr>
+        <tr><td><input type="checkbox" checked></td><td>10/09/2026</td><td><span class="guia-num">1Z327W090491234580</span></td><td><span class="liq-chip courier-UPS">UPS</span></td><td class="n">US$ 250,00</td><td class="n">US$ 118,20</td><td class="n"><input class="liq-adicional" type="number" value="15"></td></tr>
+        <tr class="sin-precio"><td><input type="checkbox"></td><td>14/09/2026</td><td><span class="guia-num">4412345699</span> <span class="liq-chip sin-precio">SIN PRECIO</span></td><td><span class="liq-chip courier-DHL">DHL</span></td><td class="n">US$ 80,00</td><td class="n">US$ 0,00</td><td class="n"><input class="liq-adicional" type="number" value="0"></td></tr>
+      </tbody></table></div></div></div>
+    <div class="liq-paso"><div class="liq-paso-cab"><span class="liq-num">3</span><div><h3>Desglose de la liquidación</h3><p>Lo que va a ver el cliente: flete, fuel, seguro y adicionales por guía.</p></div></div>
+      <div class="liq-paso-cuerpo"><div class="liq-preview"><div class="liq-tabla-wrap"><table class="liq-tabla"><thead><tr><th>Guía</th><th class="n">Flete</th><th class="n">Fuel</th><th class="n">Seguro</th><th class="n">Adicional</th><th class="n">Total USD</th><th class="liq-interno">Profit (interno)</th></tr></thead><tbody>
+        <tr><td><span class="guia-num">1Z327W090491234567</span></td><td class="n">US$ 150,66</td><td class="n">US$ 59,51</td><td class="n">US$ 15,00</td><td class="n">US$ 11,23<span class="liq-adic-detalle"><span>Surge fee (con fuel) US$ 8,73</span> · <span>Procesamiento internacional US$ 2,50</span></span></td><td class="n">US$ 236,40</td><td class="liq-interno">80.4% · US$ 105,34</td></tr>
+        <tr><td><span class="guia-num">1Z327W090491234580</span></td><td class="n">US$ 70,98</td><td class="n">US$ 28,04</td><td class="n">US$ 15,00</td><td class="n">US$ 19,18<span class="liq-adic-detalle"><span>Surge fee (con fuel) US$ 4,18</span> · <span>Cargo adicional US$ 15,00</span></span></td><td class="n">US$ 133,20</td><td class="liq-interno">62.3% · US$ 45,37</td></tr>
+      </tbody><tfoot><tr><td colspan="5">Total liquidación</td><td class="n">US$ 369,60</td><td class="liq-interno">72.7% · US$ 150,71</td></tr></tfoot></table></div>
+      <p class="fuel-info">Fuel aplicado: UPS: 39.5%</p></div></div></div>
+  </div>
+  <aside class="liq-lateral"><div class="liq-resumen"><h3>Resumen</h3>
+    <dl><dt>Cliente</dt><dd>ASAPLAST S.R.L.</dd><dt>Período</dt><dd>07/09/2026 – 16/09/2026</dd><dt>Envíos</dt><dd>2 de 3</dd><dt>Adicionales</dt><dd>US$ 15,00</dd><div class="liq-res-sep"></div><dt>Total</dt><dd data-r="total">US$ 369,60</dd></dl>
+    <div class="liq-interno-box"><span>Profit <small>solo oficina</small></span><b>72.7% · US$ 150,71</b></div>
+    <div class="liq-res-botones"><button class="btn btn-outline">Calcular</button><button class="btn btn-outline">Exportar Excel</button><button class="btn btn-confirmar">Confirmar liquidación</button></div>
+    <p class="liq-resumen-pie">Listo para confirmar o exportar. Si cambiás la selección, hay que recalcular.</p></div></aside>
+</div>
+</div>
+
+<div class="maq-bloque">
+<p class="maq-titulo">Pestaña Historial</p>
+<div class="liq-toolbar">
+  <div class="form-group ancho"><label>Cliente</label><select><option>Todos</option></select></div>
+  <div class="form-group"><label>Desde</label><input type="date" value="2026-09-01"></div>
+  <div class="form-group"><label>Hasta</label><input type="date" value="2026-09-16"></div>
+  <div class="liq-acciones"><button class="btn btn-primary">Buscar</button></div></div>
+<div class="liq-hist"><div class="liq-tabla-wrap"><table class="liq-tabla"><thead><tr><th>Fecha</th><th>Cliente</th><th>Período</th><th class="n">Envíos</th><th class="n">Total</th><th>Estado</th><th></th></tr></thead><tbody>
+  <tr><td>16/09/2026</td><td><strong>NUMANA</strong></td><td>17/08/2026 – 16/09/2026</td><td class="n">1</td><td class="n"><strong>US$ 157,48</strong></td><td><span class="liq-chip confirmada">confirmada</span> <span class="liq-num-id">#61</span></td><td class="acciones"><button class="btn btn-sm btn-outline">Excel</button></td></tr>
+  <tr><td>15/09/2026</td><td><strong>CUEROS SANTA CRUZ</strong></td><td>01/09/2026 – 15/09/2026</td><td class="n">2</td><td class="n"><strong>US$ 1.106,90</strong></td><td><span class="liq-chip borrador">borrador</span> <span class="liq-num-id">#60</span></td><td class="acciones"><button class="btn btn-sm btn-outline">Excel</button><button class="btn btn-sm btn-danger">Borrar</button></td></tr>
+</tbody></table></div></div>
+</div>
+</body></html>
