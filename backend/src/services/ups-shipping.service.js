@@ -303,7 +303,13 @@ function resumirRespuesta(data) {
 }
 
 async function anularGuia(numeroGuia) {
-  if (esMock()) return { ok: true, data: { VoidShipmentResponse: { SummaryResult: { Status: { Code: '1', Description: 'Voided (mock)' } } } } };
+  if (esMock()) {
+    // Las tandas simulan el rechazo de UPS con un número que empiece con 1ZRECHAZA (16/09).
+    if (/^1ZRECHAZA/i.test(String(numeroGuia))) {
+      return { ok: false, status: 400, data: null, errores: ['[190100] Invalid or Missing ShipmentIdentificationNumber.'] };
+    }
+    return { ok: true, data: { VoidShipmentResponse: { SummaryResult: { Status: { Code: '1', Description: 'Voided (mock)' } } } } };
+  }
   const host = HOSTS[entorno()];
   const token = await getTokenPara(host);
   const res = await fetch(`${host}/api/shipments/v1/void/cancel/${encodeURIComponent(numeroGuia)}`, {

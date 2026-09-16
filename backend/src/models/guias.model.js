@@ -213,7 +213,16 @@ async function actualizar(id, data) {
   return buscarPorId(id);
 }
 
-async function anular(id, nota) {
+/* Anular una guía emitida.
+   - Guía de PRUEBA (entorno test o número comodín 1ZXXXX…): NO se le pide nada a UPS. Ese
+     número no existe en producción y el void contestaba "[190100] Invalid or Missing
+     ShipmentIdentificationNumber" — la oficina quedó con guías de prueba que no podía
+     sacar de la lista (16/09/2026). Nunca hubo nada que anular del lado de UPS.
+   - Guía real: se pide el void a UPS. Si UPS no la acepta (ya se despachó, ya se anuló
+     desde ups.com, muy vieja), la respuesta devuelve los errores y la oficina puede
+     volver a llamar con `soloSistema = true` para darla de baja acá igual: eso NO anula
+     nada en UPS, solo la saca de la lista y deja escrito en la nota que UPS la rechazó. */
+async function anular(id, nota, soloSistema = false) {
   const db = getDb();
   const g = await db.prepare('SELECT * FROM guias WHERE id = ?').get(id);
   if (!g) return null;
@@ -223,19 +232,27 @@ async function anular(id, nota) {
     throw err;
   }
   if (g.estado === 'anulada') return { guia: await buscarPorId(id), ya: true };
+  const esPrueba = g.entorno === 'test' || /^1ZX+$/i.test(String(g.numero_guia || ''));
   let ups_resultado = null;
-  if (g.numero_guia) {
+  let notaFinal = String(nota ?? '').trim();
+  if (g.numero_guia && !esPrueba) {
     const r = await ups.anularGuia(g.numero_guia);
-    if (!r.ok) return { errores: r.errores, status: r.status };
-    ups_resultado = r.data;
+    if (!r.ok && !soloSistema) return { errores: r.errores, status: r.status };
+    if (!r.ok) {
+      notaFinal = `${notaFinal ? notaFinal + ' · ' : ''}Anulada solo en el sistema: UPS no aceptó el void (${(r.errores || []).join(' · ')})`;
+    } else {
+      ups_resultado = r.data;
+    }
+  } else if (esPrueba) {
+    ups_resultado = { prueba: true };
   }
   await db
     .prepare(
       `UPDATE guias SET estado = 'anulada', nota = ?, anulada_at = datetime('now', 'localtime'),
          updated_at = datetime('now', 'localtime') WHERE id = ?`
     )
-    .run(String(nota ?? '').trim() || g.nota || null, id);
-  return { guia: await buscarPorId(id), ups: ups_resultado };
+    .run(notaFinal || g.nota || null, id);
+  return { guia: await buscarPorId(id), ups: ups_resultado, solo_sistema: Boolean(soloSistema && !ups_resultado) };
 }
 
 /**

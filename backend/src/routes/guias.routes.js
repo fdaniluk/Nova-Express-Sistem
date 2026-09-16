@@ -106,10 +106,11 @@ router.put('/:id', async (req, res, next) => {
 
 router.post('/:id/anular', async (req, res, next) => {
   try {
-    const r = await guias.anular(req.params.id, req.body?.nota);
+    const r = await guias.anular(req.params.id, req.body?.nota, req.body?.solo_sistema === true);
     if (!r) return res.status(404).json({ error: 'Guía no encontrada' });
-    if (r.errores) return res.status(502).json({ error: 'UPS no aceptó la anulación', errores: r.errores });
-    res.json(r.guia);
+    // 502 con `puede_forzar`: la pantalla ofrece "anular solo en el sistema".
+    if (r.errores) return res.status(502).json({ error: 'UPS no aceptó la anulación', errores: r.errores, puede_forzar: true });
+    res.json({ ...r.guia, solo_sistema: r.solo_sistema || false });
   } catch (e) {
     if (e.status === 400) return res.status(400).json({ error: e.message });
     next(e);

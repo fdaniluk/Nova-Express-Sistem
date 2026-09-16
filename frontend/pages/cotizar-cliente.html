@@ -65,7 +65,6 @@ select,input{width:100%;padding:9px 10px;border:1px solid var(--borde);border-ra
 .rw.sub{border-top:1px solid var(--borde);font-weight:600}
 .rw.tot{border-top:2px solid var(--texto);font-weight:700;font-size:15px}
 .nota{font-size:11px;color:var(--texto3);font-style:italic;margin-top:8px}
-.estimado{margin-top:10px;padding:8px 12px;background:#fdefeb;border-left:3px solid #EA6749;border-radius:4px;font-size:12px;line-height:1.45;color:#2A3661}
 .pie{border-top:1px solid var(--borde);margin-top:24px;padding:16px 0 26px;text-align:center;font-size:12px;color:var(--texto3)}
 .pie b{color:var(--nova)}
 .roto{max-width:520px;margin:60px auto;text-align:center;padding:0 16px}
@@ -242,7 +241,6 @@ function pintar(d){
       }).join('')
       +'<div class="nota">El costo dado no contempla impuestos de nacionalización en destino. '
       +'Cotización válida hasta el '+d.vence_en.split('-').reverse().join('/')+'.</div>'
-      +'<div class="estimado"><b>Precio estimado</b> según los pesos y medidas informados. Si al recibir el envío hay diferencias, la cotización podría ajustarse.</div>'
       +'</div></div>';
   }).join('');
 }

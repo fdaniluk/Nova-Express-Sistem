@@ -21,9 +21,12 @@ async function request(path, options = {}) {
     let msg = `Error ${res.status}`;
     let errores = null;
     let borradores = null;
+    let puedeForzar = false;
     try {
       const data = await res.json();
       msg = data.error || msg;
+      // Guías (16/09): UPS no aceptó el void, pero la guía se puede anular solo en el sistema.
+      puedeForzar = data.puede_forzar === true;
       // Guías: la API devuelve la lista de lo que falta / lo que dijo UPS.
       if (Array.isArray(data.errores) && data.errores.length) errores = data.errores;
       // Liquidaciones (pendiente 52): el 409 de crear trae los borradores que ya tienen esos envíos.
@@ -37,6 +40,7 @@ async function request(path, options = {}) {
     err.status = res.status;
     if (errores) err.errores = errores;
     if (borradores) err.borradores = borradores;
+    if (puedeForzar) err.puede_forzar = true;
     throw err;
   }
 
@@ -163,7 +167,7 @@ api.guias = {
   obtener: (id) => api.get(`/guias/${id}`),
   emitir: (data) => api.post('/guias', data),
   actualizar: (id, data) => api.put(`/guias/${id}`, data),
-  anular: (id, nota) => api.post(`/guias/${id}/anular`, { nota }),
+  anular: (id, nota, soloSistema = false) => api.post(`/guias/${id}/anular`, { nota, solo_sistema: soloSistema }),
   etiquetaUrl: (id, formato) => `${API_BASE}/guias/${id}/etiqueta.html?formato=${formato || 'a4'}`,
   etiquetaPdfUrl: (id, giro) => `${API_BASE}/guias/${id}/etiqueta.pdf${giro ? '?giro=180' : ''}`,
   etiquetaZplUrl: (id, o = {}) => `${API_BASE}/guias/${id}/etiqueta.zpl?${o.b64 ? 'b64=1&' : ''}${o.giro180 ? 'giro=180' : ''}`,

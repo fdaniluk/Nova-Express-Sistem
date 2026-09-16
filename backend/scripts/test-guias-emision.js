@@ -229,6 +229,41 @@ async function main() {
   check('  no se puede confirmar una anulada → 400', r.status === 400);
   const lista = await j(await get('/api/guias?estado=anulada'));
   check('GET /guias?estado=anulada la lista', lista.length === 1 && lista[0].id === gA.id);
+
+  /* ── Anular cuando UPS no acepta el void (16/09/2026) ─────────────────────────────
+     Caso real de la oficina: guías de PRUEBA (número comodín 1ZXXXX…, entorno test) que
+     quedaron en la lista después de pasar a producción, y al anularlas UPS contestaba
+     "[190100] Invalid or Missing ShipmentIdentificationNumber". Dos reglas:
+     1. Una guía de prueba NUNCA le pide nada a UPS: se anula acá y listo.
+     2. Una guía real que UPS rechaza se puede anular "solo en el sistema", pidiéndolo
+        explícitamente, y queda escrito en la nota que UPS no la aceptó. */
+  const run = (q, p = []) => new Promise((res, rej) => dbRaw.run(q, p, (e2) => (e2 ? rej(e2) : res())));
+  const mkGuia = async () => j(await post('/api/guias', {
+    cliente_id: cli.id, destinatario_id: dGB.id, servicio: 'UPS_SAV', contenido: 'Muestras', fecha: '2026-09-07',
+    items: [{ cantidad: 1, descripcion: 'Samples', valor_unitario: 30 }], bultos: [{ peso_real: 1 }],
+  }));
+  // 2. Guía "real" (entorno prod) cuyo void UPS rechaza (el mock rechaza los 1ZRECHAZA…)
+  const gReal = await mkGuia();
+  await run("UPDATE guias SET entorno = 'prod', numero_guia = '1ZRECHAZA0000001' WHERE id = ?", [gReal.id]);
+  r = await post(`/api/guias/${gReal.id}/anular`, { nota: 'no salió' });
+  let cuerpoR = await j(r);
+  check('guía real que UPS rechaza → 502 con los errores y puede_forzar', r.status === 502 && cuerpoR.puede_forzar === true && /190100/.test((cuerpoR.errores || []).join(' ')), JSON.stringify(cuerpoR).slice(0, 160));
+  check('  y sigue emitida (no se anuló a escondidas)', (await j(await get(`/api/guias/${gReal.id}`))).estado === 'emitida');
+  r = await post(`/api/guias/${gReal.id}/anular`, { nota: 'no salió', solo_sistema: true });
+  cuerpoR = await j(r);
+  check('  con solo_sistema → 200, anulada, y la nota dice que UPS no la aceptó',
+    r.status === 200 && cuerpoR.estado === 'anulada' && cuerpoR.solo_sistema === true && /no salió/.test(cuerpoR.nota) && /solo en el sistema/i.test(cuerpoR.nota) && /190100/.test(cuerpoR.nota), JSON.stringify(cuerpoR).slice(0, 200));
+  // 1. Guía de PRUEBA con un número que UPS rechazaría: no se le pregunta a UPS
+  const gPrueba = await mkGuia();
+  await run("UPDATE guias SET entorno = 'test', numero_guia = '1ZRECHAZA0000002' WHERE id = ?", [gPrueba.id]);
+  r = await post(`/api/guias/${gPrueba.id}/anular`, { nota: 'era de prueba' });
+  cuerpoR = await j(r);
+  check('guía de PRUEBA se anula sin pedirle nada a UPS (aunque el número no exista)',
+    r.status === 200 && cuerpoR.estado === 'anulada' && cuerpoR.solo_sistema === false && cuerpoR.nota === 'era de prueba', JSON.stringify(cuerpoR).slice(0, 160));
+  const gComodin = await mkGuia();
+  await run("UPDATE guias SET entorno = 'prod', numero_guia = '1ZXXXXXXXXXXXXXXXX' WHERE id = ?", [gComodin.id]);
+  r = await post(`/api/guias/${gComodin.id}/anular`, {});
+  check('  el número comodín 1ZXXXX… también cuenta como prueba, diga lo que diga el entorno', r.status === 200 && (await j(r)).estado === 'anulada');
   const listaFecha = await j(await get('/api/guias?fecha=2026-09-08'));
   check('GET /guias?fecha= filtra por fecha', listaFecha.length === 1 && listaFecha[0].id === g.id, String(listaFecha.length));
   await new Promise((res) => dbRaw.close(() => res()));

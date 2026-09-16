@@ -834,11 +834,24 @@
     const nota = window.prompt('¿Anular la guía en UPS? Escribí el motivo (opcional):');
     if (nota === null) return;
     try {
-      await NovaAPI.guias.anular(id, nota);
-      NovaUtils.showAlert(alertBox, 'Guía anulada', 'success');
+      const g = await NovaAPI.guias.anular(id, nota);
+      NovaUtils.showAlert(alertBox, g && g.solo_sistema ? 'Guía anulada solo en el sistema (en UPS no se tocó nada)' : 'Guía anulada', 'success');
       loadListado();
     } catch (e) {
       const detalle = e.errores ? ` (${e.errores.join(' · ')})` : '';
+      /* UPS no la acepta (ya se despachó, ya se anuló desde ups.com, muy vieja…): se
+         ofrece darla de baja acá igual. Eso NO anula nada en UPS; si la guía es real y
+         viaja, se factura igual — por eso se avisa (16/09/2026). */
+      if (e.puede_forzar && window.confirm(`UPS no aceptó la anulación${detalle}.\n\n¿Anularla SOLO en el sistema? Desaparece de la lista, pero en UPS no cambia nada: si la guía es real y se despachó, UPS la va a facturar igual.`)) {
+        try {
+          await NovaAPI.guias.anular(id, nota, true);
+          NovaUtils.showAlert(alertBox, 'Guía anulada solo en el sistema (en UPS no se tocó nada)', 'success');
+          loadListado();
+        } catch (e2) {
+          NovaUtils.showAlert(alertBox, e2.message, 'error');
+        }
+        return;
+      }
       NovaUtils.showAlert(alertBox, e.message + detalle, 'error');
     }
   }
