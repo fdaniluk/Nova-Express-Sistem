@@ -312,6 +312,10 @@ se enciende WhatsApp.
 - **Tanda `test-bot-canales`** (**36**, puerto 3927, en `test`); `test-pantalla-asistente`
   26 → **37**. Cache **`?v=20260915a`**.
 
+⏸️ **WHATSAPP EN PAUSA (15/09, decisión de Felipe):** *"esperemos una semanita que la gente
+lo vaya probando a ver si le sirve, si no le sirve, si se tiene que agregar algo o no"*. No
+arrancar el trámite de Meta hasta nuevo aviso.
+
 **Para encender WhatsApp (cuando Felipe quiera):** cuenta de Meta Business verificada +
 número dedicado + `WHATSAPP_TOKEN`, `WHATSAPP_PHONE_ID`, `WHATSAPP_VERIFY_TOKEN` en el
 `.env` y el webhook apuntado a `https://sistema.novaexpress.com.ar/api/bot/webhook/whatsapp`.
@@ -374,4 +378,75 @@ API del banco":** en Argentina el open banking **no es obligatorio**, así que c
 4. **Una cuenta/CVU o alias por cliente**, para que cada transferencia venga con el nombre
    puesto y la conciliación no dependa de adivinar quién pagó.
 
-**Antes de elegir hay que saber con qué banco trabaja Nova** y qué ofrece hoy para empresas.
+**LOS BANCOS, RESPONDIDO (15/09):** Nova trabaja con **Banco Galicia** y **Mercado Pago**.
+Los dos tienen API, pero se consiguen de manera muy distinta:
+
+- **Mercado Pago** — API pública, la clave se saca sola desde el panel de desarrollador, y
+  manda un **webhook por cada pago**. Se puede hacer en el día, sin pedirle permiso a nadie.
+  Es por donde conviene empezar.
+- **Banco Galicia — "Open Galicia"** — tiene justo las dos que hacen falta: **consulta de
+  saldos** y **movimientos de la cuenta** (créditos y débitos automatizados), más una de
+  **cobranzas integradas** (alta de clientes para "Pago a Cuenta" y seguimiento por QR,
+  echeq, transferencia y efectivo) y un evaluador crediticio. Se pide desde **Office Banking
+  con un usuario DEVELOPER** (o que lo cree el administrador), y **producción exige SSL
+  mutuo** (certificado, no una clave suelta). La de cobranzas **requiere convenio firmado
+  con el oficial de cuenta**. O sea: es trámite con el banco, no "sacar una clave".
+  Catálogo: https://www.galicia.ar/content/dam/galicia/banco-galicia/empresas/open-galicia/catalogoopengalicia.pdf
+
+**Orden sugerido:** Mercado Pago primero (se hace solo) + pedirle a la vez al oficial de
+cuenta de Galicia el acceso a Open Galicia, que es lo que tarda. La importación de extracto
+(opción 1) sigue siendo la red de seguridad mientras tanto.
+
+### Cómo entender el GECOM — acordado el 15/09
+
+Felipe: *"tendríamos que verlo un día que estemos en la oficina... está en una sola
+computadora, que no es la mía"*. Y la advertencia que manda sobre todo lo demás:
+*"tiene que estar muy, muy bien hecha, por el tema de que es justamente donde pasa la plata
+y lo que más controles tiene que tener"*.
+
+Tres caminos, y el plan es el **mix** (2 + 3 ya; 1 si se puede):
+
+1. **Linkear ESA computadora** a una sesión (app de escritorio de Claude instalada ahí y la
+   carpeta del GECOM conectada). Es lo más completo: se ven los archivos de datos y se
+   deduce el modelo entero. Depende de poder instalar algo en esa PC.
+2. **Capturas + exportaciones.** Fotos o capturas de cada pantalla que Leandro usa en un día
+   normal (el menú, y cada pantalla donde carga algo), más **una exportación real** de los
+   listados que imprime (Excel/CSV/TXT). Con eso se saca el circuito y el modelo de datos
+   sin tocar la máquina.
+3. **Cuestionario a Leandro**, que es el que se encarga de las cobranzas: cómo trabaja HOY y
+   cómo le gustaría trabajar. Es indispensable igual: el GECOM cuenta qué hace el sistema
+   viejo, no qué necesita la oficina — y este módulo se hace una sola vez.
+
+⚠️ **El requisito previo no cambia:** sin **cuenta corriente por cliente** no hay estado de
+cuenta, y sin estado de cuenta no hay conciliación, ni bot de cobranzas, ni "pagá acá".
+Sea lo que sea que haga el GECOM, eso va primero.
+
+---
+
+## I. Bot multiplataforma con pase a un humano — PLANTEADO (15/09/2026)
+
+Felipe cuenta que un amigo con una fábrica **paga USD 100 por mes** por un bot que le lee
+los mensajes de **Instagram y WhatsApp** y le contesta **Mercado Libre**, y que **deriva la
+conversación a un comercial** cuando vale la pena: *"una especie de filtro antes de que
+llegue al comercial"*. Pregunta si lo podemos hacer nosotros.
+
+**Sí, y el motor ya está hecho.** Es el mismo `bot.service` del punto G: cambia la cara, no
+el cerebro. Lo que falta:
+
+- **Los canales.** Instagram usa la **API de mensajes de Instagram** de Meta: cuenta
+  profesional + página de Facebook + **la misma verificación de Meta Business que
+  WhatsApp**, así que conviene hacer los dos trámites juntos. Mercado Libre tiene su propia
+  API de preguntas y mensajes (Felipe no la necesita: no vende ahí).
+- **La audiencia `cliente`.** Ya está previsto el campo, pero hoy TODAS las herramientas son
+  internas. Un cliente no puede tener cerca la venta del día, el profit ni los pendientes:
+  hay que definir qué herramientas ve y con qué lista blanca, con el mismo criterio del
+  cotizador (nunca costo ni margen).
+- **El pase a un humano.** Una marca en la conversación que **silencia al bot** para ese
+  contacto y avisa a la oficina con el historial; y la vuelta atrás cuando se resuelve. Sin
+  eso el bot se queda hablando encima de un vendedor.
+
+**Costo real:** Meta no cobra las respuestas dentro de la ventana de 24 h (la persona
+escribe primero); se paga la API de Claude por mensaje (centavos) y el VPS que ya existe.
+Los USD 100 del amigo son casi todo margen de quien se lo vende.
+
+**Cuándo:** después del punto H. Felipe lo dejó anotado *"para un futuro"*, no para ahora.

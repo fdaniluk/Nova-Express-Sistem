@@ -24,6 +24,7 @@
        tipo: 'export'|'import',
        valor,                  // FOB declarado (0 = no se escribe)
        conLogo, conValidez,    // franja del pie
+       conEstimado,            // recuadro "Precio estimado" (prendido salvo que venga false)
        fechaEmision, validaHasta,     // 'dd/mm/aaaa' (si conValidez)
      });
    Devuelve el canvas (a escala 2). CotizacionImagen.aBlob(canvas) → PNG.
@@ -98,6 +99,7 @@
     const nombre = String(d.nombre || '').trim();
     const conLogo = d.conLogo !== false;
     const conVal = d.conValidez !== false;
+    const conEst = d.conEstimado !== false;
     const logo = conLogo ? await cargarLogo() : null;
     const esDhl = /DHL/i.test(d.servicio || '');
     const bultos = Array.isArray(d.bultos) ? d.bultos : [];
@@ -123,6 +125,9 @@
     /* La franja del pie aparece si hay logo O si hay validez: la fecha vive ahí abajo,
        en el mismo gris que el contacto (pedido de Felipe, 20/08). */
     const H_DISC = 15, DISC_GAP = 18, CUERPO_BOT = 14, H_PIE = (conLogo || conVal) ? 68 : 0;
+    /* Recuadro "Precio estimado" (16/09/2026): dos renglones, fondo naranja suave y filete
+       naranja de la marca a la izquierda. Tiene que llamar la atención sin sonar a reto. */
+    const EST_GAP = 14, H_EST = conEst ? 46 : 0;
 
     const filas = filasDe(d);
     /* La línea de medidas se arma en TRAMOS: el peso facturable es el dato que decide el
@@ -152,7 +157,7 @@
     const hCab = CAB_TOP + (hayRenglon1 ? H_RENGLON1 : 0) + OFF_COURIER + H_META + CAB_BOT;
     let hCuerpo = CUERPO_TOP;
     filas.forEach(([, , t]) => { hCuerpo += H_FILA + (t === 'subtotal' ? SEP_SUB : 0) + (t === 'total' ? SEP_TOT : 0); });
-    hCuerpo += DISC_GAP + H_DISC + CUERPO_BOT;
+    hCuerpo += DISC_GAP + H_DISC + (conEst ? EST_GAP + H_EST - 10 : 0) + CUERPO_BOT;
     const H = hCab + hCuerpo + H_PIE;
 
     const c = document.createElement('canvas');
@@ -248,6 +253,32 @@
     x.fillStyle = '#9c9a94'; x.font = 'italic 400 10.5px "DM Sans", sans-serif';
     x.fillText('El costo dado no contempla impuestos de nacionalización en destino.', P, y);
 
+    /* ── PRECIO ESTIMADO ──────────────────────────────────────────────────────────────
+       Pedido de Felipe (16/09): que el cliente sepa que el valor sale de los pesos y
+       medidas que informó y que PODRÍA ajustarse. Tono amable a propósito: no siempre se
+       recotiza. Si el texto no entra en el ancho, se achica (igual que la línea de medidas). */
+    if (conEst) {
+      const yb = y + H_DISC - 10 + EST_GAP;
+      x.fillStyle = '#fdefeb'; x.fillRect(P, yb, W - 2 * P, H_EST);
+      x.fillStyle = '#EA6749'; x.fillRect(P, yb, 3, H_EST);
+      const xt = P + 14, anchoUtil = W - 2 * P - 14 - 12;
+      const r1a = 'Precio estimado', r1b = ' según los pesos y medidas informados.';
+      const r2 = 'Si al recibir el envío hay diferencias, la cotización podría ajustarse.';
+      let tam = 12;
+      const ancho = (t) => {
+        x.font = '700 ' + tam + 'px "DM Sans", sans-serif'; const a = x.measureText(r1a).width;
+        x.font = '400 ' + tam + 'px "DM Sans", sans-serif';
+        return Math.max(a + x.measureText(r1b).width, x.measureText(r2).width);
+      };
+      const w0 = ancho(); if (w0 > anchoUtil) tam = Math.max(9.5, tam * anchoUtil / w0);
+      x.font = '700 ' + tam + 'px "DM Sans", sans-serif'; x.fillStyle = '#2A3661';
+      x.fillText(r1a, xt, yb + 19);
+      const aNeg = x.measureText(r1a).width;
+      x.font = '400 ' + tam + 'px "DM Sans", sans-serif';
+      x.fillText(r1b, xt + aNeg, yb + 19);
+      x.fillText(r2, xt, yb + 35);
+    }
+
     /* ── FRANJA DEL PIE ───────────────────────────────────────────────────────────── */
     if (H_PIE) {
       const yp = H - H_PIE;
@@ -311,7 +342,7 @@
       bultos: Array.isArray(entrada.bultos) ? entrada.bultos : [],
       tipo: q.tipo_envio === 'importacion' ? 'import' : 'export',
       valor: Number(q.valor_declarado) || 0,
-      conLogo: true, conValidez: Boolean(q.vence_en),
+      conLogo: true, conValidez: Boolean(q.vence_en), conEstimado: true,
       fechaEmision: fechaDeIso(q.creado_en), validaHasta: q.vence_en ? fechaDeIso(q.vence_en) : undefined,
     };
   }

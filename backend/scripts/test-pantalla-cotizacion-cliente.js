@@ -240,6 +240,21 @@ async function main() {
   const dias = await page.$eval('#pres_dias', (e) => e.value);
   check('la validez viene con 15 días por defecto', dias === '15', dias);
 
+  /* Leyenda "Precio estimado" (16/09/2026): pedido de Felipe, que el cliente la VEA.
+     Tilde prendida por defecto, en la tarjeta y en la imagen. */
+  check('la tilde de "Precio estimado" viene prendida por defecto', await page.isChecked('#pres_estimado'));
+  check('la tarjeta muestra la leyenda de precio estimado',
+    await page.$eval('.result-card .leyenda-estimado', (e) => getComputedStyle(e).display !== 'none'
+      && /Precio estimado/.test(e.textContent) && /podría ajustarse/.test(e.textContent)));
+  const imgConEst = await generar();
+  await page.uncheck('#pres_estimado');
+  const imgSinEst = await generar();
+  check('sin la leyenda la imagen es más baja',
+    (await medir(imgSinEst)).h < (await medir(imgConEst)).h);
+  check('y en la tarjeta se oculta',
+    await page.$eval('.result-card .leyenda-estimado', (e) => getComputedStyle(e).display === 'none'));
+  await page.check('#pres_estimado');
+
   // ── 5. La imagen usa los números de la pantalla ─────────────────────────────────────
   console.log('\n5. La imagen no recalcula: usa el mismo objeto que pintó la tarjeta\n');
 
