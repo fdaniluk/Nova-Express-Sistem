@@ -252,6 +252,7 @@
                 </div>
                 <div class="checks-grid">
                   <label class="check-label"><input type="checkbox" id="pres_logo" checked /> Logo de Nova (marca de agua y pie)</label>
+                  <label class="check-label"><input type="checkbox" id="pres_estimado" checked /> Leyenda de precio estimado</label>
                   <label class="check-label"><input type="checkbox" id="pres_validez" /> Validez
                     <input type="number" id="pres_dias" value="15" min="1" max="180" step="1" /> días
                   </label>
@@ -295,7 +296,7 @@
 <script src="/js/auth-guard.js?v=20260915a"></script>
 <script src="/js/api.js?v=20260916a"></script>
 <script src="/shared/cotizador/cotizador-core.js?v=20260915a"></script>
-<script src="/js/cotizacion-imagen.js?v=20260915a"></script>
+<script src="/js/cotizacion-imagen.js?v=20260916a"></script>
 <script>
 let bultoId=0;
 /* agregarBulto(datos, despuesDeInfo)
@@ -425,7 +426,7 @@ const colOficina=`<div class="col-oficina">${panelCompra}`
   +`<span class="bv-ico">+</span><span class="bv-txt">Guardar este precio</span></button>`
   +`<div class="bv-estado"></div>`
   +`</div>`;
-return`<div class="res-fila"><div class="result-card"><div class="result-header ${tag}"><div><div class="result-courier">${nombreCorto(courier)}${(tipo==='import'&&/DHL/i.test(courier)&&pf>50)?'<span class="badge-50">Tarifa +50Kg</span>':''}</div><div class="result-meta">${(()=>{const prTotal=bultosProc.reduce((s,b)=>s+b.pr,0);const pvTotal=bultosProc.reduce((s,b)=>s+b.pv,0);if(bultosProc.length===1){const b=bultosProc[0];return`Zona ${zona} · ${b.pr} kg real · ${b.l}×${b.a}×${b.al} cm · ${b.pv.toFixed(1)} kg vol · ${b.pf.toFixed(1)} kg facturable · 1 bulto · ${tipo==='export'?'Exportación':'Importación'}${valor>0?` · FOB ${fmt(valor)}`:''}`;}else{return`Zona ${zona} · ${prTotal.toFixed(1)} kg real · ${pvTotal.toFixed(1)} kg vol · ${pf.toFixed(1)} kg facturable · ${bultosProc.length} bultos · ${tipo==='export'?'Exportación':'Importación'}${valor>0?` · FOB ${fmt(valor)}`:''}`;}})()} </div></div><div style="display:flex;align-items:center;gap:10px"><div class="result-total">${fmt(total)}</div><button class="btn-copiar" data-i="${_i}" onclick="copiarImagen(${_i},this)" title="Copiar la cotizacion como imagen para pegar en WhatsApp">Copiar imagen</button></div></div><div class="result-body">${bultosProc.length>1?`<div class="bultos-summary">${bultosHtml}</div>`:''}<div class="breakdown"><div class="brow"><span class="bl">Flete internacional</span><span class="br">${fmt(conGan)}</span></div>${surgeHtml}<div class="brow subtotal-row"><span class="bl">${subtotalLabel}</span><span class="br">${fmt(subtotalConSurge)}</span></div><div class="brow fuel-row"><span class="bl">Fuel (${fuelPctUsado}%)</span><span class="br">+ ${fmt(fuelMonto)}</span></div>${extrasHtml}<div class="brow total-row"><span class="bl">Total</span><span class="br">${fmt(total)}</span></div></div><div style="margin-top:10px;font-size:11px;color:var(--cot-text-tertiary);font-style:italic;">El costo dado no contempla impuestos de nacionalización en destino.</div>${impHtml}</div></div>${colOficina}</div>`;}).join('');
+return`<div class="res-fila"><div class="result-card"><div class="result-header ${tag}"><div><div class="result-courier">${nombreCorto(courier)}${(tipo==='import'&&/DHL/i.test(courier)&&pf>50)?'<span class="badge-50">Tarifa +50Kg</span>':''}</div><div class="result-meta">${(()=>{const prTotal=bultosProc.reduce((s,b)=>s+b.pr,0);const pvTotal=bultosProc.reduce((s,b)=>s+b.pv,0);if(bultosProc.length===1){const b=bultosProc[0];return`Zona ${zona} · ${b.pr} kg real · ${b.l}×${b.a}×${b.al} cm · ${b.pv.toFixed(1)} kg vol · ${b.pf.toFixed(1)} kg facturable · 1 bulto · ${tipo==='export'?'Exportación':'Importación'}${valor>0?` · FOB ${fmt(valor)}`:''}`;}else{return`Zona ${zona} · ${prTotal.toFixed(1)} kg real · ${pvTotal.toFixed(1)} kg vol · ${pf.toFixed(1)} kg facturable · ${bultosProc.length} bultos · ${tipo==='export'?'Exportación':'Importación'}${valor>0?` · FOB ${fmt(valor)}`:''}`;}})()} </div></div><div style="display:flex;align-items:center;gap:10px"><div class="result-total">${fmt(total)}</div><button class="btn-copiar" data-i="${_i}" onclick="copiarImagen(${_i},this)" title="Copiar la cotizacion como imagen para pegar en WhatsApp">Copiar imagen</button></div></div><div class="result-body">${bultosProc.length>1?`<div class="bultos-summary">${bultosHtml}</div>`:''}<div class="breakdown"><div class="brow"><span class="bl">Flete internacional</span><span class="br">${fmt(conGan)}</span></div>${surgeHtml}<div class="brow subtotal-row"><span class="bl">${subtotalLabel}</span><span class="br">${fmt(subtotalConSurge)}</span></div><div class="brow fuel-row"><span class="bl">Fuel (${fuelPctUsado}%)</span><span class="br">+ ${fmt(fuelMonto)}</span></div>${extrasHtml}<div class="brow total-row"><span class="bl">Total</span><span class="br">${fmt(total)}</span></div></div><div style="margin-top:10px;font-size:11px;color:var(--cot-text-tertiary);font-style:italic;">El costo dado no contempla impuestos de nacionalización en destino.</div><div class="leyenda-estimado" style="display:${(document.getElementById('pres_estimado')||{checked:true}).checked?'block':'none'};margin-top:10px;padding:8px 12px;background:#fdefeb;border-left:3px solid #EA6749;border-radius:4px;font-size:12px;line-height:1.45;color:#2A3661;"><b>Precio estimado</b> según los pesos y medidas informados. Si al recibir el envío hay diferencias, la cotización podría ajustarse.</div>${impHtml}</div></div>${colOficina}</div>`;}).join('');
   /* TIRA INTERNA — solo para la oficina. Va FUERA de las tarjetas a proposito: es lo unico
      de esta pantalla que no puede terminar en la imagen que se le manda al cliente. */
   const tira=document.getElementById('tira-interna');
@@ -733,6 +734,7 @@ async function copiarImagen(i,btn){
     bultos:est.bultosProc, tipo:est.tipo, valor:est.valor,
     conLogo:document.getElementById('pres_logo').checked,
     conValidez:document.getElementById('pres_validez').checked,
+    conEstimado:document.getElementById('pres_estimado').checked,
     dias,
   });
   const avisar=(clase,txt)=>{btn.classList.add(clase);btn.textContent=txt;
@@ -746,6 +748,13 @@ document.addEventListener('DOMContentLoaded',()=>{
   const sel=document.getElementById('cliente'), nom=document.getElementById('pres_nombre');
   if(sel&&nom)sel.addEventListener('change',()=>{
     if(!nom.value.trim()&&sel.value)nom.value=sel.options[sel.selectedIndex].textContent.trim();
+  });
+
+  /* Leyenda "Precio estimado" (16/09): la tilde la prende/apaga también en las tarjetas
+     ya dibujadas, así la pantalla y la imagen dicen lo mismo. */
+  const est=document.getElementById('pres_estimado');
+  if(est)est.addEventListener('change',()=>{
+    document.querySelectorAll('.leyenda-estimado').forEach(e=>{e.style.display=est.checked?'block':'none';});
   });
 
   /* El boton "Guardar este precio" de cada opcion. Delegado: los resultados se redibujan
