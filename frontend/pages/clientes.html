@@ -6,34 +6,7 @@
   <title>Clientes – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260915a">
-  <style>
-    .form-clientes {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 0.75rem 1rem;
-    }
-    .tipo-cobro-hint {
-      font-size: 0.75rem;
-      color: var(--color-muted);
-      margin-top: 0.2rem;
-    }
-    .btn-link {
-      background: none;
-      border: none;
-      padding: 0;
-      color: var(--color-primary-light);
-      cursor: pointer;
-      font: inherit;
-      text-decoration: underline;
-      font-size: 0.9rem;
-    }
-    .clientes-buscador { display: flex; align-items: center; gap: 0.75rem; margin-bottom: 0.9rem; }
-    .clientes-buscador input { flex: 1; max-width: 420px; padding: 0.5rem 0.75rem;
-      border: 1px solid var(--color-border); border-radius: 8px; font-size: 0.9rem; }
-    .clientes-buscador input:focus { outline: none; border-color: #2a78d6;
-      box-shadow: 0 0 0 3px rgba(42,120,214,.12); }
-    .buscador-cuenta { font-size: 0.8rem; color: var(--color-muted); white-space: nowrap; }
-  </style>
+  <link rel="stylesheet" href="../css/modules/clientes.css?v=20260917a">
 </head>
 <body>
 <div class="app-layout">
@@ -119,119 +92,199 @@
   <div class="page-content">
     <div class="page-header">
       <h1>Clientes</h1>
-      <button class="btn btn-primary" id="btn-nuevo">+ Nuevo cliente</button>
+      <div class="cli-cab-acciones">
+        <span class="cli-pill" id="cli-pill"></span>
+        <button class="btn btn-coral" id="btn-nuevo">+ Nuevo cliente</button>
+      </div>
     </div>
 
     <div class="page-body">
       <div id="alert-box"></div>
 
-      <!-- Formulario add/edit (oculto por defecto) -->
-      <div class="card hidden" id="form-panel">
-        <h2 id="form-title">Nuevo cliente</h2>
+      <!-- Formulario de alta / edición (oculto por defecto). Rediseño 17/09/2026: los datos
+           del CLIENTE y los datos que van a la GUÍA y la proforma son dos secciones. Pedido
+           de Felipe: "en una primera carga no tenga que poner los datos que irían en la guía,
+           que no siempre son los mismos". El botón "Usar los mismos datos" copia lo que sirve. -->
+      <div class="cli-form hidden" id="form-panel">
+        <div class="cli-form-cab">
+          <div>
+            <h2 id="form-title">Nuevo cliente</h2>
+            <p>Lo único obligatorio es la razón social. El resto se puede completar después desde el perfil.</p>
+          </div>
+        </div>
         <form id="form-cliente">
           <input type="hidden" id="cliente-id">
-          <div class="form-clientes">
-            <div class="form-group">
-              <label for="f-razon_social">Razón social *</label>
-              <input type="text" id="f-razon_social" required>
+          <div class="cli-form-cuerpo">
+
+            <div class="cli-sec">
+              <h4>Identificación</h4>
+              <div class="cli-grid">
+                <div class="form-group">
+                  <label for="f-razon_social">Razón social *</label>
+                  <input type="text" id="f-razon_social" required maxlength="120">
+                </div>
+                <div class="form-group">
+                  <label for="f-nombre_nova">Nombre Nova</label>
+                  <input type="text" id="f-nombre_nova" maxlength="60">
+                  <div class="cli-hint">Como lo llama la oficina. Es lo que se ve en todo el sistema.</div>
+                </div>
+                <div class="form-group">
+                  <label for="f-cuit">CUIT</label>
+                  <input type="text" id="f-cuit" placeholder="30-12345678-9">
+                </div>
+                <div class="form-group">
+                  <label for="f-tipo_facturacion">Tipo de facturación</label>
+                  <select id="f-tipo_facturacion">
+                    <option value="Responsable inscripto">Responsable inscripto</option>
+                    <option value="Monotributista">Monotributista</option>
+                    <option value="Exento">Exento</option>
+                    <option value="Consumidor final">Consumidor final</option>
+                  </select>
+                </div>
+              </div>
             </div>
-            <div class="form-group">
-              <label for="f-nombre_nova">Nombre Nova</label>
-              <input type="text" id="f-nombre_nova">
+
+            <div class="cli-sec">
+              <h4>Cobro</h4>
+              <div class="cli-grid">
+                <div class="form-group">
+                  <label for="f-tipo_cobro">Tipo de cobro</label>
+                  <select id="f-tipo_cobro">
+                    <option value="CC">Cuenta Corriente</option>
+                    <option value="D">Diario</option>
+                    <option value="S">Semanal</option>
+                    <option value="Q">Quincenal</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label for="f-tarifa_pct">% Tarifa (profit) general</label>
+                  <input type="number" id="f-tarifa_pct" min="0" max="500" step="0.5" value="0">
+                  <div class="cli-hint">La matriz por servicio y zona se carga en el perfil.</div>
+                </div>
+                <div class="form-group">
+                  <label for="f-plazo_pago_dias">Plazo de pago (días)</label>
+                  <input type="number" id="f-plazo_pago_dias" min="0" step="1" placeholder="sin definir">
+                </div>
+                <div class="form-group">
+                  <label for="f-tipo_cambio">Tipo de cambio (pagos en pesos)</label>
+                  <select id="f-tipo_cambio">
+                    <option value="venta">Nación venta</option>
+                    <option value="promedio">Nación promedio</option>
+                  </select>
+                </div>
+              </div>
             </div>
-            <div class="form-group">
-              <label for="f-cuit">CUIT</label>
-              <input type="text" id="f-cuit" placeholder="30-12345678-9">
+
+            <div class="cli-sec">
+              <h4>Contacto y recolección</h4>
+              <div class="cli-grid">
+                <div class="form-group">
+                  <label for="f-contacto">Contacto</label>
+                  <input type="text" id="f-contacto">
+                </div>
+                <div class="form-group">
+                  <label for="f-whatsapp">WhatsApp</label>
+                  <input type="text" id="f-whatsapp" placeholder="+54 9 11 ...">
+                </div>
+                <div class="form-group">
+                  <label for="f-email">Email</label>
+                  <input type="email" id="f-email">
+                </div>
+                <div class="form-group full">
+                  <label for="f-direccion_recoleccion">Dirección de recolección</label>
+                  <input type="text" id="f-direccion_recoleccion" placeholder="Dónde pasa la camioneta">
+                  <div class="cli-hint">Las direcciones adicionales se cargan desde el perfil del cliente.</div>
+                </div>
+              </div>
             </div>
-            <div class="form-group">
-              <label for="f-tipo_cobro">Tipo de cobro</label>
-              <select id="f-tipo_cobro">
-                <option value="CC">Cuenta Corriente</option>
-                <option value="D">Diario</option>
-                <option value="S">Semanal</option>
-                <option value="Q">Quincenal</option>
-              </select>
+
+            <div class="cli-sec">
+              <h4>Datos para guías y proforma
+                <button type="button" class="btn btn-sm btn-ghost" id="btn-copiar-guia" title="Copia la dirección de recolección y el WhatsApp a los datos de la guía">Usar los mismos datos</button>
+              </h4>
+              <p class="cli-sec-nota">Lo que UPS imprime en la etiqueta como remitente. No hace falta cargarlo ahora: sin esto, Guías avisa qué falta antes de emitir.</p>
+              <div class="cli-grid">
+                <div class="form-group">
+                  <label for="f-telefono">Teléfono</label>
+                  <input type="text" id="f-telefono" placeholder="+54 11 ...">
+                </div>
+                <div class="form-group">
+                  <label for="f-localidad">Localidad</label>
+                  <input type="text" id="f-localidad" placeholder="Ej: CABA, La Plata…">
+                </div>
+                <div class="form-group">
+                  <label for="f-provincia">Provincia</label>
+                  <input type="text" id="f-provincia" placeholder="Ej: Buenos Aires">
+                </div>
+                <div class="form-group">
+                  <label for="f-codigo_postal">Código postal</label>
+                  <input type="text" id="f-codigo_postal">
+                </div>
+              </div>
             </div>
-            <div class="form-group">
-              <label for="f-tarifa_pct">% Tarifa (profit)</label>
-              <input type="number" id="f-tarifa_pct" min="0" max="100" step="0.5" value="0">
-            </div>
-            <div class="form-group">
-              <label for="f-tipo_facturacion">Tipo facturación</label>
-              <select id="f-tipo_facturacion">
-                <option value="Responsable inscripto">Responsable inscripto</option>
-                <option value="Monotributista">Monotributista</option>
-                <option value="Exento">Exento</option>
-                <option value="Consumidor final">Consumidor final</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="f-contacto">Contacto</label>
-              <input type="text" id="f-contacto">
-            </div>
-            <div class="form-group">
-              <label for="f-email">Email</label>
-              <input type="email" id="f-email">
-            </div>
-            <div class="form-group">
-              <label for="f-whatsapp">WhatsApp</label>
-              <input type="text" id="f-whatsapp" placeholder="+54 9 11 ...">
-            </div>
-            <div class="form-group">
-              <label for="f-codigo_postal">Código postal</label>
-              <input type="text" id="f-codigo_postal">
-            </div>
-            <div class="form-group">
-              <label for="f-localidad">Localidad</label>
-              <input type="text" id="f-localidad" placeholder="Ej: CABA, La Plata…">
-            </div>
-            <div class="form-group">
-              <label for="f-provincia">Provincia</label>
-              <input type="text" id="f-provincia" placeholder="Ej: Buenos Aires">
-            </div>
-            <div class="form-group">
-              <label for="f-telefono">Teléfono (guías y proforma)</label>
-              <input type="text" id="f-telefono" placeholder="+54 11 ...">
-            </div>
-            <div class="form-group full">
-              <label for="f-direccion_recoleccion">Dirección de recolección</label>
-              <input type="text" id="f-direccion_recoleccion">
-              <small class="tipo-cobro-hint">Las direcciones adicionales se gestionan desde el perfil del cliente.</small>
-            </div>
+
           </div>
-          <div class="actions">
-            <button type="submit" class="btn btn-primary">Guardar</button>
-            <button type="button" class="btn btn-secondary" id="btn-cancelar">Cancelar</button>
+          <div class="cli-form-pie">
+            <button type="button" class="btn btn-outline" id="btn-cancelar">Cancelar</button>
+            <button type="submit" class="btn btn-coral" id="btn-guardar-cliente">Guardar cliente</button>
           </div>
         </form>
       </div>
 
-      <!-- Tabla de clientes -->
-      <div class="card">
-        <!-- El buscador filtra mientras se escribe, sin distinguir tildes ni mayúsculas y
-             sin pedirle nada al servidor: la lista ya está entera en memoria. Busca en
-             razón social, nombre Nova, CUIT, contacto, email y localidad. -->
-        <div class="clientes-buscador">
-          <input type="search" id="buscador-clientes" placeholder="Buscar por nombre, CUIT, contacto o email…" autocomplete="off">
-          <span class="buscador-cuenta" id="buscador-cuenta"></span>
+      <!-- Barra: buscador + filtros. El buscador filtra mientras se escribe, sin distinguir
+           tildes ni mayúsculas y sin pedirle nada al servidor: la lista ya está entera en
+           memoria. Busca en razón social, nombre Nova, CUIT, contacto, email, teléfonos,
+           localidad y provincia. -->
+      <div class="cli-toolbar">
+        <div class="form-group ancho">
+          <label for="buscador-clientes">Buscar</label>
+          <input type="search" id="buscador-clientes" placeholder="Nombre, razón social, CUIT, contacto o email…" autocomplete="off">
         </div>
+        <div class="form-group">
+          <label for="filtro-cobro">Tipo de cobro</label>
+          <select id="filtro-cobro">
+            <option value="">Todos</option>
+            <option value="D">Diario</option>
+            <option value="S">Semanal</option>
+            <option value="Q">Quincenal</option>
+            <option value="CC">Cuenta Corriente</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>Estado</label>
+          <div class="cli-segmentos" id="filtro-estado">
+            <button type="button" class="cli-seg on" data-estado="activos">Activos</button>
+            <button type="button" class="cli-seg" data-estado="inactivos">Inactivos</button>
+            <button type="button" class="cli-seg" data-estado="todos">Todos</button>
+          </div>
+        </div>
+        <div class="form-group">
+          <label>Margen</label>
+          <div class="cli-segmentos" id="filtro-margen">
+            <button type="button" class="cli-seg on" data-margen="todos">Todos</button>
+            <button type="button" class="cli-seg" data-margen="sin" title="Clientes sin % general ni matriz ni precio por kilo">Sin margen</button>
+          </div>
+        </div>
+        <span class="cuenta" id="buscador-cuenta"></span>
+      </div>
+
+      <div class="cli-lista">
         <div class="table-wrap">
-          <table>
+          <table class="cli-tabla">
             <thead>
               <tr>
-                <th>Razón social</th>
-                <th>Nombre Nova</th>
+                <th>Cliente</th>
                 <th>CUIT</th>
                 <th>Contacto</th>
-                <th>Email</th>
-                <th>Tipo cobro</th>
-                <th>Tarifa %</th>
+                <th>Localidad</th>
+                <th>Cobro</th>
+                <th class="n">Margen</th>
                 <th>Estado</th>
                 <th></th>
               </tr>
             </thead>
             <tbody id="tabla-clientes">
-              <tr><td colspan="9" class="empty">Cargando...</td></tr>
+              <tr><td colspan="8" class="empty">Cargando...</td></tr>
             </tbody>
           </table>
         </div>
@@ -241,8 +294,8 @@
 </div>
 
 <script src="/js/auth-guard.js?v=20260915a"></script>
-<script src="../js/api.js?v=20260916a"></script>
+<script src="../js/api.js?v=20260917a"></script>
 <script src="../js/main.js?v=20260915a"></script>
-<script src="../js/modules/clientes.js?v=20260915a"></script>
+<script src="../js/modules/clientes.js?v=20260917a"></script>
 </body>
 </html>

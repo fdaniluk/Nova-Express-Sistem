@@ -34,6 +34,7 @@ router.put('/:id/tramos', profitCtrl.putTramos);
 
 router.get('/:id', ctrl.buscarPorId);
 router.put('/:id', ctrl.actualizar);
+router.put('/:id/activo', ctrl.activar);
 router.delete('/:id', ctrl.eliminar);
 
 module.exports = router;

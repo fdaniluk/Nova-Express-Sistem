@@ -147,7 +147,9 @@
   // falla no rompe la pantalla: el select simplemente quedará vacío hasta reintentar.
   async function loadClientes() {
     try {
-      clientes = await NovaAPI.clientes.listar();
+      // Con los inactivos también (17/09): un envío viejo de un cliente desactivado tiene
+      // que seguir pudiendo abrirse y filtrarse en Salidas.
+      clientes = await NovaAPI.clientes.listar({ todos: 1 });
     } catch (err) {
       console.warn('[salidas] No se pudieron cargar clientes:', err.message);
       clientes = [];

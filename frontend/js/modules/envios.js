@@ -294,6 +294,13 @@
         sel.appendChild(opt);
       }
     }
+    // ?cliente=ID (17/09): "Cargar envío" desde el perfil del cliente llega con él elegido.
+    const pre = new URLSearchParams(location.search).get('cliente');
+    const selCli = document.getElementById('cliente_id');
+    if (pre && selCli && selCli.querySelector(`option[value="${pre}"]`)) {
+      selCli.value = pre;
+      selCli.dispatchEvent(new Event('change'));
+    }
   }
 
   function bindTabs() {

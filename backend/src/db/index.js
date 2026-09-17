@@ -168,6 +168,11 @@ async function migrateClientes() {
     // cliente y, vacío, no hay piso.
     ['seguro_pct_propio',     'REAL'],
     ['seguro_min_propio',     'REAL'],
+    // Cobranzas (17/09/2026, de la charla con Leandro): plazo de pago acordado en días
+    // (NULL = sin definir; hoy es informal) y qué cotización del Nación se toma para los
+    // pagos en pesos: 'venta' (lo normal) o 'promedio' (algunos clientes).
+    ['plazo_pago_dias',       'INTEGER'],
+    ['tipo_cambio',           "TEXT DEFAULT 'venta'"],
   ];
   for (const [col, def] of toAdd) {
     if (!existingCols.includes(col)) {

@@ -23,7 +23,7 @@ async function buscarPorId(req, res, next) {
 
 async function crear(req, res, next) {
   try {
-    const nombre = req.body.razon_social || req.body.nombre;
+    const nombre = String(req.body.razon_social || req.body.nombre || '').trim();
     if (!nombre) {
       return res.status(400).json({ error: 'razon_social es obligatorio' });
     }
@@ -33,6 +33,7 @@ async function crear(req, res, next) {
     if (e.message && e.message.includes('UNIQUE')) {
       return res.status(409).json({ error: 'Ya existe un cliente con ese nombre' });
     }
+    if (e.status === 400) return res.status(400).json({ error: e.message });
     next(e);
   }
 }
@@ -43,19 +44,36 @@ async function actualizar(req, res, next) {
     if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
     res.json(clienteModel.parseTarifa(cliente));
   } catch (e) {
-    // modo_tarifa / fuel_pct_propio inválidos llegan como 400 desde el modelo: se devuelve
-    // el mensaje, no un 500 pelado.
+    // modo_tarifa / fuel_pct_propio / tipo_cobro inválidos llegan como 400 desde el modelo:
+    // se devuelve el mensaje, no un 500 pelado.
     if (e.status === 400) return res.status(400).json({ error: e.message });
+    if (e.message && e.message.includes('UNIQUE')) {
+      return res.status(409).json({ error: 'Ya existe un cliente con ese nombre' });
+    }
+    next(e);
+  }
+}
+
+/* Activar / desactivar (17/09/2026). Un cliente inactivo conserva todo su historial pero
+   no aparece en los selectores del sistema ni en la lista (salvo con el filtro). */
+async function activar(req, res, next) {
+  try {
+    const cliente = await clienteModel.actualizar(req.params.id, { activo: req.body?.activo !== false });
+    if (!cliente) return res.status(404).json({ error: 'Cliente no encontrado' });
+    res.json(clienteModel.parseTarifa(cliente));
+  } catch (e) {
     next(e);
   }
 }
 
 async function eliminar(req, res, next) {
   try {
-    await clienteModel.eliminar(req.params.id);
+    const borrado = await clienteModel.eliminar(req.params.id);
+    if (!borrado) return res.status(404).json({ error: 'Cliente no encontrado' });
     res.status(204).end();
   } catch (e) {
     if (e.status === 400) return res.status(400).json({ error: e.message });
+    if (e.status === 409) return res.status(409).json({ error: e.message, dependencias: e.dependencias });
     next(e);
   }
 }
@@ -178,4 +196,4 @@ async function perfil(req, res, next) {
   }
 }
 
-module.exports = { listar, buscarPorId, crear, actualizar, eliminar, perfil };
+module.exports = { listar, buscarPorId, crear, actualizar, activar, eliminar, perfil };

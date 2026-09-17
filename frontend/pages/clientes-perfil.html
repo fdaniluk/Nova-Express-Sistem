@@ -6,250 +6,9 @@
   <title>Perfil de cliente — Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260915a">
+  <link rel="stylesheet" href="../css/modules/clientes.css?v=20260917a">
   <!-- Las fuentes del cuadro de la cotización (el mismo que dibuja el cotizador). -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500;600&display=swap">
-  <style>
-    .info-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-      gap: 0.75rem;
-    }
-    .info-field {
-      display: flex;
-      flex-direction: column;
-      gap: 0.2rem;
-    }
-    .info-field .field-label {
-      font-size: 0.72rem;
-      font-weight: 600;
-      text-transform: uppercase;
-      letter-spacing: 0.04em;
-      color: var(--color-muted);
-    }
-    .info-field .field-value {
-      font-size: 0.95rem;
-      color: var(--color-text);
-      font-weight: 500;
-    }
-    .info-field input, .info-field select {
-      display: none;
-    }
-    .info-field.editing .field-value {
-      display: none;
-    }
-    .info-field.editing input,
-    .info-field.editing select {
-      display: block;
-    }
-    .stat-cards {
-      display: grid;
-      grid-template-columns: repeat(3, 1fr);
-      gap: 1rem;
-      margin-bottom: 1.25rem;
-    }
-    @media (max-width: 600px) {
-      .stat-cards { grid-template-columns: 1fr 1fr; }
-    }
-    .back-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 0.4rem;
-      color: var(--color-muted);
-      text-decoration: none;
-      font-size: 0.85rem;
-      margin-bottom: 0.75rem;
-    }
-    .back-link:hover { color: var(--color-primary); }
-    .dirs-list { list-style: none; margin: 0.5rem 0 0; padding: 0; display: flex; flex-direction: column; gap: 0.4rem; }
-    .dirs-list li { display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; }
-    .dirs-list li .dir-text { flex: 1; }
-    .badge-principal { display: inline-block; padding: 0.1rem 0.4rem; border-radius: 4px; font-size: 0.7rem; font-weight: 600; background: #eff6ff; color: #1d4ed8; border: 1px solid #bfdbfe; }
-    .btn-borrar-dir { background: none; border: none; padding: 0.2rem 0.4rem; cursor: pointer; color: var(--color-muted); font-size: 0.85rem; border-radius: 3px; line-height: 1; }
-    .btn-borrar-dir:hover:not(:disabled) { color: var(--color-danger); background: #fef2f2; }
-    .btn-borrar-dir:disabled { opacity: 0.3; cursor: default; }
-    .add-dir-row { display: flex; gap: 0.5rem; margin-top: 0.6rem; align-items: center; }
-    .add-dir-row input { flex: 1; }
-    #btn-agregar-dir { font-size: 0.85rem; }
-    #add-dir-form { display: none; margin-top: 0.6rem; }
-    #add-dir-form.visible { display: flex; gap: 0.5rem; align-items: center; }
-    /* Matriz de tarifas (profit) — clases propias, no reusar .info-field ni ids pf- */
-    .tarifas-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
-    .tarifas-general { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 1rem; flex-wrap: wrap; }
-    .tarifas-general label { font-size: 0.8rem; font-weight: 600; color: var(--color-muted); }
-    .tarifas-general input { width: 130px; }
-    .tarifas-grid-wrap { overflow-x: auto; }
-    table.tarifas-grid { border-collapse: collapse; width: 100%; font-size: 0.85rem; }
-    table.tarifas-grid th, table.tarifas-grid td { border: 1px solid var(--color-border); padding: 0.35rem 0.5rem; text-align: center; }
-    table.tarifas-grid th { background: #f8fafc; font-weight: 600; color: var(--color-muted); white-space: nowrap; }
-    table.tarifas-grid td.banda-label { background: #f8fafc; font-weight: 600; color: var(--color-text); white-space: nowrap; text-align: left; }
-    td.tarifa-cell { cursor: pointer; position: relative; }
-    td.tarifa-cell.heredado { color: var(--color-muted); }
-    td.tarifa-cell.propio { color: var(--color-text); font-weight: 600; background: #eff6ff; }
-    td.tarifa-cell .cell-del { position: absolute; top: 1px; right: 2px; font-size: 0.7rem; color: var(--color-muted); cursor: pointer; line-height: 1; }
-    td.tarifa-cell .cell-del:hover { color: var(--color-danger); }
-    td.tarifa-cell input { width: 60px; font-size: 0.8rem; padding: 0.1rem; text-align: center; }
-    /* Modo de tarifa (porcentaje / precio por kilo) y fuel propio del cliente */
-    .tarifas-modo { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; flex-wrap: wrap; }
-    .tarifas-modo label { font-size: 0.8rem; font-weight: 600; color: var(--color-muted); }
-    .tarifas-modo input { width: 150px; }
-    .tarifas-hint { font-size: 0.78rem; color: var(--color-muted); flex-basis: 100%; }
-    .tarifas-rangos { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; flex-wrap: wrap; }
-    .tarifas-rangos label { font-size: 0.8rem; font-weight: 600; color: var(--color-muted); }
-    .tarifas-rangos input { width: 90px; }
-    table.tarifas-grid td.banda-label .rango-del { float: right; font-size: 0.75rem; color: var(--color-muted); cursor: pointer; padding-left: 0.5rem; }
-    table.tarifas-grid td.banda-label .rango-del:hover { color: var(--color-danger); }
-    /* Celda sin precio por kilo cargado: ese peso y esa zona se cobran con el PORCENTAJE
-       de ganancia del cliente. No es un agujero, es el caso mixto, asi que se muestra
-       distinto de un valor cargado pero sin pinta de error. */
-    td.tarifa-cell.por-pct { color: var(--color-muted); font-style: italic; background: #fafafa; }
-    table.tarifas-grid th.col-todas, table.tarifas-grid td.col-todas { border-right: 2px solid var(--color-border-strong, #b9c2d0); background: #fcfdff; }
-    table.tarifas-grid td.col-todas.propio { background: #eff6ff; }
-    table.tarifas-grid tr.fila-vieja td { background: #fffbeb; }
-    table.tarifas-grid tr.fila-vieja td.col-todas.propio { background: #fef3c7; }
-    .tramo-viejo { font-size: 0.65rem; font-weight: 600; color: #b45309; background: #fef3c7; border: 1px solid #fde68a; border-radius: 10px; padding: 0 0.35rem; margin-left: 0.35rem; cursor: help; }
-    td.celda-vieja { color: var(--color-muted); cursor: help; }
-    .tarifas-rangos select { width: auto; font-size: 0.8rem; padding: 0.25rem 0.4rem; }
-
-    /* ── Matriz unificada (13/08): todos los servicios de corrido, sin pestañas ── */
-    .tarifas-bar { position: sticky; top: 0; z-index: 20; background: #fff;
-      display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap;
-      padding: 0.5rem 0; border-bottom: 1px solid var(--color-border); margin-bottom: 0.6rem; }
-    .tarifas-bar .tab { border: 1px solid var(--color-border); background: #fff; color: var(--color-muted);
-      border-radius: 999px; padding: 0.3rem 0.9rem; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
-    .tarifas-bar .tab:hover { border-color: #2a78d6; }
-    .tarifas-bar .tab.active { background: #2a78d6; border-color: #2a78d6; color: #fff; }
-    .tarifas-bar .sep { width: 1px; height: 18px; background: var(--color-border); margin: 0 0.2rem; }
-    .tarifas-key { display: inline-flex; align-items: center; gap: 0.3rem; color: var(--color-muted); font-size: 0.72rem; }
-    .tarifas-key .dot { width: 9px; height: 9px; border-radius: 3px; display: inline-block; border: 1px solid rgba(11,11,11,.18); }
-    .tarifas-key .dot.p { background: #eff6ff; }
-    .tarifas-key .dot.h { background: repeating-linear-gradient(45deg,#eceae4 0 3px,#fff 3px 6px); }
-    .tarifas-key .dot.v { background: transparent; border-style: dashed; }
-    .tarifas-key .dot.z { background: #fdf2f2; border-color: rgba(208,59,59,.45); }
-    .tarifas-alerta { display: none; background: #fdf2f2; border: 1px solid rgba(208,59,59,.22);
-      border-radius: 10px; padding: 0.55rem 0.8rem; margin: 0.4rem 0 0.2rem;
-      font-size: 0.78rem; color: #7c2222; }
-    .tarifas-alerta b { color: #5e1717; }
-    .tarifa-seccion { background: #fff; border: 1px solid var(--color-border); border-radius: 12px;
-      margin-top: 1rem; overflow: hidden; scroll-margin-top: 64px;
-      box-shadow: 0 1px 2px rgba(11,11,11,.05), 0 4px 14px rgba(11,11,11,.04); }
-    .tarifa-sec-head { display: flex; align-items: center; gap: 0.7rem; padding: 0.75rem 1rem 0.6rem; flex-wrap: wrap; }
-    .tarifa-sec-head h3 { margin: 0; font-size: 0.95rem; font-weight: 650; }
-    .serv-chip { width: 34px; height: 22px; border-radius: 5px; display: inline-grid; place-items: center;
-      font-size: 0.6rem; font-weight: 800; letter-spacing: .02em; }
-    .serv-chip.dhl { background: #ffcc00; color: #b00; }
-    .serv-chip.ups { background: #351c15; color: #ffb500; }
-    .tipo-tag { font-size: 0.66rem; font-weight: 700; color: #184f95; background: #e8f1fc;
-      border-radius: 6px; padding: 0.15rem 0.5rem; text-transform: uppercase; letter-spacing: .05em; }
-    .tarifa-general-linea { margin-left: auto; display: flex; align-items: center; gap: 0.4rem; font-size: 0.78rem; color: var(--color-muted); }
-    .tarifa-general-linea input { width: 90px; font-size: 0.8rem; padding: 0.15rem 0.3rem; }
-    .tarifa-impo-vacia { padding: 0.4rem 1rem 0.8rem; color: var(--color-muted); font-size: 0.78rem; }
-    .tarifa-impo-vacia a { cursor: pointer; color: #2a78d6; text-decoration: underline; }
-    .tarifa-seccion .tarifas-grid-wrap { padding: 0 0.6rem 0.6rem; }
-    /* Conmutador: vista de lo que se cobra / edición de una tabla concreta. */
-    .tarifas-vista { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; margin: 0.2rem 0 0.2rem; }
-    .tarifas-vista .vista-btn { border: 1px solid var(--color-border); background: #fff; color: var(--color-muted);
-      border-radius: 8px; padding: 0.35rem 0.8rem; font-size: 0.8rem; font-weight: 600; cursor: pointer; }
-    .tarifas-vista .vista-btn.on { background: #2A3661; border-color: #2A3661; color: #fff; }
-    .tarifas-vista .vista-btn:hover:not(.on) { border-color: #2a78d6; }
-    td.tarifa-cell.heredado { background: repeating-linear-gradient(45deg,#f7f6f2 0 5px,transparent 5px 10px); }
-    td.tarifa-cell.heredado.sin-valor { background: none; }
-    td.tarifa-cell.cero { background: #fdf2f2; }
-    td.tarifa-cell.cero .cell-val { color: #d03b3b; font-weight: 650; }
-
-    /* ── Panel del tarifario para el cliente ───────────────────────────────── */
-    .tarifario-modal { position: fixed; inset: 0; background: rgba(20,26,36,.55);
-      z-index: 900; display: flex; align-items: center; justify-content: center; padding: 2vh 2vw; }
-    .tarifario-modal.hidden { display: none; }
-    .tarifario-caja { background: #fff; border-radius: 12px; width: 100%; height: 96vh;
-      display: flex; flex-direction: column; overflow: hidden; box-shadow: 0 12px 40px rgba(0,0,0,.3); }
-    .tarifario-caja > header { display: flex; align-items: center; justify-content: space-between;
-      padding: 0.8rem 1.1rem; border-bottom: 1px solid #e5e8ee; }
-    .tarifario-caja > header h2 { margin: 0; font-size: 1.05rem; }
-    .tarifario-cuerpo { display: flex; flex: 1; min-height: 0; }
-    .tarifario-opciones { width: 330px; flex: 0 0 330px; overflow-y: auto;
-      padding: 0.9rem 1rem 0; border-right: 1px solid #e5e8ee; background: #fafbfc; }
-    .tarifario-preview { flex: 1; min-width: 0; background: #eceaf0; }
-    .tarifario-preview iframe { width: 100%; height: 100%; border: 0; }
-    .t-grupo { margin-bottom: 1.1rem; }
-    .t-grupo h3 { margin: 0 0 0.45rem; font-size: 0.78rem; text-transform: uppercase;
-      letter-spacing: .06em; color: #6b7688; }
-    .t-escenarios { display: flex; flex-direction: column; gap: 0.3rem; }
-    .t-esc, .t-rango { text-align: left; background: #fff; border: 1px solid #d7dce4;
-      border-radius: 8px; padding: 0.4rem 0.6rem; font-size: 0.8rem; cursor: pointer; }
-    .t-esc.active, .t-rango.active { background: #2A3661; border-color: #2A3661; color: #fff; font-weight: 600; }
-    .t-ayuda { margin: 0.4rem 0 0; font-size: 0.72rem; color: #6b7688; line-height: 1.4; }
-    /* main.css pone los label en mayúsculas y en negrita para los formularios de carga;
-       acá son quince opciones seguidas y así gritan. */
-    .t-check { display: flex; align-items: center; gap: 0.4rem; font-size: 0.82rem;
-      padding: 0.15rem 0; cursor: pointer; text-transform: none; font-weight: 400;
-      letter-spacing: 0; color: #2c3542; }
-    .t-check input { margin: 0; }
-    .t-fila { display: flex; align-items: center; gap: 0.35rem; flex-wrap: wrap; margin-top: 0.45rem; }
-    .t-fila label { font-size: 0.75rem; color: #55606f; text-transform: none;
-      font-weight: 500; letter-spacing: 0; }
-    .t-fila input, .t-fila select { border: 1px solid #d7dce4; border-radius: 6px;
-      padding: 0.25rem 0.4rem; font-size: 0.8rem; max-width: 150px; }
-    .t-fila input[type="number"] { width: 70px; }
-    .t-alerta { background: #fdf3c7; border-left: 4px solid #e6b800; padding: 0.5rem 0.65rem;
-      font-size: 0.76rem; border-radius: 0 6px 6px 0; margin-bottom: 0.8rem; line-height: 1.45; }
-    .t-acciones { display: flex; gap: 0.5rem; position: sticky; bottom: 0;
-      background: #fafbfc; padding: 0.6rem 0 0.9rem; border-top: 1px solid #e5e8ee; }
-    .t-enviados { list-style: none; margin: 0; padding: 0; max-height: 160px; overflow-y: auto; }
-    .t-enviados li { display: flex; justify-content: space-between; gap: 0.5rem;
-      padding: 0.28rem 0.2rem; font-size: 0.76rem; border-bottom: 1px solid #eef1f5;
-      cursor: pointer; border-radius: 4px; }
-    .t-enviados li:hover { background: #eef4fb; }
-    .t-enviados li.activo { background: #e1edfb; }
-    .t-enviados li .t-env-que { color: #2c3542; }
-    .t-enviados li .t-env-cuando { color: #7a8496; white-space: nowrap; }
-    .t-enviados li.t-env-vacio { color: #7a8496; cursor: default; border: 0; }
-    .t-enviados li.t-env-vacio:hover { background: none; }
-    /* ── Cotizaciones del cliente (mudadas del cotizador el 26/08) ── */
-    .ctz-tabla { width: 100%; border-collapse: collapse; font-size: 12.5px; }
-    .ctz-tabla th { text-align: left; font-size: 10px; text-transform: uppercase;
-      letter-spacing: .6px; color: #8a8494; padding: 6px 8px; border-bottom: 1px solid #e6e3ec; }
-    .ctz-tabla td { padding: 7px 8px; border-bottom: 1px solid #eeecf2; vertical-align: middle; }
-    .ctz-chip { font-size: 10px; text-transform: uppercase; letter-spacing: .04em;
-      padding: 2px 8px; border-radius: 999px; background: #ece9f1; color: #6b6478; font-weight: 700; }
-    .ctz-chip.aceptada { background: #dcfce7; color: #166534; }
-    .ctz-chip.vencida, .ctz-chip.rechazada { background: #f3f4f6; color: #9ca3af; }
-    .ctz-chip.manual { background: #fef3c7; color: #92400e; }
-    .ctz-acciones { display: flex; flex-direction: column; gap: 4px; }
-    .ctz-acciones button { font-family: inherit; font-size: 11px; padding: 3px 8px;
-      cursor: pointer; border: 1px solid #cfc9da; border-radius: 5px; background: #fff; }
-    .ctz-acciones button:hover { border-color: #2A3661; }
-    .ctz-vacio { font-size: 12.5px; color: #8a8494; padding: 6px 2px; }
-    .ctz-desglose td { background: #fbfafc; }
-    .ctz-desglose-caja { display: flex; gap: 18px; flex-wrap: wrap; padding: 6px 4px; }
-    .ctz-desglose-op { min-width: 220px; font-size: 12px; }
-    .ctz-desglose-op .dg-tit { font-weight: 700; margin-bottom: 4px; color: #2A3661; }
-    .ctz-desglose-op .dg-row { display: flex; justify-content: space-between; gap: 14px;
-      padding: 2px 0; font-family: 'Courier New', monospace; }
-    .ctz-desglose-op .dg-row.dg-total { border-top: 1px solid #2A3661; font-weight: 700; margin-top: 3px; padding-top: 4px; }
-    /* Opciones guardadas / no guardadas (10/09) y el botón Aceptada directo. */
-    .ctz-op-enviada { color: #166534; font-weight: 600; }
-    .ctz-op-no { color: #9ca3af; }
-    .ctz-acciones button.ctz-btn-ok { background: #dcfce7; border-color: #86efac; color: #166534; font-weight: 700; }
-    .ctz-acciones button.ctz-btn-ok:hover { background: #bbf7d0; }
-    /* "Ver cuadro" y el modal con la imagen para reenviar (10/09). */
-    .ctz-ver-cuadro { margin-top: 6px; font-family: inherit; font-size: 11px; padding: 3px 8px;
-      cursor: pointer; border: 1px solid #2A3661; border-radius: 5px; background: #fff; color: #2A3661; }
-    .ctz-ver-cuadro:hover { background: #eaf1f8; }
-    .ctz-cuadro-overlay { position: fixed; inset: 0; background: rgba(15,23,42,.55); z-index: 2000;
-      display: none; align-items: center; justify-content: center; padding: 16px; }
-    .ctz-cuadro-overlay.on { display: flex; }
-    .ctz-cuadro-box { background: #fff; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,.3);
-      max-width: 760px; width: 100%; max-height: 95vh; display: flex; flex-direction: column; overflow: hidden; }
-    .ctz-cuadro-head { display: flex; align-items: center; gap: 10px; padding: 10px 16px;
-      border-bottom: 1px solid #e6e3ec; font-size: 13px; }
-    .ctz-cuadro-sub { color: #8a8494; font-size: 12px; }
-    .ctz-cuadro-x { margin-left: auto; background: none; border: none; font-size: 20px; cursor: pointer; color: #8a8494; }
-    .ctz-cuadro-img { padding: 16px; overflow: auto; background: #f3f4f6; text-align: center; }
-    .ctz-cuadro-img img { max-width: 100%; height: auto; box-shadow: 0 2px 10px rgba(0,0,0,.12); background: #fff; }
-    .ctz-cuadro-pie { display: flex; align-items: center; gap: 8px; padding: 10px 16px; border-top: 1px solid #e6e3ec; }
-    .ctz-cuadro-pie .btn { white-space: nowrap; }
-    .ctz-cuadro-nota { margin-right: auto; font-size: 11.5px; color: #8a8494; }
-  </style>
 </head>
 <body>
 <div class="app-layout">
@@ -334,32 +93,70 @@
 
   <div class="page-content">
     <div class="page-header">
-      <h1 id="page-title">Perfil de cliente</h1>
-      <div style="display:flex;gap:0.5rem">
-        <button class="btn btn-secondary" id="btn-editar">Editar datos</button>
-        <button class="btn btn-primary hidden" id="btn-guardar">Guardar cambios</button>
-        <button class="btn btn-secondary hidden" id="btn-cancelar-edit">Cancelar</button>
+      <h1>Perfil de cliente</h1>
+      <div class="cli-cab-acciones">
+        <a class="btn btn-outline" href="clientes.html">← Clientes</a>
       </div>
     </div>
 
     <div class="page-body">
       <div id="alert-box"></div>
-      <a href="clientes.html" class="back-link">← Volver a clientes</a>
 
-      <!-- Info del cliente -->
-      <div class="card" id="card-info">
-        <div class="info-grid" id="info-grid">
-          <div class="empty">Cargando...</div>
+      <!-- Cabecera del cliente: nombre, chips y acciones (rediseño 17/09/2026) -->
+      <div class="per-cab" id="per-cab">
+        <div class="per-avatar" id="per-avatar">·</div>
+        <div class="per-titulo">
+          <h1 id="page-title">Cargando…</h1>
+          <div class="razon" id="per-razon"></div>
+          <div class="per-chips" id="per-chips"></div>
+        </div>
+        <div class="per-acciones">
+          <button class="btn btn-outline" id="btn-editar">Editar datos</button>
+          <button class="btn btn-coral hidden" id="btn-guardar">Guardar cambios</button>
+          <button class="btn btn-outline hidden" id="btn-cancelar-edit">Cancelar</button>
+          <a class="btn btn-outline" id="btn-cargar-envio" href="envios.html">Cargar envío</a>
+          <a class="btn btn-coral" id="btn-cotizar" href="cotizador.html">Cotizar</a>
         </div>
       </div>
 
-      <!-- Matriz de tarifas (profit) -->
-      <div class="card" id="card-tarifas">
-        <div class="tarifas-header">
-          <h2 style="margin:0">Matriz de tarifas</h2>
-          <button class="btn btn-primary btn-sm" id="btn-armar-tarifario">Armar tarifario</button>
-          <button class="btn btn-secondary btn-sm" id="btn-editar-tarifas">Editar tarifas</button>
-        </div>
+      <nav class="per-nav">
+        <a href="#card-info">Ficha</a>
+        <a href="#card-tarifas">Tarifas</a>
+        <a href="#card-cotizaciones">Cotizaciones</a>
+        <a href="#card-envios">Envíos</a>
+        <a href="#card-direcciones">Direcciones y libretas</a>
+      </nav>
+
+      <!-- Stats -->
+      <div class="per-kpis" id="stat-cards">
+        <div class="per-kpi"><div class="k">Envíos</div><div class="v" id="stat-guias">—</div><div class="s" id="stat-guias-sub"></div></div>
+        <div class="per-kpi verde"><div class="k">Utilidad total</div><div class="v" id="stat-utilidad">—</div><div class="s" id="stat-utilidad-sub"></div></div>
+        <div class="per-kpi ambar"><div class="k">Sin liquidar</div><div class="v" id="stat-sin-liquidar">—</div><div class="s" id="stat-sin-liquidar-sub"></div></div>
+        <div class="per-kpi"><div class="k">Última liquidación</div><div class="v" id="stat-ultima-liq">—</div><div class="s"></div></div>
+      </div>
+
+      <div class="per-layout">
+        <div class="per-col">
+
+          <!-- Info del cliente -->
+          <div class="per-card" id="card-info">
+            <div class="per-card-cab"><div><h2>Ficha</h2><p>Datos del cliente. "Editar datos" los abre para cambiar; un campo vacío se guarda vacío.</p></div></div>
+            <div class="per-card-cuerpo">
+              <div class="per-ficha" id="info-grid"><div class="empty">Cargando...</div></div>
+            </div>
+          </div>
+
+          <!-- Matriz de tarifas (profit) -->
+          <div class="per-card" id="card-tarifas">
+            <div class="per-card-cab">
+              <div><h2>Matriz de tarifas</h2><p>Lo que se le cobra, por servicio, zona y peso. "Editar tarifas" abre la grilla.</p></div>
+              <button class="btn btn-outline btn-sm" id="btn-armar-tarifario">Armar tarifario</button>
+              <button class="btn btn-outline btn-sm" id="btn-editar-tarifas">Editar tarifas</button>
+            </div>
+            <div class="per-card-cuerpo">
+              <div class="tarifas-resumen" id="tarifas-resumen"></div>
+              <div class="tarifas-extra" id="tarifas-extra"></div>
+
         <div id="tarifas-panel" class="hidden">
           <!-- Modo de tarifa y fuel propio: valen para TODAS las tablas del cliente -->
           <!-- Sin selector de "modo de tarifa" desde el 13/08: lo que se carga es lo que
@@ -397,117 +194,112 @@
           <div class="tarifas-alerta" id="tarifas-alerta"></div>
           <div id="tarifas-grid"></div>
         </div>
-      </div>
+      
+            </div>
+          </div>
 
-      <!-- Direcciones de recolección -->
-      <div class="card" id="card-direcciones">
-        <h2 style="margin-bottom:0.75rem">Direcciones de recolección</h2>
-        <ul class="dirs-list" id="dirs-list"><li class="empty" style="padding:0">Cargando...</li></ul>
-        <button class="btn btn-secondary btn-sm" id="btn-agregar-dir" style="margin-top:0.75rem">+ Agregar dirección</button>
-        <div id="add-dir-form">
-          <input type="text" id="nueva-direccion" placeholder="Ej: Av. Rivadavia 3200, CABA" style="flex:1">
-          <button class="btn btn-primary btn-sm" id="btn-guardar-dir">Guardar</button>
-          <button class="btn btn-secondary btn-sm" id="btn-cancelar-dir">Cancelar</button>
-        </div>
-      </div>
+          <!-- Cotizaciones de ESTE cliente (26/08). ACA vive el boton Aceptar: es el unico
+               lugar del sistema donde se marca el precio acordado del caso Asaplast. -->
+          <div class="per-card" id="card-cotizaciones">
+            <div class="per-card-cab">
+              <div><h2>Cotizaciones</h2><p>Lo que se le cotizó. <b>Aceptar</b> marca la opción que confirmó el cliente; ▸ abre el desglose; <b>Ver cuadro</b> arma la imagen para reenviarla.</p></div>
+              <select id="ctz-filtro-estado">
+                <option value="">Todas</option>
+                <option value="emitida">Emitidas</option>
+                <option value="aceptada">Aceptadas</option>
+                <option value="rechazada">Rechazadas</option>
+                <option value="vencida">Vencidas</option>
+              </select>
+              <button class="btn btn-outline btn-sm" id="btn-ctz-actualizar">Actualizar</button>
+            </div>
+            <div class="per-card-cuerpo">
+              <div id="ctz-lista"><div class="ctz-vacio">Cargando…</div></div>
+            </div>
+          </div>
 
-      <!-- Cotizaciones de ESTE cliente (26/08). Antes la lista vivia abajo del cotizador y
-           "contaminaba la vista"; su casa es esta, que ya era donde Felipe creia que estaba.
-           ACA vive el boton Aceptar: es el unico lugar del sistema donde se marca el precio
-           acordado del caso Asaplast. -->
-      <div class="card" id="card-cotizaciones">
-        <h2 style="margin-bottom:0.35rem;display:flex;justify-content:space-between;align-items:center;gap:10px">
-          <span>Cotizaciones</span>
-          <span style="display:flex;gap:6px;align-items:center;font-weight:400">
-            <select id="ctz-filtro-estado" style="font-size:11.5px;padding:4px 8px;width:auto">
-              <option value="">Todas</option>
-              <option value="emitida">Emitidas</option>
-              <option value="aceptada">Aceptadas</option>
-              <option value="rechazada">Rechazadas</option>
-              <option value="vencida">Vencidas</option>
-            </select>
-            <button class="btn btn-secondary btn-sm" id="btn-ctz-actualizar">Actualizar</button>
-          </span>
-        </h2>
-        <p style="font-size:12px;color:#777;margin:0 0 0.75rem">
-          Lo que se le cotizó, guardado desde el cotizador con "Guardar este precio". El botón
-          <b>Aceptar</b> marca qué opción confirmó el cliente: ese pasa a ser el precio acordado.
-          El ▸ abre el desglose y <b>Ver cuadro</b> arma la imagen tal cual se le manda al cliente, para reenviarla.
-        </p>
-        <div id="ctz-lista"><div class="ctz-vacio">Cargando…</div></div>
-      </div>
+          <!-- Chart utilidad mensual -->
+          <div class="per-card" id="card-grafico">
+            <div class="per-card-cab"><div><h2>Utilidad mensual</h2><p>Últimos 12 meses.</p></div></div>
+            <div class="per-card-cuerpo">
+              <canvas id="chart-mensual" width="700" height="200"></canvas>
+              <p id="chart-empty" class="empty hidden">Sin datos de envíos aún.</p>
+            </div>
+          </div>
 
-      <!-- Links de cotización: la puerta autogestionada para ESTE cliente.
-           El link cotiza con SU tarifa, en el servidor; acá solo se arma y se apaga. -->
-      <div class="card" id="card-links">
-        <h2 style="margin-bottom:0.35rem">Links de cotización</h2>
-        <p style="font-size:12px;color:#777;margin:0 0 0.75rem">
-          Un link para que el cliente cotice solo, con su tarifa. El cálculo pasa en el
-          servidor: el margen no viaja. Vence, tiene tope diario y se da de baja desde acá.
-        </p>
-        <ul class="links-list" id="links-list" style="list-style:none;padding:0;margin:0"><li class="empty" style="padding:0">Cargando...</li></ul>
-        <div id="link-form" style="display:flex;gap:8px;align-items:end;flex-wrap:wrap;margin-top:0.75rem">
-          <div><label style="font-size:11px;color:#777;display:block">Servicios</label>
-            <select id="link-couriers">
-              <option value="ambos">DHL y UPS</option>
-              <option value="dhl">Solo DHL</option>
-              <option value="ups">Solo UPS (los dos)</option>
-              <option value="ups_exp">Solo UPS Expedited</option>
-              <option value="ups_sav">Solo UPS Saver</option>
-            </select></div>
-          <div><label style="font-size:11px;color:#777;display:block">Validez (días)</label>
-            <input type="number" id="link-dias" min="1" max="365" step="1" value="30" style="width:80px"></div>
-          <label style="font-size:12px;display:flex;align-items:center;gap:5px;padding-bottom:7px" title="Sin la tilde, el link ofrece la tarifa 'a secas': las tarjetas dicen Opción 1/2 y ningún renglón nombra al courier — como el tarifario sin nombrar.">
-            <input type="checkbox" id="link-nombrar" checked> Decir qué servicio es</label>
-          <button class="btn btn-primary btn-sm" id="btn-crear-link">+ Armar link</button>
-        </div>
-      </div>
+          <!-- Tabla de guías -->
+          <div class="per-card" id="card-envios">
+            <div class="per-card-cab">
+              <div><h2>Historial de envíos</h2><p>Todos los envíos del cliente, del más nuevo al más viejo.</p></div>
+              <input type="search" id="buscador-envios" placeholder="Guía o país…" autocomplete="off" style="padding:.35rem .6rem;border:1px solid var(--color-border);border-radius:6px;font-size:.82rem">
+            </div>
+            <div class="per-card-cuerpo sin-pad">
+              <div class="table-wrap">
+                <table class="per-tabla">
+                  <thead>
+                    <tr>
+                      <th>Fecha</th><th>Guía</th><th>País</th><th>Courier</th><th>Asegurado</th>
+                      <th class="n">Total cobrado</th><th class="n">Utilidad</th><th>Estado</th>
+                    </tr>
+                  </thead>
+                  <tbody id="tabla-guias">
+                    <tr><td colspan="8" class="empty">Cargando...</td></tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
 
-      <!-- Stats -->
-      <div class="stat-cards" id="stat-cards">
-        <div class="metric-card">
-          <div class="metric-label">Total guías</div>
-          <div class="metric-value" id="stat-guias">—</div>
         </div>
-        <div class="metric-card success">
-          <div class="metric-label">Utilidad total</div>
-          <div class="metric-value" id="stat-utilidad">—</div>
-        </div>
-        <div class="metric-card">
-          <div class="metric-label">Última liquidación</div>
-          <div class="metric-value" id="stat-ultima-liq">—</div>
-        </div>
-      </div>
 
-      <!-- Chart utilidad mensual -->
-      <div class="card">
-        <h2>Utilidad mensual (últimos 12 meses)</h2>
-        <canvas id="chart-mensual" width="700" height="200"></canvas>
-        <p id="chart-empty" class="empty hidden">Sin datos de envíos aún.</p>
-      </div>
+        <aside class="per-col">
 
-      <!-- Tabla de guías -->
-      <div class="card">
-        <h2>Historial de envíos</h2>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Guía</th>
-                <th>País</th>
-                <th>Courier</th>
-                <th>Asegurado</th>
-                <th>Total cobrado</th>
-                <th>Utilidad</th>
-                <th>Estado</th>
-              </tr>
-            </thead>
-            <tbody id="tabla-guias">
-              <tr><td colspan="8" class="empty">Cargando...</td></tr>
-            </tbody>
-          </table>
-        </div>
+          <!-- Direcciones de recolección -->
+          <div class="per-card" id="card-direcciones">
+            <div class="per-card-cab"><div><h2>Direcciones de recolección</h2><p>Dónde pasa la camioneta.</p></div></div>
+            <div class="per-card-cuerpo">
+              <ul class="per-lista dirs-list" id="dirs-list"><li class="vacio">Cargando...</li></ul>
+              <button class="per-add" id="btn-agregar-dir">+ Agregar dirección</button>
+              <div id="add-dir-form">
+                <input type="text" id="nueva-direccion" placeholder="Ej: Av. Rivadavia 3200, CABA">
+                <button class="btn btn-coral btn-sm" id="btn-guardar-dir">Guardar</button>
+                <button class="btn btn-outline btn-sm" id="btn-cancelar-dir">Cancelar</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Libretas de Guías: remitentes y destinatarios de este cliente (17/09). Se
+               administran desde Guías; acá se ven y se llega. -->
+          <div class="per-card" id="card-libretas">
+            <div class="per-card-cab"><div><h2>Libretas</h2><p>Lo que usan las guías y la proforma.</p></div></div>
+            <div class="per-card-cuerpo">
+              <ul class="per-lista" id="libretas-lista"><li class="vacio">Cargando...</li></ul>
+            </div>
+          </div>
+
+          <!-- Links de cotización: la puerta autogestionada para ESTE cliente. -->
+          <div class="per-card" id="card-links">
+            <div class="per-card-cab"><div><h2>Links de cotización</h2><p>Para que cotice solo, con su tarifa. El margen no viaja: el cálculo pasa en el servidor.</p></div></div>
+            <div class="per-card-cuerpo">
+              <ul class="per-lista links-list" id="links-list"><li class="vacio">Cargando...</li></ul>
+              <div id="link-form">
+                <div><label for="link-couriers">Servicios</label>
+                  <select id="link-couriers">
+                    <option value="ambos">DHL y UPS</option>
+                    <option value="dhl">Solo DHL</option>
+                    <option value="ups">Solo UPS (los dos)</option>
+                    <option value="ups_exp">Solo UPS Expedited</option>
+                    <option value="ups_sav">Solo UPS Saver</option>
+                  </select></div>
+                <div><label for="link-dias">Validez (días)</label>
+                  <input type="number" id="link-dias" min="1" max="365" step="1" value="30" style="width:80px"></div>
+                <label class="lbl-check" title="Sin la tilde, el link ofrece la tarifa 'a secas': las tarjetas dicen Opción 1 / Opción 2 en vez del nombre del servicio">
+                  <input type="checkbox" id="link-nombrar" checked> Decir qué servicio es</label>
+                <button class="btn btn-outline btn-sm" id="btn-crear-link">+ Armar link</button>
+              </div>
+            </div>
+          </div>
+
+        </aside>
       </div>
     </div>
   </div>
@@ -645,9 +437,9 @@
 </div>
 
 <script src="/js/auth-guard.js?v=20260915a"></script>
-<script src="../js/api.js?v=20260916a"></script>
+<script src="../js/api.js?v=20260917a"></script>
 <script src="../js/main.js?v=20260915a"></script>
 <script src="../js/cotizacion-imagen.js?v=20260916a"></script>
-<script src="../js/modules/clientes-perfil.js?v=20260915a"></script>
+<script src="../js/modules/clientes-perfil.js?v=20260917a"></script>
 </body>
 </html>

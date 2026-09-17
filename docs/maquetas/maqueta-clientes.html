@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Maqueta — Clientes y perfil del cliente</title>
+<link rel="stylesheet" href="../../frontend/css/main.css">
+<style>
+/* ─────────────────────────────────────────────────────────────────────────
+   MAQUETA de Clientes (lista) y Perfil del cliente con el criterio del sistema
+   (17/09/2026, ítem 5 del orden de estética). Foto de diseño con datos
+   inventados. El CSS real va a frontend/css/modules/clientes.css.
+   ───────────────────────────────────────────────────────────────────────── */
+:root { --cli-verde:#15803d; --cli-verde-suave:#dcfce7; --cli-ambar:#b45309; --cli-ambar-suave:#fef3c7;
+  --cli-azul-suave:#eaf1f8; --cli-coral:#f26a4b; --cli-coral-oscuro:#d9573a; }
+body { padding: 1.25rem 1.5rem; }
+.maq-titulo { font-size:.8rem; color:var(--color-muted); margin:2.5rem 0 1rem; text-transform:uppercase; letter-spacing:.5px; }
+.maq-titulo:first-child { margin-top:0; }
+.page-header { border:1px solid var(--color-border); border-radius:10px 10px 0 0; }
+
+/* Botones */
+.btn-outline { background:#fff; color:var(--color-primary); border:1px solid var(--color-primary); }
+.btn-outline:hover { background:var(--cli-azul-suave); }
+.btn-coral { background:var(--cli-coral); color:#fff; font-weight:700; border-radius:8px; box-shadow:0 3px 10px rgba(242,106,75,.3); }
+.btn-coral:hover { background:var(--cli-coral-oscuro); }
+.btn-ghost { background:transparent; color:var(--color-primary); border:1px dashed var(--color-border); }
+
+/* Chips */
+.cli-chip { display:inline-block; padding:.16rem .6rem; border-radius:999px; font-size:.72rem; font-weight:700; white-space:nowrap; line-height:1.5; }
+.cli-chip.cobro { background:var(--cli-azul-suave); color:var(--color-primary); }
+.cli-chip.activo { background:var(--cli-verde-suave); color:var(--cli-verde); }
+.cli-chip.inactivo { background:#f1f5f9; color:#64748b; }
+.cli-chip.fact { background:#f1f5f9; color:#475569; font-weight:600; }
+.cli-chip.kg { background:#ede9fe; color:#5b21b6; }
+.cli-chip.courier-DHL { background:#fdf3c4; color:#7a5a00; }
+.cli-chip.courier-UPS { background:#efe6e2; color:#5a3a2c; }
+.cli-chip.emitida { background:var(--cli-ambar-suave); color:var(--cli-ambar); }
+.cli-chip.aceptada { background:var(--cli-verde-suave); color:var(--cli-verde); }
+.cli-chip.liquidado { background:var(--cli-verde-suave); color:var(--cli-verde); }
+.cli-chip.pendiente { background:var(--cli-ambar-suave); color:var(--cli-ambar); }
+.guia-num { font-family:ui-monospace,Menlo,Consolas,monospace; font-weight:600; color:var(--color-primary); }
+.cuit { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.84rem; color:var(--color-muted); }
+
+/* Barra de filtros */
+.cli-toolbar { display:flex; flex-wrap:wrap; gap:.75rem 1rem; align-items:flex-end; padding:.9rem 1.1rem; background:#fbfcfe;
+  border:1px solid var(--color-border); border-radius:10px; margin-bottom:1rem; }
+.cli-toolbar .form-group { min-width:130px; margin:0; }
+.cli-toolbar .form-group.ancho { flex:1 1 320px; max-width:460px; }
+.cli-toolbar label { font-size:.7rem; letter-spacing:.4px; }
+.cli-toolbar input, .cli-toolbar select { padding:.45rem .6rem; border-radius:6px; font-size:.9rem; background:#fff; }
+.cli-toolbar .cuenta { font-size:.78rem; color:var(--color-muted); white-space:nowrap; align-self:center; margin-left:auto; }
+.cli-segmentos { display:flex; gap:.35rem; flex-wrap:wrap; }
+.cli-seg { padding:.35rem .7rem; border-radius:999px; border:1px solid var(--color-border); background:#fff; font-size:.8rem; color:var(--color-muted); cursor:pointer; }
+.cli-seg.on { background:var(--color-primary); color:#fff; border-color:var(--color-primary); }
+
+/* Tabla de la lista */
+.cli-lista { background:var(--color-surface); border:1px solid var(--color-border); border-radius:12px; box-shadow:var(--shadow); overflow:hidden; }
+.cli-tabla { width:100%; border-collapse:separate; border-spacing:0; font-size:.88rem; }
+.cli-tabla th { text-align:left; font-weight:600; color:var(--color-muted); font-size:.72rem; text-transform:uppercase; letter-spacing:.3px;
+  padding:.55rem .75rem; background:#f8fafc; border-bottom:1px solid var(--color-border); white-space:nowrap; }
+.cli-tabla td { padding:.6rem .75rem; vertical-align:middle; border-bottom:1px solid #eef2f7; }
+.cli-tabla tbody tr:hover td { background:#fafbfd; }
+.cli-tabla tbody tr:last-child td { border-bottom:0; }
+.cli-tabla td.n, .cli-tabla th.n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.cli-nombre { font-weight:700; color:var(--color-primary); }
+.cli-nombre a { color:inherit; text-decoration:none; }
+.cli-nombre a:hover { text-decoration:underline; }
+.cli-sub { display:block; font-size:.78rem; color:var(--color-muted); font-weight:400; margin-top:1px; }
+.cli-contacto small { display:block; color:var(--color-muted); }
+.cli-tabla td.acciones { white-space:nowrap; text-align:right; }
+.cli-tabla td.acciones .btn { margin-left:.35rem; }
+.cli-sin-margen { color:var(--cli-ambar); font-weight:700; }
+
+/* Formulario nuevo/editar (la pantalla de la lista) en tarjeta con secciones */
+.cli-form { background:var(--color-surface); border:1px solid var(--color-border); border-radius:12px; box-shadow:var(--shadow); overflow:hidden; margin-bottom:1rem; }
+.cli-form-cab { display:flex; align-items:center; gap:.9rem; padding:.9rem 1.25rem; background:linear-gradient(90deg,var(--cli-azul-suave),#fff 70%); border-bottom:1px solid var(--color-border); }
+.cli-form-cab h3 { margin:0; font-size:1rem; color:var(--color-primary); }
+.cli-form-cab p { margin:.1rem 0 0; font-size:.8rem; color:var(--color-muted); }
+.cli-form-cuerpo { padding:1rem 1.25rem 1.25rem; display:grid; gap:1.1rem; }
+.cli-sec h4 { margin:0 0 .6rem; font-size:.72rem; text-transform:uppercase; letter-spacing:.4px; color:var(--color-muted); font-weight:700;
+  display:flex; align-items:center; gap:.5rem; }
+.cli-sec h4::after { content:''; flex:1; border-top:1px solid #eef2f7; }
+.cli-grid { display:grid; gap:.75rem 1rem; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); }
+.cli-grid .form-group { margin:0; min-width:0; }
+.cli-grid .form-group.full { grid-column:1 / -1; }
+.cli-grid label { font-size:.7rem; letter-spacing:.4px; }
+.cli-grid input, .cli-grid select { padding:.45rem .6rem; border-radius:6px; font-size:.9rem; background:#fff; width:100%; min-width:0; }
+.cli-hint { font-size:.76rem; color:var(--color-muted); margin-top:.15rem; }
+.cli-form-pie { display:flex; gap:.5rem; justify-content:flex-end; padding:.9rem 1.25rem; border-top:1px solid var(--color-border); background:#fbfcfe; }
+
+/* ── Perfil ─────────────────────────────────────────────────────────────── */
+.per-cab { background:var(--color-surface); border:1px solid var(--color-border); border-radius:12px; box-shadow:var(--shadow);
+  padding:1.1rem 1.4rem; display:flex; gap:1.25rem; align-items:center; flex-wrap:wrap; margin-bottom:1rem;
+  border-left:5px solid var(--cli-coral); }
+.per-avatar { width:52px; height:52px; border-radius:12px; background:var(--color-primary); color:#fff; font-weight:800; font-size:1.15rem;
+  display:flex; align-items:center; justify-content:center; flex-shrink:0; }
+.per-titulo { flex:1 1 260px; min-width:0; }
+.per-titulo h1 { margin:0; font-size:1.35rem; color:var(--color-primary); line-height:1.2; }
+.per-titulo .razon { color:var(--color-muted); font-size:.86rem; margin-top:.15rem; }
+.per-chips { display:flex; gap:.4rem; flex-wrap:wrap; margin-top:.5rem; }
+.per-acciones { display:flex; gap:.5rem; flex-wrap:wrap; }
+.per-nav { display:flex; gap:.35rem; flex-wrap:wrap; margin-bottom:1rem; }
+.per-nav a { padding:.4rem .85rem; border-radius:999px; border:1px solid var(--color-border); background:#fff; font-size:.82rem;
+  color:var(--color-muted); text-decoration:none; font-weight:500; }
+.per-nav a.on { background:var(--color-primary); color:#fff; border-color:var(--color-primary); }
+.per-kpis { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:.9rem; margin-bottom:1.1rem; }
+.per-kpi { background:var(--color-surface); border:1px solid var(--color-border); border-radius:12px; box-shadow:var(--shadow); padding:.85rem 1rem; }
+.per-kpi .k { font-size:.7rem; text-transform:uppercase; letter-spacing:.4px; color:var(--color-muted); font-weight:700; }
+.per-kpi .v { font-size:1.35rem; font-weight:800; color:var(--color-primary); margin-top:.15rem; font-variant-numeric:tabular-nums; }
+.per-kpi .s { font-size:.74rem; color:var(--color-muted); }
+.per-kpi.verde .v { color:var(--cli-verde); }
+.per-layout { display:grid; grid-template-columns:minmax(0,1fr) 320px; gap:1.1rem; align-items:start; }
+@media (max-width:1000px) { .per-layout { grid-template-columns:minmax(0,1fr); } }
+.per-col { display:flex; flex-direction:column; gap:1.1rem; min-width:0; }
+.per-card { background:var(--color-surface); border:1px solid var(--color-border); border-radius:12px; box-shadow:var(--shadow); overflow:hidden; }
+.per-card-cab { display:flex; align-items:center; gap:.75rem; padding:.8rem 1.1rem; background:linear-gradient(90deg,var(--cli-azul-suave),#fff 70%);
+  border-bottom:1px solid var(--color-border); }
+.per-card-cab h3 { margin:0; font-size:.95rem; color:var(--color-primary); flex:1; }
+.per-card-cab p { margin:.1rem 0 0; font-size:.78rem; color:var(--color-muted); }
+.per-card-cab .btn { border-radius:6px; }
+.per-card-cuerpo { padding:.9rem 1.1rem 1.1rem; }
+.per-ficha { display:grid; grid-template-columns:repeat(auto-fill,minmax(170px,1fr)); gap:.55rem 1rem; }
+.per-campo .k { font-size:.66rem; text-transform:uppercase; letter-spacing:.4px; color:var(--color-muted); font-weight:600; }
+.per-campo .v { font-size:.9rem; color:var(--color-text); font-weight:500; overflow-wrap:anywhere; }
+.per-campo.falta .v { color:var(--cli-ambar); font-weight:700; }
+.per-tabla { width:100%; border-collapse:separate; border-spacing:0; font-size:.85rem; }
+.per-tabla th { text-align:left; font-weight:600; color:var(--color-muted); font-size:.7rem; text-transform:uppercase; letter-spacing:.3px;
+  padding:.45rem .5rem; background:#f8fafc; border-bottom:1px solid var(--color-border); white-space:nowrap; }
+.per-tabla td { padding:.5rem .5rem; vertical-align:middle; border-bottom:1px solid #eef2f7; }
+.per-tabla tbody tr:last-child td { border-bottom:0; }
+.per-tabla td.n, .per-tabla th.n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.per-lista { list-style:none; margin:0; padding:0; display:grid; gap:.45rem; }
+.per-lista li { display:flex; align-items:center; gap:.6rem; padding:.55rem .7rem; border:1px solid var(--color-border); border-radius:8px; font-size:.86rem; background:#fff; }
+.per-lista li .txt { flex:1; min-width:0; overflow-wrap:anywhere; }
+.per-lista li small { display:block; color:var(--color-muted); font-size:.74rem; }
+.per-lista li .x { color:#cbd5e1; cursor:pointer; }
+.per-lista li .x:hover { color:var(--color-danger); }
+.per-add { display:flex; align-items:center; justify-content:center; gap:.4rem; width:100%; margin-top:.6rem; background:none; border:1px dashed #b9c2d0;
+  border-radius:6px; color:var(--color-muted); cursor:pointer; padding:.5rem .9rem; font:inherit; font-size:.86rem; }
+.per-add:hover { border-color:var(--color-primary); color:var(--color-primary); background:#f7f9fd; }
+.tarifas-resumen { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:.6rem; margin-bottom:.8rem; }
+.tarifas-serv { border:1px solid var(--color-border); border-radius:8px; padding:.6rem .75rem; font-size:.82rem; }
+.tarifas-serv b { display:block; color:var(--color-primary); }
+.tarifas-serv .cli-chip { margin-top:.3rem; }
+.tarifas-extra { display:flex; gap:1.25rem; flex-wrap:wrap; font-size:.82rem; color:var(--color-muted); }
+.tarifas-extra b { color:var(--color-text); }
+.ctz-op { display:flex; align-items:center; gap:.6rem; padding:.55rem .7rem; border:1px solid var(--color-border); border-radius:8px; margin-bottom:.4rem; font-size:.86rem; }
+.ctz-op .num { font-family:ui-monospace,Menlo,Consolas,monospace; color:var(--color-muted); font-size:.78rem; }
+.ctz-op .dest { flex:1; }
+.ctz-op .dest small { display:block; color:var(--color-muted); }
+.ctz-op .precio { font-weight:800; font-variant-numeric:tabular-nums; white-space:nowrap; }
+.chart-fake { height:150px; display:flex; align-items:flex-end; gap:6px; padding:.5rem 0 0; }
+.chart-fake i { flex:1; background:var(--color-primary); border-radius:4px 4px 0 0; opacity:.85; }
+.chart-fake i.c { background:var(--cli-coral); }
+.chart-meses { display:flex; gap:6px; font-size:.66rem; color:var(--color-muted); }
+.chart-meses span { flex:1; text-align:center; }
+.per-links li .code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.78rem; color:var(--color-primary); }
+</style>
+</head>
+<body>
+
+<p class="maq-titulo">Pantalla Clientes (lista)</p>
+<div class="page-header"><h1>Clientes</h1>
+  <div style="display:flex;gap:.5rem;align-items:center"><span class="cli-chip cobro">91 clientes · 64 sin margen</span><button class="btn btn-coral">+ Nuevo cliente</button></div></div>
+
+<div class="cli-toolbar" style="margin-top:1rem">
+  <div class="form-group ancho"><label>Buscar</label><input type="search" placeholder="Nombre, razón social, CUIT, contacto o email…"></div>
+  <div class="form-group"><label>Tipo de cobro</label><select><option>Todos</option><option>Diario</option><option>Semanal</option><option>Quincenal</option><option>Cuenta Corriente</option></select></div>
+  <div class="form-group"><label>Estado</label><div class="cli-segmentos"><span class="cli-seg on">Activos</span><span class="cli-seg">Inactivos</span><span class="cli-seg">Todos</span></div></div>
+  <div class="form-group"><label>Margen</label><div class="cli-segmentos"><span class="cli-seg on">Todos</span><span class="cli-seg">Sin margen</span></div></div>
+  <span class="cuenta">3 de 91</span>
+</div>
+
+<div class="cli-lista"><div class="table-wrap"><table class="cli-tabla"><thead><tr>
+  <th>Cliente</th><th>CUIT</th><th>Contacto</th><th>Localidad</th><th>Cobro</th><th class="n">Margen</th><th>Estado</th><th></th></tr></thead><tbody>
+  <tr><td class="cli-nombre"><a href="#">ASAPLAST</a><span class="cli-sub">ASAPLAST S.R.L.</span></td><td class="cuit">30-71234567-8</td>
+    <td class="cli-contacto">Marcela Ríos<small>marcela@asaplast.com.ar · +54 9 11 5555-1234</small></td><td>Munro</td>
+    <td><span class="cli-chip cobro">Semanal</span></td><td class="n">75 %</td><td><span class="cli-chip activo">Activo</span></td>
+    <td class="acciones"><button class="btn btn-sm btn-outline">Perfil</button><button class="btn btn-sm btn-outline">Cotizar</button></td></tr>
+  <tr><td class="cli-nombre"><a href="#">CUEROS SANTA CRUZ</a><span class="cli-sub">CUEROS SANTA CRUZ S.A.</span></td><td class="cuit">30-65432109-1</td>
+    <td class="cli-contacto">Jorge Battaglia<small>jorge@cuerossc.com · +54 9 11 4444-9876</small></td><td>San Martín</td>
+    <td><span class="cli-chip cobro">Cuenta Corriente</span></td><td class="n"><span class="cli-chip kg">por kilo</span></td><td><span class="cli-chip activo">Activo</span></td>
+    <td class="acciones"><button class="btn btn-sm btn-outline">Perfil</button><button class="btn btn-sm btn-outline">Cotizar</button></td></tr>
+  <tr><td class="cli-nombre"><a href="#">NUMANA</a><span class="cli-sub">NUMANA INDUMENTARIA S.A.S.</span></td><td class="cuit">—</td>
+    <td class="cli-contacto">Lucía Ferreyra<small>+54 9 11 3333-2211</small></td><td>CABA</td>
+    <td><span class="cli-chip cobro">Diario</span></td><td class="n cli-sin-margen">sin margen</td><td><span class="cli-chip activo">Activo</span></td>
+    <td class="acciones"><button class="btn btn-sm btn-outline">Perfil</button><button class="btn btn-sm btn-outline">Cotizar</button></td></tr>
+</tbody></table></div></div>
+
+<p class="maq-titulo">Nuevo cliente / editar (misma pantalla, arriba de la lista)</p>
+<div class="cli-form">
+  <div class="cli-form-cab"><div><h3>Nuevo cliente</h3><p>Lo mínimo es la razón social. El resto se puede completar después desde el perfil.</p></div></div>
+  <div class="cli-form-cuerpo">
+    <div class="cli-sec"><h4>Identificación</h4><div class="cli-grid">
+      <div class="form-group"><label>Razón social *</label><input type="text" value="ASAPLAST S.R.L."></div>
+      <div class="form-group"><label>Nombre Nova</label><input type="text" value="ASAPLAST"><div class="cli-hint">Como lo llama la oficina. Es lo que se ve en todo el sistema.</div></div>
+      <div class="form-group"><label>CUIT</label><input type="text" value="30-71234567-8"></div>
+      <div class="form-group"><label>Tipo de facturación</label><select><option>Responsable inscripto</option></select></div>
+    </div></div>
+    <div class="cli-sec"><h4>Cobro</h4><div class="cli-grid">
+      <div class="form-group"><label>Tipo de cobro</label><select><option>Semanal</option></select></div>
+      <div class="form-group"><label>% Tarifa (profit)</label><input type="number" value="75"><div class="cli-hint">El general. La matriz por servicio y zona se carga en el perfil.</div></div>
+    </div></div>
+    <div class="cli-sec"><h4>Contacto</h4><div class="cli-grid">
+      <div class="form-group"><label>Contacto</label><input type="text" value="Marcela Ríos"></div>
+      <div class="form-group"><label>WhatsApp</label><input type="text" value="+54 9 11 5555-1234"></div>
+      <div class="form-group"><label>Email</label><input type="email" value="marcela@asaplast.com.ar"></div>
+      <div class="form-group"><label>Teléfono (guías y proforma)</label><input type="text" value="+54 11 4756-1234"></div>
+    </div></div>
+    <div class="cli-sec"><h4>Dirección de recolección</h4><div class="cli-grid">
+      <div class="form-group full"><label>Dirección</label><input type="text" value="Av. Mitre 2450, Munro"></div>
+      <div class="form-group"><label>Localidad</label><input type="text" value="Munro"></div>
+      <div class="form-group"><label>Provincia</label><input type="text" value="Buenos Aires"></div>
+      <div class="form-group"><label>Código postal</label><input type="text" value="1605"></div>
+    </div></div>
+  </div>
+  <div class="cli-form-pie"><button class="btn btn-outline">Cancelar</button><button class="btn btn-coral">Guardar cliente</button></div>
+</div>
+
+<p class="maq-titulo">Perfil del cliente</p>
+<div class="per-cab">
+  <div class="per-avatar">AS</div>
+  <div class="per-titulo"><h1>ASAPLAST</h1><div class="razon">ASAPLAST S.R.L. · CUIT 30-71234567-8 · cliente desde marzo 2024</div>
+    <div class="per-chips"><span class="cli-chip cobro">Semanal</span><span class="cli-chip fact">Responsable inscripto</span><span class="cli-chip activo">Activo</span><span class="cli-chip cobro">Margen 75 %</span></div></div>
+  <div class="per-acciones"><button class="btn btn-outline">← Clientes</button><button class="btn btn-outline">Editar datos</button><button class="btn btn-outline">Cargar envío</button><button class="btn btn-coral">Cotizar</button></div>
+</div>
+<div class="per-nav"><a class="on" href="#">Ficha</a><a href="#">Tarifas</a><a href="#">Cotizaciones</a><a href="#">Envíos</a><a href="#">Direcciones y libretas</a></div>
+
+<div class="per-kpis">
+  <div class="per-kpi"><div class="k">Envíos</div><div class="v">184</div><div class="s">12 este mes</div></div>
+  <div class="per-kpi verde"><div class="k">Utilidad total</div><div class="v">US$ 21.430</div><div class="s">promedio US$ 116 por envío</div></div>
+  <div class="per-kpi"><div class="k">Sin liquidar</div><div class="v">3</div><div class="s">US$ 757,30</div></div>
+  <div class="per-kpi"><div class="k">Última liquidación</div><div class="v">12/09</div><div class="s">#58 · US$ 1.106,90</div></div>
+</div>
+
+<div class="per-layout">
+  <div class="per-col">
+    <div class="per-card"><div class="per-card-cab"><div><h3>Ficha</h3><p>Datos del cliente. Se editan con "Editar datos".</p></div></div>
+      <div class="per-card-cuerpo"><div class="per-ficha">
+        <div class="per-campo"><div class="k">Contacto</div><div class="v">Marcela Ríos</div></div>
+        <div class="per-campo"><div class="k">WhatsApp</div><div class="v">+54 9 11 5555-1234</div></div>
+        <div class="per-campo"><div class="k">Email</div><div class="v">marcela@asaplast.com.ar</div></div>
+        <div class="per-campo"><div class="k">Teléfono guías</div><div class="v">+54 11 4756-1234</div></div>
+        <div class="per-campo"><div class="k">Dirección de recolección</div><div class="v">Av. Mitre 2450, Munro</div></div>
+        <div class="per-campo"><div class="k">Localidad / provincia</div><div class="v">Munro · Buenos Aires · CP 1605</div></div>
+        <div class="per-campo falta"><div class="k">Plazo de pago</div><div class="v">sin definir</div></div>
+        <div class="per-campo"><div class="k">Tipo de cambio</div><div class="v">Nación venta</div></div>
+      </div></div></div>
+
+    <div class="per-card"><div class="per-card-cab"><div><h3>Matriz de tarifas</h3><p>Lo que se le cobra, por servicio y zona. La grilla de siempre se abre con "Editar tarifas".</p></div>
+        <button class="btn btn-sm btn-outline">Armar tarifario</button><button class="btn btn-sm btn-outline">Editar tarifas</button></div>
+      <div class="per-card-cuerpo">
+        <div class="tarifas-resumen">
+          <div class="tarifas-serv"><b>DHL</b>75 % general · zona 2 al 60 %<span class="cli-chip cobro">6 celdas propias</span></div>
+          <div class="tarifas-serv"><b>UPS Expedited</b>75 % general<span class="cli-chip cobro">heredado</span></div>
+          <div class="tarifas-serv"><b>UPS Saver</b>USD 5,00 / kg en zona 3<span class="cli-chip kg">por kilo</span></div>
+        </div>
+        <div class="tarifas-extra"><span>Fuel propio: <b>usa Configuración</b></span><span>Seguro propio: <b>1 % · mín. USD 15</b></span><span>Último tarifario emitido: <b>02/09/2026</b></span></div>
+      </div></div>
+
+    <div class="per-card"><div class="per-card-cab"><div><h3>Cotizaciones</h3><p>Lo que se le cotizó. "Aceptar" marca la opción que confirmó el cliente.</p></div>
+        <select style="font-size:.8rem;padding:.3rem .5rem;width:auto"><option>Todas</option><option>Emitidas</option><option>Aceptadas</option></select></div>
+      <div class="per-card-cuerpo">
+        <div class="ctz-op"><span class="num">CTZ-214</span><div class="dest">Alemania · 12,5 kg · 2 bultos<small>16/09/2026 · vence 01/10</small></div><span class="cli-chip emitida">emitida</span><span class="precio">US$ 236,40</span><button class="btn btn-sm btn-outline">Aceptar</button><button class="btn btn-sm btn-outline">▸</button></div>
+        <div class="ctz-op"><span class="num">CTZ-209</span><div class="dest">Chile · 4 kg · 1 bulto<small>10/09/2026 · aceptada el 11/09 por Gabriela</small></div><span class="cli-chip aceptada">aceptada</span><span class="precio">US$ 118,20</span><button class="btn btn-sm btn-outline">Ver cuadro</button><button class="btn btn-sm btn-outline">▸</button></div>
+      </div></div>
+
+    <div class="per-card"><div class="per-card-cab"><div><h3>Utilidad mensual</h3><p>Últimos 12 meses.</p></div></div>
+      <div class="per-card-cuerpo"><div class="chart-fake"><i style="height:40%"></i><i style="height:55%"></i><i style="height:35%"></i><i style="height:70%"></i><i style="height:60%"></i><i style="height:80%"></i><i style="height:50%"></i><i style="height:65%"></i><i style="height:90%"></i><i style="height:75%"></i><i style="height:85%"></i><i class="c" style="height:45%"></i></div>
+        <div class="chart-meses"><span>oct</span><span>nov</span><span>dic</span><span>ene</span><span>feb</span><span>mar</span><span>abr</span><span>may</span><span>jun</span><span>jul</span><span>ago</span><span>sep</span></div></div></div>
+
+    <div class="per-card"><div class="per-card-cab"><div><h3>Historial de envíos</h3><p>Los últimos 50. Click en la guía abre el envío en Salidas.</p></div><input type="search" placeholder="Guía o país…" style="padding:.35rem .6rem;border:1px solid var(--color-border);border-radius:6px;font-size:.82rem"></div>
+      <div class="table-wrap"><table class="per-tabla"><thead><tr><th>Fecha</th><th>Guía</th><th>País</th><th>Courier</th><th class="n">Kg</th><th class="n">Cobrado</th><th class="n">Utilidad</th><th>Estado</th></tr></thead><tbody>
+        <tr><td>14/09/2026</td><td><span class="guia-num">4412345678</span></td><td>España</td><td><span class="cli-chip courier-DHL">DHL</span></td><td class="n">22,0</td><td class="n">US$ 402,70</td><td class="n" style="color:var(--cli-verde)">US$ 108,20</td><td><span class="cli-chip pendiente">sin liquidar</span></td></tr>
+        <tr><td>10/09/2026</td><td><span class="guia-num">1Z327W090491234580</span></td><td>Chile</td><td><span class="cli-chip courier-UPS">UPS</span></td><td class="n">4,0</td><td class="n">US$ 118,20</td><td class="n" style="color:var(--cli-verde)">US$ 45,37</td><td><span class="cli-chip pendiente">sin liquidar</span></td></tr>
+        <tr><td>02/09/2026</td><td><span class="guia-num">1Z327W090491234411</span></td><td>Estados Unidos</td><td><span class="cli-chip courier-UPS">UPS</span></td><td class="n">12,5</td><td class="n">US$ 236,40</td><td class="n" style="color:var(--cli-verde)">US$ 105,34</td><td><span class="cli-chip liquidado">liquidado #58</span></td></tr>
+      </tbody></table></div></div>
+  </div>
+
+  <aside class="per-col">
+    <div class="per-card"><div class="per-card-cab"><div><h3>Direcciones de recolección</h3></div></div>
+      <div class="per-card-cuerpo"><ul class="per-lista">
+        <li><div class="txt">Av. Mitre 2450, Munro<small>principal</small></div></li>
+        <li><div class="txt">Depósito Ruta 8 km 32, Pilar<small>solo los viernes</small></div><span class="x">✕</span></li>
+      </ul><button class="per-add">+ Agregar dirección</button></div></div>
+
+    <div class="per-card"><div class="per-card-cab"><div><h3>Libretas</h3><p>Lo que usan las guías y la proforma.</p></div></div>
+      <div class="per-card-cuerpo"><ul class="per-lista">
+        <li><div class="txt"><b>Remitentes</b><small>2 perfiles · ASAPLAST S.R.L. (por defecto)</small></div><button class="btn btn-sm btn-outline">Ver</button></li>
+        <li><div class="txt"><b>Destinatarios</b><small>14 guardados · último: APT DESIGN PVT LTD, India</small></div><button class="btn btn-sm btn-outline">Ver</button></li>
+        <li><div class="txt"><b>Productos</b><small>9 en el catálogo para la proforma</small></div><button class="btn btn-sm btn-outline">Ver</button></li>
+      </ul></div></div>
+
+    <div class="per-card per-links"><div class="per-card-cab"><div><h3>Links de cotización</h3><p>Para que cotice solo, con su tarifa.</p></div></div>
+      <div class="per-card-cuerpo"><ul class="per-lista">
+        <li><div class="txt"><span class="code">cotizar-cliente.html?c=7K2M9Q</span><small>DHL y UPS · vence 30/09 · 14 consultas</small></div><span class="cli-chip activo">activo</span><span class="x">✕</span></li>
+      </ul><button class="per-add">+ Armar link</button></div></div>
+  </aside>
+</div>
+
+</body></html>

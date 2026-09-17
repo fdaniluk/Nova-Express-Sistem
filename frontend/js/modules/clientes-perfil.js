@@ -5,6 +5,11 @@
 
   let clienteData = null;
   let enEdicion = false;
+  let guiasCliente = [];
+
+  // Todo lo que viene de la base pasa por acá antes de ir al HTML (17/09): una razón
+  // social con comilla doble rompía el input del perfil y guardaba el nombre cortado.
+  const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
   async function init() {
     if (!clienteId) {
@@ -15,80 +20,196 @@
     try {
       const perfil = await NovaAPI.clientes.perfil(clienteId);
       clienteData = perfil.cliente;
-      document.getElementById('page-title').textContent = clienteData.nombre;
+      guiasCliente = perfil.guias || [];
+      renderCabecera(clienteData);
       renderInfoGrid(clienteData);
-      renderStats(perfil.stats);
+      renderStats(perfil.stats, perfil.guias);
       renderChart(perfil.utilidad_mensual);
       renderGuias(perfil.guias);
-      bindEdicion(perfil);
-      await cargarDirecciones();
+      renderResumenTarifas(clienteData);
+      bindEdicion();
       bindDirecciones();
       bindTarifas();
       bindTarifario();
-      await cargarLinks();
       bindLinks();
-      await cargarCotizacionesCliente();
       bindCotizaciones();
+      bindBuscadorEnvios();
+      // Lo demás se pide EN PARALELO (antes era una cascada: perfil → direcciones → links →
+      // cotizaciones, una atrás de otra).
+      await Promise.all([cargarDirecciones(), cargarLinks(), cargarCotizacionesCliente(), cargarLibretas()]);
     } catch (err) {
       NovaUtils.showAlert(alertBox, 'Error al cargar perfil: ' + err.message);
     }
   }
 
+  // ── Cabecera: nombre, razón social, chips y acciones ─────────────────────────
+
+  function margenDe(c) {
+    const pct = Number(c.tarifa_pct) || 0;
+    const celdas = Number(c.matriz_celdas) || 0;
+    const kg = Number(c.kg_celdas) || 0;
+    if (c.modo_tarifa === 'por_kg' || kg > 0) return { texto: 'por kilo', clase: 'kg' };
+    if (celdas > 0) return { texto: `${pct} % + matriz`, clase: 'matriz' };
+    if (pct > 0) return { texto: `Margen ${pct} %`, clase: 'cobro' };
+    return { texto: 'sin margen', clase: 'sin-margen' };
+  }
+
+  function iniciales(nombre) {
+    const partes = String(nombre || '').trim().split(/\s+/).filter(Boolean);
+    return (partes.length >= 2 ? partes[0][0] + partes[1][0] : String(nombre || '?').slice(0, 2)).toUpperCase();
+  }
+
+  function renderCabecera(c) {
+    const nombre = c.nombre_nova || c.nombre;
+    document.title = `${nombre} – Nova Express`;
+    document.getElementById('page-title').textContent = nombre;
+    document.getElementById('per-avatar').textContent = iniciales(nombre);
+    const desde = c.created_at ? new Date(c.created_at).toLocaleDateString('es-AR', { month: 'long', year: 'numeric' }) : '';
+    document.getElementById('per-razon').innerHTML = [c.nombre_nova ? esc(c.nombre) : '', c.cuit ? `CUIT ${esc(c.cuit)}` : '', desde ? `cliente desde ${esc(desde)}` : '']
+      .filter(Boolean).join(' · ');
+    const m = margenDe(c);
+    document.getElementById('per-chips').innerHTML = [
+      `<span class="cli-chip cobro">${esc(NovaUtils.tipoCobroLabel(c.tipo_cobro))}</span>`,
+      c.tipo_facturacion ? `<span class="cli-chip fact">${esc(c.tipo_facturacion)}</span>` : '',
+      c.activo ? '<span class="cli-chip activo">Activo</span>' : '<span class="cli-chip inactivo">Inactivo</span>',
+      `<span class="cli-chip ${m.clase}">${esc(m.texto)}</span>`,
+    ].join('');
+    document.getElementById('per-cab').classList.toggle('inactivo', !c.activo);
+    document.getElementById('btn-cotizar').href = `cotizador.html?cliente=${c.id}`;
+    document.getElementById('btn-cargar-envio').href = `envios.html?cliente=${c.id}`;
+  }
+
+  // Resumen de la matriz, arriba de la grilla: "75 % general · 6 celdas propias" por
+  // servicio. La grilla completa se abre con "Editar tarifas" (pedido de Felipe: que el
+  // número de arriba no mienta cuando la matriz dice otra cosa).
+  function renderResumenTarifas(c) {
+    const cont = document.getElementById('tarifas-resumen');
+    const extra = document.getElementById('tarifas-extra');
+    if (!cont) return;
+    const pct = Number(c.tarifa_pct) || 0;
+    const celdas = Number(c.matriz_celdas) || 0;
+    const kg = Number(c.kg_celdas) || 0;
+    const tramos = Number(c.tramos_propios) || 0;
+    const chip = kg ? `<span class="cli-chip kg">${kg} precio(s) por kilo</span>`
+      : (celdas ? `<span class="cli-chip matriz">${celdas} celda(s) propia(s)</span>` : `<span class="cli-chip ${pct ? 'cobro' : 'sin-margen'}">${pct ? 'solo el general' : 'sin margen'}</span>`);
+    cont.innerHTML = `<div class="tarifas-serv"><b>General</b>${pct ? `${pct} % sobre el flete` : 'sin % general'}${chip}</div>
+      <div class="tarifas-serv"><b>Matriz</b>${celdas ? `${celdas} celda(s) de % por servicio / zona / peso` : 'sin celdas propias'}${kg ? `<br>${kg} precio(s) por kilo` : ''}${tramos ? '<span class="cli-chip cobro">tramos propios</span>' : ''}</div>`;
+    const vacio = (v) => v === null || v === undefined || v === '';
+    extra.innerHTML = `<span>Fuel propio: <b>${vacio(c.fuel_pct_propio) ? 'usa Configuración' : esc(c.fuel_pct_propio) + ' %'}</b></span>
+      <span>Seguro propio: <b>${vacio(c.seguro_pct_propio) ? 'el del courier' : esc(c.seguro_pct_propio) + ' %' + (vacio(c.seguro_min_propio) ? '' : ' · mín. USD ' + Number(c.seguro_min_propio).toFixed(2))}</b></span>`;
+  }
+
+  // Libretas de Guías (17/09): cuántos remitentes y destinatarios tiene el cliente y a
+  // dónde ir a cargarlos. Se administran desde Guías; acá se ven.
+  async function cargarLibretas() {
+    const ul = document.getElementById('libretas-lista');
+    if (!ul) return;
+    try {
+      const [rem, dest] = await Promise.all([
+        NovaAPI.clientes.remitentes.listar(clienteId).catch(() => []),
+        NovaAPI.clientes.destinatarios.listar(clienteId).catch(() => []),
+      ]);
+      const perfiles = rem.filter((r) => r.id != null);
+      const ficha = rem.find((r) => r.id == null);
+      const faltaFicha = ficha && (!ficha.direccion || !ficha.ciudad || !ficha.codigo_postal || !ficha.telefono);
+      const ultimo = dest[0];
+      ul.innerHTML = `
+        <li><div class="txt"><b>Remitentes</b><small>La ficha del cliente${faltaFicha ? ' <span style="color:var(--cli-ambar);font-weight:700">(faltan datos para la guía)</span>' : ''}${perfiles.length ? ` + ${perfiles.length} perfil${perfiles.length === 1 ? '' : 'es'}` : ''}</small></div>
+          <a class="btn btn-sm btn-outline" href="guias.html?cliente=${clienteId}">Ver</a></li>
+        <li><div class="txt"><b>Destinatarios</b><small>${dest.length ? `${dest.length} guardado${dest.length === 1 ? '' : 's'}${ultimo ? ` · último: ${esc(ultimo.nombre)}${ultimo.pais ? ', ' + esc(ultimo.pais) : ''}` : ''}` : 'ninguno todavía'}</small></div>
+          <a class="btn btn-sm btn-outline" href="guias.html?cliente=${clienteId}">Ver</a></li>`;
+    } catch (e) {
+      ul.innerHTML = `<li class="vacio">No se pudieron cargar: ${esc(e.message)}</li>`;
+    }
+  }
+
   // ── Info del cliente ──────────────────────────────────
 
+  // Las mismas secciones que el alta en clientes.html. `guia: true` marca lo que UPS
+  // imprime como remitente: si falta, se ve en ámbar (Guías no deja emitir sin eso).
   const CAMPOS = [
-    { key: 'nombre',               label: 'Razón social',          type: 'text',   full: false },
-    { key: 'cuit',                  label: 'CUIT',                  type: 'text',   full: false },
-    { key: 'tipo_cobro',            label: 'Tipo de cobro',         type: 'select', opts: ['D','S','Q','CC'], labels: ['Diario','Semanal','Quincenal','Cta. Cte.'], full: false },
-    { key: 'tarifa_pct',            label: '% Tarifa (profit)',     type: 'number', full: false },
-    { key: 'tipo_facturacion',      label: 'Tipo facturación',      type: 'select', opts: ['Responsable inscripto','Monotributista','Exento','Consumidor final'], full: false },
-    { key: 'contacto',             label: 'Contacto',              type: 'text',   full: false },
-    { key: 'email',                label: 'Email',                 type: 'email',  full: false },
-    { key: 'whatsapp',             label: 'WhatsApp',              type: 'text',   full: false },
-    { key: 'codigo_postal',        label: 'Código postal',         type: 'text',   full: false },
-    { key: 'localidad',            label: 'Localidad',             type: 'text',   full: false },
-    { key: 'provincia',            label: 'Provincia',             type: 'text',   full: false },
-    { key: 'telefono',             label: 'Teléfono (guías)',      type: 'text',   full: false },
-    { key: 'direccion_recoleccion',label: 'Dirección recolección', type: 'text',   full: true  },
+    { sec: 'Identificación' },
+    { key: 'nombre',               label: 'Razón social',          type: 'text' },
+    { key: 'nombre_nova',          label: 'Nombre Nova',           type: 'text' },
+    { key: 'cuit',                 label: 'CUIT',                  type: 'text', guia: true },
+    { key: 'tipo_facturacion',     label: 'Tipo facturación',      type: 'select', opts: ['Responsable inscripto','Monotributista','Exento','Consumidor final'] },
+    { sec: 'Cobro' },
+    { key: 'tipo_cobro',           label: 'Tipo de cobro',         type: 'select', opts: ['D','S','Q','CC'], labels: ['Diario','Semanal','Quincenal','Cta. Cte.'] },
+    { key: 'tarifa_pct',           label: '% Tarifa general',      type: 'number' },
+    { key: 'plazo_pago_dias',      label: 'Plazo de pago (días)',  type: 'number', vacioTxt: 'sin definir' },
+    { key: 'tipo_cambio',          label: 'Tipo de cambio',        type: 'select', opts: ['venta','promedio'], labels: ['Nación venta','Nación promedio'] },
+    { sec: 'Contacto y recolección' },
+    { key: 'contacto',             label: 'Contacto',              type: 'text' },
+    { key: 'whatsapp',             label: 'WhatsApp',              type: 'text' },
+    { key: 'email',                label: 'Email',                 type: 'email' },
+    { key: 'direccion_recoleccion',label: 'Dirección de recolección', type: 'text', full: true, guia: true },
+    { sec: 'Datos para guías y proforma' },
+    { key: 'telefono',             label: 'Teléfono',              type: 'text', guia: true },
+    { key: 'localidad',            label: 'Localidad',             type: 'text', guia: true },
+    { key: 'provincia',            label: 'Provincia',             type: 'text', guia: true },
+    { key: 'codigo_postal',        label: 'Código postal',         type: 'text', guia: true },
   ];
 
   function renderInfoGrid(c) {
     const grid = document.getElementById('info-grid');
+    const faltanGuia = [];
     grid.innerHTML = CAMPOS.map((campo) => {
+      if (campo.sec) return `<div class="per-ficha-sec">${campo.sec}</div>`;
       const raw = c[campo.key];
-      let displayVal = raw != null && raw !== '' ? raw : '—';
+      const vacio = raw == null || raw === '';
+      let displayVal = vacio ? (campo.vacioTxt || '—') : String(raw);
 
       // Para select con labels legibles
       if (campo.type === 'select' && campo.labels && raw != null) {
         const idx = campo.opts.indexOf(raw);
         if (idx >= 0) displayVal = campo.labels[idx];
       }
-      if (campo.key === 'tarifa_pct') displayVal = raw != null ? raw + '%' : '—';
+      if (campo.key === 'tarifa_pct') {
+        const m = margenDe(c);
+        displayVal = m.clase === 'kg' ? `${raw != null ? raw : 0} % · cobra por kilo` : (m.clase === 'matriz' ? `${raw} % + matriz` : `${raw != null ? raw : 0} %`);
+      }
+      if (campo.guia && vacio) faltanGuia.push(campo.label);
 
       let inputEl = '';
       if (campo.type === 'select') {
         const opts = campo.opts
-          .map((o, i) => `<option value="${o}" ${o === raw ? 'selected' : ''}>${campo.labels ? campo.labels[i] : o}</option>`)
+          .map((o, i) => `<option value="${esc(o)}" ${o === raw ? 'selected' : ''}>${esc(campo.labels ? campo.labels[i] : o)}</option>`)
           .join('');
         inputEl = `<select id="pf-${campo.key}">${opts}</select>`;
       } else {
-        inputEl = `<input type="${campo.type}" id="pf-${campo.key}" value="${raw != null ? raw : ''}" ${campo.key === 'tarifa_pct' ? 'min="0" max="500" step="0.5"' : ''}>`;
+        const attrs = campo.key === 'tarifa_pct' ? 'min="0" max="500" step="0.5"' : (campo.key === 'plazo_pago_dias' ? 'min="0" step="1" placeholder="sin definir"' : '');
+        inputEl = `<input type="${campo.type}" id="pf-${campo.key}" value="${esc(vacio ? '' : raw)}" ${attrs}>`;
       }
 
       return `<div class="info-field${campo.full ? ' full' : ''}" id="field-${campo.key}">
         <span class="field-label">${campo.label}</span>
-        <span class="field-value">${displayVal}</span>
+        <span class="field-value${vacio ? (campo.guia ? ' falta' : ' vacio') : ''}">${esc(displayVal)}</span>
         ${inputEl}
       </div>`;
     }).join('');
+    const aviso = document.createElement('div');
+    aviso.className = 'per-ficha-aviso';
+    aviso.textContent = faltanGuia.length ? `Para emitir guías falta: ${faltanGuia.join(', ')}.` : '';
+    grid.appendChild(aviso);
   }
 
   // ── Stats ─────────────────────────────────────────────
 
-  function renderStats(stats) {
+  function renderStats(stats, guias = []) {
+    const mesActual = new Date().toISOString().slice(0, 7);
+    const esteMes = guias.filter((g) => !g.no_volo && String(g.fecha || '').startsWith(mesActual)).length;
+    const pend = guias.filter((g) => g.estado === 'pendiente');
+    const pendTotal = pend.reduce((s, g) => s + (Number(g.total_cobrado_usd) || 0), 0);
     document.getElementById('stat-guias').textContent = stats.total_guias;
+    document.getElementById('stat-guias-sub').textContent = esteMes ? `${esteMes} este mes` : '';
     document.getElementById('stat-utilidad').textContent = NovaUtils.formatMoney(stats.utilidad_total_usd);
-    document.getElementById('stat-ultima-liq').textContent = stats.ultima_liquidacion || '—';
+    document.getElementById('stat-utilidad-sub').textContent = stats.total_guias
+      ? `promedio ${NovaUtils.formatMoney(stats.utilidad_total_usd / stats.total_guias)} por envío` : '';
+    document.getElementById('stat-sin-liquidar').textContent = String(pend.length);
+    document.getElementById('stat-sin-liquidar-sub').textContent = pend.length ? NovaUtils.formatMoney(pendTotal) : 'todo liquidado';
+    // Viene como "2026-08": se muestra como mes/año.
+    const ul = stats.ultima_liquidacion;
+    document.getElementById('stat-ultima-liq').textContent = ul && /^\d{4}-\d{2}$/.test(ul) ? `${ul.slice(5, 7)}/${ul.slice(0, 4)}` : (ul || '—');
   }
 
   // ── Chart utilidad mensual ────────────────────────────
@@ -160,23 +281,38 @@
 
   // ── Tabla de guías ────────────────────────────────────
 
+  let busquedaEnvios = '';
+
+  function bindBuscadorEnvios() {
+    const input = document.getElementById('buscador-envios');
+    if (!input) return;
+    input.addEventListener('input', () => { busquedaEnvios = input.value; renderGuias(guiasCliente); });
+  }
+
   function renderGuias(guias) {
     const tbody = document.getElementById('tabla-guias');
     if (!guias || !guias.length) {
-      tbody.innerHTML = '<tr><td colspan="7" class="empty">Este cliente no tiene envíos registrados.</td></tr>';
+      tbody.innerHTML = '<tr><td colspan="8" class="empty">Este cliente no tiene envíos registrados.</td></tr>';
       return;
     }
-    tbody.innerHTML = guias
+    const q = busquedaEnvios.trim().toLowerCase();
+    const lista = q ? guias.filter((g) => `${g.numero_guia} ${g.pais}`.toLowerCase().includes(q)) : guias;
+    if (!lista.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty">Ningún envío coincide.</td></tr>';
+      return;
+    }
+    const estadoTxt = { no_volo: 'no voló', liquidado: 'liquidado', pendiente: 'sin liquidar' };
+    tbody.innerHTML = lista
       .map(
-        (g) => `<tr${g.no_volo ? ' style="opacity:.6"' : ''}>
+        (g) => `<tr class="${g.no_volo ? 'no-volo' : ''}">
         <td>${NovaUtils.formatDate(g.fecha)}</td>
-        <td style="font-family:monospace;font-size:0.85rem">${g.numero_guia}</td>
-        <td>${g.pais}</td>
-        <td><span class="badge badge-${g.courier.toLowerCase()}">${g.courier}</span></td>
+        <td><span class="guia-num">${esc(g.numero_guia)}</span></td>
+        <td>${esc(g.pais)}</td>
+        <td><span class="cli-chip courier-${esc(String(g.courier || '').toUpperCase())}">${esc(g.courier)}</span></td>
         <td>${g.asegurado ? 'Sí' : 'No'}</td>
-        <td>${NovaUtils.formatMoney(g.total_cobrado_usd)}</td>
-        <td style="color:${g.no_volo ? 'var(--color-muted)' : 'var(--color-success)'};font-weight:600">${g.no_volo ? '—' : NovaUtils.formatMoney(g.utilidad_usd)}</td>
-        <td><span class="badge badge-${g.estado}">${g.estado === 'no_volo' ? 'no voló' : g.estado}</span></td>
+        <td class="n">${NovaUtils.formatMoney(g.total_cobrado_usd)}</td>
+        <td class="n ${g.no_volo ? '' : 'util'}">${g.no_volo ? '—' : NovaUtils.formatMoney(g.utilidad_usd)}</td>
+        <td><span class="cli-chip ${esc(g.estado)}">${estadoTxt[g.estado] || esc(g.estado)}</span></td>
       </tr>`
       )
       .join('');
@@ -184,7 +320,7 @@
 
   // ── Edición inline ────────────────────────────────────
 
-  function bindEdicion(perfil) {
+  function bindEdicion() {
     const btnEditar = document.getElementById('btn-editar');
     const btnGuardar = document.getElementById('btn-guardar');
     const btnCancelar = document.getElementById('btn-cancelar-edit');
@@ -211,31 +347,30 @@
       try {
         const data = {};
         CAMPOS.forEach((campo) => {
+          if (!campo.key) return;
           const el = document.getElementById(`pf-${campo.key}`);
           if (!el) return;
           const val = el.value.trim();
           if (campo.key === 'tarifa_pct') data[campo.key] = parseFloat(val) || 0;
+          else if (campo.key === 'plazo_pago_dias') data[campo.key] = val === '' ? null : parseInt(val, 10);
           else if (campo.key === 'nombre') data.razon_social = val;
-          else data[campo.key] = val || null;
+          // Los textos viajan SIEMPRE (vacío = ''): así el servidor los puede vaciar.
+          else data[campo.key] = val;
         });
 
         const updated = await NovaAPI.clientes.actualizar(clienteId, data);
         clienteData = updated;
         NovaUtils.showAlert(alertBox, 'Datos actualizados correctamente', 'success');
-        document.getElementById('page-title').textContent = updated.nombre;
 
         enEdicion = false;
         document.querySelectorAll('.info-field').forEach((f) => f.classList.remove('editing'));
         btnEditar.classList.remove('hidden');
         btnGuardar.classList.add('hidden');
         btnCancelar.classList.add('hidden');
+        renderCabecera(updated);
         renderInfoGrid(updated);
-
-        // Refrescar stats y guías con datos actualizados
-        const nuevoPerfil = await NovaAPI.clientes.perfil(clienteId);
-        renderStats(nuevoPerfil.stats);
-        renderChart(nuevoPerfil.utilidad_mensual);
-        renderGuias(nuevoPerfil.guias);
+        renderResumenTarifas(updated);
+        // Las stats y las guías no cambian por editar la ficha: no se vuelve a pedir el perfil.
       } catch (err) {
         NovaUtils.showAlert(alertBox, err.message);
       }
@@ -258,15 +393,15 @@
   function renderDirecciones() {
     const list = document.getElementById('dirs-list');
     if (!direcciones.length) {
-      list.innerHTML = '<li style="color:var(--color-muted);font-size:0.9rem">Sin direcciones registradas.</li>';
+      list.innerHTML = '<li class="vacio">Sin direcciones registradas.</li>';
       return;
     }
     list.innerHTML = direcciones
       .map(
         (d) => `<li>
-          <span class="dir-text">${d.direccion}</span>
+          <span class="txt dir-text">${esc(d.direccion)}</span>
           ${d.es_principal ? '<span class="badge-principal">principal</span>' : ''}
-          <button class="btn-borrar-dir" data-dir-id="${d.id}" title="Eliminar" ${d.es_principal ? 'disabled' : ''}>✕</button>
+          <button class="btn-borrar-dir" data-dir-id="${d.id}" title="${d.es_principal ? 'La principal se edita en la ficha' : 'Eliminar'}" ${d.es_principal ? 'disabled' : ''}>✕</button>
         </li>`
       )
       .join('');
@@ -515,6 +650,14 @@
       await Promise.all(pedidos);
       renderModo();
       renderGrid();
+      // Los conteos de la cabecera ("75 % + matriz") salen del servidor: se refrescan
+      // después de cada cambio en la grilla para que el número de arriba no mienta.
+      try {
+        clienteData = await NovaAPI.clientes.obtener(clienteId);
+        renderCabecera(clienteData);
+        renderResumenTarifas(clienteData);
+        if (!enEdicion) renderInfoGrid(clienteData);
+      } catch (_) { /* el resumen viejo queda hasta la próxima recarga */ }
     } catch (err) {
       NovaUtils.showAlert(alertBox, 'Error al cargar tarifas: ' + err.message);
     }
@@ -908,6 +1051,9 @@
       const abrir = panel.classList.contains('hidden');
       panel.classList.toggle('hidden');
       btnEditar.textContent = abrir ? 'Ocultar tarifas' : 'Editar tarifas';
+      // Con la grilla abierta el fuel y el seguro se editan ahí mismo: la línea resumen sobra.
+      const extra = document.getElementById('tarifas-extra');
+      if (extra) extra.classList.toggle('hidden', abrir);
       if (abrir && !tarifasCargado) {
         tarifasCargado = true;
         cargarMatriz();
@@ -940,6 +1086,7 @@
     async function guardarFuel(valor) {
       try {
         clienteData = await NovaAPI.clientes.actualizar(clienteId, { fuel_pct_propio: valor });
+        renderResumenTarifas(clienteData);
         renderModo();
         NovaUtils.showAlert(
           alertBox,
@@ -973,6 +1120,7 @@
           seguro_min_propio: pctVal === null ? null : minVal,
         });
         renderSeguro();
+        renderResumenTarifas(clienteData);
         NovaUtils.showAlert(
           alertBox,
           pctVal === null
@@ -1505,26 +1653,25 @@
     try {
       const links = await NovaAPI.cotizadorLinks.deCliente(clienteId);
       if (!links.length) {
-        ul.innerHTML = '<li class="empty" style="padding:0">Este cliente no tiene links todavía.</li>';
+        ul.innerHTML = '<li class="vacio">Este cliente no tiene links todavía.</li>';
         return;
       }
       ul.innerHTML = links.map((l) => {
         const url = `${location.origin}/cotizar/${l.codigo}`;
-        const estado = !l.activo ? '<span style="color:#8c2f26;font-weight:600">dado de baja</span>'
+        const estado = !l.activo ? '<span class="cli-chip inactivo">dado de baja</span>'
           : (l.vence_en < new Date().toISOString().slice(0, 10)
-            ? '<span style="color:#7a5a12;font-weight:600">vencido</span>'
-            : `<span style="color:#1f5136;font-weight:600">activo</span> · vence ${l.vence_en}`);
-        return `<li style="border:1px solid #e2e0d8;border-radius:8px;padding:8px 10px;margin-bottom:6px;font-size:12.5px">
-          <div style="display:flex;justify-content:space-between;gap:8px;align-items:center;flex-wrap:wrap">
-            <div style="min-width:0">
-              <div style="font-family:monospace;font-size:11.5px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:420px" title="${url}">${url}</div>
-              <div style="color:#777">${estado} · ${l.couriers}${l.nombrar ? '' : ' · sin nombrar el servicio'} · ${l.consultas} consulta${l.consultas === 1 ? '' : 's'}</div>
+            ? '<span class="cli-chip pendiente">vencido</span>'
+            : `<span class="cli-chip activo">activo</span> · vence ${esc(l.vence_en)}`);
+        return `<li>
+            <div class="txt">
+              <div class="code" title="${esc(url)}">${esc(url)}</div>
+              <small>${estado} · ${esc(l.couriers)}${l.nombrar ? '' : ' · sin nombrar el servicio'} · ${l.consultas} consulta${l.consultas === 1 ? '' : 's'}</small>
             </div>
             <div style="display:flex;gap:6px;flex-shrink:0">
-              <button class="btn btn-secondary btn-sm" data-copiar="${url}">Copiar</button>
-              ${l.activo ? `<button class="btn btn-secondary btn-sm" data-baja="${l.id}">Dar de baja</button>` : ''}
+              <button class="btn btn-outline btn-sm" data-copiar="${esc(url)}">Copiar</button>
+              ${l.activo ? `<button class="btn btn-outline btn-sm" data-baja="${l.id}">Baja</button>` : ''}
             </div>
-          </div></li>`;
+          </li>`;
       }).join('');
       ul.querySelectorAll('[data-copiar]').forEach((b) => b.addEventListener('click', async () => {
         try { await navigator.clipboard.writeText(b.dataset.copiar); b.textContent = '¡Copiado!'; }

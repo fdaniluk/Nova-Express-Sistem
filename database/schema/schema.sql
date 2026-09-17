@@ -46,7 +46,11 @@ CREATE TABLE IF NOT EXISTS clientes (
   -- seguro_min_propio vacío = sin piso. Existe porque el mínimo negociado no es igual
   -- para todos los clientes.
   seguro_pct_propio    REAL,
-  seguro_min_propio    REAL
+  seguro_min_propio    REAL,
+  -- Cobranzas (17/09/2026): plazo de pago acordado en días (NULL = sin definir) y qué
+  -- cotización del Banco Nación se toma para los pagos en pesos ('venta' o 'promedio').
+  plazo_pago_dias      INTEGER,
+  tipo_cambio          TEXT DEFAULT 'venta'
 );
 
 -- Configuración por courier (fuel y umbrales de negocio)

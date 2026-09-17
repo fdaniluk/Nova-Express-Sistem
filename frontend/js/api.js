@@ -57,10 +57,16 @@ const api = {
   delete: (path) => request(path, { method: 'DELETE' }),
 
   clientes: {
-    listar: () => api.get('/clientes'),
+    // Sin parámetros trae SOLO los activos (los selectores de todo el sistema). La
+    // pantalla de Clientes pide { todos: 1 } para ver también a los inactivos (17/09).
+    listar: (params) => {
+      const q = params ? new URLSearchParams(params).toString() : '';
+      return api.get(`/clientes${q ? `?${q}` : ''}`);
+    },
     obtener: (id) => api.get(`/clientes/${id}`),
     crear: (data) => api.post('/clientes', data),
     actualizar: (id, data) => api.put(`/clientes/${id}`, data),
+    activar: (id, activo = true) => api.put(`/clientes/${id}/activo`, { activo }),
     eliminar: (id) => api.delete(`/clientes/${id}`),
     perfil: (id) => api.get(`/clientes/${id}/perfil`),
   },
