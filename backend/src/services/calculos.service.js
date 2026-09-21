@@ -186,7 +186,7 @@ function contenidoDe(tipoPaquete) {
   return String(tipoPaquete ?? '').toLowerCase() === 'd' ? 'documento' : 'paquete';
 }
 
-function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zonaOverride, bultos = [], residencial = false, remota = false, entrega, ddp = false, proteccionDoc = false, contenido = 'paquete', precioKgVenta = null, seguroPropio = null }) {
+function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zonaOverride, bultos = [], residencial = false, remota = false, entrega, ddp = false, proteccionDoc = false, contenido = 'paquete', precioKgVenta = null, seguroPropio = null, fecha = null }) {
   const pf     = Number(pesoFacturable) || 0;
   const fuel   = (Number(fuelPct)   || 0) / 100;
   const profit = (Number(profitPct) || 0) / 100;
@@ -211,6 +211,7 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
     proteccionDoc,
     contenido,
     precioKgVenta,
+    fecha,
     // Seguro negociado del cliente ({pct, min}) o null. Lo resuelve profit.service; acá
     // solo se pasa. Reemplaza la escala de seguro del courier en DHL y en UPS.
     seguroPropio,
@@ -277,7 +278,7 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
 // Por construcción flete+seguro+fuel+adicionales == total (costo a profit 0).
 // El fuelPct debe ser el autoritativo de config (lo resuelve el caller).
 // Devuelve null si el país no figura en las tablas y no hay zonaOverride.
-function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zonaOverride, bultos = [], residencial = false, remota = false, entrega, ddp = false, proteccionDoc = false, contenido = 'paquete' }) {
+function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zonaOverride, bultos = [], residencial = false, remota = false, entrega, ddp = false, proteccionDoc = false, contenido = 'paquete', fecha = null }) {
   const paisCanon = canonizarPais(pais) || pais || '';
   const r = cotizarServicioCore(servicio, {
     pais: paisCanon,
@@ -294,6 +295,7 @@ function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zo
     ddp,
     proteccionDoc,
     contenido,
+    fecha,
   });
   if (!r) return null;
 

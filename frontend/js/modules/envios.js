@@ -515,6 +515,9 @@
     // Son DOS cargos distintos de UPS: extendida (42.15 o 0.92/kg) y remota (5.86 por
     // envío a EE.UU.). Antes había un solo casillero y todo pagaba la de extendida.
     document.getElementById('entrega').addEventListener('change', debounce(updateCotizacion, 400));
+    // CP destino → tabla de áreas de UPS → marca sola la zona de entrega (se puede corregir).
+    document.getElementById('cp_destino').addEventListener('input', debounce(buscarAreaPorCp, 500));
+    document.getElementById('pais_destino').addEventListener('change', debounce(buscarAreaPorCp, 500));
 
     // Aviso de guía mal tipeada. El número lleva un dígito verificador, así que un error
     // de tipeo se detecta al instante y sin consultar al courier. AVISA, no bloquea: si
@@ -631,6 +634,29 @@
       console.warn('[envios] Error al calcular pesos:', err.message);
       document.getElementById('peso-preview').textContent = 'Peso volumétrico: — | Peso facturable: —';
       document.getElementById('peso-preview').dataset.facturable = '';
+    }
+  }
+
+  // Consulta /api/ups-areas/buscar con país + CP. Si UPS lo tiene como área extendida o
+  // remota, setea el select de zona de entrega y recotiza; si no, lo deja en normal.
+  async function buscarAreaPorCp() {
+    const cp = document.getElementById('cp_destino').value.trim();
+    const pais = document.getElementById('pais_destino').value;
+    const hint = document.getElementById('cp_destino_hint');
+    if (!cp || !pais) { if (hint) hint.textContent = ''; return; }
+    try {
+      const r = await NovaAPI.get('/ups-areas/buscar?pais=' + encodeURIComponent(pais) + '&cp=' + encodeURIComponent(cp));
+      const sel = document.getElementById('entrega');
+      if (r.zona && r.zona !== 'normal') {
+        sel.value = r.zona;
+        if (hint) hint.textContent = 'UPS: ' + r.etiqueta;
+      } else {
+        sel.value = 'normal';
+        if (hint) hint.textContent = r.iso ? 'Sin recargo de área' : '';
+      }
+      updateCotizacion();
+    } catch (e) {
+      if (hint) hint.textContent = '';
     }
   }
 
@@ -797,6 +823,7 @@
         // "Sin numerar" (salida 0): marcable ya en el alta, pedido de administración (14/08).
         num_sal_cero: document.getElementById('sin_numerar').checked ? 1 : 0,
         entrega: document.getElementById('entrega').value,
+        cp_destino: document.getElementById('cp_destino').value.trim() || null,
         // `remota` se sigue guardando por compatibilidad: hay pantallas y consultas que
         // lo leen, y los envíos viejos solo tienen ese flag.
         remota: document.getElementById('entrega').value !== 'normal' ? 1 : 0,
@@ -912,6 +939,7 @@
     aplicarVisibilidadProteccionDoc(false);
     // Envío viejo: solo tiene el flag `remota`, que equivalía a la tarifa de extendida.
     document.getElementById('entrega').value = envio.entrega || (envio.remota ? 'extendida' : 'normal');
+    document.getElementById('cp_destino').value = envio.cp_destino || '';
     document.getElementById('total_cobrado').value = envio.total_cobrado;
     document.getElementById('observaciones').value = envio.observaciones || '';
     renderBultos();

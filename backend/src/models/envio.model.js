@@ -222,6 +222,9 @@ async function calcularDesgloseAlCosto(data, pesoFacturable) {
     fuelPct,
     zonaOverride: data.zona,
     bultos,
+    // Fecha del envío: el surge de importación cambia el 27-sep-2026 y un envío se
+    // congela con la tarifa de su fecha, no con la de hoy.
+    fecha: data.fecha || null,
     remota: data.remota ? true : false,
     // Zona de entrega ('extendida' | 'remota'). Si el envío es viejo y solo tiene el flag
     // `remota`, el motor lo lee como 'extendida', que es la tarifa que ya se le cobró.
@@ -298,8 +301,8 @@ async function crear(data) {
           numero_salida, bulto, tipo_paquete, asegurado, ddp, proteccion_doc, remota, entrega,
           flete, descuento, seguro, fuel, fuel_pct, fuel_origen, derechos, adicionales, otros, profit, porcentaje,
           extras_json, servicio_ups, num_sal_cero, seguro_venta, tarifa_50,
-          destinatario_id, contenido, proforma_numero, guia_id, remitente_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          destinatario_id, contenido, proforma_numero, guia_id, remitente_id, cp_destino
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         data.cliente_id,
@@ -358,7 +361,8 @@ async function crear(data) {
         data.contenido ? String(data.contenido).trim() : null,
         data.proforma_numero ? String(data.proforma_numero).trim() : null,
         guiaId,
-        data.remitente_id || null
+        data.remitente_id || null,
+        data.cp_destino ? String(data.cp_destino).trim() : null
       );
     const envioId = result.lastInsertRowid;
     if (hasBultos) await saveBultos(envioId, data.bultos);
@@ -485,6 +489,7 @@ async function actualizar(id, data) {
         num_sal_cero = ?,
         seguro_venta = ?,
         destinatario_id = ?, contenido = ?, proforma_numero = ?, remitente_id = ?,
+        cp_destino = ?,
         ${costoSet},
         updated_at = datetime('now', 'localtime')
        WHERE id = ?`
@@ -521,6 +526,7 @@ async function actualizar(id, data) {
       data.contenido !== undefined ? (String(data.contenido ?? '').trim() || null) : actual.contenido,
       data.proforma_numero !== undefined ? (String(data.proforma_numero ?? '').trim() || null) : actual.proforma_numero,
       data.remitente_id !== undefined ? (data.remitente_id || null) : actual.remitente_id,
+      data.cp_destino !== undefined ? (String(data.cp_destino ?? '').trim() || null) : actual.cp_destino,
       // Los nueve de abajo son siempre los mismos parámetros; lo que cambia es el SQL de
       // arriba. Sin recálculo van todos NULL y el COALESCE deja la columna como estaba;
       // con el envío sin pesar, esos mismos NULL la vacían.

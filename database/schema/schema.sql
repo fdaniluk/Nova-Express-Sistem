@@ -1019,3 +1019,28 @@ CREATE TABLE IF NOT EXISTS cc_tipo_cambio (
   fuente    TEXT NOT NULL DEFAULT 'manual',
   creado_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
+
+-- ============================================================================
+-- Áreas de entrega de UPS (Extended Area Surcharge definitions), 21/09/2026.
+-- Fuente: ea-surcharge-ar-es.xlsx de ups.com (68.549 rangos, 86 países). Se carga desde
+-- backend/data/ups_areas.tsv.gz en migrateUpsAreas() cuando la tabla está vacía.
+-- Rango de código postal (cp_desde..cp_hasta) o ciudad (cuando el país no usa CP).
+-- recargo_destino: no_metropolitana · entrega · entrega_extendida · remota · remota_extendida
+--   → el cotizador lo traduce a zona de entrega 'extendida' (los tres primeros) o 'remota'.
+-- recargo_origen: lo que UPS cobra por RECOGER ahí (sirve para pickups en Argentina).
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS ups_areas (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  iso             TEXT NOT NULL,
+  cp_desde        TEXT NOT NULL DEFAULT '',
+  cp_hasta        TEXT NOT NULL DEFAULT '',
+  numerico        INTEGER NOT NULL DEFAULT 1,
+  cp_desde_num    INTEGER,
+  cp_hasta_num    INTEGER,
+  ciudad          TEXT NOT NULL DEFAULT '',
+  recargo_origen  TEXT NOT NULL DEFAULT '',
+  recargo_destino TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_ups_areas_iso_num ON ups_areas(iso, cp_desde_num, cp_hasta_num);
+CREATE INDEX IF NOT EXISTS idx_ups_areas_iso_txt ON ups_areas(iso, cp_desde, cp_hasta);
+CREATE INDEX IF NOT EXISTS idx_ups_areas_ciudad  ON ups_areas(iso, ciudad);

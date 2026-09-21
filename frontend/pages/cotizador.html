@@ -182,6 +182,10 @@
                   </div>
                 </div>
                 <div class="checks-grid">
+                  <label class="check-label">CP destino
+                    <input type="text" id="ex_cp" placeholder="Código postal" autocomplete="off" style="width:110px">
+                    <small id="ex_cp_hint" style="opacity:.75"></small>
+                  </label>
                   <label class="check-label">Zona de entrega
                     <select id="ex_entrega">
                       <option value="normal">Normal</option>
@@ -295,7 +299,7 @@
 
 <script src="/js/auth-guard.js?v=20260915a"></script>
 <script src="/js/api.js?v=20260921a"></script>
-<script src="/shared/cotizador/cotizador-core.js?v=20260915a"></script>
+<script src="/shared/cotizador/cotizador-core.js?v=20260921a"></script>
 <script src="/js/cotizacion-imagen.js?v=20260916a"></script>
 <script>
 let bultoId=0;
@@ -368,6 +372,8 @@ function pctTxt(v){return(v===null||v===undefined)?'sin cargar':v+'%';}
 function fuelTipeadoAMano(){const s=document.getElementById('fuel_fuente');if(s.value!=='manual'){s.value='manual';aplicarFuenteFuel();}}
 function aplicarFuenteFuel(){const fte=fuenteFuel();const inp=document.getElementById('fuel');const hint=document.getElementById('fuel-hint');const manual=fte==='manual';if(manual){hint.textContent='El número que escribas, para DHL y para UPS';hint.className='cot-hint';return;}if(fte==='nova'){inp.value=FUELS.NOVA===null?'':FUELS.NOVA;hint.textContent=FUELS.NOVA?`Fuel Nova ${pctTxt(FUELS.NOVA)} — el mismo para DHL y UPS`:'El Fuel Nova está sin cargar. Ponelo en Configuración.';hint.className=FUELS.NOVA?'cot-hint active':'cot-hint warn';return;}inp.value='';hint.textContent=`DHL ${pctTxt(FUELS.DHL)} · UPS ${pctTxt(FUELS.UPS)} — cada uno con el suyo`;hint.className=(FUELS.DHL&&FUELS.UPS)?'cot-hint active':'cot-hint warn';}
 (async function cargarFuels(){try{const filas=await NovaAPI.configuracion.fuel();(filas||[]).forEach(f=>{if(Object.prototype.hasOwnProperty.call(FUELS,f.courier))FUELS[f.courier]=Number(f.fuel_pct);});}catch(e){const hint=document.getElementById('fuel-hint');hint.textContent='No se pudieron leer los fuels de Configuración: '+(e.message||e)+' — elegí "A mano" y escribí el porcentaje.';hint.className='cot-hint warn';document.getElementById('fuel_fuente').value='manual';}aplicarFuenteFuel();})();
+// CP destino → /api/ups-areas/buscar → marca sola la zona de entrega (se puede corregir a mano).
+(function(){let t=null;async function buscar(){const cp=document.getElementById('ex_cp').value.trim();const pais=document.getElementById('pais').value;const hint=document.getElementById('ex_cp_hint');if(!cp||!pais){hint.textContent='';return;}try{const r=await NovaAPI.get('/ups-areas/buscar?pais='+encodeURIComponent(pais)+'&cp='+encodeURIComponent(cp));const sel=document.getElementById('ex_entrega');if(r.zona&&r.zona!=='normal'){sel.value=r.zona;hint.textContent='UPS: '+r.etiqueta;}else{sel.value='normal';hint.textContent=r.iso?'Sin recargo de área':'';}}catch(e){hint.textContent='';}}function prog(){clearTimeout(t);t=setTimeout(buscar,500);}document.getElementById('ex_cp').addEventListener('input',prog);document.getElementById('pais').addEventListener('change',prog);})();
 document.getElementById('tipo').addEventListener('change',function(){document.getElementById('card-impuestos').style.display=this.value==='import'?'block':'none';document.getElementById('lbl_pais').textContent=this.value==='import'?'País de origen':'País de destino';});
 async function cotizar(){const clienteId=document.getElementById('cliente').value;const pais=document.getElementById('pais').value;const tipo=document.getElementById('tipo').value;const contenido=document.getElementById('contenido').value;const valor=parseFloat(document.getElementById('valor').value)||0;const g=parseFloat(document.getElementById('ganancia').value)||0;const couriers=document.getElementById('couriers').value;const exR=document.getElementById('ex_entrega').value;const exRe=document.getElementById('ex_residencial').checked;const exDdp=document.getElementById('ex_ddp').checked;const exProtDoc=document.getElementById('ex_proteccion_doc').checked;const errEl=document.getElementById('error-msg');errEl.style.display='none';if(!pais){errEl.textContent='Seleccioná un país de destino.';errEl.style.display='block';return;}const bultos=getBultos();if(!bultos.length||bultos.every(b=>b.pr<=0)){errEl.textContent='Ingresá al menos un bulto con peso válido.';errEl.style.display='block';return;}if(bultos.some(b=>b.l<=0||b.a<=0||b.al<=0)){errEl.textContent='Ingresá las dimensiones completas de cada bulto (largo, ancho y alto).';errEl.style.display='block';return;}if(!clienteId){const gananciaRaw=document.getElementById('ganancia').value.trim();if(gananciaRaw===''||isNaN(parseFloat(gananciaRaw))){errEl.textContent='Ingresá el porcentaje de ganancia antes de cotizar.';errEl.style.display='block';return;}}/* El fuel se valida ANTES de calcular nada. Si el de Configuración está sin cargar, la
    cotización saldría sin fuel y por debajo del costo: se corta y se dice dónde cargarlo.

@@ -65,8 +65,24 @@ function resolverZona(pais, courier, tipo) {
 // Georgia, Kazajistán, etc.) a los que se les cobraba 2.95/kg cuando les corresponde 0.50.
 const ISMEA=new Set(['Afganistán','Arabia Saudita','Bahréin','Bangladesh','Egipto','Irak','Jordania','Kuwait','Líbano','Nepal','Omán','Pakistán','Qatar','Sri Lanka']);
 const INDIA=new Set(['India']);
-// Fila propia solo en la tabla de IMPORTACIÓN, a 0.70/kg.
+// Fila propia solo en la tabla de IMPORTACIÓN.
 const CHINA_HK_MACAO=new Set(['China','Hong Kong','Macao']);
+
+// ── Surge fee de IMPORTACIÓN vigente desde el 27-sep-2026 ────────────────────
+// Fuente: UPS "Cargo Extraordinario por Incremento de Volumen LATAM", septiembre 2026.
+// La tabla de EXPORTACIÓN no cambió. La de importación se reparte por región de origen:
+//   China/HK/Macao 2.00 · India 1.70 · Australia/NZ 1.70 · Resto de Asia 1.70 ·
+//   Europa 1.06 · ISMEA (África + Asia Central + EAU) 1.06 · Medio Oriente 2.95 ·
+//   Canadá 0.50 · EE.UU. 0.70.
+// El comunicado NO trae fila "resto del mundo" para importación: los orígenes que no
+// figuran en ninguna región (Egipto, Sudán, Irak, Irán, Afganistán, LATAM) quedan en 0.50
+// hasta que UPS aclare. Los nombres son los del sistema (ZONAS_UPS_I).
+const SURGE_IMPORT_NUEVO_DESDE='2026-09-27';
+const SURGE_I_EUROPA=new Set(['Albania','Alemania','Armenia','Austria','Belarús','Bélgica','Bosnia-Herzegovina','Bulgaria','Chipre','Croacia','Dinamarca','Eslovaquia','Eslovenia','España','Estonia','Finlandia','Francia','Georgia','Grecia','Hungría','Irlanda','Israel','Italia','Letonia','Liechtenstein','Lituania','Luxemburgo','Malta','Moldova','Mónaco','Montenegro','Noruega','Países Bajos','Polonia','Portugal','Reino Unido','República Checa','Rumania','Rusia','San Marino','Serbia','Suecia','Suiza','Turquía','Ucrania']);
+const SURGE_I_MEDIO_ORIENTE=new Set(['Arabia Saudita','Bahréin','Bangladesh','Jordania','Kuwait','Líbano','Nepal','Omán','Pakistán','Qatar','Sri Lanka']);
+const SURGE_I_ISMEA=new Set(['Angola','Azerbaiyán','Burkina Faso','Burundi','Benín','Botswana','Congo','Costa de Marfil','Camerún','Cabo Verde','Yibuti','Argelia','Eritrea','Etiopía','Gabón','Ghana','Gambia','Guinea','Guinea Ecuatorial','Guinea-Bissau','Kenia','Kirguistán','Comoros','Kazajistán','Liberia','Lesotho','Libia','Marruecos','Madagascar','Mali','Mauritania','Mauricio','Maldivas','Malaui','Mozambique','Namibia','Níger','Nigeria','Reunión','Ruanda','Seychelles','Sierra Leona','Senegal','Santo Tomé y Príncipe','Esuatini','Chad','Togo','Turkmenistán','Túnez','Tanzania','Uganda','Uzbekistán','Yemen','Mayotte','Sudáfrica','Zambia','Zimbabue','Emiratos Árabes Unidos']);
+const SURGE_I_OCEANIA=new Set(['Australia','Nueva Zelanda']);
+const SURGE_I_RESTO_ASIA=new Set(['Corea del Sur','Japón','Taiwán','Singapur','Malasia','Tailandia','Indonesia','Filipinas','Vietnam','Brunei','Laos','Myanmar','Camboya','Mongolia','Bután','Timor Oriental','Papúa Nueva Guinea','Fiji','Micronesia','Nueva Caledonia','Tahití','Guam','Samoa Americana','Vanuatu']);
 
 // ── Tablas DHL ────────────────────────────────────────────────────────────────
 const DHL_E_PKG=[[0.5,24.91,26.35,28.43,37.05,42.79,47.02],[1,27.66,29.9,32.3,41.93,48.57,53.26],[1.5,30.43,33.57,36.32,46.81,54.35,59.56],[2,33.2,37.24,40.33,51.69,60.14,65.85],[2.5,35.97,40.91,44.34,56.57,65.92,72.14],[3,38.72,44.13,47.85,61.21,70.73,77.55],[3.5,41.46,47.35,51.37,65.86,75.54,82.95],[4,44.2,50.57,54.88,70.51,80.35,88.35],[4.5,46.95,53.79,58.39,75.16,85.15,93.76],[5,49.69,57.01,61.91,79.81,89.96,99.16],[5.5,51.86,59.45,64.64,83.78,94.56,104.26],[6,54.02,61.89,67.37,87.74,99.16,109.35],[6.5,56.18,64.34,70.1,91.71,103.76,114.45],[7,58.34,66.78,72.83,95.68,108.36,119.55],[7.5,60.51,69.22,75.56,99.65,112.96,124.64],[8,62.67,71.67,78.29,103.62,117.56,129.74],[8.5,64.83,74.11,81.02,107.59,122.16,134.83],[9,67,76.55,83.75,111.56,126.76,139.93],[9.5,69.16,78.99,86.48,115.53,131.35,145.03],[10,71.32,81.44,89.21,119.5,135.95,150.12]];
@@ -219,13 +235,37 @@ function getUPSSaverEsIt(pais,pf){
 //   Importación: ISMEA 2.95 · E.A.U. 3.30 · India 1.45 · China/HK/Macao 0.70 · resto 0.50
 // UPS eliminó el recargo de las importaciones DESDE ISRAEL el 24-may-2026; antes acá se
 // cobraba 3.30 en los dos sentidos.
-function getSurge(pais,tipo,pf){
-  if(pais==='Emiratos Árabes Unidos')return pf*3.30;
-  if(tipo==='export'&&pais==='Israel')return pf*3.30;
+// `fecha` (YYYY-MM-DD, opcional; default hoy): desde el 27-sep-2026 la importación usa la
+// tabla nueva (ver SURGE_IMPORT_NUEVO_DESDE). Un envío viejo recotizado con su fecha sigue
+// dando lo de su época.
+function getSurge(pais,tipo,pf,fecha){
+  if(tipo==='import'){
+    const f=fecha||hoyISO();
+    if(f>=SURGE_IMPORT_NUEVO_DESDE)return pf*getSurgeImportNuevo(pais);
+    if(pais==='Emiratos Árabes Unidos')return pf*3.30;
+    if(ISMEA.has(pais))return pf*2.95;
+    if(INDIA.has(pais))return pf*1.45;
+    if(CHINA_HK_MACAO.has(pais))return pf*0.70;
+    return pf*0.50;
+  }
+  if(pais==='Emiratos Árabes Unidos'||pais==='Israel')return pf*3.30;
   if(ISMEA.has(pais))return pf*2.95;
-  if(tipo==='import'&&INDIA.has(pais))return pf*1.45;
-  if(tipo==='import'&&CHINA_HK_MACAO.has(pais))return pf*0.70;
   return pf*0.50;
+}
+// Tarifa por kg de importación vigente desde el 27-sep-2026 (ver comentario de los sets).
+function getSurgeImportNuevo(pais){
+  if(CHINA_HK_MACAO.has(pais))return 2.00;
+  if(INDIA.has(pais))return 1.70;
+  if(SURGE_I_OCEANIA.has(pais)||SURGE_I_RESTO_ASIA.has(pais))return 1.70;
+  if(SURGE_I_MEDIO_ORIENTE.has(pais))return 2.95;
+  if(SURGE_I_EUROPA.has(pais)||SURGE_I_ISMEA.has(pais))return 1.06;
+  if(pais==='Estados Unidos')return 0.70;
+  if(pais==='Canadá')return 0.50;
+  return 0.50;
+}
+function hoyISO(){
+  const d=new Date();const p=n=>String(n).padStart(2,'0');
+  return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
 }
 
 // Seguro propio del cliente (clientes.seguro_pct_propio / seguro_min_propio).
@@ -500,6 +540,9 @@ function cotizarServicio(servicio, params) {
     // Seguro negociado del cliente: { pct, min } o null. Cuando viene, reemplaza la escala
     // de seguro del courier en DHL y en UPS. Ver seguroPropioMonto().
     seguroPropio=null,
+    // Fecha del envío (YYYY-MM-DD) para las tarifas que cambian en el tiempo (surge de
+    // importación desde el 27-sep-2026). Sin fecha = hoy.
+    fecha=null,
   } = params;
   const fuel   = fuelPct   / 100;
   const profit = profitPct / 100;
@@ -604,7 +647,7 @@ function cotizarServicio(servicio, params) {
       fleteBase=getUPS(liqd,pk,mn,zona,pfRound);
     }
   }
-  const surge=getSurge(pais,tipo,pfRound);
+  const surge=getSurge(pais,tipo,pfRound,fecha);
   // El IPF pasa A COSTO: no lleva ganancia ni combustible. Antes se sumaba al flete
   // antes del margen, así que con 120% de utilidad esos 2.50 le llegaban al cliente
   // como 5.50, y con el fuel encima como 7.26. Criterio de Felipe (29/07): los recargos
@@ -660,7 +703,7 @@ if(typeof module!=='undefined'&&module.exports){
     UPS_SAVER_ES_IT,UPS_SAVER_ES_PK,UPS_SAVER_IT_PK,
     resolverZona,
     getPesoVol,getDHL,getDHLBig,getDHLE50,getUPS,getUPSSaverEsIt,
-    getSurge,calcSeguroUPS,calcSeguroDHL,seguroPropioMonto,DHL_PROTECCION_DOC,calcDHLExtras,calcUPSDimExtras,calcImpuestos,calcZonaEntrega,normalizarEntrega,
+    getSurge,getSurgeImportNuevo,calcSeguroUPS,calcSeguroDHL,seguroPropioMonto,DHL_PROTECCION_DOC,calcDHLExtras,calcUPSDimExtras,calcImpuestos,calcZonaEntrega,normalizarEntrega,
     TOPES_PIEZA,calcTopesPieza,MSG_CONTORNO_UPS,
     cotizarServicio,
   };

@@ -24,3 +24,5 @@ backend/ups-prueba/
 
 scripts/gecom/*.zip
 scripts/gecom/*.csv
+
+.fuse_hidden*

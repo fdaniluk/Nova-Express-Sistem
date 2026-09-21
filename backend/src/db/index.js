@@ -262,6 +262,9 @@ async function migrateEnvios() {
     // de UPS. Los envíos viejos con remota=1 se leen como 'extendida', que es la tarifa
     // que ya se les cobró, así que ninguno cambia de precio.
     ['entrega',          'TEXT'],
+    // Código postal de destino (21/09/2026): con él se consulta la tabla ups_areas y se
+    // marca sola la zona de entrega (extendida / remota).
+    ['cp_destino',       'TEXT'],
     ['flete',            'REAL'],
     ['descuento',        'REAL'],
     ['seguro',           'REAL'],
@@ -793,6 +796,35 @@ async function migrateCuentaCorriente() {
   if (r.changes > 0) console.log(`Migración cuenta corriente: ${r.changes} liquidaciones confirmadas cargadas como débitos`);
 }
 
+// Áreas de entrega de UPS (21/09/2026): carga el TSV comprimido de backend/data en la
+// tabla ups_areas la primera vez (o después de vaciarla para recargar un archivo nuevo).
+async function migrateUpsAreas() {
+  const n = (await dbApi.prepare('SELECT COUNT(*) AS n FROM ups_areas').get()).n;
+  if (n > 0) return;
+  const fs = require('fs');
+  const path = require('path');
+  const zlib = require('zlib');
+  const archivo = path.join(__dirname, '../../data/ups_areas.tsv.gz');
+  if (!fs.existsSync(archivo)) {
+    console.warn('[ups_areas] falta backend/data/ups_areas.tsv.gz: la tabla queda vacía');
+    return;
+  }
+  const texto = zlib.gunzipSync(fs.readFileSync(archivo)).toString('utf8');
+  const lineas = texto.split('\n').filter(Boolean);
+  await dbApi.transaction(async () => {
+    const ins = dbApi.prepare(
+      `INSERT INTO ups_areas (iso, cp_desde, cp_hasta, numerico, cp_desde_num, cp_hasta_num, ciudad, recargo_origen, recargo_destino)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    );
+    for (const l of lineas) {
+      const [iso, lo, hi, num, ciudad, ro, rd] = l.split('\t');
+      const numerico = num === '1' && lo !== '' ? 1 : 0;
+      await ins.run(iso, lo, hi, numerico, numerico ? Number(lo) : null, numerico ? Number(hi) : null, ciudad || '', ro || '', rd);
+    }
+  });
+  console.log(`[ups_areas] cargadas ${lineas.length} áreas de entrega de UPS`);
+}
+
 // Asiento de los cierres: cada vez que alguien baja el Excel de un período queda la
 // fila. NO guarda el archivo (eso vive en la computadora de administración): guarda que
 // se hizo, quién y cuántas filas tenía. Con eso el panel de salud puede avisar el mes
@@ -1115,6 +1147,7 @@ async function initSchema() {
   await migrateCobrosPickup();
   await migrateLiquidacionesCC();
   await migrateCuentaCorriente();
+  await migrateUpsAreas();
   await migrateCierres();
   await migrateFuelNova();
   await migrateTarifario();
