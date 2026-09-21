@@ -67,6 +67,10 @@ async function buscarArea({ pais, cp, ciudad }) {
   out.recargo = fila.recargo_destino;
   out.recargo_origen = fila.recargo_origen || null;
   out.zona = ZONA_POR_RECARGO[fila.recargo_destino] || 'normal';
+  // EE.UU.: las cinco categorías (Delivery Area, Extended, Remote…) son el cargo por
+  // envío que el cotizador ya tiene como 'remota' (5,86). Mapearlas a 'extendida' les
+  // cobraría 42,15 a Manhattan. Pendiente verificar contra una factura de UPS.
+  if (iso === 'US' && out.zona !== 'normal') out.zona = 'remota';
   out.etiqueta = ETIQUETA[fila.recargo_destino] || fila.recargo_destino;
   return out;
 }
