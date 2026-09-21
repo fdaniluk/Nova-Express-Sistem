@@ -317,7 +317,7 @@ async function main() {
   // demás sigan detectando lo suyo.
   console.log('\n5. Un chequeo roto se reporta como roto y no tumba al resto\n');
 
-  await q('ALTER TABLE cobranzas RENAME TO cobranzas_guardada');
+  await q('ALTER TABLE cobros_pickup RENAME TO cobros_pickup_guardada');
   const roto = await pedirSalud();
   check('el panel sigue respondiendo 200', roto.status === 200, String(roto.status));
   const cRoto = getChequeo(roto.body, 'huerfanos');
@@ -329,7 +329,7 @@ async function main() {
     getChequeo(roto.body, 'envio_en_varias_liquidaciones').cantidad === 1);
   check('el semáforo cuenta el chequeo roto aparte', roto.body.resumen.error === 1,
     JSON.stringify(roto.body.resumen));
-  await q('ALTER TABLE cobranzas_guardada RENAME TO cobranzas');
+  await q('ALTER TABLE cobros_pickup_guardada RENAME TO cobros_pickup');
 
   // ── 6. El endpoint de resumen (la franja del Dashboard) ─────────────────────
   console.log('\n6. El resumen que consume la franja del Dashboard\n');

@@ -250,7 +250,7 @@ async function actualizar(id, data) {
 async function dependencias(id) {
   const db = getDb();
   const tablas = [['envios', 'envíos'], ['guias', 'guías'], ['liquidaciones', 'liquidaciones'],
-    ['pickups', 'pickups'], ['cobranzas', 'cobranzas'], ['cotizaciones', 'cotizaciones'],
+    ['pickups', 'pickups'], ['cobros_pickup', 'cobros en pickup'], ['cotizaciones', 'cotizaciones'],
     ['tarifario_emitidos', 'tarifarios emitidos']];
   const out = {};
   for (const [tabla, rotulo] of tablas) {

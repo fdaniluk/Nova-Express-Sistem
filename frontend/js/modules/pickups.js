@@ -895,7 +895,7 @@
     // Traemos las cobranzas ya cargadas de este pickup (filtrando por pickup_id sobre
     // las del cliente) para poder verlas y agregar más líneas.
     try {
-      const res = await NovaAPI.cobranzas.listar({ cliente_id: p.cliente_id });
+      const res = await NovaAPI.cobrosPickup.listar({ cliente_id: p.cliente_id });
       const existentes = (res.cobranzas || []).filter(c => Number(c.pickup_id) === Number(id));
       if (cobranzaPickupId === id) renderCobranzasExistentes(existentes);
     } catch (e) {
@@ -948,7 +948,7 @@
     try {
       // Un POST por línea; se muestran los errores del backend tal cual.
       for (const c of nuevas) {
-        await NovaAPI.cobranzas.crear(c);
+        await NovaAPI.cobrosPickup.crear(c);
       }
       cerrarModalCobranza();
       await cargarPickups();

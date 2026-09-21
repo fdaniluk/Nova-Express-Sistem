@@ -764,7 +764,7 @@ async function chequeoHuerfanos(db) {
     ['factura_guias sin factura', 'SELECT COUNT(*) n FROM factura_guias fg LEFT JOIN facturas_cargadas f ON f.id = fg.factura_id WHERE f.id IS NULL'],
     ['envíos sin cliente', 'SELECT COUNT(*) n FROM envios e LEFT JOIN clientes c ON c.id = e.cliente_id WHERE c.id IS NULL'],
     ['pickups sin cliente', 'SELECT COUNT(*) n FROM pickups p LEFT JOIN clientes c ON c.id = p.cliente_id WHERE c.id IS NULL'],
-    ['cobranzas sin cliente', 'SELECT COUNT(*) n FROM cobranzas co LEFT JOIN clientes c ON c.id = co.cliente_id WHERE c.id IS NULL'],
+    ['cobros de pickup sin cliente', 'SELECT COUNT(*) n FROM cobros_pickup co LEFT JOIN clientes c ON c.id = co.cliente_id WHERE c.id IS NULL'],
   ];
 
   const filas = [];

@@ -289,18 +289,18 @@ api.tracking = {
   ups: (guia) => api.get(`/tracking/ups/${encodeURIComponent(guia)}`),
 };
 
-api.cobranzas = {
+api.cobrosPickup = {
   listar: (filtros = {}) => {
     const params = {};
     if (filtros.cliente_id) params.cliente_id = filtros.cliente_id;
     if (filtros.desde) params.desde = filtros.desde;
     if (filtros.hasta) params.hasta = filtros.hasta;
     const q = new URLSearchParams(params).toString();
-    return api.get(`/cobranzas${q ? `?${q}` : ''}`);
+    return api.get(`/cobros-pickup${q ? `?${q}` : ''}`);
   },
-  crear: (data) => api.post('/cobranzas', data),
-  actualizar: (id, data) => api.patch(`/cobranzas/${id}`, data),
-  eliminar: (id) => api.delete(`/cobranzas/${id}`),
+  crear: (data) => api.post('/cobros-pickup', data),
+  actualizar: (id, data) => api.patch(`/cobros-pickup/${id}`, data),
+  eliminar: (id) => api.delete(`/cobros-pickup/${id}`),
 };
 
 api.facturas = {

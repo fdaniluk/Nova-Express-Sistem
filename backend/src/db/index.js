@@ -693,12 +693,34 @@ async function migrateUsuarios() {
   }
 }
 
-// Registro/log informativo de cobranzas a clientes (módulo Cobranzas). NO se vincula
-// con liquidaciones, saldos ni cuenta corriente; es puro asiento. Idempotente para
-// bases existentes en el VPS; ver schema.sql para la definición canónica.
-async function migrateCobranzas() {
+// Cobros en pickup (antes "cobranzas"): registro/log informativo de la plata que el
+// chofer levanta en los pickups. NO se vincula con liquidaciones, saldos ni cuenta
+// corriente. Renombrado el 21/09/2026 para liberar el nombre "Cobranzas" al módulo
+// de cuenta corriente. Idempotente: en bases viejas renombra la tabla conservando
+// los datos; en bases nuevas la crea.
+async function migrateCobrosPickup() {
+  const tablas = (await dbApi.prepare(
+    "SELECT name FROM sqlite_master WHERE type = 'table' AND name IN ('cobranzas', 'cobros_pickup')"
+  ).all()).map((t) => t.name);
+  if (tablas.includes('cobranzas')) {
+    if (tablas.includes('cobros_pickup')) {
+      // schema.sql corre antes y puede haber creado la tabla nueva vacía.
+      const n = (await dbApi.prepare('SELECT COUNT(*) AS n FROM cobros_pickup').get()).n;
+      if (n === 0) await dbApi.exec('DROP TABLE cobros_pickup');
+    }
+    const quedan = (await dbApi.prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'cobros_pickup'"
+    ).all()).length;
+    if (!quedan) {
+      await dbApi.exec('DROP INDEX IF EXISTS idx_cobranzas_cliente');
+      await dbApi.exec('DROP INDEX IF EXISTS idx_cobranzas_fecha');
+      await dbApi.exec('DROP INDEX IF EXISTS idx_cobranzas_pickup');
+      await dbApi.exec('ALTER TABLE cobranzas RENAME TO cobros_pickup');
+      console.log('Migración: tabla cobranzas renombrada a cobros_pickup');
+    }
+  }
   await dbApi.exec(`
-    CREATE TABLE IF NOT EXISTS cobranzas (
+    CREATE TABLE IF NOT EXISTS cobros_pickup (
       id          INTEGER PRIMARY KEY AUTOINCREMENT,
       cliente_id  INTEGER NOT NULL REFERENCES clientes(id),
       fecha       TEXT NOT NULL,
@@ -711,9 +733,9 @@ async function migrateCobranzas() {
       created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
     )
   `);
-  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cobranzas_cliente ON cobranzas(cliente_id)');
-  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cobranzas_fecha   ON cobranzas(fecha)');
-  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cobranzas_pickup  ON cobranzas(pickup_id)');
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cobros_pickup_cliente ON cobros_pickup(cliente_id)');
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cobros_pickup_fecha   ON cobros_pickup(fecha)');
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cobros_pickup_pickup  ON cobros_pickup(pickup_id)');
 }
 
 // Asiento de los cierres: cada vez que alguien baja el Excel de un período queda la
@@ -1035,7 +1057,7 @@ async function initSchema() {
   await migrateTarifaKg();
   await migrateClienteTramos();
   await migrateFacturaGuias();
-  await migrateCobranzas();
+  await migrateCobrosPickup();
   await migrateCierres();
   await migrateFuelNova();
   await migrateTarifario();

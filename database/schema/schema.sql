@@ -523,12 +523,11 @@ CREATE INDEX IF NOT EXISTS idx_factura_guias_factura ON factura_guias(factura_id
 CREATE INDEX IF NOT EXISTS idx_factura_guias_envio   ON factura_guias(envio_id);
 CREATE INDEX IF NOT EXISTS idx_factura_guias_guia    ON factura_guias(numero_guia);
 
--- Cobranzas: registro/log informativo de la plata que se levanta de los clientes.
--- NO se vincula con liquidaciones, saldos ni cuenta corriente; es puro asiento para
--- tener trazabilidad de lo cobrado. pickup_id es opcional (si la cobranza vino de un
--- pickup) y queda en NULL si el pickup se borra. La moneda no se mezcla: ARS y USD se
--- totalizan por separado a nivel de reporte.
-CREATE TABLE IF NOT EXISTS cobranzas (
+-- Cobros en pickup (antes "cobranzas", renombrada 21/09/2026): registro/log informativo
+-- de la plata que el chofer levanta en los pickups. NO se vincula con liquidaciones,
+-- saldos ni cuenta corriente (eso es el módulo Cobranzas, tablas cc_*). pickup_id es
+-- opcional y queda en NULL si el pickup se borra. ARS y USD se totalizan por separado.
+CREATE TABLE IF NOT EXISTS cobros_pickup (
   id          INTEGER PRIMARY KEY AUTOINCREMENT,
   cliente_id  INTEGER NOT NULL REFERENCES clientes(id),
   fecha       TEXT NOT NULL,
@@ -541,8 +540,8 @@ CREATE TABLE IF NOT EXISTS cobranzas (
   created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
-CREATE INDEX IF NOT EXISTS idx_cobranzas_cliente ON cobranzas(cliente_id);
-CREATE INDEX IF NOT EXISTS idx_cobranzas_fecha   ON cobranzas(fecha);
+CREATE INDEX IF NOT EXISTS idx_cobros_pickup_cliente ON cobros_pickup(cliente_id);
+CREATE INDEX IF NOT EXISTS idx_cobros_pickup_fecha   ON cobros_pickup(fecha);
 
 -- Asiento de los cierres de período. Cada vez que alguien baja el Excel de las salidas
 -- de un mes o una semana para archivarlo, queda la fila. NO guarda el archivo: guarda
@@ -561,7 +560,7 @@ CREATE TABLE IF NOT EXISTS cierres (
 
 CREATE INDEX IF NOT EXISTS idx_cierres_desde ON cierres(desde);
 CREATE INDEX IF NOT EXISTS idx_cierres_tipo  ON cierres(tipo, desde);
-CREATE INDEX IF NOT EXISTS idx_cobranzas_pickup  ON cobranzas(pickup_id);
+CREATE INDEX IF NOT EXISTS idx_cobros_pickup_pickup  ON cobros_pickup(pickup_id);
 
 -- Índices sobre las consultas más calientes (ver migrateIndices() en db/index.js).
 -- Sin estos, la pantalla de Operaciones del día, el borrado de un envío y la bandeja

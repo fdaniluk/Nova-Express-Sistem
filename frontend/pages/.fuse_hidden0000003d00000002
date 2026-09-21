@@ -2,60 +2,15 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Configuración – Nova Express</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Asistente – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260915a">
-  <style>
-    /* Cards de configuración (mudadas desde liquidaciones.css) */
-    .fuel-cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 1rem;
-      margin-bottom: 1.5rem;
-    }
-    .fuel-card {
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius);
-      padding: 1rem;
-    }
-    .fuel-card h4 { margin: 0 0 0.75rem; }
-    .fuel-card .current {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: var(--color-primary);
-    }
-    .fuel-card--warn { border-color: #f59e0b; background: #fffbeb; }
-    .fuel-card--warn .fuel-age { color: #b45309; font-weight: 600; }
-    .fuel-card--danger { border-color: #ef4444; background: #fef2f2; }
-    /* El Fuel Nova es el nuestro y el predeterminado: se destaca de los del courier. */
-    .fuel-card--nova { border-color: #1f3864; border-width: 2px; background: #f4f7fc; }
-    .fuel-card--nova h4 { color: #1f3864; }
-    .fuel-card--danger .fuel-age { color: #b91c1c; font-weight: 600; }
-    .fuel-age {
-      font-size: 0.8rem;
-      color: var(--color-muted);
-      margin-bottom: 0.25rem;
-    }
-    .config-hint {
-      color: var(--color-muted);
-      font-size: 0.85rem;
-      margin-bottom: 1rem;
-    }
-    .tol-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 0.75rem; margin-top: 0.75rem; align-items: start; }
-    .tol-inputs .form-group { margin: 0; }
-    .tol-inputs label {
-      display: block;
-      min-height: 2.6em;
-      line-height: 1.3;
-      font-size: 0.85rem;
-      margin-bottom: 0.35rem;
-    }
-    .tol-inputs input { width: 100%; box-sizing: border-box; }
-  </style>
+  <link rel="stylesheet" href="../css/modules/asistente.css?v=20260915c">
 </head>
-<body>
+<body class="pagina-asistente">
 <div class="app-layout">
+<div class="asi-fondo" id="asi-fondo" hidden></div>
 
   <aside class="sidebar">
     <a class="sidebar-brand" href="../index.html">
@@ -92,13 +47,13 @@
       </a>
       <a href="cobros-pickup.html" class="nav-item">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
-        <span>Cobros en pickup</span>
+        <span>Cobranzas</span>
       </a>
       <a href="cotizador.html" class="nav-item">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg></span>
         <span>Cotizador</span>
       </a>
-      <a href="asistente.html" class="nav-item">
+      <a href="asistente.html" class="nav-item active">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
         <span>Asistente</span>
       </a>
@@ -118,7 +73,7 @@
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg></span>
         <span>Usuarios</span>
       </a>
-      <a href="configuracion.html" class="nav-item active">
+      <a href="configuracion.html" class="nav-item">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg></span>
         <span>Configuración</span>
       </a>
@@ -137,121 +92,81 @@
 
   <div class="page-content">
     <div class="page-header">
-      <h1>Configuración</h1>
+      <button type="button" class="asi-icono asi-solo-tel" id="asi-menu" aria-label="Menú del sistema">☰</button>
+      <h1>Asistente</h1>
+      <div class="period-selector">
+        <span class="asi-estado" id="asi-estado">…</span>
+        <button type="button" class="asi-icono asi-solo-tel" id="asi-panel" aria-label="Conversaciones y teléfonos">▤</button>
+        <button class="btn btn-secondary" id="asi-nueva">+ Nueva conversación</button>
+      </div>
     </div>
 
     <div class="page-body">
-      <div id="alert-box"></div>
+      <div class="asi-aviso" id="asi-aviso" hidden></div>
 
-      <section class="card">
-        <h2>Fuel surcharge por courier</h2>
-        <div class="fuel-cards" id="fuel-cards"></div>
-        <h3>Historial de cambios (fuel)</h3>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr><th>Fecha</th><th>Courier</th><th>Anterior</th><th>Nuevo</th></tr>
-            </thead>
-            <tbody id="fuel-hist-body"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="card">
-        <h2>Controlar desde</h2>
-        <p class="config-hint">
-          Desde esta fecha el <b>panel de salud</b> destaca problemas y las bandejas de <b>Facturas</b>
-          ("Revisar guías" y "Guías sin envío") muestran guías. Lo anterior no se borra: se puede ver
-          con "Ver anteriores" en cada bandeja, pero no se destaca. Sirve para dejar atrás el período en
-          que el sistema se usó a medias (envíos de prueba, ventas sin cargar).
-        </p>
-        <div class="fuel-cards">
-          <div class="fuel-card" id="corte-card">
-            <h4>Fecha de corte del control</h4>
-            <div class="current" id="corte-actual">—</div>
-            <div class="form-group" style="margin-top:0.75rem">
-              <label>Nueva fecha</label>
-              <input type="date" id="corte-input">
-            </div>
-            <button class="btn btn-primary btn-sm" id="btn-corte-guardar">Guardar</button>
+      <div class="asi-layout">
+        <!-- ══ Panel lateral: conversaciones y teléfonos ══ -->
+        <aside class="asi-lista" id="asi-lista">
+          <button type="button" class="asi-cerrar-panel asi-solo-tel" id="asi-cerrar-panel" aria-label="Cerrar">✕</button>
+          <div class="asi-tabs" role="tablist">
+            <button type="button" class="activa" data-tab="conversaciones">Conversaciones</button>
+            <button type="button" data-tab="telefonos">Teléfonos</button>
           </div>
-        </div>
-      </section>
 
-      <section class="card">
-        <h2>Margen objetivo del dashboard</h2>
-        <p class="config-hint">
-          El gráfico "Margen por mes" del dashboard dibuja una línea punteada con este porcentaje
-          (profit ÷ compra) para ver de un vistazo qué meses quedaron abajo. Vacío = sin línea.
-        </p>
-        <div class="fuel-cards">
-          <div class="fuel-card" id="margen-card">
-            <h4>Margen objetivo (%)</h4>
-            <div class="current" id="margen-actual">—</div>
-            <div class="form-group" style="margin-top:0.75rem">
-              <label>Nuevo objetivo (vacío para sacar la línea)</label>
-              <input type="number" id="margen-input" min="0" max="500" step="0.5">
-            </div>
-            <button class="btn btn-primary btn-sm" id="btn-margen-guardar">Guardar</button>
+          <div class="asi-tab" data-panel="conversaciones">
+            <ul id="asi-conversaciones"></ul>
           </div>
-        </div>
-      </section>
 
-      <section class="card">
-        <h2>Numeración de proformas</h2>
-        <p class="config-hint">
-          Cuando se emite una guía con el Nº de proforma vacío, el sistema le pone el próximo número
-          y sigue contando. Si en Guías se tipea un número más alto, el contador salta solo. Acá se
-          ajusta desde dónde sigue (por ejemplo, para arrancar en 1300).
-        </p>
-        <div class="fuel-cards">
-          <div class="fuel-card" id="proforma-card">
-            <h4>Próximo Nº de proforma</h4>
-            <div class="current" id="proforma-actual">—</div>
-            <div class="form-group" style="margin-top:0.75rem">
-              <label>Nuevo próximo número</label>
-              <input type="number" id="proforma-input" min="1" step="1">
+          <div class="asi-tab" data-panel="telefonos" hidden>
+            <p class="asi-ayuda">Vinculá tu teléfono para usar el asistente por mensaje. Sacás un código acá y lo mandás por el canal: sin eso, el asistente no le contesta a ningún número.</p>
+            <ul id="asi-vinculos"></ul>
+            <div class="asi-vincular">
+              <label for="asi-canal">Canal</label>
+              <select id="asi-canal">
+                <option value="prueba">Prueba (simulador, acá mismo)</option>
+                <option value="telegram">Telegram</option>
+                <option value="whatsapp">WhatsApp</option>
+              </select>
+              <input type="text" id="asi-etiqueta" maxlength="40" placeholder="Nombre (ej: mi celular)" />
+              <button type="button" class="btn-vincular" id="asi-vincular">Sacar código</button>
             </div>
-            <button class="btn btn-primary btn-sm" id="btn-proforma-guardar">Guardar</button>
+            <div class="asi-codigo" id="asi-codigo" hidden></div>
           </div>
-        </div>
-      </section>
+        </aside>
 
-      <section class="card">
-        <h2>Ganancia mínima antes de alertar (%)</h2>
-        <p class="config-hint">
-          Cuando se cargue la factura del courier, se marcará la guía como "a revisar" si la ganancia real es menor a este umbral.
-        </p>
-        <div class="fuel-cards" id="umbral-cards"></div>
-        <h3>Historial de cambios (umbral ganancia)</h3>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr><th>Fecha</th><th>Courier</th><th>Anterior</th><th>Nuevo</th></tr>
-            </thead>
-            <tbody id="umbral-hist-body"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="card">
-        <h2>Tolerancias del semáforo por courier</h2>
-        <p class="config-hint">
-          Desvío máximo aceptable entre lo que facturó UPS y lo nuestro; si se supera, en Salidas la celda se pinta roja. Solo alerta cuando UPS facturó de más.
-        </p>
-        <p class="config-hint">
-          <strong>Los dos umbrales (% y monto) son independientes: alcanza con superar UNO de los dos para pintar rojo (es un O, no un Y).</strong>
-          Ej: un envío de 1000 USD con 6% de desvío son 60 USD; el 6% no llega al 20%, pero 60 USD sí superan los 50 USD → rojo.
-        </p>
-        <div class="fuel-cards" id="tolerancia-cards"></div>
-      </section>
+        <!-- ══ El chat ══ -->
+        <section class="asi-chat">
+          <div class="asi-mensajes" id="asi-mensajes">
+            <div class="asi-bienvenida" id="asi-bienvenida">
+              <p><b>Hola.</b> Puedo buscar una guía, decirte cómo viene la venta, cotizar, listar los pendientes de la oficina o cargar un pickup (te lo muestro y lo cargo cuando me digas que sí).</p>
+              <div class="asi-sugerencias">
+                <button type="button" data-sug="¿Cómo viene la venta de hoy?">Venta de hoy</button>
+                <button type="button" data-sug="¿Qué pendientes hay hoy?">Pendientes</button>
+                <button type="button" data-sug="Cotizame 1 caja de 10 kg, 40x30x30, a Brasil">Cotizar</button>
+                <button type="button" data-sug="¿Cómo viene la guía ">Buscar una guía</button>
+              </div>
+            </div>
+          </div>
+          <div class="asi-pendiente" id="asi-pendiente" hidden></div>
+          <div class="asi-modo">
+            <span class="asi-largo">Escribiendo desde:</span>
+            <button type="button" class="activa" data-modo="panel">El sistema</button>
+            <button type="button" data-modo="telefono">📱 <span class="asi-largo">Simulador de teléfono</span><span class="asi-corto">Teléfono</span></button>
+            <span class="asi-modo-nota" id="asi-modo-nota"></span>
+          </div>
+          <form class="asi-entrada" id="asi-form" autocomplete="off">
+            <textarea id="asi-texto" rows="1" placeholder="Escribí qué necesitás… (Enter envía, Shift+Enter baja de línea)" maxlength="2000"></textarea>
+            <button type="submit" class="btn-enviar" id="asi-enviar">Enviar</button>
+          </form>
+        </section>
+      </div>
     </div>
   </div>
 </div>
 
 <script src="/js/auth-guard.js?v=20260915a"></script>
-<script src="../js/api.js?v=20260921a"></script>
+<script src="../js/api.js?v=20260917a"></script>
 <script src="../js/main.js?v=20260915a"></script>
-<script src="../js/modules/configuracion.js?v=20260915a"></script>
+<script src="../js/modules/asistente.js?v=20260915c"></script>
 </body>
 </html>

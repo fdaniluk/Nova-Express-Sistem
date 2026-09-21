@@ -1,4 +1,4 @@
-const cobranzasModel = require('../models/cobranzas.model');
+const cobranzasModel = require('../models/cobros-pickup.model');
 const { getDb } = require('../db');
 
 const MONEDAS = ['ARS', 'USD'];

@@ -16,7 +16,7 @@ const operacionesRoutes = require('./operaciones');
 const salidasRoutes = require('./salidas.routes');
 const trackingRoutes = require('./tracking.routes');
 const facturasRoutes = require('./facturas.routes');
-const cobranzasRoutes = require('./cobranzas.routes');
+const cobrosPickupRoutes = require('./cobros-pickup.routes');
 const authRoutes = require('./auth.routes');
 const publicoRoutes = require('./publico.routes');
 const cotizadorLinksRoutes = require('./cotizador-links.routes');
@@ -65,7 +65,7 @@ router.use('/pickups', pickupsRoutes);
 router.use('/operaciones', operacionesRoutes);
 router.use('/tracking', trackingRoutes);
 router.use('/facturas', facturasRoutes);
-router.use('/cobranzas', cobranzasRoutes);
+router.use('/cobros-pickup', cobrosPickupRoutes);
 // El asistente de la oficina: usa la misma sesion y las mismas rutas que las pantallas.
 router.use('/bot', botRoutes);
 router.use('/usuarios', requireAdmin, usuariosRoutes);

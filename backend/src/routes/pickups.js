@@ -39,7 +39,7 @@ router.get('/', async (req, res, next) => {
                COUNT(*) AS cobranzas_count,
                SUM(CASE WHEN moneda = 'ARS' THEN monto ELSE 0 END) AS cobranzas_total_ars,
                SUM(CASE WHEN moneda = 'USD' THEN monto ELSE 0 END) AS cobranzas_total_usd
-        FROM cobranzas
+        FROM cobros_pickup
         WHERE pickup_id IS NOT NULL
         GROUP BY pickup_id
       ) co ON co.pickup_id = p.id`;

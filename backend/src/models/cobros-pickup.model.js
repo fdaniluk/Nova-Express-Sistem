@@ -10,7 +10,7 @@ async function listar({ cliente_id, desde, hasta } = {}) {
     SELECT
       co.*,
       ${CLIENTE_NOMBRE} AS cliente_nombre
-    FROM cobranzas co
+    FROM cobros_pickup co
     JOIN clientes c ON c.id = co.cliente_id
     WHERE 1=1`;
   const params = [];
@@ -35,7 +35,7 @@ async function obtenerPorId(id) {
   return db
     .prepare(
       `SELECT co.*, ${CLIENTE_NOMBRE} AS cliente_nombre
-       FROM cobranzas co
+       FROM cobros_pickup co
        JOIN clientes c ON c.id = co.cliente_id
        WHERE co.id = ?`
     )
@@ -46,7 +46,7 @@ async function crear(data) {
   const db = getDb();
   const result = await db
     .prepare(
-      `INSERT INTO cobranzas
+      `INSERT INTO cobros_pickup
         (cliente_id, fecha, monto, moneda, forma_pago, pickup_id, nota, usuario)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     )
@@ -73,7 +73,7 @@ async function actualizar(id, data) {
   const notaProvista = Object.prototype.hasOwnProperty.call(data, 'nota');
   await db
     .prepare(
-      `UPDATE cobranzas SET
+      `UPDATE cobros_pickup SET
         cliente_id = COALESCE(?, cliente_id),
         fecha      = COALESCE(?, fecha),
         monto      = COALESCE(?, monto),
@@ -98,7 +98,7 @@ async function actualizar(id, data) {
 
 async function eliminar(id) {
   const db = getDb();
-  const result = await db.prepare('DELETE FROM cobranzas WHERE id = ?').run(id);
+  const result = await db.prepare('DELETE FROM cobros_pickup WHERE id = ?').run(id);
   return result.changes > 0;
 }
 

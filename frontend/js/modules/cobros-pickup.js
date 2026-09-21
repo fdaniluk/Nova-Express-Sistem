@@ -84,7 +84,7 @@
       hasta: filtroHasta.value || undefined,
     };
     try {
-      const res = await NovaAPI.cobranzas.listar(filtros);
+      const res = await NovaAPI.cobrosPickup.listar(filtros);
       cobranzas = res.cobranzas || [];
       renderResumen(res.resumen || { total_ars: 0, total_usd: 0 });
       renderTabla();
@@ -244,10 +244,10 @@
     }
     try {
       if (modoEdicion) {
-        await NovaAPI.cobranzas.actualizar(cobranzaIdInput.value, data);
+        await NovaAPI.cobrosPickup.actualizar(cobranzaIdInput.value, data);
         NovaUtils.showAlert(alertBox, 'Cobranza actualizada correctamente', 'success');
       } else {
-        await NovaAPI.cobranzas.crear(data);
+        await NovaAPI.cobrosPickup.crear(data);
         NovaUtils.showAlert(alertBox, 'Cobranza registrada correctamente', 'success');
       }
       cerrarForm();
@@ -262,7 +262,7 @@
     if (!c) return;
     if (!confirm(`¿Eliminar la cobranza de ${c.cliente_nombre || 'cliente'} por ${formatMonto(c.monto, c.moneda)}? Esta acción no se puede deshacer.`)) return;
     try {
-      await NovaAPI.cobranzas.eliminar(id);
+      await NovaAPI.cobrosPickup.eliminar(id);
       NovaUtils.showAlert(alertBox, 'Cobranza eliminada', 'success');
       await cargarCobranzas();
     } catch (err) {

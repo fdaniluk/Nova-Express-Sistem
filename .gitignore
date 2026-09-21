@@ -21,3 +21,6 @@ _to_delete/
 
 # Salida de scripts/ups-shipping-prueba.js (etapa 0 de las guias UPS)
 backend/ups-prueba/
+
+scripts/gecom/*.zip
+scripts/gecom/*.csv
