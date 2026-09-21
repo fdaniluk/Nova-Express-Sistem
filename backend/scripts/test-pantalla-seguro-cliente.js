@@ -91,7 +91,7 @@ async function main() {
 
   await page.goto(`${BASE}/pages/clientes-perfil.html?id=${cli.id}`);
   await esperar(2200);
-  await page.click('text=Editar tarifas');
+  await page.click('#btn-editar-tarifas'); // por id: desde el 17/09 la cabecera de la tarjeta tambien dice "Editar tarifas"
   await esperar(1200);
 
   check('está el campo de porcentaje', !!(await page.$('#tarifas-seguro-pct')));
@@ -124,7 +124,7 @@ async function main() {
 
   await page.reload();
   await esperar(2200);
-  await page.click('text=Editar tarifas');
+  await page.click('#btn-editar-tarifas'); // por id: desde el 17/09 la cabecera de la tarjeta tambien dice "Editar tarifas"
   await esperar(1200);
   check('sobrevive a recargar la página',
     (await page.inputValue('#tarifas-seguro-pct')) === '1' &&
