@@ -173,6 +173,12 @@ async function migrateClientes() {
     // pagos en pesos: 'venta' (lo normal) o 'promedio' (algunos clientes).
     ['plazo_pago_dias',       'INTEGER'],
     ['tipo_cambio',           "TEXT DEFAULT 'venta'"],
+    // Cuenta corriente (21/09/2026): libro al que va la liquidación confirmada
+    // ('SF' sin factura en USD / 'CF' con factura en pesos) y códigos de agenda del
+    // GECOM por punto de venta para la migración del histórico.
+    ['libro_default',         "TEXT NOT NULL DEFAULT 'SF'"],
+    ['gecom_agenda_cf',       'TEXT'],
+    ['gecom_agenda_sf',       'TEXT'],
   ];
   for (const [col, def] of toAdd) {
     if (!existingCols.includes(col)) {
@@ -685,6 +691,8 @@ async function migrateUsuarios() {
     // que no tiene por qué ser admin ni ver el panel de salud, y lo que se lleva es la
     // planilla del período entero.
     ['cerrar_mes', 'INTEGER NOT NULL DEFAULT 0'],
+    // Cobranzas: confirmar pagos informados (transferencias, etc.). Ver requireConfirmarPagos.
+    ['confirmar_pagos', 'INTEGER NOT NULL DEFAULT 0'],
   ];
   for (const [col, def] of toAdd) {
     if (!cols.includes(col)) {
@@ -736,6 +744,53 @@ async function migrateCobrosPickup() {
   await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cobros_pickup_cliente ON cobros_pickup(cliente_id)');
   await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cobros_pickup_fecha   ON cobros_pickup(fecha)');
   await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cobros_pickup_pickup  ON cobros_pickup(pickup_id)');
+}
+
+// Cuenta corriente / Cobranzas (21/09/2026). Las tablas cc_* están en schema.sql (son
+// nuevas, no hace falta ALTER). Acá van las columnas que se suman a liquidaciones y el
+// backfill: toda liquidación ya confirmada pasa a ser un débito LQ en el libro del
+// cliente, una sola vez (índice único por liquidacion_id). Idempotente.
+async function migrateLiquidacionesCC() {
+  const cols = (await dbApi.prepare('PRAGMA table_info(liquidaciones)').all()).map((c) => c.name);
+  const toAdd = [
+    ['moneda',             "TEXT NOT NULL DEFAULT 'USD'"],
+    ['numero_factura',     'TEXT'],
+    ['fecha_confirmacion', 'TEXT'],
+  ];
+  for (const [col, def] of toAdd) {
+    if (!cols.includes(col)) await dbApi.exec(`ALTER TABLE liquidaciones ADD COLUMN ${col} ${def}`);
+  }
+  // Fecha de confirmación de las ya confirmadas: la mejor aproximación que hay es
+  // updated_at (es lo que tocaba confirmar()).
+  await dbApi.exec(`
+    UPDATE liquidaciones SET fecha_confirmacion = substr(updated_at, 1, 10)
+    WHERE estado = 'confirmada' AND fecha_confirmacion IS NULL
+  `);
+}
+
+async function migrateCuentaCorriente() {
+  const r = await dbApi.prepare(`
+    INSERT INTO cc_comprobantes (cliente_id, libro, tipo, numero, fecha, vencimiento, moneda,
+                                 importe, saldo, liquidacion_id, descripcion, origen, creado_por)
+    SELECT l.cliente_id,
+           COALESCE(c.libro_default, 'SF'),
+           'LQ',
+           'LQ-' || l.id,
+           COALESCE(l.fecha_confirmacion, l.fecha),
+           date(COALESCE(l.fecha_confirmacion, l.fecha), '+' || COALESCE(c.plazo_pago_dias, 0) || ' days'),
+           COALESCE(l.moneda, 'USD'),
+           l.total,
+           l.total,
+           l.id,
+           'Liquidación #' || l.id || ' (' || l.periodo_desde || ' a ' || l.periodo_hasta || ')',
+           'sistema',
+           'migracion'
+    FROM liquidaciones l
+    JOIN clientes c ON c.id = l.cliente_id
+    WHERE l.estado = 'confirmada'
+      AND NOT EXISTS (SELECT 1 FROM cc_comprobantes cc WHERE cc.liquidacion_id = l.id)
+  `).run();
+  if (r.changes > 0) console.log(`Migración cuenta corriente: ${r.changes} liquidaciones confirmadas cargadas como débitos`);
 }
 
 // Asiento de los cierres: cada vez que alguien baja el Excel de un período queda la
@@ -1058,6 +1113,8 @@ async function initSchema() {
   await migrateClienteTramos();
   await migrateFacturaGuias();
   await migrateCobrosPickup();
+  await migrateLiquidacionesCC();
+  await migrateCuentaCorriente();
   await migrateCierres();
   await migrateFuelNova();
   await migrateTarifario();

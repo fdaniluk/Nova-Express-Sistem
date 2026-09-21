@@ -19,7 +19,7 @@
 
   function renderTabla(usuarios) {
     if (!usuarios.length) {
-      tabla.innerHTML = '<tr><td colspan="7" class="empty">No hay usuarios registrados.</td></tr>';
+      tabla.innerHTML = '<tr><td colspan="8" class="empty">No hay usuarios registrados.</td></tr>';
       return;
     }
 
@@ -44,6 +44,9 @@
           </td>
           <td style="text-align:center">
             <input type="checkbox" class="cierre-check" data-id="${u.id}" ${u.cerrar_mes ? 'checked' : ''}>
+          </td>
+          <td style="text-align:center">
+            <input type="checkbox" class="pagos-check" data-id="${u.id}" ${u.confirmar_pagos ? 'checked' : ''}>
           </td>
           <td>
             <div class="estado-cell">
@@ -95,6 +98,19 @@
         var id = cb.dataset.id;
         try {
           await NovaAPI.patch('/usuarios/' + id, { editar_config: cb.checked ? 1 : 0 });
+          await cargarUsuarios();
+        } catch (err) {
+          NovaUtils.showAlert(alertBox, err.message);
+          await cargarUsuarios();
+        }
+      });
+    });
+
+    tabla.querySelectorAll('input.pagos-check').forEach(function (cb) {
+      cb.addEventListener('change', async function () {
+        var id = cb.dataset.id;
+        try {
+          await NovaAPI.patch('/usuarios/' + id, { confirmar_pagos: cb.checked ? 1 : 0 });
           await cargarUsuarios();
         } catch (err) {
           NovaUtils.showAlert(alertBox, err.message);
@@ -174,6 +190,7 @@
         editar_config: document.getElementById('u-editar-config').checked ? 1 : 0,
         ver_salud: document.getElementById('u-ver-salud').checked ? 1 : 0,
         cerrar_mes: document.getElementById('u-cerrar-mes').checked ? 1 : 0,
+        confirmar_pagos: document.getElementById('u-confirmar-pagos').checked ? 1 : 0,
       };
       try {
         await NovaAPI.post('/usuarios', data);

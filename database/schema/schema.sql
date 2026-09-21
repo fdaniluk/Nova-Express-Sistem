@@ -50,7 +50,14 @@ CREATE TABLE IF NOT EXISTS clientes (
   -- Cobranzas (17/09/2026): plazo de pago acordado en días (NULL = sin definir) y qué
   -- cotización del Banco Nación se toma para los pagos en pesos ('venta' o 'promedio').
   plazo_pago_dias      INTEGER,
-  tipo_cambio          TEXT DEFAULT 'venta'
+  tipo_cambio          TEXT DEFAULT 'venta',
+  -- Cuenta corriente (21/09/2026): a qué libro va la liquidación confirmada.
+  -- 'SF' = sin factura (USD), 'CF' = con factura (pesos). Los dos libros existen igual.
+  libro_default        TEXT NOT NULL DEFAULT 'SF',
+  -- Código de agenda del GECOM en cada punto de venta (0003 = CF, 1900 = SF), para
+  -- cruzar la migración del histórico.
+  gecom_agenda_cf      TEXT,
+  gecom_agenda_sf      TEXT
 );
 
 -- Configuración por courier (fuel y umbrales de negocio)
@@ -121,6 +128,12 @@ CREATE TABLE IF NOT EXISTS liquidaciones (
   estado         TEXT NOT NULL DEFAULT 'borrador' CHECK (estado IN ('borrador', 'confirmada')),
   created_at     TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
   updated_at     TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  -- Cuenta corriente (21/09/2026): moneda del total (hoy siempre USD), número de la
+  -- factura A/B si la liquidación se facturó, y fecha real de confirmación (antes solo
+  -- quedaba en updated_at).
+  moneda             TEXT NOT NULL DEFAULT 'USD',
+  numero_factura     TEXT,
+  fecha_confirmacion TEXT,
   FOREIGN KEY (cliente_id) REFERENCES clientes(id)
 );
 
@@ -661,6 +674,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
   -- Permite bajar el Excel de las salidas de un período para archivarlo fuera del
   -- sistema. Va aparte de ver_salud porque lo usa administración, no dirección.
   cerrar_mes     INTEGER NOT NULL DEFAULT 0,
+  -- Cobranzas: puede confirmar pagos informados (admin OR confirmar_pagos = 1).
+  confirmar_pagos INTEGER NOT NULL DEFAULT 0,
   activo         INTEGER NOT NULL DEFAULT 1,
   creado_en      TEXT DEFAULT (datetime('now'))
 );
@@ -867,3 +882,140 @@ CREATE TABLE IF NOT EXISTS bot_vinculos (
 CREATE UNIQUE INDEX IF NOT EXISTS idx_bot_vinculos_activo ON bot_vinculos(canal, identificador) WHERE estado = 'activo';
 CREATE INDEX IF NOT EXISTS idx_bot_vinculos_usuario ON bot_vinculos(usuario_id, estado);
 CREATE INDEX IF NOT EXISTS idx_bot_vinculos_codigo ON bot_vinculos(codigo) WHERE estado = 'pendiente';
+
+-- ============================================================================
+-- CUENTA CORRIENTE / COBRANZAS (módulo Cobranzas, 21/09/2026). Reemplaza al GECOM.
+-- Diseño: claude/COBRANZAS-DISENO.md del proyecto.
+-- Dos libros por cliente: CF (con factura, pesos) y SF (sin factura, dólares).
+-- Los comprobantes NO se borran: FA/LQ/ND/NC se corrigen con contra-asiento;
+-- RC/AC se anulan con baja lógica (anulado_at). Las columnas nuevas de clientes,
+-- liquidaciones y usuarios que usa este módulo están en sus CREATE TABLE y en las
+-- migraciones migrateClientes / migrateLiquidacionesCC / migrateUsuarios.
+-- ============================================================================
+
+-- Débitos y créditos de la cuenta corriente. El signo lo da `tipo`:
+--   débito  (+): FA factura real · LQ liquidación confirmada (libro SF) · ND nota de débito
+--   crédito (−): NC nota de crédito · RC recibo · AC a cuenta / saldo a favor
+-- `saldo` = lo que falta cancelar de un débito (se recalcula desde cc_recibo_imputaciones).
+CREATE TABLE IF NOT EXISTS cc_comprobantes (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  cliente_id      INTEGER NOT NULL REFERENCES clientes(id),
+  libro           TEXT NOT NULL CHECK (libro IN ('CF','SF')),
+  tipo            TEXT NOT NULL CHECK (tipo IN ('FA','LQ','ND','NC','RC','AC')),
+  letra           TEXT,
+  punto_venta     TEXT,
+  numero          TEXT,
+  fecha           TEXT NOT NULL,
+  vencimiento     TEXT,
+  moneda          TEXT NOT NULL CHECK (moneda IN ('ARS','USD')),
+  importe         REAL NOT NULL,
+  tc_dia          REAL,
+  importe_usd     REAL,
+  importe_ars     REAL,
+  saldo           REAL NOT NULL DEFAULT 0,
+  referencia_id   INTEGER REFERENCES cc_comprobantes(id),
+  liquidacion_id  INTEGER REFERENCES liquidaciones(id),
+  descripcion     TEXT,
+  origen          TEXT NOT NULL DEFAULT 'sistema' CHECK (origen IN ('sistema','gecom','ajuste_migracion')),
+  gecom_punto     TEXT,
+  gecom_tipo      TEXT,
+  gecom_numero    TEXT,
+  gecom_agenda    TEXT,
+  anulado_at      TEXT,
+  anulado_por     TEXT,
+  anulado_motivo  TEXT,
+  creado_por      TEXT,
+  creado_at       TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_cc_comprobantes_cliente ON cc_comprobantes(cliente_id, libro);
+CREATE INDEX IF NOT EXISTS idx_cc_comprobantes_fecha   ON cc_comprobantes(fecha);
+CREATE INDEX IF NOT EXISTS idx_cc_comprobantes_saldo   ON cc_comprobantes(cliente_id, libro, saldo);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cc_comprobantes_liquidacion ON cc_comprobantes(liquidacion_id) WHERE liquidacion_id IS NOT NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cc_comprobantes_gecom ON cc_comprobantes(gecom_punto, gecom_tipo, gecom_numero, gecom_agenda) WHERE gecom_numero IS NOT NULL;
+
+-- Cabecera del recibo (extiende al comprobante tipo RC).
+CREATE TABLE IF NOT EXISTS cc_recibos (
+  id                INTEGER PRIMARY KEY AUTOINCREMENT,
+  comprobante_id    INTEGER NOT NULL UNIQUE REFERENCES cc_comprobantes(id),
+  numero_sistema    INTEGER NOT NULL,
+  numero_talonario  TEXT,
+  cobrador_id       INTEGER REFERENCES usuarios(id),
+  estado            TEXT NOT NULL DEFAULT 'informado' CHECK (estado IN ('informado','confirmado')),
+  confirmado_por    TEXT,
+  confirmado_at     TEXT,
+  moneda_pago       TEXT,
+  tc_pago           REAL,
+  total             REAL NOT NULL DEFAULT 0,
+  observaciones     TEXT
+);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_cc_recibos_talonario ON cc_recibos(numero_talonario) WHERE numero_talonario IS NOT NULL;
+
+-- Medios de pago de un recibo (varios por recibo).
+CREATE TABLE IF NOT EXISTS cc_recibo_valores (
+  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+  recibo_id           INTEGER NOT NULL REFERENCES cc_recibos(id) ON DELETE CASCADE,
+  medio               TEXT NOT NULL CHECK (medio IN ('efectivo','transferencia','cheque','mercadopago','otro')),
+  moneda              TEXT NOT NULL CHECK (moneda IN ('ARS','USD')),
+  importe             REAL NOT NULL,
+  banco               TEXT,
+  numero              TEXT,
+  fecha_vto           TEXT,
+  cuit_emisor         TEXT,
+  comprobante_adjunto TEXT,
+  cheque_id           INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_cc_recibo_valores_recibo ON cc_recibo_valores(recibo_id);
+
+-- A qué débitos se aplica el recibo (parcial permitido, varias facturas por recibo).
+CREATE TABLE IF NOT EXISTS cc_recibo_imputaciones (
+  id              INTEGER PRIMARY KEY AUTOINCREMENT,
+  recibo_id       INTEGER NOT NULL REFERENCES cc_recibos(id) ON DELETE CASCADE,
+  comprobante_id  INTEGER NOT NULL REFERENCES cc_comprobantes(id),
+  importe         REAL NOT NULL,
+  estado          TEXT NOT NULL DEFAULT 'aplicada' CHECK (estado IN ('aplicada','pendiente_valor','revertida'))
+);
+CREATE INDEX IF NOT EXISTS idx_cc_imputaciones_recibo ON cc_recibo_imputaciones(recibo_id);
+CREATE INDEX IF NOT EXISTS idx_cc_imputaciones_cpte   ON cc_recibo_imputaciones(comprobante_id);
+
+-- Cheques en cartera (reemplaza la planilla de la oficina). No cancelan deuda hasta acreditar.
+CREATE TABLE IF NOT EXISTS cc_cheques (
+  id               INTEGER PRIMARY KEY AUTOINCREMENT,
+  cliente_id       INTEGER NOT NULL REFERENCES clientes(id),
+  recibo_valor_id  INTEGER REFERENCES cc_recibo_valores(id),
+  banco            TEXT,
+  numero           TEXT,
+  fecha_emision    TEXT,
+  fecha_vto        TEXT,
+  importe          REAL NOT NULL,
+  moneda           TEXT NOT NULL DEFAULT 'ARS' CHECK (moneda IN ('ARS','USD')),
+  cuit_emisor      TEXT,
+  estado           TEXT NOT NULL DEFAULT 'recibido' CHECK (estado IN ('recibido','acreditado','rechazado','anulado')),
+  estado_at        TEXT,
+  estado_por       TEXT,
+  creado_at        TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_cc_cheques_cliente ON cc_cheques(cliente_id, estado);
+
+-- Reclamos de cobranza (lo que hoy Victoria busca en WhatsApp).
+CREATE TABLE IF NOT EXISTS cc_reclamos (
+  id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+  cliente_id          INTEGER NOT NULL REFERENCES clientes(id),
+  fecha               TEXT NOT NULL,
+  usuario             TEXT,
+  medio               TEXT,
+  texto               TEXT,
+  respuesta_cliente   TEXT,
+  promesa_pago_fecha  TEXT,
+  creado_at           TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_cc_reclamos_cliente ON cc_reclamos(cliente_id, fecha);
+
+-- Tipo de cambio por día (Nación). Un valor por fecha.
+CREATE TABLE IF NOT EXISTS cc_tipo_cambio (
+  fecha     TEXT PRIMARY KEY,
+  compra    REAL,
+  venta     REAL,
+  promedio  REAL,
+  fuente    TEXT NOT NULL DEFAULT 'manual',
+  creado_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);

@@ -303,6 +303,22 @@ api.cobrosPickup = {
   eliminar: (id) => api.delete(`/cobros-pickup/${id}`),
 };
 
+// Cobranzas: cuenta corriente por cliente (dos libros CF/SF). Etapa 1: consultas.
+api.cobranzas = {
+  saldos: (filtros = {}) => {
+    const q = new URLSearchParams(Object.fromEntries(Object.entries(filtros).filter(([, v]) => v))).toString();
+    return api.get(`/cobranzas/saldos${q ? `?${q}` : ''}`);
+  },
+  pendientes: (clienteId) => api.get(`/cobranzas/clientes/${clienteId}/pendientes`),
+  historial: (clienteId, filtros = {}) => {
+    const q = new URLSearchParams(Object.fromEntries(Object.entries(filtros).filter(([, v]) => v))).toString();
+    return api.get(`/cobranzas/clientes/${clienteId}/historial${q ? `?${q}` : ''}`);
+  },
+  crearComprobante: (data) => api.post('/cobranzas/comprobantes', data),
+  tipoCambio: () => api.get('/cobranzas/tipo-cambio'),
+  guardarTipoCambio: (data) => api.post('/cobranzas/tipo-cambio', data),
+};
+
 api.facturas = {
   chequear: (file) => {
     const fd = new FormData();

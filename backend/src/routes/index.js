@@ -17,6 +17,7 @@ const salidasRoutes = require('./salidas.routes');
 const trackingRoutes = require('./tracking.routes');
 const facturasRoutes = require('./facturas.routes');
 const cobrosPickupRoutes = require('./cobros-pickup.routes');
+const cobranzasRoutes = require('./cobranzas.routes');
 const authRoutes = require('./auth.routes');
 const publicoRoutes = require('./publico.routes');
 const cotizadorLinksRoutes = require('./cotizador-links.routes');
@@ -66,6 +67,8 @@ router.use('/operaciones', operacionesRoutes);
 router.use('/tracking', trackingRoutes);
 router.use('/facturas', facturasRoutes);
 router.use('/cobros-pickup', cobrosPickupRoutes);
+// Cuenta corriente por cliente (módulo Cobranzas, reemplazo del GECOM).
+router.use('/cobranzas', cobranzasRoutes);
 // El asistente de la oficina: usa la misma sesion y las mismas rutas que las pantallas.
 router.use('/bot', botRoutes);
 router.use('/usuarios', requireAdmin, usuariosRoutes);

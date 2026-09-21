@@ -30,6 +30,7 @@ async function requireAuth(req, res, next) {
       editar_config: session.editar_config,
       ver_salud: session.ver_salud,
       cerrar_mes: session.cerrar_mes,
+      confirmar_pagos: session.confirmar_pagos,
     };
     next();
   } catch (err) {
@@ -75,6 +76,15 @@ function requireCierre(req, res, next) {
   next();
 }
 
+// Cobranzas: confirmar pagos informados (el OK que hoy da Marcelo por WhatsApp).
+// admin OR confirmar_pagos = 1. Puede tenerlo más de una persona a propósito.
+function requireConfirmarPagos(req, res, next) {
+  if (!req.usuario || (req.usuario.rol !== 'admin' && req.usuario.confirmar_pagos !== 1)) {
+    return res.status(403).json({ error: 'No tenés permiso para confirmar pagos' });
+  }
+  next();
+}
+
 function requireAdmin(req, res, next) {
   if (!req.usuario || req.usuario.rol !== 'admin') {
     return res.status(403).json({ error: 'Se requiere rol administrador' });
@@ -83,5 +93,5 @@ function requireAdmin(req, res, next) {
 }
 
 module.exports = {
-  requireAuth, requireDashboard, requireConfig, requireSalud, requireCierre, requireAdmin,
+  requireAuth, requireDashboard, requireConfig, requireSalud, requireCierre, requireAdmin, requireConfirmarPagos,
 };

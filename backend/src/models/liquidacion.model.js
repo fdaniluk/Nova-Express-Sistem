@@ -4,6 +4,7 @@ const envioModel = require('./envio.model');
 const { redondear2, cotizarEnvio } = require('../services/calculos.service');
 const { descomponerVenta, detallarAdicional } = require('../utils/desgloseVenta');
 const { hoyLocal } = require('../utils/fecha');
+const ccModel = require('./cuenta-corriente.model');
 
 // Migración automática: agrega columnas nuevas si no existen
 async function migrarColumnas() {
@@ -216,7 +217,7 @@ async function preview({ cliente_id, envio_ids, cargos = [], cotizaciones = [] }
 
 async function crear({
   cliente_id, periodo_desde, periodo_hasta, envio_ids, cargos = [], cotizaciones = [], confirmar = false,
-  reemplazar_borradores = [], permitir_duplicado = false,
+  reemplazar_borradores = [], permitir_duplicado = false, usuario = null,
 }) {
   await migrarColumnas();
   // Pendiente 52: si algún envío ya está en OTRO borrador, no se arma un segundo en
@@ -306,6 +307,9 @@ async function crear({
       // 22:00 fechada el 1 del mes siguiente.
       const fecha = hoyLocal();
       await envioModel.marcarLiquidados(envio_ids, liquidacionId, fecha);
+      await db.prepare('UPDATE liquidaciones SET fecha_confirmacion = ? WHERE id = ?').run(fecha, liquidacionId);
+      // Cuenta corriente: la liquidación confirmada es el débito del libro del cliente.
+      await ccModel.registrarDebitoLiquidacion(db, liquidacionId, { usuario });
     }
 
     return liquidacionId;
@@ -337,7 +341,7 @@ function validarSinCeros(items) {
 // se confirmaba no era lo que se estaba viendo. Ahora la pantalla manda su selección y,
 // si no coincide con los ítems del borrador, esto corta con 409 en vez de confirmar otra
 // cosa. Sin el parámetro (API vieja, scripts) se confirma como siempre.
-async function confirmar(id, envioIdsEsperados = null) {
+async function confirmar(id, envioIdsEsperados = null, usuario = null) {
   const db = getDb();
   const liq = await buscarPorId(id);
   if (!liq) return null;
@@ -394,10 +398,13 @@ async function confirmar(id, envioIdsEsperados = null) {
 
   await db.transaction(async () => {
     await db.prepare(
-      `UPDATE liquidaciones SET estado = 'confirmada', updated_at = datetime('now', 'localtime')
+      `UPDATE liquidaciones SET estado = 'confirmada', fecha_confirmacion = ?,
+       updated_at = datetime('now', 'localtime')
        WHERE id = ?`
-    ).run(id);
+    ).run(fecha, id);
     await envioModel.marcarLiquidados(envioIds, id, fecha);
+    // Cuenta corriente: la liquidación confirmada es el débito del libro del cliente.
+    await ccModel.registrarDebitoLiquidacion(db, id, { usuario });
   });
   return buscarPorId(id);
 }
