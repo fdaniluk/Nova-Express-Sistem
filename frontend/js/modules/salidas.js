@@ -1411,6 +1411,12 @@
         NovaUtils.showAlert(alertBox,
           `Cierre de ${comoSeLlama} descargado: ${filas} envío(s). Guardalo en la carpeta de respaldos.`,
           'success');
+        // Cierre de LA SEMANA = fin de la semana de trabajo: festejo con confeti y foto
+        // (pedido de Felipe, 22/09). El del mes no, que ese es de administración.
+        if (/tipo=semana/.test(query) && window.NovaFinde) {
+          const quien = (window.currentUser && (window.currentUser.nombre || window.currentUser.usuario)) || '';
+          NovaFinde.celebrar({ filas, quien });
+        }
       }
       refrescarUltimoCierre();
     } catch (e) {

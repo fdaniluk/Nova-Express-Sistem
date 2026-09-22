@@ -426,6 +426,19 @@ router.get('/exportar', requireCierre, async (req, res, next) => {
 
 // Los últimos cierres hechos. Lo usa la pantalla para mostrar de cuándo es el último, y
 // es la misma fuente que mira el panel de salud.
+// Fotos para la animación del cierre de semana (22/09/2026): lista lo que haya en
+// frontend/assets/finde. Sin base, sin subida: la oficina las deja en la carpeta y listo.
+router.get('/finde-fotos', (req, res) => {
+  const fs = require('fs');
+  const path = require('path');
+  const dir = path.join(__dirname, '../../../frontend/assets/finde');
+  let fotos = [];
+  try {
+    fotos = fs.readdirSync(dir).filter((f) => /\.(jpe?g|png|gif|webp)$/i.test(f)).map((f) => '/assets/finde/' + encodeURIComponent(f));
+  } catch (e) { fotos = []; }
+  res.json({ fotos });
+});
+
 router.get('/cierres', requireCierre, async (req, res, next) => {
   try {
     const filas = await getDb()

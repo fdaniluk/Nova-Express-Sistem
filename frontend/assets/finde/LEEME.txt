@@ -1,0 +1,6 @@
+Fotos del cierre de semana (22/09/2026)
+=======================================
+Poné acá las fotos que quieras que aparezcan el viernes cuando se baja el cierre de la
+semana desde Salidas (jpg, jpeg, png, gif o webp). Cada vez se elige UNA al azar.
+Si la carpeta está vacía, la animación sale igual, sin foto.
+Conviene que no pesen más de 1–2 MB cada una. Se suben con el resto del sistema (git).
