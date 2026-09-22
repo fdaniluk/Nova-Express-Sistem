@@ -26,3 +26,7 @@ scripts/gecom/*.zip
 scripts/gecom/*.csv
 
 .fuse_hidden*
+
+# Python
+__pycache__/
+scripts/gecom/out/_nova_local_copy.db

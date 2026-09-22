@@ -10,6 +10,9 @@ const { hoyLocal } = require('../utils/fecha');
 
 const DEBITOS = ['FA', 'LQ', 'ND'];
 const CREDITOS = ['NC', 'RC', 'AC'];
+// Una NC (o un AC) con saldo > 0 es crédito SIN APLICAR: plata a favor del cliente que todavía
+// no bajó ninguna factura. Así lo trae el GECOM (NC 170 de Fernando Gómez, 22/09) y así se
+// muestra en "a favor". Cuando se imputa, su saldo baja a 0.
 const LIBROS = ['CF', 'SF'];
 const MONEDA_LIBRO = { CF: 'ARS', SF: 'USD' };
 
@@ -107,8 +110,8 @@ async function saldosPorCliente({ libro = null, soloConSaldo = true, tipo_cobro 
             c.plazo_pago_dias,
             SUM(CASE WHEN cc.libro='CF' AND cc.tipo IN ('FA','LQ','ND') THEN cc.saldo ELSE 0 END) AS saldo_cf,
             SUM(CASE WHEN cc.libro='SF' AND cc.tipo IN ('FA','LQ','ND') THEN cc.saldo ELSE 0 END) AS saldo_sf,
-            SUM(CASE WHEN cc.libro='CF' AND cc.tipo='AC' THEN cc.saldo ELSE 0 END) AS a_favor_cf,
-            SUM(CASE WHEN cc.libro='SF' AND cc.tipo='AC' THEN cc.saldo ELSE 0 END) AS a_favor_sf,
+            SUM(CASE WHEN cc.libro='CF' AND cc.tipo IN ('AC','NC') THEN cc.saldo ELSE 0 END) AS a_favor_cf,
+            SUM(CASE WHEN cc.libro='SF' AND cc.tipo IN ('AC','NC') THEN cc.saldo ELSE 0 END) AS a_favor_sf,
             SUM(CASE WHEN cc.tipo IN ('FA','LQ','ND') AND cc.saldo > 0.005 THEN 1 ELSE 0 END) AS abiertos,
             MIN(CASE WHEN cc.tipo IN ('FA','LQ','ND') AND cc.saldo > 0.005 THEN cc.fecha END) AS fecha_mas_vieja,
             MIN(CASE WHEN cc.tipo IN ('FA','LQ','ND') AND cc.saldo > 0.005 THEN cc.vencimiento END) AS vencimiento_mas_viejo,
@@ -143,7 +146,7 @@ async function pendientesCliente(clienteId) {
             (SELECT COUNT(*) FROM liquidacion_items li WHERE li.liquidacion_id = cc.liquidacion_id) AS envios
      FROM cc_comprobantes cc
      WHERE cc.cliente_id = ? AND cc.anulado_at IS NULL
-       AND ((cc.tipo IN ('FA','LQ','ND') AND cc.saldo > 0.005) OR (cc.tipo = 'AC' AND cc.saldo > 0.005))
+       AND ((cc.tipo IN ('FA','LQ','ND') AND cc.saldo > 0.005) OR (cc.tipo IN ('AC','NC') AND cc.saldo > 0.005))
      ORDER BY cc.libro, cc.fecha, cc.id`
   ).all(clienteId);
   const porLibro = { CF: [], SF: [] };
@@ -152,7 +155,7 @@ async function pendientesCliente(clienteId) {
     porLibro[r.libro].push({ ...r, mora_dias: mora });
   }
   const tot = (arr) => r2(arr.filter((x) => DEBITOS.includes(x.tipo)).reduce((a, x) => a + x.saldo, 0)
-    - arr.filter((x) => x.tipo === 'AC').reduce((a, x) => a + x.saldo, 0));
+    - arr.filter((x) => (x.tipo === 'AC' || x.tipo === 'NC')).reduce((a, x) => a + x.saldo, 0));
   return { CF: porLibro.CF, SF: porLibro.SF, saldo_cf: tot(porLibro.CF), saldo_sf: tot(porLibro.SF) };
 }
 

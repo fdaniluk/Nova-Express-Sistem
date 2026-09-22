@@ -1,6 +1,7 @@
 import re,struct,sys,json
 from collections import Counter
-D='/mnt/user-data/uploads/gecom/nova2026/'
+import os
+D=os.environ.get('GECOM_DIR','/mnt/user-data/uploads/gecom/nova2026/')
 def load_dict():
     b=open(D+'zdtablacampo.dat','rb').read()
     offs=[m.start() for m in re.finditer(rb'@\[[A-Z0-9]', b)]

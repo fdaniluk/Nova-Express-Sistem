@@ -326,7 +326,10 @@ const STYLES = {
   subHeaderFont: { name: FUENTE, bold: true, size: 10, color: { argb: NOVA_VIOLETA } },
   noteFont: { name: FUENTE, italic: true, size: 9.5, color: { argb: NOVA_GRIS } },
 };
-const BORDE_SUAVE = { style: 'thin', color: { argb: 'FFDDD8E6' } };
+// Renglones más marcados (pedido de administración, 22/09/2026): el borde entre filas era
+// casi invisible y en el detalle de adicionales no se distinguía dónde terminaba una guía.
+const BORDE_SUAVE = { style: 'thin', color: { argb: 'FFC4BDD3' } };
+const BORDE_FUERTE = { style: 'medium', color: { argb: NOVA_VIOLETA } };
 const BORDES = { top: BORDE_SUAVE, bottom: BORDE_SUAVE, left: BORDE_SUAVE, right: BORDE_SUAVE };
 
 // Cómo se cobra el cliente → título del documento y prefijo del archivo. Antes todo salía
@@ -586,26 +589,54 @@ async function exportarLiquidacion(liquidacion) {
       for (let c = c1; c <= c2; c++) ws.getCell(r, c).border = BORDES;
     }
     r++;
-    let n = 0;
+    // Un bloque por guía: el sombreado alterna por GUÍA (no por renglón), el número de guía va
+    // en negrita solo en el primer renglón, y entre guía y guía hay una línea violeta gruesa.
+    // Si la guía tiene más de un concepto, cierra con un subtotal.
+    let g = 0;
     for (const it of conDetalle) {
-      for (const d of it.adicional_detalle) {
-        const fill = n % 2 === 0 ? STYLES.rowWhite : STYLES.rowAlt;
+      const fill = g % 2 === 0 ? STYLES.rowWhite : STYLES.rowAlt;
+      const lineas = it.adicional_detalle;
+      const inicio = r;
+      let subtotal = 0;
+      lineas.forEach((d, i) => {
         ws.mergeCells(r, 2, r, 4);
         ws.mergeCells(r, 5, r, 11);
         ws.mergeCells(r, 12, r, 13);
-        ws.getCell(r, 2).value = it.numero_guia || '';
+        ws.getCell(r, 2).value = i === 0 ? (it.numero_guia || '') : '';
         ws.getCell(r, 5).value = d.label;
         ws.getCell(r, 12).value = Number(d.monto) || 0;
         ws.getCell(r, 12).numFmt = FMT_MONEY;
         ws.getCell(r, 12).alignment = { horizontal: 'right' };
         for (let c = 2; c <= COL_COUNT; c++) {
-          setCellStyle(ws.getCell(r, c), { fill, font: STYLES.rowFont });
+          setCellStyle(ws.getCell(r, c), { fill, font: i === 0 && c === 2 ? { ...STYLES.rowFont, bold: true } : STYLES.rowFont });
           ws.getCell(r, c).border = BORDES;
         }
         ws.getRow(r).height = 16;
+        subtotal += Number(d.monto) || 0;
         r++;
-        n++;
+      });
+      if (lineas.length > 1) {
+        ws.mergeCells(r, 2, r, 4);
+        ws.mergeCells(r, 5, r, 11);
+        ws.mergeCells(r, 12, r, 13);
+        ws.getCell(r, 5).value = 'Subtotal guía ' + (it.numero_guia || '');
+        ws.getCell(r, 12).value = Math.round(subtotal * 100) / 100;
+        ws.getCell(r, 12).numFmt = FMT_MONEY;
+        ws.getCell(r, 12).alignment = { horizontal: 'right' };
+        for (let c = 2; c <= COL_COUNT; c++) {
+          setCellStyle(ws.getCell(r, c), { fill, font: { ...STYLES.rowFont, bold: true, color: { argb: NOVA_VIOLETA } } });
+          ws.getCell(r, c).border = BORDES;
+        }
+        ws.getCell(r, 5).alignment = { horizontal: 'right' };
+        ws.getRow(r).height = 16;
+        r++;
       }
+      // Línea gruesa arriba del bloque y abajo del último renglón de la guía.
+      for (let c = 2; c <= COL_COUNT; c++) {
+        ws.getCell(inicio, c).border = { ...ws.getCell(inicio, c).border, top: BORDE_FUERTE };
+        ws.getCell(r - 1, c).border = { ...ws.getCell(r - 1, c).border, bottom: BORDE_FUERTE };
+      }
+      g++;
     }
     r++;
   }
