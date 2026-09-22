@@ -26,15 +26,19 @@
   .fd-onda{position:fixed;z-index:99992;left:0;top:0;width:40px;height:40px;margin:-20px 0 0 -20px;border-radius:50%;border:6px solid #fff;pointer-events:none;opacity:0}
   .fd-onda.on{animation:fd-onda .9s cubic-bezier(.2,.8,.3,1) forwards}
   @keyframes fd-onda{0%{transform:scale(.2);opacity:.9}100%{transform:scale(9);opacity:0;border-width:1px}}
-  .fd-foto{position:fixed;z-index:99993;left:50%;top:50%;width:min(720px,88vw);transform:translate(-50%,-50%) scale(.15);opacity:0;border-radius:22px;overflow:hidden;background:#0f1530;box-shadow:0 0 0 6px rgba(255,255,255,.92),0 50px 110px rgba(0,0,0,.5),0 6px 18px rgba(0,0,0,.25);cursor:pointer;font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
+  .fd-foto{position:fixed;z-index:99993;left:50%;top:50%;width:auto;max-width:88vw;min-width:min(380px,88vw);transform:translate(-50%,-50%) scale(.15);opacity:0;border-radius:22px;overflow:hidden;background:#0f1530;box-shadow:0 0 0 6px rgba(255,255,255,.92),0 50px 110px rgba(0,0,0,.5),0 6px 18px rgba(0,0,0,.25);cursor:pointer;font-family:'Segoe UI',system-ui,-apple-system,sans-serif}
   .fd-foto.on{animation:fd-foto .8s cubic-bezier(.2,1.3,.35,1) forwards}
   .fd-foto.off{transition:transform .4s ease-in,opacity .4s ease-in;transform:translate(-50%,-40%) scale(.85)!important;opacity:0!important}
   @keyframes fd-foto{0%{transform:translate(-50%,-50%) scale(.15);opacity:0}55%{opacity:1}100%{transform:translate(-50%,-50%) scale(1);opacity:1}}
-  .fd-foto img{display:block;width:100%;max-height:66vh;object-fit:cover;background:${HIELO}}
-  .fd-foto .fd-msg{position:absolute;left:0;right:0;bottom:0;padding:70px 34px 30px;background:linear-gradient(180deg,rgba(15,21,48,0) 0%,rgba(15,21,48,.55) 45%,rgba(15,21,48,.9) 100%);color:#fff;font-size:clamp(22px,3vw,36px);font-weight:800;letter-spacing:-.4px;line-height:1.15;text-shadow:0 2px 10px rgba(0,0,0,.35)}
+  .fd-foto img{display:block;width:auto;height:auto;max-width:88vw;max-height:76vh;min-width:min(380px,88vw);object-fit:contain;background:${HIELO}}
+  .fd-foto .fd-msg{position:absolute;left:0;right:0;bottom:0;padding:70px 28px 26px;background:linear-gradient(180deg,rgba(15,21,48,0) 0%,rgba(15,21,48,.55) 45%,rgba(15,21,48,.9) 100%);color:#fff;font-size:clamp(20px,2.6vw,34px);font-weight:800;letter-spacing:-.4px;line-height:1.15;text-shadow:0 2px 10px rgba(0,0,0,.35)}
   .fd-foto .fd-msg em{font-style:normal;color:#FFB86B}
   .fd-foto .fd-tag{position:absolute;left:22px;top:20px;display:inline-flex;align-items:center;gap:8px;padding:7px 12px 7px 9px;border-radius:999px;background:rgba(255,255,255,.92);color:${AZUL};font-size:11px;font-weight:800;letter-spacing:.16em;text-transform:uppercase;box-shadow:0 4px 14px rgba(0,0,0,.2)}
   .fd-foto .fd-tag i{display:block;width:10px;height:10px;border-radius:50%;background:${NARANJA}}
+  .fd-foto.vertical{background:#fff;min-width:0;display:flex;flex-direction:column}
+  .fd-foto.vertical img{max-height:64vh;min-width:0}
+  .fd-foto.vertical .fd-msg{position:static;background:#fff;color:${AZUL};text-shadow:none;padding:16px 18px 20px;font-size:clamp(17px,2vw,25px);text-align:center;width:0;min-width:100%;box-sizing:border-box}
+  .fd-foto.vertical .fd-msg em{color:${NARANJA}}
   .fd-foto.sinfoto{background:${AZUL};padding:110px 40px 40px}
   .fd-foto.sinfoto .fd-msg{position:static;background:none;padding:0;font-size:clamp(26px,3.6vw,44px)}
   .fd-pie{position:fixed;z-index:99993;left:50%;bottom:22px;transform:translateX(-50%);color:#fff;font:600 12px/1 'Segoe UI',system-ui,sans-serif;letter-spacing:.14em;text-transform:uppercase;opacity:0;transition:opacity .5s;pointer-events:none;text-shadow:0 1px 6px rgba(0,0,0,.5)}
@@ -119,12 +123,13 @@
     css();
     const foto = await fotoAlAzar();
     // La foto se precarga para que aparezca de golpe, no cargándose.
-    if (foto) await new Promise((ok) => { const i = new Image(); i.onload = i.onerror = ok; i.src = foto; });
+    let vertical = false;
+    if (foto) await new Promise((ok) => { const i = new Image(); i.onload = () => { vertical = i.naturalHeight > i.naturalWidth * 1.05; ok(); }; i.onerror = ok; i.src = foto; });
     const velo = document.createElement('div'); velo.className = 'fd-velo';
     const cv = document.createElement('canvas'); cv.className = 'fd-canvas';
     const avion = document.createElement('div'); avion.className = 'fd-avion'; avion.innerHTML = AVION;
     const onda = document.createElement('div'); onda.className = 'fd-onda';
-    const card = document.createElement('div'); card.className = 'fd-foto' + (foto ? '' : ' sinfoto');
+    const card = document.createElement('div'); card.className = 'fd-foto' + (foto ? (vertical ? ' vertical' : '') : ' sinfoto');
     card.innerHTML = `${foto ? `<img src="${foto}" alt="">` : ''}<span class="fd-tag"><i></i>Cierre de semana</span><div class="fd-msg">${frase()}</div>`;
     const pie = document.createElement('div'); pie.className = 'fd-pie'; pie.textContent = 'clic para cerrar';
     document.body.append(velo, cv, avion, onda, card, pie);
