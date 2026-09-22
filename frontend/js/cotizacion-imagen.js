@@ -72,7 +72,7 @@
   function filasDe(op) {
     const f = [];
     f.push(['Flete internacional', fmt(op.flete), 'normal']);
-    if (op.surge > 0) f.push(['Surge fee UPS', fmt(op.surge), 'normal']);
+    if (op.surge > 0) f.push([/DHL/i.test(String(op.courier || op.servicio || '')) ? 'Extracargo por demanda DHL' : 'Surge fee UPS', fmt(op.surge), 'normal']);
     f.push([op.surge > 0 ? 'Subtotal (con surge)' : 'Subtotal', fmt(op.subtotal), 'subtotal']);
     f.push([`Fuel (${op.fuel_pct}%)`, '+ ' + fmt(op.fuel_monto), 'normal']);
     (op.extras || []).forEach(([n, v]) => f.push([n, fmt(v), 'normal']));

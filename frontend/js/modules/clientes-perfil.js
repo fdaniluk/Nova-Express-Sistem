@@ -1539,7 +1539,7 @@
       try { ops = JSON.parse(q.opciones || '[]'); } catch { ops = []; }
       celda.innerHTML = `<div class="ctz-desglose-caja">${ops.map((o) => {
         const filas = [['Flete internacional', o.flete]];
-        if (o.surge > 0) filas.push(['Surge fee UPS', o.surge]);
+        if (o.surge > 0) filas.push([/DHL/i.test(String(o.courier || o.servicio || '')) ? 'Extracargo por demanda DHL' : 'Surge fee UPS', o.surge]);
         filas.push(['Subtotal', o.subtotal]);
         filas.push([`Fuel (${o.fuel_pct}%)`, o.fuel_monto]);
         (o.extras || []).forEach(([n, v]) => filas.push([n, v]));

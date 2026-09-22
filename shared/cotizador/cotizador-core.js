@@ -229,6 +229,45 @@ function getUPSSaverEsIt(pais,pf){
 
 // ── Pricing functions ─────────────────────────────────────────────────────────
 
+// ── Extracargo por demanda DHL (Demand Surcharge), 22/09/2026 ─────────────────
+// Nota de DHL "Extracargo por demanda" (actualizada 31/08/2026): vigente del 01-oct-2026 al
+// 05-feb-2027, USD por kg de peso facturable según región de origen y destino, y LLEVA
+// fuel (igual que el surge de UPS). Argentina está en "Américas". Fila Américas de la tabla
+// (exportación) y columna Américas (importación). Regiones según las listas de la nota;
+// lo que no está en ninguna es "Resto del mundo" (África subsahariana, Asia Central,
+// Rusia, Ucrania, Irán, Irak, Cuba, Venezuela, Groenlandia, Malvinas…).
+const DHL_DEMANDA_DESDE='2026-10-01';
+const DHL_DEMANDA_HASTA='2027-02-05';
+const DHL_D_CHINA=new Set(['China','Hong Kong','Macao']);
+const DHL_D_SUR_ASIA=new Set(['Bangladesh','Bután','India','Maldivas','Nepal','Pakistán','Sri Lanka']);
+const DHL_D_ASIA=new Set(['Bangladesh','Bután','Brunei','Camboya','India','Indonesia','Japón','Laos','Malasia','Maldivas','Mongolia','Myanmar','Nepal','Pakistán','Filipinas','Singapur','Corea del Sur','Sri Lanka','Taiwán','Tailandia','Timor Oriental','Vietnam']);
+const DHL_D_OCEANIA=new Set(['Australia','Islas Cook','Fiji','Tahití','Kiribati','Nauru','Nueva Caledonia','Nueva Zelanda','Niue','Papúa Nueva Guinea','Samoa','Islas Salomón','Tonga','Tuvalu','Vanuatu']);
+const DHL_D_EUROPA=new Set(['Albania','Andorra','Austria','Bélgica','Bosnia-Herzegovina','Bulgaria','Islas Canarias','Croacia','Chipre','República Checa','Dinamarca','Estonia','Finlandia','Francia','Alemania','Gibraltar','Grecia','Hungría','Islandia','Israel','Italia','Jersey','Kosovo','Letonia','Liechtenstein','Lituania','Luxemburgo','Malta','Mónaco','Países Bajos','Macedonia del Norte','Noruega','Polonia','Portugal','Irlanda','Moldova','Montenegro','Rumania','San Marino','Serbia','Eslovaquia','Eslovenia','España','Suecia','Suiza','Turquía','Reino Unido','Ciudad del Vaticano']);
+const DHL_D_MEDIO_ORIENTE=new Set(['Argelia','Bahréin','Egipto','Jordania','Kuwait','Líbano','Marruecos','Omán','Qatar','Arabia Saudita','Túnez','Emiratos Árabes Unidos']);
+const DHL_D_AMERICAS=new Set(['Antigua','Anguila','Argentina','Aruba','Bahamas','Barbados','Bermuda','Bolivia','Brasil','Belice','Bonaire','Islas Caimán','Canadá','Chile','Colombia','Costa Rica','Curasao','Dominica','República Dominicana','Ecuador','El Salvador','Granada','Guatemala','Guadalupe','Guyana','Guayana Francesa','Haití','Honduras','Jamaica','Martinica','México','Montserrat','St. Kitts','Nicaragua','Panamá','Paraguay','Perú','Suriname','San Bartolomé','San Eustaquio','Santa Lucía','St. Maarten','San Vicente','Trinidad y Tobago','Islas Turcas y Caicos','Uruguay','Islas Vírgenes Británicas','Estados Unidos','Samoa Americana','Guam','Islas Marshall','Micronesia','Palau','Puerto Rico','Islas Vírgenes (EE.UU.)']);
+function getSurgeDHL(pais,tipo,pf,fecha){
+  const f=fecha||hoyISO();
+  if(f<DHL_DEMANDA_DESDE||f>DHL_DEMANDA_HASTA)return 0;
+  let tarifa;
+  if(tipo==='import'){
+    // Origen = país, destino = Argentina (columna Américas).
+    if(DHL_D_CHINA.has(pais))tarifa=2.25;
+    else if(DHL_D_SUR_ASIA.has(pais))tarifa=1.55;
+    else if(DHL_D_ASIA.has(pais)||DHL_D_OCEANIA.has(pais))tarifa=1.65;
+    else if(DHL_D_EUROPA.has(pais))tarifa=0.55;
+    else if(DHL_D_AMERICAS.has(pais))tarifa=0.30;
+    else if(DHL_D_MEDIO_ORIENTE.has(pais))tarifa=1.50;
+    else tarifa=0.91;
+  } else {
+    // Origen Argentina (fila Américas), destino = país.
+    if(DHL_D_CHINA.has(pais)||DHL_D_ASIA.has(pais)||DHL_D_EUROPA.has(pais)||DHL_D_MEDIO_ORIENTE.has(pais))tarifa=0;
+    else if(DHL_D_OCEANIA.has(pais))tarifa=0.55;
+    else if(DHL_D_AMERICAS.has(pais))tarifa=0.30;
+    else tarifa=0.91;
+  }
+  return parseFloat((pf*tarifa).toFixed(2));
+}
+
 // Surge fee UPS (por kg de peso facturable). Las tablas de exportación e importación son
 // DISTINTAS, por eso hay que mirar el sentido del envío:
 //   Exportación: ISMEA 2.95 · Israel y E.A.U. 3.30 · EE.UU. y resto del mundo 0.50
@@ -599,13 +638,15 @@ function cotizarServicio(servicio, params) {
     if(proteccionDoc)       extras.push(['Protección de documentos (DHL)',DHL_PROTECCION_DOC]);
     // Tarifa por kilo: el flete de venta es precio × peso facturable, no flete + margen.
     const conGan          =usaPorKg?parseFloat((kgVenta*pf).toFixed(2)):fleteBase*(1+profit);
-    const subtotalConSurge=conGan;
+    // Extracargo por demanda DHL (temporada alta, por fecha): a costo, sin ganancia, con fuel.
+    const surgeDHL        =getSurgeDHL(pais,tipo,pf,fecha);
+    const subtotalConSurge=conGan+surgeDHL;
     const fuelMonto       =subtotalConSurge*fuel;
     const extrasTotal     =extras.reduce((s,r)=>s+r[1],0);
     const total           =subtotalConSurge+fuelMonto+extrasTotal;
     return{
       servicio:'DHL Express Worldwide',zona,pf,
-      fleteBase,feeUSA:0,surge:0,surgeAmt:0,flete:fleteBase,
+      fleteBase,feeUSA:0,surge:surgeDHL,surgeAmt:surgeDHL,flete:fleteBase,
       conGan,subtotalConSurge,fuelMonto,extras,extrasTotal,total,
       goGreen,sobrepesoTotal,excesoTotal,noConvencionalTotal,seguro:seguroObj.monto,
       manejoCount:0,contornoExtra:0,contornoWarn:false,manejo:0,
@@ -703,7 +744,7 @@ if(typeof module!=='undefined'&&module.exports){
     UPS_SAVER_ES_IT,UPS_SAVER_ES_PK,UPS_SAVER_IT_PK,
     resolverZona,
     getPesoVol,getDHL,getDHLBig,getDHLE50,getUPS,getUPSSaverEsIt,
-    getSurge,getSurgeImportNuevo,calcSeguroUPS,calcSeguroDHL,seguroPropioMonto,DHL_PROTECCION_DOC,calcDHLExtras,calcUPSDimExtras,calcImpuestos,calcZonaEntrega,normalizarEntrega,
+    getSurge,getSurgeImportNuevo,getSurgeDHL,calcSeguroUPS,calcSeguroDHL,seguroPropioMonto,DHL_PROTECCION_DOC,calcDHLExtras,calcUPSDimExtras,calcImpuestos,calcZonaEntrega,normalizarEntrega,
     TOPES_PIEZA,calcTopesPieza,MSG_CONTORNO_UPS,
     cotizarServicio,
   };
