@@ -24,8 +24,10 @@
  *     (saldo a favor) por el resto, referenciando el recibo.
  *   · Comprobantes de arrastre (solo cabecera, tiporeg 0) toman importe y fechas de cuenta.fac.
  *   · Recibos: 0000nnnn = talonario (numero_talonario = numero); 0010nnnn = automático.
- *   · Clientes: agenda → CUIT (gecom_clientes.csv) → clientes.cuit. Sin match → se lista y se
- *     SALTA (la oficina decide si crear el cliente o unificar).
+ *   · Clientes: primero scripts/gecom/gecom_mapa_clientes.csv (agenda → accion usar/crear/omitir
+ *     + cliente_id, revisado a mano el 22/09); si la agenda no está ahí: CUIT → clientes.cuit,
+ *     después nombre exacto, y si no hay nada se CREA el cliente con el nombre y CUIT del GECOM
+ *     (un cliente con deuda no puede quedar afuera). Todo lo creado queda listado en el informe.
  */
 const fs = require('fs');
 const path = require('path');
@@ -38,6 +40,7 @@ const args = Object.fromEntries(process.argv.slice(2).map((a) => {
 }));
 const CARPETA = path.resolve(process.cwd(), args.carpeta || '../scripts/gecom/out');
 const AGENDA_CSV = path.resolve(__dirname, '../../scripts/gecom/gecom_clientes.csv');
+const MAPA_CSV = path.resolve(__dirname, '../../scripts/gecom/gecom_mapa_clientes.csv');
 const APLICAR = !!args.aplicar;
 
 function leerCsv(nombre) {
@@ -80,11 +83,37 @@ async function main() {
     if (c.gecom_agenda_cf) porAgenda.set(String(c.gecom_agenda_cf).padStart(8, '0'), c);
     if (c.gecom_agenda_sf) porAgenda.set(String(c.gecom_agenda_sf).padStart(8, '0'), c);
   }
+  const normNombre = (s) => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9 ]/g, ' ').replace(/\s+/g, ' ').trim();
+  const porNombre = new Map();
+  for (const c of clientes) { for (const n of [c.nombre, c.nombre_nova]) if (normNombre(n)) porNombre.set(normNombre(n), c); }
+  const porId = new Map(clientes.map((c) => [c.id, c]));
+  const mapa = new Map(); // agenda → { accion, cliente_id }
+  if (fs.existsSync(MAPA_CSV)) {
+    const txt = fs.readFileSync(MAPA_CSV, 'utf8').replace(/^\uFEFF/, '');
+    const [cab, ...rows] = txt.split(/\r?\n/).filter(Boolean).map((l) => l.split(';'));
+    const ix = Object.fromEntries(cab.map((c, i) => [c, i]));
+    for (const r of rows) mapa.set(String(r[ix.agenda]).padStart(8, '0'), { accion: r[ix.accion], cliente_id: Number(r[ix.cliente_id]) || null });
+  }
+  const creados = new Map(); // agenda → cliente (nuevo, todavía sin id hasta grabar)
+  const omitidos = new Set();
   const clienteDe = (ag) => {
     if (porAgenda.has(ag)) return porAgenda.get(ag);
+    if (creados.has(ag)) return creados.get(ag);
+    const m = mapa.get(ag);
     const a = agenda.get(ag);
-    if (a && a.cuit && porCuit.has(a.cuit)) return porCuit.get(a.cuit);
-    return null;
+    if (m && m.accion === 'omitir') { omitidos.add(ag); return null; }
+    if (m && m.accion === 'usar' && m.cliente_id && porId.has(m.cliente_id)) return porId.get(m.cliente_id);
+    if (!(m && m.accion === 'crear')) {
+      if (a && a.cuit && a.cuit.length >= 10 && porCuit.has(a.cuit)) return porCuit.get(a.cuit);
+      if (a && porNombre.has(normNombre(a.nombre))) return porNombre.get(normNombre(a.nombre));
+    }
+    if (!a) return null;
+    // No existe: se crea con los datos del GECOM. Si el nombre ya está tomado, se le agrega el código.
+    let nombre = a.nombre.replace(/¥/g, 'Ñ').trim();
+    if (porNombre.has(normNombre(nombre))) nombre += ' (GECOM ' + Number(ag) + ')';
+    const nuevo = { id: null, nombre, nombre_nova: null, cuit: a.cuit && a.cuit.length >= 10 ? a.cuit : null, nuevo: true, agenda: ag };
+    creados.set(ag, nuevo); porNombre.set(normNombre(nombre), nuevo);
+    return nuevo;
   };
   const sinMatch = new Map();
 
@@ -121,7 +150,7 @@ async function main() {
     let saldo = 0;
     if ((esDebito || tipo === 'NC') && cu) saldo = r2(num(cu.importe) - (num(cu.cancelado) || 0));
     const fila = {
-      clave: claveDe(c), cliente_id: cli.id, libro, tipo, letra: c.letra || null, punto_venta: c.punto.slice(-4),
+      clave: claveDe(c), cliente_id: cli.id, cli, libro, tipo, letra: c.letra || null, punto_venta: c.punto.slice(-4),
       numero: c.numero, fecha, vencimiento: esDebito ? (venc || fecha) : null, moneda: MONEDA[libro], importe: r2(importe),
       tc_dia: tc, importe_usd: importeUsd !== null ? r2(importeUsd) : null,
       importe_ars: libro === 'CF' ? r2(importe) : (tc ? r2(importe * tc) : null),
@@ -181,6 +210,11 @@ async function main() {
     else if (['04', '05'].includes(r.tipo_cod)) saldoCuenta[LIBRO[r.punto]] -= s;
   }
   console.log(`Comprobantes a cargar: ${filas.length} (saltados ${saltados}) · recibos ${filas.filter((f) => f.esRecibo).length} · AC por resto ${filas.filter((f) => f.tipo === 'AC').length}`);
+  if (creados.size) {
+    console.log(`\nCLIENTES NUEVOS que se crean desde el GECOM (${creados.size}):`);
+    for (const [ag, c] of creados) console.log(`  agenda ${ag}  ${c.nombre}  (CUIT ${c.cuit || '-'})`);
+  }
+  if (omitidos.size) console.log(`Agendas omitidas por el mapa: ${[...omitidos].join(', ')}`);
   console.log(`Saldo CF (ARS): importado ${r2(porLibro.CF.saldo).toLocaleString('es-AR')} vs cuenta.fac ${r2(saldoCuenta.CF).toLocaleString('es-AR')}`);
   console.log(`Saldo SF (USD): importado ${r2(porLibro.SF.saldo).toLocaleString('es-AR')} vs cuenta.fac ${r2(saldoCuenta.SF).toLocaleString('es-AR')}`);
   console.log(`Imputaciones: ${imps.length} (sin destino en esta corrida: ${impSinDestino}) · valores: ${vals.length} · referencias NC→FA: ${refs.length}`);
@@ -193,13 +227,13 @@ async function main() {
   for (const r of cuenta) {
     if (!['02', '03', '04', '05'].includes(r.tipo_cod)) continue;
     const cli = clienteDe(r.agenda); if (!cli) continue;
-    const k = cli.id + '|' + LIBRO[r.punto];
+    const k = (cli.id || 'nuevo:' + cli.agenda) + '|' + LIBRO[r.punto];
     const s = num(r.importe) - (num(r.cancelado) || 0);
     porCli.set(k, (porCli.get(k) || 0) + (['02', '03'].includes(r.tipo_cod) ? s : -s));
   }
   const importado = new Map();
   for (const f of filas) {
-    const k = f.cliente_id + '|' + f.libro;
+    const k = (f.cli.id || 'nuevo:' + f.cli.agenda) + '|' + f.libro;
     if (['FA', 'LQ', 'ND'].includes(f.tipo)) importado.set(k, (importado.get(k) || 0) + f.saldo);
     else if (['NC', 'AC'].includes(f.tipo)) importado.set(k, (importado.get(k) || 0) - f.saldo);
   }
@@ -211,6 +245,11 @@ async function main() {
 
   // ── Grabar ───────────────────────────────────────────────────────────────────────
   await db.transaction(async () => {
+    for (const [ag, c] of creados) {
+      const r = await db.prepare(`INSERT INTO clientes (nombre, tipo_cobro, cuit, gecom_agenda_cf, gecom_agenda_sf) VALUES (?, 'CC', ?, ?, ?)`).run(c.nombre, c.cuit, ag, ag);
+      c.id = r.lastInsertRowid;
+    }
+    for (const f of filas) f.cliente_id = f.cli.id;
     const sel = db.prepare('SELECT id FROM cc_comprobantes WHERE gecom_punto = ? AND gecom_tipo = ? AND gecom_numero = ? AND gecom_agenda = ?');
     const ins = db.prepare(`INSERT INTO cc_comprobantes (cliente_id, libro, tipo, letra, punto_venta, numero, fecha, vencimiento, moneda, importe,
         tc_dia, importe_usd, importe_ars, saldo, descripcion, origen, gecom_punto, gecom_tipo, gecom_numero, gecom_agenda, creado_por)
