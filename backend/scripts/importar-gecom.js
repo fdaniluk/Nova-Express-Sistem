@@ -241,6 +241,14 @@ async function main() {
   if (difs.length) { console.log('\nDIFERENCIAS por cliente (cuenta.fac vs importado):'); for (const [k, v] of difs) console.log(`  ${k}: ${r2(v)} vs ${r2(importado.get(k) || 0)}`); }
   else console.log('\nSaldos por cliente: todos iguales a cuenta.fac.');
 
+  // ── Liquidaciones que están dos veces: LQ del sistema (origen sistema) y FAB 1900 del GECOM ──
+  // Regla (22/09): se queda la del GECOM, que es la que tiene los recibos imputados, enlazada a
+  // la liquidación (liquidacion_id); la del sistema se anula con motivo. Cruce: mismo cliente,
+  // mismo importe (±0,01) y fecha a menos de 60 días. Corre también sobre lo ya grabado, así que
+  // sirve tanto en la primera importación como en las nocturnas.
+  const cruces = await cruzarLiquidaciones(db, filas, APLICAR);
+  console.log(`\nLiquidaciones del sistema cruzadas con su FAB del GECOM: ${cruces.unidas} · sin par en el GECOM (quedan como están): ${cruces.sinPar}`);
+
   if (!APLICAR) { console.log('\n(simulación: agregá --aplicar para grabar)'); process.exit(0); }
 
   // ── Grabar ───────────────────────────────────────────────────────────────────────
@@ -261,6 +269,7 @@ async function main() {
       const p = [f.cliente_id, f.libro, f.tipo, f.letra, f.punto_venta, f.numero, f.fecha, f.vencimiento, f.moneda, f.importe, f.tc_dia, f.importe_usd, f.importe_ars, f.saldo, f.descripcion];
       if (ex) { await upd.run(...p, ex.id); f.id = ex.id; }
       else { const r = await ins.run(...p, f.gecom_punto, f.gecom_tipo, f.gecom_numero, f.gecom_agenda); f.id = r.lastInsertRowid; }
+      if (f.liquidacion_id) await db.prepare('UPDATE cc_comprobantes SET liquidacion_id = ? WHERE id = ?').run(f.liquidacion_id, f.id);
     }
     for (const f of filas) if (f.refClave) await db.prepare('UPDATE cc_comprobantes SET referencia_id = ? WHERE id = ?').run(ids.get(f.refClave).id, f.id);
     for (const [nc, fa] of refs) await db.prepare('UPDATE cc_comprobantes SET referencia_id = ? WHERE id = ?').run(fa.id, nc.id);
@@ -299,4 +308,38 @@ async function main() {
   console.log('\nGrabado.');
   process.exit(0);
 }
+async function cruzarLiquidaciones(db, filas, aplicar) {
+  const sistema = await db.prepare(
+    `SELECT id, cliente_id, importe, fecha, liquidacion_id, saldo FROM cc_comprobantes
+     WHERE origen = 'sistema' AND tipo = 'LQ' AND liquidacion_id IS NOT NULL AND anulado_at IS NULL`
+  ).all();
+  let unidas = 0, sinPar = 0;
+  for (const lq of sistema) {
+    // Candidato en lo ya grabado (corridas anteriores) o en lo que se va a grabar ahora.
+    let par = await db.prepare(
+      `SELECT id FROM cc_comprobantes WHERE origen = 'gecom' AND tipo = 'LQ' AND cliente_id = ? AND anulado_at IS NULL
+         AND ABS(importe - ?) < 0.011 AND ABS(julianday(fecha) - julianday(?)) <= 60 AND (liquidacion_id IS NULL OR liquidacion_id = ?)
+       ORDER BY ABS(julianday(fecha) - julianday(?)) LIMIT 1`
+    ).get(lq.cliente_id, lq.importe, lq.fecha, lq.liquidacion_id, lq.fecha);
+    if (!par) {
+      const f = filas.find((x) => x.tipo === 'LQ' && (x.cli.id === lq.cliente_id) && Math.abs(x.importe - lq.importe) < 0.011
+        && Math.abs((new Date(x.fecha) - new Date(lq.fecha)) / 86400000) <= 60 && !x.liquidacion_id);
+      if (f) { f.liquidacion_id = lq.liquidacion_id; par = f; }
+    }
+    if (!par) { sinPar++; continue; }
+    unidas++;
+    if (aplicar) {
+      // liquidacion_id es único en cc_comprobantes: primero se libera en la del sistema (queda
+      // anulada, con el id de la liquidación en la descripción), después se enlaza la del GECOM.
+      await db.prepare(
+        `UPDATE cc_comprobantes SET liquidacion_id = NULL, anulado_at = datetime('now','localtime'), anulado_por = 'importar-gecom',
+           anulado_motivo = 'Duplicada: la liquidación ' || ? || ' está cargada en el GECOM (FAB 1900), que es la que lleva los pagos',
+           descripcion = COALESCE(descripcion, '') || ' [LQ sistema ' || ? || ']' WHERE id = ?`
+      ).run(lq.liquidacion_id, lq.liquidacion_id, lq.id);
+      if (par.id) await db.prepare('UPDATE cc_comprobantes SET liquidacion_id = ? WHERE id = ?').run(lq.liquidacion_id, par.id);
+    }
+  }
+  return { unidas, sinPar };
+}
+
 main().catch((e) => { console.error(e); process.exit(1); });
