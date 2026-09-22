@@ -20,7 +20,7 @@ agenda;nombre_gecom;cuit_gecom;accion;cliente_id;cliente_sistema;nota;saldo_neto
 00000026;FERNANDO GOMEZ;20342051546;usar;43;Fernando Gomez;mismo nombre;0.0
 00000027;JORGE BELLA VISTA;30707308725;crear;;;no existe en el sistema: se crea;0
 00000028;LIS ROYAL;30711134618;usar;95;LIS ROYAL;mismo nombre;675157.95
-00000031;LEATHER FACTORY;30697295646;crear;;;REVISAR: AE LEATHER (109)? (mientras tanto se crea aparte);0.0
+00000031;LEATHER FACTORY;30697295646;crear;;;Leather Factory: misma empresa que Sipecsa con otro CUIT → unir como razon social cuando exista Sipecsa en el mapa (Felipe 22/09);0.0
 00000032;PAMPA LOGISTICA;33707252559;usar;103;Pampa Logistica;mismo nombre;0
 00000034;MIGUEL ACU¥A;27326393458;usar;11;MIGUEL ACUÑA;cruce por nombre revisado;0.0
 00000037;CIASE;20118763646;crear;;;no existe en el sistema: se crea;992.76
@@ -28,7 +28,7 @@ agenda;nombre_gecom;cuit_gecom;accion;cliente_id;cliente_sistema;nota;saldo_neto
 00000040;GUTIERREZ;20174549630;crear;;;no existe en el sistema: se crea;69.8
 00000042;INES ESPINOSA;30715361465;crear;;;no existe en el sistema: se crea;0
 00000043;KINGS GAME;20258264798;usar;54;Kings Game;mismo nombre;2286.83
-00000044;LA MARTINA USA/PAULA;11111111111;crear;;;REVISAR: La Martina UK (78)? (mientras tanto se crea aparte);0
+00000044;LA MARTINA USA/PAULA;11111111111;crear;;;La Martina USA: cuenta distinta de La Martina UK (Felipe 22/09);0
 00000045;LASCANO;20107601318;usar;46;Lascano;mismo nombre;735.92
 00000046;LOGI POLO;20143848109;usar;38;logi polo;mismo nombre;0
 00000048;RICARDO BIRSA;20143215017;crear;;;no existe en el sistema: se crea;0
@@ -48,7 +48,7 @@ agenda;nombre_gecom;cuit_gecom;accion;cliente_id;cliente_sistema;nota;saldo_neto
 00000094;APEROS;30709785482;crear;;;no existe en el sistema: se crea;0.0
 00000096;SILVIA DALMASO;30707541926;crear;;;no existe en el sistema: se crea;0
 00000098;BOTONERA MALAVER;30552976394;usar;106;Irixcore / Botonera Malaver;cruce por nombre revisado;0
-00000106;RAUCH ZAPATOS;20286923950;crear;;;REVISAR: ISABEL ZAPATOS (66)? (mientras tanto se crea aparte);0
+00000106;RAUCH ZAPATOS;20286923950;crear;;;Rauch Zapatos: no se sabe quién es (Felipe 22/09);0
 00000111;ANA LOPRESTO;23366378324;crear;;;no existe en el sistema: se crea;0
 00000112;ALFREDO AUBONE;55000002126;usar;116;AUBONE;cruce por nombre revisado;0.0
 00000113;BERNARDO;2329490647;usar;24;BERNARDO;mismo nombre;-12.96
@@ -65,7 +65,7 @@ agenda;nombre_gecom;cuit_gecom;accion;cliente_id;cliente_sistema;nota;saldo_neto
 00000157;AGUSTINA MARIA JAURETCHE;27343825965;crear;;;no existe en el sistema: se crea;-108.0
 00000159;PRISA SPORT SRL;30717416070;usar;67;prisa;cruce por nombre revisado;0.0
 00000160;NORMA ACU¥A;27252836514;crear;;;no existe en el sistema: se crea;0
-00000165;LANES SA/LA MARTINA ARG;30640335870;crear;;;REVISAR: La Martina UK (78)? (mientras tanto se crea aparte);0.0
+00000165;LANES SA/LA MARTINA ARG;30640335870;crear;;;La Martina ARG: cuenta distinta (Felipe 22/09);0.0
 00000166;TALABARTERIA INGLESA SRL;33708759479;crear;;;no existe en el sistema: se crea;0
 00000167;FRANCISCO GABINO SOSA;20309235321;usar;124;Francisco Novoa;cruce por nombre revisado;-29.82
 00000168;BARBARELLA SA;30688653351;crear;;;no existe en el sistema: se crea;12825047.85
@@ -83,7 +83,7 @@ agenda;nombre_gecom;cuit_gecom;accion;cliente_id;cliente_sistema;nota;saldo_neto
 00000192;SIMONA MIA;30717574806;crear;;;no existe en el sistema: se crea;0.0
 00000200;ONA IMPO;27167658135;usar;125;ONA IMPO;mismo nombre;1258.01
 00000202;ERNESTO FECCHINO IMPO;20316411992;usar;9;CAVALIER;cruce por CUIT;18278.32
-00000204;HERNAN GASTIABURO;20293110558;crear;;;REVISAR: Hernan Boquillas (132)? (mientras tanto se crea aparte);0
+00000204;HERNAN GASTIABURO;20293110558;usar;132;Hernan Boquillas;confirmado por Felipe 22/09;0
 00000205;CASTELLANOS PABLO EUGENIO;20148571350;crear;;;no existe en el sistema: se crea;0
 00000206;JORGE VERA;20948363829;crear;;;no existe en el sistema: se crea;0
 00000207;EMILIANO PATRICIO PENAZZI;23264217199;usar;30;EMILIANO PENAZZI;cruce por CUIT;0.0
@@ -94,12 +94,12 @@ agenda;nombre_gecom;cuit_gecom;accion;cliente_id;cliente_sistema;nota;saldo_neto
 00000214;DANIELA IBARRA PUERTO RICO;28077154;usar;35;Daniela PR/Nifty Cure;cruce por nombre revisado;0.0
 00000216;NEHO LABEL IMPO;30709322806;crear;;;no existe en el sistema: se crea;0
 00000218;ERNESTINA;24379859743;usar;119;ERNESTINA;mismo nombre;0.0
-00000219;FLORENCIA BELEN ESPINOLA;24377626288;crear;;;REVISAR: Florencia Ceramicas (123)? (mientras tanto se crea aparte);73.93
+00000219;FLORENCIA BELEN ESPINOLA;24377626288;usar;42;Florencia Acuña;confirmado por Felipe 22/09;73.93
 00000221;GERSCOVICH (CORRECTO);20042504077;usar;36;Gerscovich;cruce por nombre revisado;3631.26
 00000224;PABLO BERTERO (OPEN POLO);20318796689;usar;68;Open Polo;cruce por nombre revisado;0
 00000230;VILLAMIL 2;20130211349;usar;72;Villamil;cruce por nombre revisado;0
 00000233;SERVICIOS INTEG PARA EL CUERO;30715104284;crear;;;no existe en el sistema: se crea;0.0
-00000235;LA NATI ARG;30717909972;crear;;;REVISAR: La Natividad IMPO (101)? (mientras tanto se crea aparte);0.0
+00000235;LA NATI ARG;30717909972;usar;101;La Natividad IMPO;confirmado por Felipe 22/09;0.0
 00000240;MARIO ALBERTO VILLALBA;20347891631;crear;;;no existe en el sistema: se crea;0
 00000242;ATSDGA;20169773131;crear;;;no existe en el sistema: se crea;2942705.86
 00000243;HORSE STAR;20332076788;crear;;;no existe en el sistema: se crea;3084.99
@@ -170,9 +170,9 @@ agenda;nombre_gecom;cuit_gecom;accion;cliente_id;cliente_sistema;nota;saldo_neto
 00000336;CAMILA MEDINA;23393218134;usar;21;Camila Medina;cruce por CUIT;0
 00000337;TACOS TOP;20132327298;usar;41;TACOS TOP;mismo nombre;637.52
 00000338;JAVIERA VALENZUELA TABILO;23086936;usar;28;JAVIERA;cruce por nombre revisado;0
-00000339;CAMILA AGUIRREGABIRIA;27328393854;crear;;;REVISAR: Kostume / Camila Mimessi (126)? (mientras tanto se crea aparte);0
+00000339;CAMILA AGUIRREGABIRIA;27328393854;crear;;;Camila Aguirregabiria: NO es Kostume (Felipe 22/09);0
 00000340;EXPORTALO PEDALBOARD;30715911260;usar;18;Doble A Pedalboards;cruce por CUIT;0
-00000341;EXPORTALO MARCELO ESTENGURT;20244091572;crear;;;REVISAR: marcelo vierheller (51)? (mientras tanto se crea aparte);0
+00000341;EXPORTALO MARCELO ESTENGURT;20244091572;crear;;;Estengurt: NO es Vierheller (Felipe 22/09);0
 00000342;EXPORTALO CAMMAROTTA SILVINA;27264793527;usar;19;Silvina Inés Cammarotta;cruce por CUIT;0
 00000343;PUGIL PROFESSIONAL BOXING;1111111111;usar;20;PUGIL PROFESSIONAL BOXING;mismo nombre;0.0
 00000344;EXPORTALO BATTLO;27372041124;usar;91;CHINI;cruce por CUIT;1173.8
@@ -182,7 +182,7 @@ agenda;nombre_gecom;cuit_gecom;accion;cliente_id;cliente_sistema;nota;saldo_neto
 00000348;EXPORTALO MARIN SOUBIATE;20242208464;usar;85;Martin Soubiate;cruce por nombre revisado;0
 00000350;EXPORTALO BATTLO-CHINI;27372041124;usar;91;CHINI;cruce por CUIT;0.0
 00000351;MICHELANGELLO S.A.;30708759003;crear;;;no existe en el sistema: se crea;0.0
-00000352;AE LEATHER;30719007119;usar;109;AE LEATHER (SIPECSA);cruce por nombre revisado;0.0
+00000352;AE LEATHER;30719007119;crear;;;AE Leather: tercero al que Sipecsa pidió facturar (Felipe 22/09);0.0
 00000353;MODRI SRL;30718165233;usar;112;Modri Srl;cruce por CUIT;89.13
 00000354;SILVESTRE;20444477831;usar;110;;cruce por nombre revisado;2260.79
-00000355;FLORENCIA SCOTTI;27232589138;crear;;;REVISAR: Florencia Ceramicas (123)? (mientras tanto se crea aparte);0.0
+00000355;FLORENCIA SCOTTI;27232589138;usar;123;Florencia Ceramicas;confirmado por Felipe 22/09;0.0

@@ -97,12 +97,13 @@ async function main() {
   const creados = new Map(); // agenda → cliente (nuevo, todavía sin id hasta grabar)
   const omitidos = new Set();
   const clienteDe = (ag) => {
-    if (porAgenda.has(ag)) return porAgenda.get(ag);
-    if (creados.has(ag)) return creados.get(ag);
     const m = mapa.get(ag);
     const a = agenda.get(ag);
+    // El mapa revisado a mano manda, incluso sobre lo que una corrida anterior ya cruzó.
     if (m && m.accion === 'omitir') { omitidos.add(ag); return null; }
     if (m && m.accion === 'usar' && m.cliente_id && porId.has(m.cliente_id)) return porId.get(m.cliente_id);
+    if (porAgenda.has(ag)) return porAgenda.get(ag);
+    if (creados.has(ag)) return creados.get(ag);
     if (!(m && m.accion === 'crear')) {
       if (a && a.cuit && a.cuit.length >= 10 && porCuit.has(a.cuit)) return porCuit.get(a.cuit);
       if (a && porNombre.has(normNombre(a.nombre))) return porNombre.get(normNombre(a.nombre));
@@ -258,15 +259,44 @@ async function main() {
       c.id = r.lastInsertRowid;
     }
     for (const f of filas) f.cliente_id = f.cli.id;
+    // Razón social por agenda del GECOM (22/09): cada perfil viejo es una razón social del
+    // cliente, no un cliente. Si la principal del cliente no tiene agenda y coincide el CUIT
+    // (o es la única), se le asigna esta; si no, se crea otra con el nombre y CUIT del GECOM.
+    const rsPorAgenda = new Map();
+    const agendasUsadas = [...new Set(filas.map((f) => f.gecom_agenda))];
+    for (const ag of agendasUsadas) {
+      const f = filas.find((x) => x.gecom_agenda === ag);
+      const a = agenda.get(ag) || {};
+      let rs = await db.prepare('SELECT id, cliente_id FROM clientes_razones_sociales WHERE gecom_agenda = ?').get(ag);
+      if (rs && rs.cliente_id !== f.cliente_id) {
+        // El mapa movió esta agenda a otro cliente: la razón social se muda con sus comprobantes.
+        await db.prepare('UPDATE clientes_razones_sociales SET cliente_id = ?, principal = 0 WHERE id = ?').run(f.cliente_id, rs.id);
+      }
+      if (!rs) {
+        const cuit = a.cuit && a.cuit.length >= 10 ? a.cuit : null;
+        const libres = await db.prepare('SELECT id, cuit, razon_social FROM clientes_razones_sociales WHERE cliente_id = ? AND gecom_agenda IS NULL').all(f.cliente_id);
+        const cand = libres.find((r) => cuit && soloDigitos(r.cuit) === cuit) || (libres.length === 1 && !(libres[0].cuit && cuit && soloDigitos(libres[0].cuit) !== cuit) ? libres[0] : null);
+        if (cand) {
+          await db.prepare('UPDATE clientes_razones_sociales SET gecom_agenda = ?, cuit = COALESCE(cuit, ?) WHERE id = ?').run(ag, cuit, cand.id);
+          rs = { id: cand.id };
+        } else {
+          const nombre = (a.nombre || ('GECOM ' + ag)).replace(/¥/g, 'Ñ').trim();
+          const esPrincipal = (await db.prepare('SELECT COUNT(*) AS n FROM clientes_razones_sociales WHERE cliente_id = ?').get(f.cliente_id)).n === 0 ? 1 : 0;
+          const r = await db.prepare('INSERT INTO clientes_razones_sociales (cliente_id, razon_social, cuit, principal, gecom_agenda) VALUES (?, ?, ?, ?, ?)').run(f.cliente_id, nombre, cuit, esPrincipal, ag);
+          rs = { id: r.lastInsertRowid };
+        }
+      }
+      rsPorAgenda.set(ag, rs.id);
+    }
     const sel = db.prepare('SELECT id FROM cc_comprobantes WHERE gecom_punto = ? AND gecom_tipo = ? AND gecom_numero = ? AND gecom_agenda = ?');
-    const ins = db.prepare(`INSERT INTO cc_comprobantes (cliente_id, libro, tipo, letra, punto_venta, numero, fecha, vencimiento, moneda, importe,
+    const ins = db.prepare(`INSERT INTO cc_comprobantes (cliente_id, razon_social_id, libro, tipo, letra, punto_venta, numero, fecha, vencimiento, moneda, importe,
         tc_dia, importe_usd, importe_ars, saldo, descripcion, origen, gecom_punto, gecom_tipo, gecom_numero, gecom_agenda, creado_por)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'gecom', ?, ?, ?, ?, 'importar-gecom')`);
-    const upd = db.prepare(`UPDATE cc_comprobantes SET cliente_id = ?, libro = ?, tipo = ?, letra = ?, punto_venta = ?, numero = ?, fecha = ?, vencimiento = ?,
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'gecom', ?, ?, ?, ?, 'importar-gecom')`);
+    const upd = db.prepare(`UPDATE cc_comprobantes SET cliente_id = ?, razon_social_id = ?, libro = ?, tipo = ?, letra = ?, punto_venta = ?, numero = ?, fecha = ?, vencimiento = ?,
         moneda = ?, importe = ?, tc_dia = ?, importe_usd = ?, importe_ars = ?, saldo = ?, descripcion = ? WHERE id = ?`);
     for (const f of filas) {
       const ex = await sel.get(f.gecom_punto, f.gecom_tipo, f.gecom_numero, f.gecom_agenda);
-      const p = [f.cliente_id, f.libro, f.tipo, f.letra, f.punto_venta, f.numero, f.fecha, f.vencimiento, f.moneda, f.importe, f.tc_dia, f.importe_usd, f.importe_ars, f.saldo, f.descripcion];
+      const p = [f.cliente_id, rsPorAgenda.get(f.gecom_agenda) || null, f.libro, f.tipo, f.letra, f.punto_venta, f.numero, f.fecha, f.vencimiento, f.moneda, f.importe, f.tc_dia, f.importe_usd, f.importe_ars, f.saldo, f.descripcion];
       if (ex) { await upd.run(...p, ex.id); f.id = ex.id; }
       else { const r = await ins.run(...p, f.gecom_punto, f.gecom_tipo, f.gecom_numero, f.gecom_agenda); f.id = r.lastInsertRowid; }
       if (f.liquidacion_id) await db.prepare('UPDATE cc_comprobantes SET liquidacion_id = ? WHERE id = ?').run(f.liquidacion_id, f.id);
@@ -303,6 +333,24 @@ async function main() {
     for (const f of filas) {
       const col = f.libro === 'CF' ? 'gecom_agenda_cf' : 'gecom_agenda_sf';
       await db.prepare(`UPDATE clientes SET ${col} = ? WHERE id = ? AND (${col} IS NULL OR ${col} = '')`).run(f.gecom_agenda, f.cliente_id);
+    }
+    // Clientes que una corrida anterior creó desde el GECOM y que el mapa ahora manda a otro
+    // cliente: quedaron vacíos (sin envíos, liquidaciones ni comprobantes) → se borran.
+    const huerfanos = await db.prepare(`
+      SELECT c.id, c.nombre FROM clientes c
+      WHERE COALESCE(c.gecom_agenda_cf, c.gecom_agenda_sf) IS NOT NULL
+        AND NOT EXISTS (SELECT 1 FROM cc_comprobantes x WHERE x.cliente_id = c.id)
+        AND NOT EXISTS (SELECT 1 FROM envios e WHERE e.cliente_id = c.id)
+        AND NOT EXISTS (SELECT 1 FROM liquidaciones l WHERE l.cliente_id = c.id)
+        AND NOT EXISTS (SELECT 1 FROM cotizaciones q WHERE q.cliente_id = c.id)
+        AND NOT EXISTS (SELECT 1 FROM pickups p WHERE p.cliente_id = c.id)`).all();
+    for (const h of huerfanos) {
+      const ag = agendasUsadas.find((x) => x === (clientes.find((c) => c.id === h.id) || {}).gecom_agenda_cf || x === (clientes.find((c) => c.id === h.id) || {}).gecom_agenda_sf);
+      const m = ag ? mapa.get(ag) : null;
+      if (!m || m.accion !== 'usar' || m.cliente_id === h.id) continue;
+      await db.prepare('DELETE FROM clientes_razones_sociales WHERE cliente_id = ?').run(h.id);
+      await db.prepare('DELETE FROM clientes WHERE id = ?').run(h.id);
+      console.log(`  cliente vacío borrado: #${h.id} ${h.nombre} (su agenda ahora va al cliente ${m.cliente_id})`);
     }
   });
   console.log('\nGrabado.');

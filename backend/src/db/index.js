@@ -796,6 +796,34 @@ async function migrateCuentaCorriente() {
   if (r.changes > 0) console.log(`Migración cuenta corriente: ${r.changes} liquidaciones confirmadas cargadas como débitos`);
 }
 
+// Razones sociales (22/09/2026): columna en cc_comprobantes + una razón social principal
+// por cliente a partir de su nombre y CUIT, y una por cada agenda del GECOM ya cruzada
+// (gecom_agenda_cf/sf). Idempotente.
+async function migrateRazonesSociales() {
+  const cols = (await dbApi.prepare('PRAGMA table_info(cc_comprobantes)').all()).map((c) => c.name);
+  if (!cols.includes('razon_social_id')) await dbApi.exec('ALTER TABLE cc_comprobantes ADD COLUMN razon_social_id INTEGER REFERENCES clientes_razones_sociales(id)');
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cc_comprobantes_rs ON cc_comprobantes(razon_social_id)');
+  const r = await dbApi.prepare(`
+    INSERT INTO clientes_razones_sociales (cliente_id, razon_social, cuit, condicion_iva, principal, gecom_agenda)
+    SELECT c.id, COALESCE(NULLIF(c.nombre,''), c.nombre_nova), NULLIF(c.cuit,''), c.tipo_facturacion, 1,
+           COALESCE(NULLIF(c.gecom_agenda_cf,''), NULLIF(c.gecom_agenda_sf,''))
+    FROM clientes c
+    WHERE NOT EXISTS (SELECT 1 FROM clientes_razones_sociales r WHERE r.cliente_id = c.id)
+      AND (COALESCE(NULLIF(c.gecom_agenda_cf,''), NULLIF(c.gecom_agenda_sf,'')) IS NULL
+           OR NOT EXISTS (SELECT 1 FROM clientes_razones_sociales r2 WHERE r2.gecom_agenda = COALESCE(NULLIF(c.gecom_agenda_cf,''), NULLIF(c.gecom_agenda_sf,''))))
+  `).run();
+  if (r.changes > 0) console.log(`Migración razones sociales: ${r.changes} clientes con su razón social principal`);
+  // Comprobantes sin razón social → la principal del cliente (o la de su agenda GECOM).
+  const r2 = await dbApi.prepare(`
+    UPDATE cc_comprobantes SET razon_social_id = COALESCE(
+      (SELECT id FROM clientes_razones_sociales r WHERE r.gecom_agenda = cc_comprobantes.gecom_agenda AND r.cliente_id = cc_comprobantes.cliente_id),
+      (SELECT id FROM clientes_razones_sociales r WHERE r.cliente_id = cc_comprobantes.cliente_id AND r.principal = 1),
+      (SELECT MIN(id) FROM clientes_razones_sociales r WHERE r.cliente_id = cc_comprobantes.cliente_id))
+    WHERE razon_social_id IS NULL
+  `).run();
+  if (r2.changes > 0) console.log(`Migración razones sociales: ${r2.changes} comprobantes asignados`);
+}
+
 // Áreas de entrega de UPS (21/09/2026): carga el TSV comprimido de backend/data en la
 // tabla ups_areas la primera vez (o después de vaciarla para recargar un archivo nuevo).
 async function migrateUpsAreas() {
@@ -1147,6 +1175,7 @@ async function initSchema() {
   await migrateCobrosPickup();
   await migrateLiquidacionesCC();
   await migrateCuentaCorriente();
+  await migrateRazonesSociales();
   await migrateUpsAreas();
   await migrateCierres();
   await migrateFuelNova();

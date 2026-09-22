@@ -67,6 +67,7 @@ async function crearComprobante(req, res, next) {
       punto_venta: b.punto_venta || null, numero: b.numero || null, fecha: b.fecha,
       moneda: b.moneda || null, importe, referencia_id: b.referencia_id ? Number(b.referencia_id) : null,
       descripcion: b.descripcion || null, usuario: req.usuario ? req.usuario.usuario : null,
+      razon_social_id: Number(b.razon_social_id) || null,
     });
     res.status(201).json(await cc.obtenerComprobante(id));
   } catch (e) {

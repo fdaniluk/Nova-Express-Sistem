@@ -52,12 +52,13 @@ async function registrarDebitoLiquidacion(db, liquidacionId, { usuario } = {}) {
   const tc = tcRow ? (liq.tc_pref === 'promedio' ? tcRow.promedio : tcRow.venta) : null;
   const eq = equivalentes(moneda, liq.total, tc);
 
+  const rs = await db.prepare('SELECT id FROM clientes_razones_sociales WHERE cliente_id = ? AND activa = 1 ORDER BY principal DESC, id LIMIT 1').get(liq.cliente_id);
   const res = await db.prepare(
-    `INSERT INTO cc_comprobantes (cliente_id, libro, tipo, numero, fecha, vencimiento, moneda,
+    `INSERT INTO cc_comprobantes (cliente_id, razon_social_id, libro, tipo, numero, fecha, vencimiento, moneda,
        importe, tc_dia, importe_usd, importe_ars, saldo, liquidacion_id, descripcion, origen, creado_por)
-     VALUES (?, ?, 'LQ', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'sistema', ?)`
+     VALUES (?, ?, ?, 'LQ', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'sistema', ?)`
   ).run(
-    liq.cliente_id, libro, `LQ-${liq.id}`, fecha, venc, moneda,
+    liq.cliente_id, rs ? rs.id : null, libro, `LQ-${liq.id}`, fecha, venc, moneda,
     liq.total, tc, eq.importe_usd, eq.importe_ars, liq.total, liq.id,
     `Liquidación #${liq.id} (${liq.periodo_desde} a ${liq.periodo_hasta})`, usuario || null
   );
@@ -67,7 +68,7 @@ async function registrarDebitoLiquidacion(db, liquidacionId, { usuario } = {}) {
 // Comprobante manual (FA, ND, NC o ajuste). NC/ND con referencia_id a la FA/LQ que corrigen.
 async function crearComprobante({
   cliente_id, libro, tipo, letra = null, punto_venta = null, numero = null, fecha, moneda,
-  importe, referencia_id = null, descripcion = null, origen = 'sistema', usuario = null,
+  importe, referencia_id = null, descripcion = null, origen = 'sistema', usuario = null, razon_social_id = null,
 }) {
   const db = getDb();
   if (!LIBROS.includes(libro)) throw Object.assign(new Error('libro inválido'), { status: 400 });
@@ -83,12 +84,16 @@ async function crearComprobante({
   const tc = tcRow ? (cli.tipo_cambio === 'promedio' ? tcRow.promedio : tcRow.venta) : null;
   const eq = equivalentes(moneda, importe, tc);
 
+  if (!razon_social_id) {
+    const rs = await db.prepare('SELECT id FROM clientes_razones_sociales WHERE cliente_id = ? AND activa = 1 ORDER BY principal DESC, id LIMIT 1').get(cliente_id);
+    razon_social_id = rs ? rs.id : null;
+  }
   return db.transaction(async () => {
     const res = await db.prepare(
-      `INSERT INTO cc_comprobantes (cliente_id, libro, tipo, letra, punto_venta, numero, fecha, vencimiento,
+      `INSERT INTO cc_comprobantes (cliente_id, razon_social_id, libro, tipo, letra, punto_venta, numero, fecha, vencimiento,
          moneda, importe, tc_dia, importe_usd, importe_ars, saldo, referencia_id, descripcion, origen, creado_por)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-    ).run(cliente_id, libro, tipo, letra, punto_venta, numero, fecha, venc, moneda, importe, tc,
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(cliente_id, razon_social_id, libro, tipo, letra, punto_venta, numero, fecha, venc, moneda, importe, tc,
       eq.importe_usd, eq.importe_ars, DEBITOS.includes(tipo) ? importe : 0, referencia_id,
       descripcion, origen, usuario);
     // Una NC con referencia baja el saldo de la factura que corrige.
@@ -142,9 +147,9 @@ async function pendientesCliente(clienteId) {
   const db = getDb();
   const hoy = hoyLocal();
   const rows = await db.prepare(
-    `SELECT cc.*,
+    `SELECT cc.*, rs.razon_social, rs.cuit AS razon_social_cuit,
             (SELECT COUNT(*) FROM liquidacion_items li WHERE li.liquidacion_id = cc.liquidacion_id) AS envios
-     FROM cc_comprobantes cc
+     FROM cc_comprobantes cc LEFT JOIN clientes_razones_sociales rs ON rs.id = cc.razon_social_id
      WHERE cc.cliente_id = ? AND cc.anulado_at IS NULL
        AND ((cc.tipo IN ('FA','LQ','ND') AND cc.saldo > 0.005) OR (cc.tipo IN ('AC','NC') AND cc.saldo > 0.005))
      ORDER BY cc.libro, cc.fecha, cc.id`
@@ -169,8 +174,9 @@ async function historialCliente(clienteId, { libro = null, desde = null, hasta =
   if (desde) { where += ' AND cc.fecha >= ?'; params.push(desde); }
   if (hasta) { where += ' AND cc.fecha <= ?'; params.push(hasta); }
   const rows = await db.prepare(
-    `SELECT cc.*, ref.tipo AS ref_tipo, ref.numero AS ref_numero
+    `SELECT cc.*, ref.tipo AS ref_tipo, ref.numero AS ref_numero, rs.razon_social
      FROM cc_comprobantes cc LEFT JOIN cc_comprobantes ref ON ref.id = cc.referencia_id
+       LEFT JOIN clientes_razones_sociales rs ON rs.id = cc.razon_social_id
      WHERE ${where} ORDER BY cc.libro, cc.fecha, cc.id`
   ).all(...params);
   const acum = { CF: 0, SF: 0 };

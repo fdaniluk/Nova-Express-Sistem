@@ -2,6 +2,8 @@ const { Router } = require('express');
 const ctrl = require('../controllers/clientes.controller');
 const profitCtrl = require('../controllers/profit.controller');
 const tarifarioCtrl = require('../controllers/tarifario.controller');
+const rsCtrl = require('../controllers/razones-sociales.controller');
+const { requireAdmin } = require('../middleware/auth');
 
 const router = Router();
 router.get('/', ctrl.listar);
@@ -31,6 +33,14 @@ router.get('/:id/tarifario/emitidos', tarifarioCtrl.emitidos);
 // Tramos de peso del cliente. Los usan las DOS matrices, la de porcentaje y la de kilo.
 router.get('/:id/tramos', profitCtrl.getTramos);
 router.put('/:id/tramos', profitCtrl.putTramos);
+
+// Razones sociales del cliente (varios CUIT / facturar a un tercero) y unir clientes duplicados.
+router.get('/razones-sociales/:rid', (req, res) => res.status(405).end());
+router.put('/razones-sociales/:rid', rsCtrl.editar);
+router.post('/razones-sociales/:rid/mover', requireAdmin, rsCtrl.mover);
+router.get('/:id/razones-sociales', rsCtrl.listar);
+router.post('/:id/razones-sociales', rsCtrl.crear);
+router.post('/:id/unir', requireAdmin, rsCtrl.unir);
 
 router.get('/:id', ctrl.buscarPorId);
 router.put('/:id', ctrl.actualizar);

@@ -897,6 +897,30 @@ CREATE INDEX IF NOT EXISTS idx_bot_vinculos_codigo ON bot_vinculos(codigo) WHERE
 --   débito  (+): FA factura real · LQ liquidación confirmada (libro SF) · ND nota de débito
 --   crédito (−): NC nota de crédito · RC recibo · AC a cuenta / saldo a favor
 -- `saldo` = lo que falta cancelar de un débito (se recalcula desde cc_recibo_imputaciones).
+-- ============================================================================
+-- Razones sociales por cliente (22/09/2026). Un CLIENTE es el operativo (el que manda
+-- envíos); puede facturar y pagar bajo VARIAS razones sociales (CUIT distintos: Leather
+-- Factory / Sipecsa), o pedir que un envío se facture a un tercero (AE Leather). Cada
+-- comprobante de la cuenta corriente dice a cuál va, y el estado de cuenta se puede ver
+-- por razón social o sumado por cliente. Cada perfil viejo del GECOM (agenda) es una
+-- razón social, no un cliente nuevo.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS clientes_razones_sociales (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  cliente_id    INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+  razon_social  TEXT NOT NULL,
+  cuit          TEXT,
+  condicion_iva TEXT,
+  es_tercero    INTEGER NOT NULL DEFAULT 0,   -- 1 = tercero al que se le factura por pedido del cliente
+  principal     INTEGER NOT NULL DEFAULT 0,   -- 1 = la que se propone por defecto
+  activa        INTEGER NOT NULL DEFAULT 1,
+  gecom_agenda  TEXT,                          -- código de agenda del GECOM que le corresponde
+  nota          TEXT,
+  creado_at     TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_crs_cliente ON clientes_razones_sociales(cliente_id);
+CREATE UNIQUE INDEX IF NOT EXISTS idx_crs_gecom ON clientes_razones_sociales(gecom_agenda) WHERE gecom_agenda IS NOT NULL;
+
 CREATE TABLE IF NOT EXISTS cc_comprobantes (
   id              INTEGER PRIMARY KEY AUTOINCREMENT,
   cliente_id      INTEGER NOT NULL REFERENCES clientes(id),
@@ -915,6 +939,7 @@ CREATE TABLE IF NOT EXISTS cc_comprobantes (
   saldo           REAL NOT NULL DEFAULT 0,
   referencia_id   INTEGER REFERENCES cc_comprobantes(id),
   liquidacion_id  INTEGER REFERENCES liquidaciones(id),
+  razon_social_id INTEGER REFERENCES clientes_razones_sociales(id),
   descripcion     TEXT,
   origen          TEXT NOT NULL DEFAULT 'sistema' CHECK (origen IN ('sistema','gecom','ajuste_migracion')),
   gecom_punto     TEXT,
