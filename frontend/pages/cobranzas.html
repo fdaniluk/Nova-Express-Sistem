@@ -6,7 +6,7 @@
   <title>Cobranzas – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260915a">
-  <link rel="stylesheet" href="../css/modules/cobranzas.css?v=20260923a">
+  <link rel="stylesheet" href="../css/modules/cobranzas.css?v=20260923b">
 </head>
 <body>
 <div class="app-layout">
@@ -215,7 +215,7 @@
             </div>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Fecha</th><th>Comprobante</th><th>Vence</th><th class="num">Importe</th><th class="num">Saldo</th></tr></thead>
+                <thead><tr><th>Fecha</th><th>Comprobante</th><th>Vence</th><th class="num">Importe</th><th class="num">Falta cobrar</th></tr></thead>
                 <tbody id="fc-abiertos-cf"></tbody>
               </table>
             </div>
@@ -227,7 +227,7 @@
             </div>
             <div class="table-wrap">
               <table>
-                <thead><tr><th>Fecha</th><th>Comprobante</th><th>Vence</th><th class="num">Importe</th><th class="num">Saldo</th></tr></thead>
+                <thead><tr><th>Fecha</th><th>Comprobante</th><th>Vence</th><th class="num">Importe</th><th class="num">Falta cobrar</th></tr></thead>
                 <tbody id="fc-abiertos-sf"></tbody>
               </table>
             </div>
@@ -236,6 +236,7 @@
 
         <div class="card">
           <h2>Historial</h2>
+          <p class="cob-desc" style="margin:-.5rem 0 .75rem">Movimientos del cliente. Lo traído del GECOM arranca en 2026 (los años anteriores se importan más adelante); por eso no se muestra saldo acumulado, sino lo que falta cobrar de cada comprobante.</p>
           <div class="cob-hist-filtros">
             <div class="tabs" style="margin:0;border:none">
               <button class="tab active" data-libro="CF">Con factura ($)</button>
@@ -248,7 +249,7 @@
           <div class="table-wrap">
             <table class="cob-hist">
               <thead>
-                <tr><th>Fecha</th><th>Tipo</th><th>Comprobante</th><th>Detalle</th><th class="num">Debe</th><th class="num">Haber</th><th class="num">Saldo</th></tr>
+                <tr><th>Fecha</th><th>Tipo</th><th>Comprobante</th><th>Detalle</th><th class="num">Debe</th><th class="num">Haber</th><th class="num">Pendiente</th></tr>
               </thead>
               <tbody id="fc-historial"><tr><td colspan="7" class="empty">Cargando…</td></tr></tbody>
             </table>
@@ -262,6 +263,6 @@
 <script src="/js/auth-guard.js?v=20260915a"></script>
 <script src="../js/api.js?v=20260923a"></script>
 <script src="../js/main.js?v=20260915a"></script>
-<script src="../js/modules/cobranzas.js?v=20260923a"></script>
+<script src="../js/modules/cobranzas.js?v=20260923b"></script>
 </body>
 </html>

@@ -21,17 +21,25 @@
     return `${TIPO_LABEL[c.tipo] || c.tipo}${letra}${num ? ' ' + num : ''}`;
   }
 
+  // "Vencido" solo tiene sentido si el cliente tiene plazo de pago cargado. Sin plazo, el
+  // vencimiento coincide con la fecha (herencia del GECOM) y todo aparecería vencido el
+  // mismo día: en ese caso se muestra la antigüedad y se avisa que falta el plazo.
+  const tienePlazo = (r) => Number(r.plazo_pago_dias) > 0;
   function estadoBadge(r) {
+    if (!(r.abiertos > 0)) return '<span class="badge badge-aldia">Sin deuda</span>';
+    if (!tienePlazo(r)) return `<span class="badge badge-origen" title="Cargar el plazo de pago en el perfil del cliente">Sin plazo definido</span>`;
     if (r.dias_vencido > 30) return `<span class="badge badge-mora">Vencido ${r.dias_vencido} días</span>`;
     if (r.dias_vencido > 0) return `<span class="badge badge-mora-leve">Vencido ${r.dias_vencido} días</span>`;
-    if (r.abiertos > 0) return '<span class="badge badge-aldia">Al día</span>';
-    return '<span class="badge badge-aldia">Sin deuda</span>';
+    return '<span class="badge badge-aldia">Al día</span>';
   }
+  const estaVencido = (r) => tienePlazo(r) && r.dias_vencido > 0;
 
   // ---------- estado ----------
   let filas = [];
   let clienteActual = null;
   let libroHist = 'CF';
+  let plazoActual = 0;      // plazo de pago del cliente abierto (0 = sin plazo)
+  let mostrarRS = false;    // mostrar la razón social por renglón solo si el cliente tiene más de una
 
   // ---------- Vista 1: saldos ----------
   async function cargarSaldos() {
@@ -53,15 +61,16 @@
     const sum = (k) => rows.reduce((a, r) => a + (Number(r[k]) || 0), 0);
     const cf = sum('saldo_cf'), sf = sum('saldo_sf');
     const favCf = sum('a_favor_cf'), favSf = sum('a_favor_sf');
-    const vencidos = rows.filter((r) => r.dias_vencido > 0);
+    const vencidos = rows.filter(estaVencido);
+    const sinPlazo = rows.filter((r) => r.abiertos > 0 && !tienePlazo(r)).length;
     const vCf = vencidos.reduce((a, r) => a + r.saldo_cf, 0);
     const vSf = vencidos.reduce((a, r) => a + r.saldo_sf, 0);
     $('tot-cf').textContent = money(cf, 'ARS');
-    $('tot-cf-sub').textContent = `${rows.filter((r) => r.saldo_cf > 0.005).length} clientes deben en pesos`;
+    $('tot-cf-sub').textContent = `${rows.filter((r) => r.saldo_cf > 0.005).length} clientes · neto de créditos ${money(cf - favCf, 'ARS')}`;
     $('tot-sf').textContent = money(sf, 'USD');
-    $('tot-sf-sub').textContent = `${rows.filter((r) => r.saldo_sf > 0.005).length} clientes deben en dólares`;
+    $('tot-sf-sub').textContent = `${rows.filter((r) => r.saldo_sf > 0.005).length} clientes · neto de créditos ${money(sf - favSf, 'USD')}`;
     $('tot-venc').textContent = String(vencidos.length);
-    $('tot-venc-sub').textContent = vencidos.length ? `${money(vCf, 'ARS')} · ${money(vSf, 'USD')}` : 'nadie vencido';
+    $('tot-venc-sub').textContent = vencidos.length ? `${money(vCf, 'ARS')} · ${money(vSf, 'USD')}` : (sinPlazo ? `${sinPlazo} clientes con deuda sin plazo de pago cargado` : 'nadie vencido');
     $('tot-favor').textContent = favCf > 0.005 || favSf > 0.005 ? `${money(favCf, 'ARS')} · ${money(favSf, 'USD')}` : '—';
     $('tot-favor-sub').textContent = `${rows.filter((r) => r.a_favor_cf > 0.005 || r.a_favor_sf > 0.005).length} clientes con crédito sin aplicar`;
   }
@@ -70,11 +79,11 @@
     const q = $('f-buscar').value.trim().toLowerCase();
     const soloVenc = $('f-vencidos').checked;
     const orden = $('f-orden').value;
-    let rows = filas.filter((r) => (!q || String(r.cliente).toLowerCase().includes(q)) && (!soloVenc || r.dias_vencido > 0));
+    let rows = filas.filter((r) => (!q || String(r.cliente).toLowerCase().includes(q)) && (!soloVenc || estaVencido(r)));
     const cmp = {
       nombre: (a, b) => String(a.cliente).localeCompare(String(b.cliente), 'es'),
       deuda: (a, b) => (b.saldo_sf + b.saldo_cf / 1000) - (a.saldo_sf + a.saldo_cf / 1000), // USD manda; $ como desempate grueso
-      mora: (a, b) => (b.dias_vencido || 0) - (a.dias_vencido || 0),
+      mora: (a, b) => ((estaVencido(b) ? b.dias_vencido : 0) - (estaVencido(a) ? a.dias_vencido : 0)) || ((b.antiguedad_dias || 0) - (a.antiguedad_dias || 0)),
       antiguedad: (a, b) => (b.antiguedad_dias || 0) - (a.antiguedad_dias || 0),
     }[orden];
     return rows.sort(cmp);
@@ -129,8 +138,11 @@
       if (c.nombre_nova && c.nombre && c.nombre !== c.nombre_nova) partes.push(c.nombre);
       if (c.tipo_cobro) partes.push(tipoCobroLabel(c.tipo_cobro));
       if (c.plazo_pago_dias != null) partes.push(`plazo ${c.plazo_pago_dias} días`);
+      plazoActual = Number(c.plazo_pago_dias) || 0;
+      if (!plazoActual) partes.push('sin plazo de pago cargado');
       $('fc-sub').textContent = partes.join(' · ');
       const lista = Array.isArray(razones) ? razones : (razones && (razones.razones_sociales || razones.razones)) || [];
+      mostrarRS = lista.length > 1;
       if (lista.length) {
         $('fc-razones').innerHTML = lista.map((r) => `<span>${esc(r.razon_social)}${r.cuit ? ` <b>${esc(r.cuit)}</b>` : ''}${r.es_tercero ? ' <b>(tercero)</b>' : ''}</span>`).join('');
       }
@@ -155,12 +167,13 @@
     const tb = $(`fc-abiertos-${libro.toLowerCase()}`);
     if (!items.length) { tb.innerHTML = '<tr><td colspan="5" class="empty">Nada pendiente</td></tr>'; return; }
     const fila = (x, cred) => {
-      const venc = x.vencimiento && x.vencimiento < hoy && !cred;
-      const detalle = [x.razon_social, x.descripcion].filter(Boolean).join(' · ');
+      const venc = plazoActual > 0 && x.vencimiento && x.vencimiento < hoy && !cred;
+      const dias = Math.floor((new Date(hoy) - new Date(x.fecha)) / 86400000);
+      const detalle = [mostrarRS ? x.razon_social : null, x.descripcion].filter(Boolean).join(' · ');
       return `<tr class="${venc ? 'vencido' : ''}">
         <td>${formatDate(x.fecha)}</td>
         <td><span class="badge badge-tipo ${x.tipo}">${x.tipo}</span> ${esc(comprobanteRef(x))}${x.envios ? ` <span class="cob-desc">${x.envios} envíos</span>` : ''}${detalle ? `<div class="cob-desc">${esc(detalle)}</div>` : ''}${x.origen === 'gecom' ? ' <span class="badge badge-origen">GECOM</span>' : ''}</td>
-        <td>${cred ? '—' : `${formatDate(x.vencimiento)}${venc ? ` <span class="badge badge-mora">${x.mora_dias} días</span>` : ''}`}</td>
+        <td>${cred ? '—' : (plazoActual > 0 ? `${formatDate(x.vencimiento)}${venc ? ` <span class="badge badge-mora">${x.mora_dias} días</span>` : ''}` : `<span class="cob-desc">${dias} días</span>`)}</td>
         <td class="num">${cred ? '-' : ''}${money(x.importe, moneda)}</td>
         <td class="num"><b>${cred ? '-' : ''}${money(x.saldo, moneda)}</b></td>
       </tr>`;
@@ -180,7 +193,8 @@
       const movs = (data.movimientos || []).slice().reverse(); // lo más nuevo arriba
       if (!movs.length) { tb.innerHTML = '<tr><td colspan="7" class="empty">Sin movimientos en este libro</td></tr>'; return; }
       tb.innerHTML = movs.map((m) => {
-        const detalle = [m.razon_social, m.descripcion, m.ref_tipo ? `sobre ${m.ref_tipo} ${m.ref_numero || ''}` : ''].filter(Boolean).join(' · ');
+        const detalle = [mostrarRS ? m.razon_social : null, m.descripcion, m.ref_tipo ? `sobre ${m.ref_tipo} ${m.ref_numero || ''}` : ''].filter(Boolean).join(' · ');
+        const pend = m.anulado_at ? '' : (m.saldo > 0.005 ? money(m.saldo, moneda) : '<span class="cob-cero">—</span>');
         return `<tr class="${m.anulado_at ? 'anulado' : ''}">
           <td>${formatDate(m.fecha)}</td>
           <td><span class="badge badge-tipo ${m.tipo}">${m.tipo}</span></td>
@@ -188,7 +202,7 @@
           <td class="cob-desc">${esc(detalle)}${m.anulado_at ? ` · anulado${m.anulado_motivo ? ': ' + esc(m.anulado_motivo) : ''}` : ''}</td>
           <td class="num">${monto(m.debito, moneda)}</td>
           <td class="num">${monto(m.credito, moneda)}</td>
-          <td class="num acum">${m.anulado_at ? '' : money(m.acumulado, moneda)}</td>
+          <td class="num acum">${pend}</td>
         </tr>`;
       }).join('');
     } catch (e) {
