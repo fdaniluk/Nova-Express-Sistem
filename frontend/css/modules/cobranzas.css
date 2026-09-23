@@ -1,0 +1,59 @@
+/* Cobranzas — saldos por cliente y ficha de cuenta corriente (23/09/2026). */
+:root { --cob-azul-suave: #eef1f8; --cob-rojo-suave: #fdecea; --cob-verde-suave: #e8f5ec; }
+
+.cob-resumen { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1rem; margin-bottom: 1.25rem; }
+.cob-resumen .metric-sub { font-size: .78rem; color: var(--color-muted); margin-top: .25rem; }
+
+.cob-tabla td.num, .cob-tabla th.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cob-tabla tr.fila-cliente { cursor: pointer; }
+.cob-tabla tr.fila-cliente:hover td { background: var(--cob-azul-suave); }
+.cob-tabla .cliente-nombre { font-weight: 600; color: var(--color-primary); }
+.cob-tabla .cliente-sub { font-size: .75rem; color: var(--color-muted); }
+.cob-tabla tfoot td { font-weight: 700; background: #f8fafc; border-top: 2px solid var(--color-border); }
+.cob-cero { color: #b9c2d0; }
+.cob-favor { color: var(--color-success); font-size: .78rem; white-space: nowrap; }
+
+.badge-mora { background: var(--cob-rojo-suave); color: #b91c1c; }
+.badge-mora-leve { background: #fef3c7; color: #92400e; }
+.badge-aldia { background: var(--cob-verde-suave); color: var(--color-success); }
+.badge-cheque { background: #e0e7ff; color: #3730a3; }
+.badge-libro-CF { background: #dbeafe; color: #1e40af; }
+.badge-libro-SF { background: var(--cob-verde-suave); color: var(--color-success); }
+.badge-tipo { background: #f1f5f9; color: var(--color-text); font-family: ui-monospace, monospace; }
+.badge-tipo.NC, .badge-tipo.RC, .badge-tipo.AC { background: var(--cob-verde-suave); color: var(--color-success); }
+.badge-tipo.ND { background: var(--cob-rojo-suave); color: #b91c1c; }
+.badge-origen { background: #f1f5f9; color: var(--color-muted); font-weight: 500; }
+
+/* Ficha del cliente */
+.cob-ficha-cab { display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 1rem; }
+.cob-ficha-cab h2 { margin: 0; font-size: 1.25rem; color: var(--color-primary); }
+.cob-ficha-cab .sub { font-size: .8rem; color: var(--color-muted); }
+.cob-ficha-cab .grow { flex: 1; }
+.cob-rs { display: flex; flex-wrap: wrap; gap: .4rem; margin-top: .3rem; }
+.cob-rs span { font-size: .75rem; background: #f1f5f9; border-radius: 4px; padding: .1rem .45rem; color: var(--color-text); }
+.cob-rs span b { color: var(--color-muted); font-weight: 500; }
+
+.cob-libros { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 1rem; margin-bottom: 1.25rem; }
+.cob-libro { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
+.cob-libro-cab { display: flex; align-items: center; gap: .75rem; padding: .8rem 1.1rem; border-bottom: 1px solid var(--color-border); }
+.cob-libro-cab.CF { background: linear-gradient(90deg, #dbeafe, #fff 70%); }
+.cob-libro-cab.SF { background: linear-gradient(90deg, var(--cob-verde-suave), #fff 70%); }
+.cob-libro-cab h3 { margin: 0; font-size: .95rem; color: var(--color-primary); }
+.cob-libro-cab p { margin: .1rem 0 0; font-size: .75rem; color: var(--color-muted); }
+.cob-libro-cab .grow { flex: 1; }
+.cob-libro-saldo { text-align: right; }
+.cob-libro-saldo .monto { font-size: 1.35rem; font-weight: 700; color: var(--color-primary); font-variant-numeric: tabular-nums; }
+.cob-libro-saldo .favor { font-size: .75rem; color: var(--color-success); }
+.cob-libro table { font-size: .85rem; }
+.cob-libro .empty { padding: 1.25rem; font-size: .85rem; }
+.cob-libro td.num, .cob-libro th.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.cob-libro tr.vencido td:first-child { box-shadow: inset 3px 0 0 #dc2626; }
+.cob-desc { color: var(--color-muted); font-size: .78rem; }
+
+.cob-hist-filtros { display: flex; align-items: flex-end; gap: .75rem; flex-wrap: wrap; margin-bottom: .75rem; }
+.cob-hist-filtros .form-group { margin: 0; min-width: 130px; }
+.cob-hist-filtros label.chk { display: flex; align-items: center; gap: .35rem; font-size: .85rem; padding-bottom: .45rem; cursor: pointer; }
+.cob-hist tr.anulado td { color: #b9c2d0; text-decoration: line-through; }
+.cob-hist td.acum { font-weight: 600; }
+
+@media (max-width: 720px) { .cob-libros { grid-template-columns: 1fr; } }

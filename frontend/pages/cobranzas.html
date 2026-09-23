@@ -3,61 +3,15 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cobros en pickup – Nova Express</title>
+  <title>Cobranzas – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260915a">
-  <style>
-    .resumen-cobranzas {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 1rem;
-      margin-bottom: 1rem;
-    }
-    .resumen-card {
-      flex: 1 1 200px;
-      background: #fff;
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius);
-      padding: 0.9rem 1.1rem;
-    }
-    .resumen-card .resumen-label {
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
-      color: var(--color-muted);
-    }
-    .resumen-card .resumen-monto {
-      font-size: 1.5rem;
-      font-weight: 700;
-      margin-top: 0.2rem;
-    }
-    .resumen-card.ars .resumen-monto { color: var(--color-primary); }
-    .resumen-card.usd .resumen-monto { color: var(--color-success); }
-    .resumen-card .resumen-desglose {
-      margin-top: 0.55rem;
-      padding-top: 0.5rem;
-      border-top: 1px solid var(--color-border);
-      font-size: 0.8rem;
-      color: var(--color-muted);
-      line-height: 1.5;
-    }
-    .resumen-card .resumen-desglose .dg-item { white-space: nowrap; }
-    .resumen-card .resumen-desglose .dg-sep { margin: 0 0.4rem; opacity: 0.5; }
-    .resumen-card .resumen-desglose .dg-label { color: var(--color-muted); }
-    .resumen-card .resumen-desglose .dg-monto { font-weight: 600; color: var(--color-text); }
-    .resumen-card .resumen-desglose.vacio { color: var(--color-muted); font-style: italic; }
-    .form-cobranza {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-      gap: 0.75rem 1rem;
-    }
-    .form-cobranza .full { grid-column: 1 / -1; }
-  </style>
+  <link rel="stylesheet" href="../css/modules/cobranzas.css?v=20260923a">
 </head>
 <body>
 <div class="app-layout">
 
-  <aside class="sidebar">
+<aside class="sidebar">
     <a class="sidebar-brand" href="../index.html">
       <span class="sidebar-logo"><img src="/assets/logos/isotipo.svg" alt="Nova Express"></span>
       <div>
@@ -90,11 +44,11 @@
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg></span>
         <span>Liquidaciones</span>
       </a>
-      <a href="cobranzas.html" class="nav-item">
+      <a href="cobranzas.html" class="nav-item active">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/><line x1="6" y1="15" x2="10" y2="15"/></svg></span>
         <span>Cobranzas</span>
       </a>
-      <a href="cobros-pickup.html" class="nav-item active">
+      <a href="cobros-pickup.html" class="nav-item">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
         <span>Cobros en pickup</span>
       </a>
@@ -141,117 +95,164 @@
 
   <div class="page-content">
     <div class="page-header">
-      <h1>Cobros en pickup</h1>
-      <button class="btn btn-primary" id="btn-nueva">+ Nueva cobranza</button>
+      <h1 id="titulo">Cobranzas</h1>
+      <div class="actions" style="margin:0">
+        <button class="btn btn-secondary btn-sm hidden" id="btn-volver">← Volver a saldos</button>
+        <a class="btn btn-secondary btn-sm hidden" id="btn-perfil" href="#">Ver perfil del cliente</a>
+      </div>
     </div>
 
     <div class="page-body">
       <div id="alert-box"></div>
 
-      <!-- Filtros -->
-      <div class="card">
-        <div class="filters">
-          <div class="form-group">
-            <label for="f-cliente">Cliente</label>
-            <select id="f-cliente">
-              <option value="">Todos</option>
-            </select>
+      <!-- ===== Vista 1: saldos por cliente ===== -->
+      <div id="vista-saldos">
+        <div class="cob-resumen">
+          <div class="metric-card">
+            <div class="metric-label">Deuda con factura</div>
+            <div class="metric-value" id="tot-cf">—</div>
+            <div class="metric-sub" id="tot-cf-sub">pesos · libro CF</div>
           </div>
-          <div class="form-group">
-            <label for="f-desde">Desde</label>
-            <input type="date" id="f-desde">
+          <div class="metric-card success">
+            <div class="metric-label">Deuda sin factura</div>
+            <div class="metric-value" id="tot-sf">—</div>
+            <div class="metric-sub" id="tot-sf-sub">dólares · libro SF</div>
           </div>
-          <div class="form-group">
-            <label for="f-hasta">Hasta</label>
-            <input type="date" id="f-hasta">
+          <div class="metric-card danger">
+            <div class="metric-label">Vencido</div>
+            <div class="metric-value" id="tot-venc">—</div>
+            <div class="metric-sub" id="tot-venc-sub">clientes con algo vencido</div>
           </div>
-          <button class="btn btn-primary" id="btn-filtrar">Filtrar</button>
-          <button class="btn btn-secondary" id="btn-limpiar">Limpiar</button>
+          <div class="metric-card">
+            <div class="metric-label">A favor de clientes</div>
+            <div class="metric-value" id="tot-favor">—</div>
+            <div class="metric-sub" id="tot-favor-sub">créditos sin aplicar</div>
+          </div>
         </div>
-      </div>
 
-      <!-- Resumen por moneda -->
-      <div class="resumen-cobranzas">
-        <div class="resumen-card ars">
-          <div class="resumen-label">Total ARS</div>
-          <div class="resumen-monto" id="total-ars">$0,00</div>
-          <div class="resumen-desglose" id="desglose-ars"></div>
-        </div>
-        <div class="resumen-card usd">
-          <div class="resumen-label">Total USD</div>
-          <div class="resumen-monto" id="total-usd">US$0.00</div>
-          <div class="resumen-desglose" id="desglose-usd"></div>
-        </div>
-      </div>
-
-      <!-- Formulario add/edit (oculto por defecto) -->
-      <div class="card hidden" id="form-panel">
-        <h2 id="form-title">Nueva cobranza</h2>
-        <form id="form-cobranza-el">
-          <input type="hidden" id="cobranza-id">
-          <div class="form-cobranza">
+        <div class="card">
+          <div class="filters" style="margin-bottom:0">
+            <div class="form-group" style="min-width:220px">
+              <label for="f-buscar">Cliente</label>
+              <input type="search" id="f-buscar" placeholder="Buscar por nombre…">
+            </div>
             <div class="form-group">
-              <label for="c-cliente">Cliente *</label>
-              <select id="c-cliente" required>
-                <option value="">Seleccionar…</option>
+              <label for="f-libro">Libro</label>
+              <select id="f-libro">
+                <option value="">Los dos</option>
+                <option value="CF">Con factura ($)</option>
+                <option value="SF">Sin factura (USD)</option>
               </select>
             </div>
             <div class="form-group">
-              <label for="c-fecha">Fecha *</label>
-              <input type="date" id="c-fecha" required>
-            </div>
-            <div class="form-group">
-              <label for="c-monto">Monto *</label>
-              <input type="number" id="c-monto" min="0.01" step="0.01" required>
-            </div>
-            <div class="form-group">
-              <label for="c-moneda">Moneda *</label>
-              <select id="c-moneda">
-                <option value="ARS">ARS</option>
-                <option value="USD">USD</option>
+              <label for="f-tipo">Tipo de cobro</label>
+              <select id="f-tipo">
+                <option value="">Todos</option>
+                <option value="D">Diario</option>
+                <option value="S">Semanal</option>
+                <option value="Q">Quincenal</option>
+                <option value="CC">Cuenta Corriente</option>
               </select>
             </div>
             <div class="form-group">
-              <label for="c-forma_pago">Forma de pago</label>
-              <select id="c-forma_pago">
-                <option value="efectivo">Efectivo</option>
-                <option value="cheque">Cheque</option>
-                <option value="transferencia">Transferencia</option>
-                <option value="otro">Otro</option>
+              <label for="f-orden">Ordenar por</label>
+              <select id="f-orden">
+                <option value="nombre">Nombre</option>
+                <option value="deuda">Mayor deuda</option>
+                <option value="mora">Más días vencido</option>
+                <option value="antiguedad">Más antiguo</option>
               </select>
             </div>
-            <div class="form-group full">
-              <label for="c-nota">Nota</label>
-              <input type="text" id="c-nota" placeholder="Opcional">
+            <div class="form-group">
+              <label class="chk" style="display:flex;gap:.35rem;align-items:center;padding-top:1.3rem;cursor:pointer"><input type="checkbox" id="f-vencidos"> Solo vencidos</label>
+            </div>
+            <div class="form-group">
+              <label class="chk" style="display:flex;gap:.35rem;align-items:center;padding-top:1.3rem;cursor:pointer"><input type="checkbox" id="f-todos"> Incluir sin saldo</label>
             </div>
           </div>
-          <div class="actions">
-            <button type="submit" class="btn btn-primary">Guardar</button>
-            <button type="button" class="btn btn-secondary" id="btn-cancelar">Cancelar</button>
+        </div>
+
+        <div class="card">
+          <div class="table-wrap">
+            <table class="cob-tabla">
+              <thead>
+                <tr>
+                  <th>Cliente</th>
+                  <th>Cobro</th>
+                  <th class="num">Con factura ($)</th>
+                  <th class="num">Sin factura (USD)</th>
+                  <th class="num">Abiertos</th>
+                  <th>Más viejo</th>
+                  <th>Estado</th>
+                  <th>Último reclamo</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody id="tabla-saldos">
+                <tr><td colspan="9" class="empty">Cargando…</td></tr>
+              </tbody>
+              <tfoot id="pie-saldos"></tfoot>
+            </table>
           </div>
-        </form>
+        </div>
       </div>
 
-      <!-- Tabla de cobranzas -->
-      <div class="card">
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Cliente</th>
-                <th>Monto</th>
-                <th>Moneda</th>
-                <th>Forma de pago</th>
-                <th>Origen</th>
-                <th>Nota</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="tabla-cobranzas">
-              <tr><td colspan="8" class="empty">Cargando...</td></tr>
-            </tbody>
-          </table>
+      <!-- ===== Vista 2: ficha de cuenta corriente del cliente ===== -->
+      <div id="vista-ficha" class="hidden">
+        <div class="cob-ficha-cab">
+          <div class="grow">
+            <h2 id="fc-nombre">—</h2>
+            <div class="sub" id="fc-sub"></div>
+            <div class="cob-rs" id="fc-razones"></div>
+          </div>
+        </div>
+
+        <div class="cob-libros">
+          <section class="cob-libro" id="libro-CF">
+            <div class="cob-libro-cab CF">
+              <div class="grow"><h3>Con factura</h3><p>Facturas A/B en pesos. Lo que falta cobrar de cada una.</p></div>
+              <div class="cob-libro-saldo"><div class="monto" id="fc-saldo-cf">—</div><div class="favor" id="fc-favor-cf"></div></div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Fecha</th><th>Comprobante</th><th>Vence</th><th class="num">Importe</th><th class="num">Saldo</th></tr></thead>
+                <tbody id="fc-abiertos-cf"></tbody>
+              </table>
+            </div>
+          </section>
+          <section class="cob-libro" id="libro-SF">
+            <div class="cob-libro-cab SF">
+              <div class="grow"><h3>Sin factura</h3><p>Liquidaciones en dólares. Lo que falta cobrar de cada una.</p></div>
+              <div class="cob-libro-saldo"><div class="monto" id="fc-saldo-sf">—</div><div class="favor" id="fc-favor-sf"></div></div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead><tr><th>Fecha</th><th>Comprobante</th><th>Vence</th><th class="num">Importe</th><th class="num">Saldo</th></tr></thead>
+                <tbody id="fc-abiertos-sf"></tbody>
+              </table>
+            </div>
+          </section>
+        </div>
+
+        <div class="card">
+          <h2>Historial</h2>
+          <div class="cob-hist-filtros">
+            <div class="tabs" style="margin:0;border:none">
+              <button class="tab active" data-libro="CF">Con factura ($)</button>
+              <button class="tab" data-libro="SF">Sin factura (USD)</button>
+            </div>
+            <div class="form-group"><label for="h-desde">Desde</label><input type="date" id="h-desde"></div>
+            <div class="form-group"><label for="h-hasta">Hasta</label><input type="date" id="h-hasta"></div>
+            <label class="chk"><input type="checkbox" id="h-anulados"> Ver anulados</label>
+          </div>
+          <div class="table-wrap">
+            <table class="cob-hist">
+              <thead>
+                <tr><th>Fecha</th><th>Tipo</th><th>Comprobante</th><th>Detalle</th><th class="num">Debe</th><th class="num">Haber</th><th class="num">Saldo</th></tr>
+              </thead>
+              <tbody id="fc-historial"><tr><td colspan="7" class="empty">Cargando…</td></tr></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -261,6 +262,6 @@
 <script src="/js/auth-guard.js?v=20260915a"></script>
 <script src="../js/api.js?v=20260923a"></script>
 <script src="../js/main.js?v=20260915a"></script>
-<script src="../js/modules/cobros-pickup.js?v=20260921a"></script>
+<script src="../js/modules/cobranzas.js?v=20260923a"></script>
 </body>
 </html>

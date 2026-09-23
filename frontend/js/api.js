@@ -400,4 +400,26 @@ api.bot = {
   simular: (texto) => api.post('/bot/simular', { texto }),
 };
 
+// Cobranzas: cuenta corriente por cliente (dos libros: CF pesos / SF dólares). Solo lectura por ahora.
+api.cobranzas = {
+  saldos: ({ libro, tipo_cobro, todos } = {}) => {
+    const q = new URLSearchParams();
+    if (libro) q.set('libro', libro);
+    if (tipo_cobro) q.set('tipo_cobro', tipo_cobro);
+    if (todos) q.set('todos', '1');
+    const qs = q.toString();
+    return api.get(`/cobranzas/saldos${qs ? '?' + qs : ''}`);
+  },
+  pendientes: (clienteId) => api.get(`/cobranzas/clientes/${clienteId}/pendientes`),
+  historial: (clienteId, { libro, desde, hasta, anulados } = {}) => {
+    const q = new URLSearchParams();
+    if (libro) q.set('libro', libro);
+    if (desde) q.set('desde', desde);
+    if (hasta) q.set('hasta', hasta);
+    if (anulados) q.set('anulados', '1');
+    const qs = q.toString();
+    return api.get(`/cobranzas/clientes/${clienteId}/historial${qs ? '?' + qs : ''}`);
+  },
+};
+
 window.NovaAPI = api;

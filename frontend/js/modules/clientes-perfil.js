@@ -2,6 +2,8 @@
   const alertBox = document.getElementById('alert-box');
   const params = new URLSearchParams(window.location.search);
   const clienteId = params.get('id');
+  const btnCC = document.getElementById('btn-cuenta-corriente');
+  if (btnCC && clienteId) btnCC.href = `cobranzas.html?cliente=${clienteId}`;
 
   let clienteData = null;
   let enEdicion = false;
