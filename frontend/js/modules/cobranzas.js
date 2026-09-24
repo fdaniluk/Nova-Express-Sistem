@@ -33,6 +33,14 @@
     return '<span class="badge badge-aldia">Al día</span>';
   }
   const estaVencido = (r) => tienePlazo(r) && r.dias_vencido > 0;
+  // Color de la franja de la fila: rojo vencido, ámbar vencido leve, gris sin plazo, verde al día.
+  function estadoClase(r) {
+    if (!(r.abiertos > 0)) return 'ok';
+    if (!tienePlazo(r)) return 'sinplazo';
+    if (r.dias_vencido > 30) return 'mora';
+    if (r.dias_vencido > 0) return 'leve';
+    return 'ok';
+  }
 
   // ---------- estado ----------
   let filas = [];
@@ -53,7 +61,7 @@
       renderTabla();
     } catch (e) {
       showAlert(alertBox, e.message || 'No se pudieron cargar los saldos');
-      $('tabla-saldos').innerHTML = '<tr><td colspan="9" class="empty">Error al cargar</td></tr>';
+      $('tabla-saldos').innerHTML = '<tr><td colspan="8" class="empty">Error al cargar</td></tr>';
     }
   }
 
@@ -70,8 +78,11 @@
     $('tot-sf').textContent = money(sf, 'USD');
     $('tot-sf-sub').textContent = `${rows.filter((r) => r.saldo_sf > 0.005).length} clientes · neto de créditos ${money(sf - favSf, 'USD')}`;
     $('tot-venc').textContent = String(vencidos.length);
+    $('card-venc').classList.toggle('alerta', vencidos.length > 0);
     $('tot-venc-sub').textContent = vencidos.length ? `${money(vCf, 'ARS')} · ${money(vSf, 'USD')}` : (sinPlazo ? `${sinPlazo} clientes con deuda sin plazo de pago cargado` : 'nadie vencido');
-    $('tot-favor').textContent = favCf > 0.005 || favSf > 0.005 ? `${money(favCf, 'ARS')} · ${money(favSf, 'USD')}` : '—';
+    $('tot-favor').innerHTML = favCf > 0.005 || favSf > 0.005
+      ? `${favCf > 0.005 ? `<span>${money(favCf, 'ARS')}</span>` : ''}${favSf > 0.005 ? `<span>${money(favSf, 'USD')}</span>` : ''}`
+      : '—';
     $('tot-favor-sub').textContent = `${rows.filter((r) => r.a_favor_cf > 0.005 || r.a_favor_sf > 0.005).length} clientes con crédito sin aplicar`;
   }
 
@@ -93,24 +104,23 @@
     const rows = filasVisibles();
     const tb = $('tabla-saldos');
     if (!rows.length) {
-      tb.innerHTML = '<tr><td colspan="9" class="empty">Ningún cliente con estos filtros</td></tr>';
+      tb.innerHTML = '<tr><td colspan="8" class="empty">Ningún cliente con estos filtros</td></tr>';
       $('pie-saldos').innerHTML = '';
       return;
     }
     tb.innerHTML = rows.map((r) => `
-      <tr class="fila-cliente" data-id="${r.cliente_id}">
-        <td><div class="cliente-nombre">${esc(r.cliente)}</div>${r.cheques_en_cartera ? `<div class="cliente-sub"><span class="badge badge-cheque">${r.cheques_en_cartera} cheque${r.cheques_en_cartera > 1 ? 's' : ''} en cartera</span></div>` : ''}</td>
-        <td>${esc(tipoCobroLabel(r.tipo_cobro) || '—')}</td>
+      <tr class="fila-cliente est-${estadoClase(r)}" data-id="${r.cliente_id}">
+        <td><div class="cliente-nombre">${esc(r.cliente)}</div><div class="cliente-sub">${esc(tipoCobroLabel(r.tipo_cobro) || 'sin tipo de cobro')}${r.cheques_en_cartera ? ` · <span class="badge badge-cheque">${r.cheques_en_cartera} cheque${r.cheques_en_cartera > 1 ? 's' : ''} en cartera</span>` : ''}</div></td>
         <td class="num">${monto(r.saldo_cf, 'ARS')}${r.a_favor_cf > 0.005 ? `<div class="cob-favor">a favor ${money(r.a_favor_cf, 'ARS')}</div>` : ''}</td>
         <td class="num">${monto(r.saldo_sf, 'USD')}${r.a_favor_sf > 0.005 ? `<div class="cob-favor">a favor ${money(r.a_favor_sf, 'USD')}</div>` : ''}</td>
         <td class="num">${r.abiertos || '<span class="cob-cero">—</span>'}</td>
         <td>${r.fecha_mas_vieja ? `${formatDate(r.fecha_mas_vieja)} <span class="cliente-sub">(${r.antiguedad_dias} días)</span>` : '<span class="cob-cero">—</span>'}</td>
         <td>${estadoBadge(r)}</td>
         <td>${r.ultimo_reclamo ? esc(formatDate(r.ultimo_reclamo.slice(0, 10)) + r.ultimo_reclamo.slice(10)) : '<span class="cob-cero">nunca</span>'}</td>
-        <td><button class="btn btn-secondary btn-sm">Ver cuenta</button></td>
+        <td class="cob-ver"><button class="cob-ver-btn">Ver cuenta <span>›</span></button></td>
       </tr>`).join('');
     const sum = (k) => rows.reduce((a, r) => a + (Number(r[k]) || 0), 0);
-    $('pie-saldos').innerHTML = `<tr><td colspan="2">${rows.length} clientes</td><td class="num">${money(sum('saldo_cf'), 'ARS')}</td><td class="num">${money(sum('saldo_sf'), 'USD')}</td><td class="num">${sum('abiertos')}</td><td colspan="4"></td></tr>`;
+    $('pie-saldos').innerHTML = `<tr><td>${rows.length} clientes</td><td class="num">${money(sum('saldo_cf'), 'ARS')}</td><td class="num">${money(sum('saldo_sf'), 'USD')}</td><td class="num">${sum('abiertos')}</td><td colspan="4"></td></tr>`;
   }
 
   // ---------- Vista 2: ficha ----------

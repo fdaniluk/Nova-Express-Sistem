@@ -1,49 +1,319 @@
-/* Comisiones por vendedor (24/09/2026). Solo admin. */
-.com-cabecera { display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; }
-.com-cabecera select { padding:.45rem .6rem; border:1px solid var(--color-border); border-radius:6px; font:inherit; }
-.com-tarjetas { display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:1rem; margin-bottom:1.25rem; }
-.com-tarjeta { background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius); box-shadow:var(--shadow); padding:1rem 1.15rem; cursor:pointer; position:relative; transition:border-color .15s; }
-.com-tarjeta:hover, .com-tarjeta.activa { border-color:var(--color-primary); }
-.com-tarjeta.activa::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--color-accent); border-radius:var(--radius) 0 0 var(--radius); }
-.com-tarjeta .nombre { font-weight:700; color:var(--color-primary); font-size:1rem; display:flex; align-items:center; gap:.5rem; }
-.com-tarjeta .nombre small { font-weight:500; color:var(--color-muted); font-size:.72rem; background:#f1f5f9; border-radius:4px; padding:.05rem .4rem; }
-.com-tarjeta .comision { font-size:1.55rem; font-weight:700; color:var(--color-success); margin:.35rem 0 .15rem; font-variant-numeric:tabular-nums; }
-.com-tarjeta.casa .comision { color:var(--color-muted); font-size:1.1rem; }
-.com-tarjeta.sin .comision { color:#b45309; }
-.com-tarjeta .datos { font-size:.78rem; color:var(--color-muted); line-height:1.5; }
-.com-tarjeta .datos b { color:var(--color-text); font-weight:600; }
-.com-total { display:flex; gap:1.5rem; flex-wrap:wrap; font-size:.85rem; color:var(--color-muted); margin-bottom:1rem; }
-.com-total b { color:var(--color-text); font-variant-numeric:tabular-nums; }
+/* Comisiones por vendedor (24/09/2026). Solo admin.
+   Rediseño con la estética del sistema: franja de números, aviso de clientes sin
+   vendedor y una tarjeta por vendedor con la barra de comisión contra el sueldo. */
 
-.com-tabla td.num, .com-tabla th.num { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
-.com-tabla tr.grupo td { background:#f8fafc; font-weight:700; color:var(--color-primary); }
-.com-tabla tr.cliente td:first-child { padding-left:1.6rem; }
-.com-tabla tr.cliente { cursor:pointer; }
-.com-tabla tr.cliente:hover td { background:#eef1f8; }
-.com-tabla tr.envio td { font-size:.82rem; background:#fcfcfd; color:var(--color-muted); }
-.com-tabla tr.envio td:first-child { padding-left:2.8rem; }
-.com-tabla .code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.8rem; color:var(--color-text); }
-.com-chip { display:inline-block; font-size:.68rem; padding:.08rem .4rem; border-radius:4px; background:#f1f5f9; color:var(--color-muted); font-weight:600; margin-left:.3rem; vertical-align:middle; }
-.com-chip.cliente { background:#fef3c7; color:#92400e; }
-.com-chip.real { background:#e8f5ec; color:#166534; }
-.com-chip.liq { background:#dbeafe; color:#1e40af; }
-.com-chip.sin { background:#fdecea; color:#b91c1c; }
-.com-neg { color:#b91c1c; }
+/* ── Controles: mes, dólar del mes, Excel ───────────────── */
+.com-controles {
+  display: flex;
+  align-items: flex-end;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1.1rem;
+}
+.com-ctrl { display: flex; flex-direction: column; gap: 0.3rem; }
+.com-ctrl label { margin: 0; font-size: 0.72rem; }
+.com-ctrl select {
+  padding: 0.5rem 0.7rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font: inherit;
+  background: var(--color-surface);
+  min-width: 190px;
+  color: var(--color-primary);
+  font-weight: 600;
+  text-transform: capitalize;
+}
+.com-tc {
+  display: flex;
+  align-items: center;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-surface);
+  overflow: hidden;
+}
+.com-tc span { padding: 0 0.1rem 0 0.7rem; color: var(--color-muted); font-weight: 600; }
+.com-tc input {
+  border: none;
+  outline: none;
+  padding: 0.5rem 0.6rem 0.5rem 0.35rem;
+  font: inherit;
+  width: 120px;
+  background: transparent;
+}
+.com-tc:focus-within { border-color: var(--color-primary-light); box-shadow: 0 0 0 3px rgba(61, 76, 133, 0.12); }
+.com-tc-fuente { font-size: 0.8rem; color: var(--color-muted); padding-bottom: 0.6rem; }
+.com-tc-fuente.falta { color: #B45309; }
+.com-excel {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  text-decoration: none;
+}
 
-/* Pestaña Clientes */
-.com-filtros { display:flex; gap:.75rem; align-items:flex-end; flex-wrap:wrap; margin-bottom:.75rem; }
-.com-filtros .form-group { margin:0; }
-.com-filtros input[type=search] { min-width:240px; }
-.com-clientes select { padding:.3rem .45rem; border:1px solid var(--color-border); border-radius:6px; font:inherit; font-size:.85rem; }
-.com-clientes input[type=number] { width:64px; padding:.3rem .4rem; border:1px solid var(--color-border); border-radius:6px; font:inherit; font-size:.85rem; }
-.com-clientes input[type=date] { padding:.28rem .4rem; border:1px solid var(--color-border); border-radius:6px; font:inherit; font-size:.82rem; }
-.com-clientes tr.sin-vendedor td:first-child { box-shadow:inset 3px 0 0 #f59e0b; }
-.com-clientes tr.inactivo td { color:var(--color-muted); }
-.com-clientes .guardado { color:var(--color-success); font-size:.78rem; margin-left:.4rem; }
-.com-hist { font-size:.78rem; color:var(--color-muted); }
+/* ── Franja de números ──────────────────────────────────── */
+.com-kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.85rem;
+  margin-bottom: 1rem;
+}
+.com-kpi {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: 0.85rem 1.1rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 0.1rem;
+  min-width: 0;
+}
+.com-kpi span {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-muted);
+}
+.com-kpi b {
+  font-size: 1.45rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.com-kpi small { font-size: 0.76rem; color: var(--color-muted); }
+.com-kpi.destacado {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+}
+.com-kpi.destacado span,
+.com-kpi.destacado small { color: #C9D0E8; }
+.com-kpi.destacado b { color: #fff; }
+.com-kpi.destacado { position: relative; overflow: hidden; }
+.com-kpi.destacado::after {
+  content: '';
+  position: absolute;
+  left: 0; right: 0; bottom: 0;
+  height: 4px;
+  background: var(--color-accent);
+}
 
-/* Pestaña Vendedores */
-.com-vend-form { display:flex; gap:.6rem; align-items:flex-end; flex-wrap:wrap; margin-top:.75rem; }
-.com-vend-form .form-group { margin:0; }
-.com-vendedores input[type=number] { width:70px; }
-.com-vendedores input[type=text] { width:180px; }
+/* ── Aviso: clientes sin vendedor ───────────────────────── */
+.com-aviso {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  background: #FFF4EF;
+  border: 1px solid #F6C3B4;
+  border-left: 4px solid var(--color-accent);
+  border-radius: 10px;
+  padding: 0.7rem 1rem;
+  margin-bottom: 1rem;
+  font-size: 0.86rem;
+  color: #7A2E1C;
+}
+.com-aviso svg { color: var(--color-accent); flex-shrink: 0; }
+.com-aviso div { flex: 1; }
+.com-aviso-btn {
+  background: var(--color-accent);
+  color: #fff;
+  border: none;
+  white-space: nowrap;
+}
+.com-aviso-btn:hover { background: #d85a3d; }
+
+/* ── Tarjetas por vendedor ──────────────────────────────── */
+.com-tarjetas {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  gap: 0.85rem;
+  margin-bottom: 1.25rem;
+}
+.com-tarjeta {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+  padding: 1rem 1.1rem 0.9rem;
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+}
+.com-tarjeta:hover { border-color: var(--color-primary-light); box-shadow: 0 4px 14px rgba(42, 54, 97, 0.1); }
+.com-tarjeta.activa {
+  border-color: var(--color-primary);
+  box-shadow: 0 0 0 2px var(--color-primary), 0 4px 14px rgba(42, 54, 97, 0.12);
+}
+.com-tarjeta.vacia { opacity: 0.7; }
+.com-tarjeta.vacia:hover { opacity: 1; }
+
+.com-t-head { display: flex; align-items: center; gap: 0.6rem; }
+.com-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: var(--color-primary);
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.9rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: inset 0 -3px 0 var(--color-accent);
+}
+.com-avatar.sm {
+  width: 22px;
+  height: 22px;
+  font-size: 0.7rem;
+  margin-right: 0.5rem;
+  vertical-align: middle;
+  box-shadow: inset 0 -2px 0 var(--color-accent);
+}
+.com-tarjeta.casa .com-avatar,
+.com-avatar.casa { background: #9CA3AF; box-shadow: none; }
+.com-avatar.sin { background: var(--color-accent); box-shadow: none; }
+.com-t-nombre { font-weight: 700; color: var(--color-primary); font-size: 1rem; }
+.com-pct {
+  margin-left: auto;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  background: #EEF0F7;
+  border-radius: 999px;
+  padding: 0.12rem 0.55rem;
+}
+.com-tarjeta.casa .com-pct { background: #F3F4F6; color: var(--color-muted); }
+
+.com-monto {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--color-primary);
+  font-variant-numeric: tabular-nums;
+  line-height: 1.15;
+  display: flex;
+  align-items: baseline;
+  gap: 0.45rem;
+}
+.com-monto small { font-size: 0.75rem; font-weight: 600; color: var(--color-muted); }
+.com-monto.falta { color: #B45309; }
+.com-monto.casa,
+.com-monto.vacio { font-size: 1.05rem; color: var(--color-muted); font-weight: 600; }
+
+/* Barra comisión bruta vs sueldo (piso) */
+.com-piso {
+  height: 8px;
+  background: #EEF0F4;
+  border-radius: 999px;
+  overflow: hidden;
+}
+.com-piso-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--color-primary-light), var(--color-accent));
+  border-radius: 999px;
+}
+.com-piso.supera .com-piso-fill { background: var(--color-success); }
+
+.com-t-pie { font-size: 0.78rem; color: var(--color-muted); line-height: 1.45; }
+
+.com-t-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.9rem;
+  margin-top: auto;
+  padding-top: 0.55rem;
+  border-top: 1px solid #EEF0F4;
+  font-size: 0.78rem;
+  color: var(--color-muted);
+}
+.com-t-stats b { color: var(--color-text); font-variant-numeric: tabular-nums; }
+
+/* ── Detalle por cliente ────────────────────────────────── */
+.com-detalle-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+  margin-bottom: 0.75rem;
+}
+.com-detalle-head h3 { margin: 0; font-size: 1rem; color: var(--color-primary); }
+.com-nota { margin: 0.85rem 0 0; }
+
+.com-tabla td.num, .com-tabla th.num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.com-tabla tr.grupo td {
+  background: #F3F5FA;
+  font-weight: 700;
+  color: var(--color-primary);
+  border-top: 2px solid #DDE1F0;
+}
+.com-tabla tr.cliente td:first-child { padding-left: 2.2rem; }
+.com-tabla tr.cliente { cursor: pointer; }
+.com-tabla tr.cliente:hover td { background: #EEF1F8; }
+.com-tabla tr.envio td { font-size: 0.82rem; background: #FCFCFD; color: var(--color-muted); }
+.com-tabla tr.envio td:first-child { padding-left: 3.2rem; }
+.com-tabla .code { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.8rem; color: var(--color-text); }
+.com-chip { display: inline-block; font-size: 0.68rem; padding: 0.08rem 0.45rem; border-radius: 999px; background: #F1F5F9; color: var(--color-muted); font-weight: 600; margin-left: 0.3rem; vertical-align: middle; }
+.com-chip.cliente { background: #FEF3C7; color: #92400E; }
+.com-chip.real { background: #E8F5EC; color: #166534; }
+.com-chip.liq { background: #DBEAFE; color: #1E40AF; }
+.com-chip.sin { background: #FDECEA; color: #B91C1C; margin-left: 0; }
+.com-neg { color: #B91C1C; }
+.com-hist { font-size: 0.78rem; color: var(--color-muted); }
+.com-hist a { color: var(--color-accent); font-weight: 600; }
+
+/* ── Pestaña Clientes ───────────────────────────────────── */
+.com-filtros { display: flex; gap: 0.75rem; align-items: flex-end; flex-wrap: wrap; margin-bottom: 0.75rem; }
+.com-filtros .form-group { margin: 0; }
+.com-filtros input[type=search] { min-width: 240px; }
+.com-clientes select,
+.com-clientes input[type=number],
+.com-clientes input[type=date],
+.com-vendedores select,
+.com-vendedores input {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 6px;
+  font: inherit;
+  font-size: 0.85rem;
+  background: var(--color-surface);
+}
+.com-clientes select:focus,
+.com-clientes input:focus,
+.com-vendedores select:focus,
+.com-vendedores input:focus { outline: none; border-color: var(--color-primary-light); box-shadow: 0 0 0 3px rgba(61, 76, 133, 0.12); }
+.com-clientes input[type=number] { width: 70px; }
+.com-clientes tr.sin-vendedor td:first-child { box-shadow: inset 3px 0 0 var(--color-accent); }
+.com-clientes tr.sin-vendedor select { border-color: #F6C3B4; background: #FFF8F5; }
+.com-clientes tr.inactivo td { color: var(--color-muted); }
+.com-clientes .guardado { color: var(--color-success); font-size: 0.78rem; margin-left: 0.4rem; }
+.com-clientes .com-chip[title="Ver historial"] { cursor: pointer; }
+
+/* ── Pestaña Vendedores ─────────────────────────────────── */
+.com-vend-form {
+  display: flex;
+  gap: 0.6rem;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  margin-top: 1rem;
+  padding-top: 1rem;
+  border-top: 1px dashed var(--color-border);
+}
+.com-vend-form .form-group { margin: 0; }
+.com-vendedores input[type=number] { width: 76px; }
+.com-vendedores input[type=text] { width: 180px; }
+
+/* ── Responsive ─────────────────────────────────────────── */
+@media (max-width: 980px) {
+  .com-kpis { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 560px) {
+  .com-kpis { grid-template-columns: 1fr; }
+  .com-excel { margin-left: 0; }
+  .com-aviso { flex-wrap: wrap; }
+}

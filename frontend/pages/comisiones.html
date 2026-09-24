@@ -6,7 +6,7 @@
   <title>Comisiones – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260915a">
-  <link rel="stylesheet" href="../css/modules/comisiones.css?v=20260924b">
+  <link rel="stylesheet" href="../css/modules/comisiones.css?v=20260924c">
 </head>
 <body>
 <div class="app-layout">
@@ -112,26 +112,41 @@
 
       <!-- ===== Resumen ===== -->
       <section id="tab-resumen">
-        <div class="card">
-          <div class="com-cabecera">
-            <label for="r-mes" style="margin:0;font-size:.8rem;color:var(--color-muted)">Mes</label>
+        <div class="com-controles">
+          <div class="com-ctrl">
+            <label for="r-mes">Mes</label>
             <select id="r-mes"></select>
-            <label for="r-tc" style="margin:0 0 0 .5rem;font-size:.8rem;color:var(--color-muted)">TC del mes</label>
-            <input type="number" id="r-tc" min="1" step="0.01" placeholder="$/US$" style="width:110px;padding:.45rem .6rem;border:1px solid var(--color-border);border-radius:6px;font:inherit" title="Pesos por dólar, para pasar el sueldo (piso) a dólares. Vacío = último cargado en Cobranzas.">
-            <span class="com-hist" id="r-tc-fuente"></span>
-            <span class="com-total" id="r-total" style="margin:0 0 0 .5rem"></span>
-            <a class="btn btn-secondary btn-sm" id="r-excel" href="#" style="margin-left:auto">Bajar Excel</a>
           </div>
+          <div class="com-ctrl">
+            <label for="r-tc">Dólar del mes</label>
+            <div class="com-tc">
+              <span>$</span>
+              <input type="number" id="r-tc" min="1" step="0.01" placeholder="ej. 1450" title="Pesos por dólar, para pasar el sueldo (piso) a dólares. Vacío = último cargado en Cobranzas.">
+            </div>
+          </div>
+          <span class="com-tc-fuente" id="r-tc-fuente"></span>
+          <a class="btn btn-secondary com-excel" id="r-excel" href="#">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Bajar Excel
+          </a>
         </div>
+
+        <div class="com-kpis" id="r-total"></div>
+        <div id="r-aviso"></div>
         <div class="com-tarjetas" id="r-tarjetas"></div>
-        <div class="card">
+
+        <div class="card com-detalle">
+          <div class="com-detalle-head">
+            <h3>Detalle por cliente</h3>
+            <span class="com-hist" id="r-filtro-txt">Clic en una tarjeta para ver solo ese vendedor · clic en un cliente para ver sus envíos</span>
+          </div>
           <div class="table-wrap">
             <table class="com-tabla">
               <thead><tr><th>Vendedor / cliente</th><th class="num">Envíos</th><th class="num">Venta USD</th><th class="num">Utilidad USD</th><th class="num">%</th><th class="num">Comisión bruta</th><th class="num">Piso</th><th class="num">A pagar</th></tr></thead>
               <tbody id="r-tabla"><tr><td colspan="8" class="empty">Cargando…</td></tr></tbody>
             </table>
           </div>
-          <p class="com-hist" style="margin:.75rem 0 0">La comisión se calcula sobre la <b>utilidad</b> (venta − costo) de los envíos que <b>salieron</b> en el mes, con el mismo número que muestra el Dashboard. Clic en un cliente para ver sus envíos. Los envíos con utilidad negativa restan. <b>Piso</b>: el sueldo del vendedor pasado a dólares con el TC del mes; se paga solo la comisión que lo supera.</p>
+          <p class="com-hist com-nota">La comisión se calcula sobre la <b>utilidad</b> (venta − costo) de los envíos que <b>salieron</b> en el mes, con el mismo número que muestra el Dashboard. Los envíos con utilidad negativa restan. <b>Piso</b>: el sueldo del vendedor pasado a dólares con el dólar del mes; se paga solo la comisión que lo supera.</p>
         </div>
       </section>
 
@@ -151,7 +166,7 @@
               <tbody id="c-tabla"><tr><td colspan="7" class="empty">Cargando…</td></tr></tbody>
             </table>
           </div>
-          <p class="com-hist" style="margin:.75rem 0 0">Al cambiar el vendedor se guarda <b>desde cuándo</b> vale: los envíos anteriores a esa fecha siguen contando para el vendedor anterior. "% especial" pisa el % del vendedor solo para ese cliente (vacío = usa el del vendedor). La primera asignación de un cliente vale desde siempre.</p>
+          <p class="com-hist com-nota">Al cambiar el vendedor se guarda <b>desde cuándo</b> vale: los envíos anteriores a esa fecha siguen contando para el vendedor anterior. "% especial" pisa el % del vendedor solo para ese cliente (vacío = usa el del vendedor). La primera asignación de un cliente vale desde siempre.</p>
         </div>
       </section>
 
@@ -169,7 +184,7 @@
             <div class="form-group"><label for="v-pct">% comisión</label><input type="number" id="v-pct" min="0" max="100" step="0.5" value="0"></div>
             <button class="btn btn-primary btn-sm" id="v-agregar">Agregar</button>
           </div>
-          <p class="com-hist" style="margin:.75rem 0 0"><b>Piso mensual</b>: si está cargado, la comisión se paga solo por lo que supera ese monto en el mes (vacío = se paga toda). <b>Nova Express</b> es la casa: sus clientes no generan comisión. Un vendedor inactivo conserva su historial y no se puede asignar a clientes nuevos.</p>
+          <p class="com-hist com-nota"><b>Piso mensual</b>: si está cargado, la comisión se paga solo por lo que supera ese monto en el mes (vacío = se paga toda). <b>Nova Express</b> es la casa: sus clientes no generan comisión. Un vendedor inactivo conserva su historial y no se puede asignar a clientes nuevos.</p>
         </div>
       </section>
     </div>
@@ -179,6 +194,6 @@
 <script src="/js/auth-guard.js?v=20260924b"></script>
 <script src="../js/api.js?v=20260924c"></script>
 <script src="../js/main.js?v=20260915a"></script>
-<script src="../js/modules/comisiones.js?v=20260924b"></script>
+<script src="../js/modules/comisiones.js?v=20260924c"></script>
 </body>
 </html>

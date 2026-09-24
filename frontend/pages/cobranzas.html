@@ -6,7 +6,7 @@
   <title>Cobranzas – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260915a">
-  <link rel="stylesheet" href="../css/modules/cobranzas.css?v=20260923b">
+  <link rel="stylesheet" href="../css/modules/cobranzas.css?v=20260924a">
 </head>
 <body>
 <div class="app-layout">
@@ -117,63 +117,48 @@
             <div class="metric-value" id="tot-cf">—</div>
             <div class="metric-sub" id="tot-cf-sub">pesos · libro CF</div>
           </div>
-          <div class="metric-card success">
+          <div class="metric-card">
             <div class="metric-label">Deuda sin factura</div>
             <div class="metric-value" id="tot-sf">—</div>
             <div class="metric-sub" id="tot-sf-sub">dólares · libro SF</div>
           </div>
-          <div class="metric-card danger">
+          <div class="metric-card" id="card-venc">
             <div class="metric-label">Vencido</div>
             <div class="metric-value" id="tot-venc">—</div>
             <div class="metric-sub" id="tot-venc-sub">clientes con algo vencido</div>
           </div>
-          <div class="metric-card">
+          <div class="metric-card favor">
             <div class="metric-label">A favor de clientes</div>
             <div class="metric-value" id="tot-favor">—</div>
             <div class="metric-sub" id="tot-favor-sub">créditos sin aplicar</div>
           </div>
         </div>
 
-        <div class="card">
-          <div class="filters" style="margin-bottom:0">
-            <div class="form-group" style="min-width:220px">
-              <label for="f-buscar">Cliente</label>
-              <input type="search" id="f-buscar" placeholder="Buscar por nombre…">
-            </div>
-            <div class="form-group">
-              <label for="f-libro">Libro</label>
-              <select id="f-libro">
-                <option value="">Los dos</option>
-                <option value="CF">Con factura ($)</option>
-                <option value="SF">Sin factura (USD)</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="f-tipo">Tipo de cobro</label>
-              <select id="f-tipo">
-                <option value="">Todos</option>
-                <option value="D">Diario</option>
-                <option value="S">Semanal</option>
-                <option value="Q">Quincenal</option>
-                <option value="CC">Cuenta Corriente</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="f-orden">Ordenar por</label>
-              <select id="f-orden">
-                <option value="nombre">Nombre</option>
-                <option value="deuda">Mayor deuda</option>
-                <option value="mora">Más días vencido</option>
-                <option value="antiguedad">Más antiguo</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="chk" style="display:flex;gap:.35rem;align-items:center;padding-top:1.3rem;cursor:pointer"><input type="checkbox" id="f-vencidos"> Solo vencidos</label>
-            </div>
-            <div class="form-group">
-              <label class="chk" style="display:flex;gap:.35rem;align-items:center;padding-top:1.3rem;cursor:pointer"><input type="checkbox" id="f-todos"> Incluir sin saldo</label>
-            </div>
+        <div class="cob-toolbar">
+          <div class="cob-buscar">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <input type="search" id="f-buscar" placeholder="Buscar cliente…" aria-label="Cliente">
           </div>
+          <select id="f-libro" aria-label="Libro" title="Libro">
+            <option value="">Los dos libros</option>
+            <option value="CF">Con factura ($)</option>
+            <option value="SF">Sin factura (USD)</option>
+          </select>
+          <select id="f-tipo" aria-label="Tipo de cobro" title="Tipo de cobro">
+            <option value="">Todo tipo de cobro</option>
+            <option value="D">Diario</option>
+            <option value="S">Semanal</option>
+            <option value="Q">Quincenal</option>
+            <option value="CC">Cuenta Corriente</option>
+          </select>
+          <select id="f-orden" aria-label="Ordenar por" title="Ordenar por">
+            <option value="nombre">Orden: nombre</option>
+            <option value="deuda">Orden: mayor deuda</option>
+            <option value="mora">Orden: más días vencido</option>
+            <option value="antiguedad">Orden: más antiguo</option>
+          </select>
+          <label class="cob-toggle"><input type="checkbox" id="f-vencidos"><span>Solo vencidos</span></label>
+          <label class="cob-toggle"><input type="checkbox" id="f-todos"><span>Incluir sin saldo</span></label>
         </div>
 
         <div class="card">
@@ -182,7 +167,6 @@
               <thead>
                 <tr>
                   <th>Cliente</th>
-                  <th>Cobro</th>
                   <th class="num">Con factura ($)</th>
                   <th class="num">Sin factura (USD)</th>
                   <th class="num">Abiertos</th>
@@ -193,7 +177,7 @@
                 </tr>
               </thead>
               <tbody id="tabla-saldos">
-                <tr><td colspan="9" class="empty">Cargando…</td></tr>
+                <tr><td colspan="8" class="empty">Cargando…</td></tr>
               </tbody>
               <tfoot id="pie-saldos"></tfoot>
             </table>
@@ -267,6 +251,6 @@
 <script src="/js/auth-guard.js?v=20260924b"></script>
 <script src="../js/api.js?v=20260924c"></script>
 <script src="../js/main.js?v=20260915a"></script>
-<script src="../js/modules/cobranzas.js?v=20260923b"></script>
+<script src="../js/modules/cobranzas.js?v=20260924a"></script>
 </body>
 </html>

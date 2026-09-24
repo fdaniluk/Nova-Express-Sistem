@@ -17,8 +17,8 @@
 .badge-mora-leve { background: #fef3c7; color: #92400e; }
 .badge-aldia { background: var(--cob-verde-suave); color: var(--color-success); }
 .badge-cheque { background: #e0e7ff; color: #3730a3; }
-.badge-libro-CF { background: #dbeafe; color: #1e40af; }
-.badge-libro-SF { background: var(--cob-verde-suave); color: var(--color-success); }
+.badge-libro-CF { background: #E4E8F4; color: var(--color-primary); }
+.badge-libro-SF { background: #FFEDE6; color: #9A3A22; }
 .badge-tipo { background: #f1f5f9; color: var(--color-text); font-family: ui-monospace, monospace; }
 .badge-tipo.NC, .badge-tipo.RC, .badge-tipo.AC { background: var(--cob-verde-suave); color: var(--color-success); }
 .badge-tipo.ND { background: var(--cob-rojo-suave); color: #b91c1c; }
@@ -36,8 +36,8 @@
 .cob-libros { display: grid; grid-template-columns: repeat(auto-fit, minmax(420px, 1fr)); gap: 1rem; margin-bottom: 1.25rem; }
 .cob-libro { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: var(--radius); box-shadow: var(--shadow); overflow: hidden; }
 .cob-libro-cab { display: flex; align-items: center; gap: .75rem; padding: .8rem 1.1rem; border-bottom: 1px solid var(--color-border); }
-.cob-libro-cab.CF { background: linear-gradient(90deg, #dbeafe, #fff 70%); }
-.cob-libro-cab.SF { background: linear-gradient(90deg, var(--cob-verde-suave), #fff 70%); }
+.cob-libro-cab.CF { background: linear-gradient(90deg, #E4E8F4, #fff 70%); border-top: 3px solid var(--color-primary); }
+.cob-libro-cab.SF { background: linear-gradient(90deg, #FFEDE6, #fff 70%); border-top: 3px solid var(--color-accent); }
 .cob-libro-cab h3 { margin: 0; font-size: .95rem; color: var(--color-primary); }
 .cob-libro-cab p { margin: .1rem 0 0; font-size: .75rem; color: var(--color-muted); }
 .cob-libro-cab .grow { flex: 1; }
@@ -56,4 +56,119 @@
 .cob-hist tr.anulado td { color: #b9c2d0; text-decoration: line-through; }
 .cob-hist td.acum { font-weight: 600; }
 
+
+
+/* ══ Estética del sistema (24/09/2026) ═══════════════════════════════════ */
+
+/* Números de arriba: mismo formato que Comisiones; el importe en azul Nova
+   (antes "sin factura" iba en verde y parecía algo bueno). */
+.cob-resumen { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .85rem; }
+.cob-resumen .metric-card { border-radius: 10px; padding: .85rem 1.1rem; display: flex; flex-direction: column; }
+.cob-resumen .metric-value { font-size: 1.45rem; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.cob-resumen .metric-card.alerta { border-color: #F5B5AC; background: #FFF6F5; }
+.cob-resumen .metric-card.alerta .metric-value { color: var(--color-danger); }
+.cob-resumen .metric-card.favor .metric-value { display: flex; flex-direction: column; font-size: 1.15rem; color: var(--color-success); }
+.cob-resumen .metric-card:first-child { border-top: 3px solid var(--color-primary); }
+.cob-resumen .metric-card:nth-child(2) { border-top: 3px solid var(--color-accent); }
+
+/* Barra de filtros en una sola línea */
+.cob-toolbar {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  flex-wrap: wrap;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  padding: .6rem .75rem;
+  margin-bottom: 1rem;
+  box-shadow: var(--shadow);
+}
+.cob-buscar {
+  display: flex;
+  align-items: center;
+  gap: .45rem;
+  flex: 1;
+  min-width: 220px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  padding: 0 .65rem;
+  background: #F8FAFC;
+  color: var(--color-muted);
+}
+.cob-buscar input { border: none; outline: none; background: transparent; font: inherit; padding: .5rem 0; width: 100%; color: var(--color-text); }
+.cob-buscar:focus-within { border-color: var(--color-primary-light); background: #fff; box-shadow: 0 0 0 3px rgba(61, 76, 133, .12); }
+.cob-toolbar select {
+  padding: .5rem .6rem;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  font: inherit;
+  font-size: .85rem;
+  background: var(--color-surface);
+  color: var(--color-text);
+}
+.cob-toggle {
+  display: inline-flex;
+  align-items: center;
+  cursor: pointer;
+  margin: 0;
+  text-transform: none;
+  letter-spacing: 0;
+}
+.cob-toggle input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.cob-toggle span {
+  display: inline-flex;
+  align-items: center;
+  gap: .4rem;
+  padding: .45rem .8rem;
+  border: 1.5px solid var(--color-border);
+  border-radius: 999px;
+  font-size: .82rem;
+  font-weight: 600;
+  color: var(--color-muted);
+  background: #fff;
+  transition: background .12s, border-color .12s, color .12s;
+  user-select: none;
+}
+.cob-toggle span::before {
+  content: '';
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1.5px solid #CBD5E1;
+  box-sizing: border-box;
+  transition: background .12s, border-color .12s;
+}
+.cob-toggle:hover span { border-color: var(--color-primary-light); color: var(--color-primary); }
+.cob-toggle input:checked + span { background: #EEF0F7; border-color: var(--color-primary); color: var(--color-primary); }
+.cob-toggle input:checked + span::before { background: var(--color-primary); border-color: var(--color-primary); box-shadow: inset 0 0 0 3px #EEF0F7; }
+.cob-toggle input:focus-visible + span { outline: 2px solid var(--color-accent); outline-offset: 2px; }
+
+/* Tabla de saldos: franja de estado por fila y "Ver cuenta" liviano */
+.cob-tabla tr.fila-cliente td:first-child { box-shadow: inset 4px 0 0 transparent; padding-left: 1rem; }
+.cob-tabla tr.est-mora td:first-child { box-shadow: inset 4px 0 0 #DC2626; }
+.cob-tabla tr.est-leve td:first-child { box-shadow: inset 4px 0 0 #F59E0B; }
+.cob-tabla tr.est-sinplazo td:first-child { box-shadow: inset 4px 0 0 #CBD5E1; }
+.cob-tabla tr.est-ok td:first-child { box-shadow: inset 4px 0 0 #97C459; }
+.cob-tabla .cliente-sub { margin-top: .1rem; }
+.cob-tabla .badge { border-radius: 999px; padding: .15rem .55rem; white-space: nowrap; }
+.cob-ver { text-align: right; }
+.cob-ver-btn {
+  background: none;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  padding: .3rem .7rem;
+  font: inherit;
+  font-size: .8rem;
+  font-weight: 600;
+  color: var(--color-primary-light);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.cob-ver-btn span { color: var(--color-accent); font-weight: 700; margin-left: .15rem; }
+.cob-tabla tr.fila-cliente:hover .cob-ver-btn { background: #fff; border-color: var(--color-border); color: var(--color-primary); }
+.cob-libro { border-radius: 10px; }
+
+@media (max-width: 980px) { .cob-resumen { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 720px) { .cob-libros { grid-template-columns: 1fr; } }
+@media (max-width: 520px) { .cob-resumen { grid-template-columns: 1fr; } }

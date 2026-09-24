@@ -8,6 +8,7 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const fUSD = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
   const usd = (n) => `<span class="${n < 0 ? 'com-neg' : ''}">${fUSD.format(Number(n) || 0)}</span>`;
+  const fARS = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 });
   const pctTxt = (p) => `${Number(p) % 1 ? Number(p).toFixed(1) : Number(p)} %`;
 
   let vendedores = [];
@@ -39,26 +40,92 @@
     $('r-excel').href = `/api/comisiones/resumen.xlsx?mes=${mes}${tc ? `&tc=${tc}` : ''}`;
     try {
       resumen = await api.comisiones.resumen(mes, tc);
-      $('r-tc-fuente').textContent = resumen.tc ? `${resumen.tc_fuente === 'manual' ? '' : `$ ${resumen.tc} · `}${resumen.tc_fuente}` : 'sin TC cargado: cargalo acá o en Cobranzas';
+      const fuente = $('r-tc-fuente');
+      fuente.classList.toggle('falta', !resumen.tc);
+      fuente.textContent = resumen.tc
+        ? (resumen.tc_fuente === 'manual' ? `Usando $ ${fARS.format(resumen.tc)}` : `Usando $ ${fARS.format(resumen.tc)} · ${resumen.tc_fuente}`)
+        : 'Falta el dólar del mes: sin él no se puede descontar el sueldo (piso)';
       renderTarjetas();
       renderTablaResumen();
     } catch (e) { showAlert(alertBox, e.message); }
   }
 
+  const inicial = (n) => String(n || '?').trim().charAt(0).toUpperCase();
+
   function renderTarjetas() {
     const r = resumen;
-    $('r-total').innerHTML = `<span>Envíos <b>${r.total.envios}</b></span><span>Venta <b>${fUSD.format(r.total.venta)}</b></span><span>Utilidad <b>${fUSD.format(r.total.utilidad)}</b></span><span>Comisión bruta <b>${fUSD.format(r.total.comision)}</b></span><span>A pagar <b>${fUSD.format(r.total.a_pagar)}</b></span>`;
-    const tarjeta = (g, clase, id) => `<div class="com-tarjeta ${clase} ${String(vendedorActivo) === String(id) ? 'activa' : ''}" data-id="${id}">
-        <div class="nombre">${esc(g.vendedor)}${g.es_casa ? '<small>casa</small>' : (g.vendedor_id ? `<small>${pctTxt(g.pct)}</small>` : '')}</div>
-        <div class="comision">${g.es_casa ? 'sin comisión' : (g.a_pagar == null ? '<span style="color:#b45309;font-size:1rem">falta TC</span>' : fUSD.format(g.a_pagar))}</div>
-        <div class="datos"><b>${g.envios}</b> envíos · <b>${g.clientes.length}</b> clientes<br>venta <b>${fUSD.format(g.venta)}</b> · utilidad <b>${fUSD.format(g.utilidad)}</b>${g.piso_usd != null ? `<br>bruta <b>${fUSD.format(g.comision)}</b> − piso <b>${fUSD.format(g.piso_usd)}</b>${g.piso_estado === 'no alcanzado' ? ' <span class="com-chip">no llega</span>' : ''}` : (g.piso_estado === 'falta TC' ? `<br>bruta <b>${fUSD.format(g.comision)}</b> · piso $ ${g.piso_mensual} <span class="com-chip sin">sin TC</span>` : '')}</div>
+    const t = r.total;
+    const margen = t.venta ? Math.round((t.utilidad / t.venta) * 100) : 0;
+    const faltaTC = r.vendedores.some((g) => g.piso_estado === 'falta TC');
+    $('r-total').innerHTML = `
+      <div class="com-kpi"><span>Venta</span><b>${fUSD.format(t.venta)}</b><small>${t.envios} envíos en el mes</small></div>
+      <div class="com-kpi"><span>Utilidad</span><b>${fUSD.format(t.utilidad)}</b><small>${margen} % de la venta</small></div>
+      <div class="com-kpi"><span>Comisión bruta</span><b>${fUSD.format(t.comision)}</b><small>antes de descontar sueldos</small></div>
+      <div class="com-kpi destacado"><span>A pagar</span><b>${fUSD.format(t.a_pagar)}</b><small>${faltaTC ? 'falta el dólar del mes' : 'comisión que supera el sueldo'}</small></div>`;
+
+    // "Sin asignar" no es un vendedor: va como aviso para que no parezca que se le paga algo.
+    const sa = r.sin_asignar;
+    $('r-aviso').innerHTML = sa.envios ? `<div class="com-aviso">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+        <div><b>${sa.clientes.length} cliente${sa.clientes.length !== 1 ? 's' : ''} sin vendedor</b> · ${sa.envios} envíos · ${fUSD.format(sa.venta)} de venta y ${fUSD.format(sa.utilidad)} de utilidad que hoy no le cuentan a nadie.</div>
+        <button type="button" class="btn btn-sm com-aviso-btn" id="r-ir-asignar">Asignar vendedor →</button>
+      </div>` : '';
+    const ir = $('r-ir-asignar');
+    if (ir) ir.addEventListener('click', () => {
+      document.querySelector('.page-header .tab[data-tab="clientes"]').click();
+      $('c-filtro-vend').dataset.pendiente = 'sin';
+    });
+
+    const tarjeta = (g) => {
+      const activa = String(vendedorActivo) === String(g.vendedor_id);
+      const vacio = !g.envios;
+      let monto, barra = '', pie = '';
+      if (g.es_casa) {
+        monto = '<div class="com-monto casa">Sin comisión</div>';
+        pie = 'La casa: sus clientes no generan comisión';
+      } else if (g.a_pagar == null) {
+        monto = `<div class="com-monto falta">${fUSD.format(g.comision)}<small>bruta</small></div>`;
+        pie = `<span class="com-chip sin">falta dólar del mes</span> para descontar el sueldo de $ ${fARS.format(g.piso_mensual)}`;
+      } else {
+        monto = `<div class="com-monto">${fUSD.format(g.a_pagar)}<small>a pagar</small></div>`;
+        if (g.piso_usd != null) {
+          const pct = g.piso_usd ? Math.min(100, (g.comision / g.piso_usd) * 100) : 100;
+          const supera = g.comision > g.piso_usd;
+          barra = `<div class="com-piso ${supera ? 'supera' : ''}"><div class="com-piso-fill" style="width:${pct}%"></div></div>`;
+          pie = supera
+            ? `Bruta ${fUSD.format(g.comision)} − sueldo ${fUSD.format(g.piso_usd)}`
+            : `Bruta ${fUSD.format(g.comision)} de ${fUSD.format(g.piso_usd)} de sueldo · le faltan ${fUSD.format(g.piso_usd - g.comision)}`;
+        } else if (!vacio) {
+          pie = `Sin piso: se paga toda la comisión`;
+        }
+      }
+      return `<div class="com-tarjeta ${g.es_casa ? 'casa' : ''} ${vacio ? 'vacia' : ''} ${activa ? 'activa' : ''}" data-id="${g.vendedor_id}">
+        <div class="com-t-head">
+          <span class="com-avatar">${esc(inicial(g.vendedor))}</span>
+          <span class="com-t-nombre">${esc(g.vendedor)}</span>
+          ${g.es_casa ? '<span class="com-pct">casa</span>' : `<span class="com-pct">${pctTxt(g.pct)}</span>`}
+        </div>
+        ${vacio ? '<div class="com-monto vacio">Sin envíos este mes</div>' : monto}
+        ${barra}
+        ${pie && !vacio ? `<div class="com-t-pie">${pie}</div>` : ''}
+        <div class="com-t-stats">
+          <span><b>${g.envios}</b> envíos</span>
+          <span><b>${g.clientes.length}</b> clientes</span>
+          <span>utilidad <b>${fUSD.format(g.utilidad)}</b></span>
+        </div>
       </div>`;
-    $('r-tarjetas').innerHTML = r.vendedores.map((g) => tarjeta(g, g.es_casa ? 'casa' : '', g.vendedor_id)).join('')
-      + (r.sin_asignar.envios ? tarjeta(r.sin_asignar, 'sin', 'sin') : '');
-    $('r-tarjetas').querySelectorAll('.com-tarjeta').forEach((t) => t.addEventListener('click', () => {
-      vendedorActivo = String(vendedorActivo) === t.dataset.id ? null : t.dataset.id;
+    };
+    $('r-tarjetas').innerHTML = r.vendedores.map(tarjeta).join('');
+    $('r-tarjetas').querySelectorAll('.com-tarjeta').forEach((el) => el.addEventListener('click', () => {
+      vendedorActivo = String(vendedorActivo) === el.dataset.id ? null : el.dataset.id;
       renderTarjetas(); renderTablaResumen();
     }));
+    const g = r.vendedores.find((x) => String(x.vendedor_id) === String(vendedorActivo));
+    $('r-filtro-txt').innerHTML = g
+      ? `Mostrando solo <b>${esc(g.vendedor)}</b> · <a href="#" id="r-ver-todos">ver todos</a>`
+      : 'Clic en una tarjeta para ver solo ese vendedor · clic en un cliente para ver sus envíos';
+    const vt = $('r-ver-todos');
+    if (vt) vt.addEventListener('click', (e) => { e.preventDefault(); vendedorActivo = null; renderTarjetas(); renderTablaResumen(); });
   }
 
   function renderTablaResumen() {
@@ -67,9 +134,9 @@
       .filter((g) => vendedorActivo == null || String(g.vendedor_id ?? 'sin') === String(vendedorActivo));
     if (!grupos.length || !r.total.envios) { $('r-tabla').innerHTML = '<tr><td colspan="8" class="empty">Sin envíos en este mes</td></tr>'; return; }
     const pisoTd = (g) => g.es_casa || g.vendedor_id == null ? '<td class="num">—</td><td class="num">—</td>'
-      : `<td class="num">${g.piso_usd != null ? usd(g.piso_usd) : (g.piso_estado === 'falta TC' ? '<span class="com-chip sin">sin TC</span>' : '—')}</td><td class="num"><b>${g.a_pagar != null ? usd(g.a_pagar) : '—'}</b></td>`;
+      : `<td class="num">${g.piso_usd != null ? usd(g.piso_usd) : (g.piso_estado === 'falta TC' ? '<span class="com-chip sin">falta dólar</span>' : '—')}</td><td class="num"><b>${g.a_pagar != null ? usd(g.a_pagar) : '—'}</b></td>`;
     $('r-tabla').innerHTML = grupos.filter((g) => g.envios).map((g) => `
-      <tr class="grupo"><td>${esc(g.vendedor)}${g.es_casa ? '<span class="com-chip">casa</span>' : ''}${g.vendedor_id == null ? '<span class="com-chip sin">asignar en la pestaña Clientes</span>' : ''}</td>
+      <tr class="grupo"><td><span class="com-avatar sm ${g.vendedor_id == null ? 'sin' : (g.es_casa ? 'casa' : '')}">${g.vendedor_id == null ? '!' : esc(inicial(g.vendedor))}</span>${esc(g.vendedor)}${g.es_casa ? '<span class="com-chip">casa</span>' : ''}${g.vendedor_id == null ? '<span class="com-chip sin">asignar en la pestaña Clientes</span>' : ''}</td>
         <td class="num">${g.envios}</td><td class="num">${usd(g.venta)}</td><td class="num">${usd(g.utilidad)}</td><td class="num">${g.es_casa ? '—' : pctTxt(g.pct)}</td><td class="num">${g.es_casa ? '—' : usd(g.comision)}</td>${pisoTd(g)}</tr>
       ${g.clientes.map((c) => `<tr class="cliente" data-v="${g.vendedor_id ?? 'sin'}" data-c="${c.cliente_id}"><td>${esc(c.cliente)}${c.pct_origen === 'cliente' ? '<span class="com-chip cliente">% especial</span>' : ''}</td>
         <td class="num">${c.envios}</td><td class="num">${usd(c.venta)}</td><td class="num">${usd(c.utilidad)}</td><td class="num">${g.es_casa ? '—' : pctTxt(c.pct)}</td><td class="num">${g.es_casa ? '—' : usd(c.comision)}</td><td></td><td></td></tr>`).join('')}`).join('');
@@ -96,7 +163,11 @@
       const [c, v] = await Promise.all([api.comisiones.clientes(), api.comisiones.vendedores()]);
       clientes = c.clientes; vendedores = v.vendedores;
       const activos = vendedores.filter((x) => x.activo);
-      $('c-filtro-vend').innerHTML = '<option value="">Todos</option><option value="sin">Sin asignar</option>' + vendedores.map((x) => `<option value="${x.id}">${esc(x.nombre)}</option>`).join('');
+      const fsel = $('c-filtro-vend');
+      const previo = fsel.dataset.pendiente || fsel.value;
+      fsel.innerHTML = '<option value="">Todos</option><option value="sin">Sin asignar</option>' + vendedores.map((x) => `<option value="${x.id}">${esc(x.nombre)}</option>`).join('');
+      fsel.value = previo || '';
+      delete fsel.dataset.pendiente;
       renderClientes(activos);
     } catch (e) { showAlert(alertBox, e.message); }
   }
