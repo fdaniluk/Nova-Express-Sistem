@@ -1169,6 +1169,54 @@ async function migrateCotizadorLinks() {
 
 // Comisiones (24/09/2026): las tablas las crea schema.sql; acá solo se siembran los
 // vendedores iniciales si la tabla está vacía. Idempotente.
+// Pagos que entran solos (24/09/2026): Mercado Pago por API; después Galicia (API o extracto).
+// pagos_entrantes = cada movimiento de plata que vio el sistema, con su id del banco/MP
+// para no duplicar. Circuito (Felipe, 24/09): el sistema lo avisa y SUGIERE a qué
+// liquidación va → la oficina lo revisa y lo pasa → Marcelo lo aprueba. Nunca se aplica solo.
+// cliente_cuentas = "este CUIT paga por este cliente": se aprende la primera vez que la
+// oficina asigna un pago, y desde ahí el cliente se reconoce solo.
+async function migratePagosEntrantes() {
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS pagos_entrantes (
+      id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+      fuente             TEXT NOT NULL CHECK (fuente IN ('mercadopago','galicia','extracto')),
+      id_externo         TEXT NOT NULL,
+      fecha              TEXT NOT NULL,
+      importe            REAL NOT NULL,
+      moneda             TEXT NOT NULL DEFAULT 'ARS' CHECK (moneda IN ('ARS','USD')),
+      cuit_emisor        TEXT,
+      nombre_emisor      TEXT,
+      email_emisor       TEXT,
+      referencia         TEXT,
+      medio_detalle      TEXT,
+      crudo              TEXT,
+      estado             TEXT NOT NULL DEFAULT 'nuevo' CHECK (estado IN ('nuevo','revisado','descartado')),
+      cliente_id         INTEGER REFERENCES clientes(id),
+      recibo_id          INTEGER REFERENCES cc_recibos(id),
+      descartado_por     TEXT,
+      descartado_motivo  TEXT,
+      descartado_at      TEXT,
+      creado_at          TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      UNIQUE (fuente, id_externo)
+    );
+    CREATE INDEX IF NOT EXISTS idx_pagos_entrantes_estado ON pagos_entrantes(estado, fecha);
+    CREATE TABLE IF NOT EXISTS cliente_cuentas (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      cliente_id     INTEGER NOT NULL REFERENCES clientes(id),
+      cuit           TEXT NOT NULL UNIQUE,
+      nombre         TEXT,
+      origen         TEXT,
+      vinculada_por  TEXT,
+      creado_at      TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+    CREATE TABLE IF NOT EXISTS integraciones_estado (
+      clave          TEXT PRIMARY KEY,
+      valor          TEXT,
+      actualizado_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+    );
+  `);
+}
+
 async function migrateComisiones() {
   const cols = (await dbApi.prepare('PRAGMA table_info(vendedores)').all()).map((c) => c.name);
   if (!cols.includes('piso_mensual')) await dbApi.exec('ALTER TABLE vendedores ADD COLUMN piso_mensual REAL');
@@ -1201,6 +1249,7 @@ async function initSchema() {
   await migrateCuentaCorriente();
   await migrateRazonesSociales();
   await migrateComisiones();
+  await migratePagosEntrantes();
   await migrateUpsAreas();
   await migrateCierres();
   await migrateFuelNova();

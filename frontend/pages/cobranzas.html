@@ -6,7 +6,7 @@
   <title>Cobranzas – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260915a">
-  <link rel="stylesheet" href="../css/modules/cobranzas.css?v=20260924b">
+  <link rel="stylesheet" href="../css/modules/cobranzas.css?v=20260924c">
 </head>
 <body>
 <div class="app-layout">
@@ -112,6 +112,16 @@
 
       <!-- ===== Vista 1: saldos por cliente ===== -->
       <div id="vista-saldos">
+        <!-- Pagos que entraron solos (Mercado Pago; después Galicia): el sistema sugiere cliente y
+             liquidación, la oficina revisa y pasa, Marcelo aprueba. -->
+        <section class="pe-box" id="entrantes-box">
+          <div class="pe-head">
+            <h3>Pagos que entraron <span class="pg-bandeja-n hidden" id="pe-n">0</span></h3>
+            <span id="pe-estado"></span>
+            <button class="btn btn-secondary btn-sm hidden" id="pe-buscar">Buscar ahora</button>
+          </div>
+          <div id="pe-lista"></div>
+        </section>
         <!-- Bandeja: pagos cargados por la oficina que esperan confirmación (solo quien confirma) -->
         <section class="pg-bandeja hidden" id="bandeja-pagos">
           <div class="pg-bandeja-head">
@@ -275,12 +285,13 @@
 <div class="modal-overlay hidden" id="modal-pago">
   <div class="modal-box mp-box" role="dialog" aria-labelledby="mp-titulo">
     <div class="modal-header">
-      <h2 id="mp-titulo">Cargar pago · <span id="mp-cliente"></span></h2>
+      <h2 id="mp-titulo"><span id="mp-titulo-txt">Cargar pago</span> · <span id="mp-cliente"></span></h2>
       <button class="modal-close" id="mp-cerrar" aria-label="Cerrar">✕</button>
     </div>
     <div class="modal-body">
       <div class="mp-paso">
         <div class="mp-paso-t"><span>1</span> Qué entró</div>
+        <div class="mp-entrante hidden" id="mp-entrante"></div>
         <div class="mp-fila">
           <div class="mp-seg" id="mp-libro">
             <button type="button" data-libro="SF">Sin factura · US$</button>
@@ -321,9 +332,9 @@
 </div>
 
 <script src="/js/auth-guard.js?v=20260924b"></script>
-<script src="../js/api.js?v=20260924e"></script>
+<script src="../js/api.js?v=20260924f"></script>
 <script src="../js/main.js?v=20260915a"></script>
 <script src="../js/modules/cobranzas.js?v=20260924b"></script>
-<script src="../js/modules/cobranzas-pagos.js?v=20260924a"></script>
+<script src="../js/modules/cobranzas-pagos.js?v=20260924b"></script>
 </body>
 </html>

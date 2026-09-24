@@ -318,3 +318,50 @@
   .mp-deuda { grid-template-columns: auto 1fr; }
   .mp-d-saldo, .mp-d-imp { grid-column: 2; }
 }
+
+/* ══ Pagos que entraron solos (24/09/2026) ═════════════════════════════════════════ */
+.pe-box {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-left: 4px solid #009EE3; /* celeste Mercado Pago: se distingue de la bandeja de Marcelo */
+  border-radius: 10px;
+  padding: .9rem 1.1rem;
+  margin-bottom: 1.1rem;
+  box-shadow: var(--shadow);
+}
+.pe-box.vacio { padding: .7rem 1.1rem; }
+.pe-head { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+.pe-head h3 { margin: 0; font-size: 1rem; color: var(--color-primary); display: flex; align-items: center; gap: .45rem; }
+.pe-head #pe-n { background: #009EE3; }
+.pe-head .btn { margin-left: auto; }
+.pe-mp { font-size: .78rem; font-weight: 600; border-radius: 999px; padding: .12rem .6rem; }
+.pe-mp.ok { background: #E6F6FD; color: #006C9C; }
+.pe-mp.off { background: #F3F4F6; color: #6B7280; }
+.pe-mp.err { background: #FDECEA; color: #B91C1C; }
+.pe-vacio { font-size: .83rem; color: var(--color-muted); padding-top: .5rem; }
+#pe-lista { margin-top: .4rem; }
+.pe-card { display: grid; grid-template-columns: 170px minmax(0, 1fr) auto; gap: 1rem; align-items: center; padding: .75rem 0; border-top: 1px solid #F1F2F6; }
+.pe-card:first-child { border-top: none; }
+.pe-card-izq { display: flex; flex-direction: column; gap: .15rem; }
+.pe-fuente { align-self: flex-start; font-size: .68rem; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; border-radius: 999px; padding: .1rem .5rem; background: #F3F4F6; color: #4B5563; }
+.pe-fuente.mercadopago { background: #E6F6FD; color: #006C9C; }
+.pe-monto { font-size: 1.25rem; font-weight: 700; color: var(--color-primary); font-variant-numeric: tabular-nums; }
+.pe-card-med { display: grid; grid-template-columns: 1fr 1fr; gap: .4rem .9rem; font-size: .85rem; }
+.pe-sug { grid-column: 1 / -1; font-size: .82rem; color: #7A2E1C; background: #FFF4EF; border-radius: 6px; padding: .3rem .55rem; }
+.pe-nosabe { color: #B45309; font-weight: 600; }
+.pe-cambiar { background: none; border: none; padding: 0 .2rem; font: inherit; font-size: .78rem; font-weight: 600; color: var(--color-primary-light); cursor: pointer; }
+.pe-cambiar:hover { color: var(--color-accent); text-decoration: underline; }
+.pe-elegir select { margin-top: .3rem; max-width: 100%; padding: .35rem .5rem; border: 1px solid var(--color-border); border-radius: 6px; font: inherit; font-size: .85rem; }
+.pe-card-acc { display: flex; flex-direction: column; gap: .35rem; min-width: 150px; }
+.pe-card-acc .btn[disabled] { opacity: .5; cursor: not-allowed; }
+
+.mp-entrante { font-size: .85rem; background: #E6F6FD; border-radius: 8px; padding: .55rem .75rem; color: #0B4A66; }
+.mp-sug { margin-top: .3rem; color: #7A2E1C; }
+.mp-valor.bloqueado { background: #F1F5F9; }
+.mp-deuda.sugerida { box-shadow: inset 3px 0 0 var(--color-accent); }
+.mp-mas.hidden { display: none; }
+
+@media (max-width: 900px) {
+  .pe-card { grid-template-columns: 1fr; }
+  .pe-card-med { grid-template-columns: 1fr; }
+}

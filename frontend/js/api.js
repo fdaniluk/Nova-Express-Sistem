@@ -438,6 +438,11 @@ api.cobranzas = {
   bandeja: () => api.get('/cobranzas/pagos/bandeja'),
   confirmarPago: (id) => api.post(`/cobranzas/pagos/${id}/confirmar`, {}),
   eliminarPago: (id, motivo) => api.post(`/cobranzas/pagos/${id}/eliminar`, { motivo }),
+  // Pagos que entraron solos (Mercado Pago; después Galicia)
+  entrantes: (estado) => api.get(`/cobranzas/entrantes${estado ? `?estado=${estado}` : ''}`),
+  sincronizarEntrantes: () => api.post('/cobranzas/entrantes/sincronizar', {}),
+  clienteEntrante: (id, clienteId) => api.post(`/cobranzas/entrantes/${id}/cliente`, { cliente_id: Number(clienteId) }),
+  descartarEntrante: (id, motivo) => api.post(`/cobranzas/entrantes/${id}/descartar`, { motivo }),
 };
 
 // Comisiones por vendedor (24/09/2026). Solo admin.

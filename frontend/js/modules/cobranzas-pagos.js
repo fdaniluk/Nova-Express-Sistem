@@ -38,6 +38,7 @@
     ficha = null;
     $('btn-cargar-pago').classList.add('hidden');
     cargarBandeja();
+    cargarEntrantes();
   });
 
   async function cargarPagosCliente() {
@@ -155,6 +156,9 @@
   }
   // El usuario llega después de que arranca la pantalla: recién ahí se sabe si confirma.
   window.addEventListener('nova:usuario', () => { if (!ficha) cargarBandeja(); });
+  // cobranzas.js arranca antes que este archivo: la primera vista de saldos ya pasó sin
+  // avisarnos, así que los pagos que entraron se piden acá una vez.
+  setTimeout(() => { if (!ficha && !new URLSearchParams(location.search).get('cliente')) cargarEntrantes(); }, 0);
   $('bandeja-lista').addEventListener('click', (e) => {
     const a = e.target.closest('[data-ir-cliente]');
     if (!a || !window.NovaCobranzas) return;
@@ -162,29 +166,181 @@
     window.NovaCobranzas.abrirFicha(a.dataset.irCliente);
   });
 
+  // ══ Pagos que entraron solos (Mercado Pago; después Galicia) ═════════════════════════
+  // El sistema avisa y sugiere → la oficina revisa y pasa → Marcelo aprueba.
+  let clientesLista = null;
+  async function listaClientes() {
+    if (!clientesLista) {
+      const cl = await api.clientes.listar();
+      clientesLista = (cl.clientes || cl).map((c) => ({ id: c.id, nombre: c.nombre_nova || c.nombre }))
+        .sort((a, b) => String(a.nombre).localeCompare(String(b.nombre), 'es'));
+    }
+    return clientesLista;
+  }
+
+  function fmtHora(at) { return at ? String(at).slice(11, 16) : ''; }
+
+  async function cargarEntrantes() {
+    const box = $('entrantes-box');
+    try {
+      const { entrantes, mercadopago } = await api.cobranzas.entrantes();
+      const mpTxt = mercadopago.configurado
+        ? (mercadopago.ultima && mercadopago.ultima.ok === false
+          ? `<span class="pe-mp err" title="${esc(mercadopago.ultima.error || '')}">Mercado Pago: la última consulta falló</span>`
+          : `<span class="pe-mp ok">Mercado Pago conectado${mercadopago.ultima ? ` · revisado ${fmtHora(mercadopago.ultima.at)}` : ''}</span>`)
+        : '<span class="pe-mp off">Mercado Pago sin conectar</span>';
+      $('pe-estado').innerHTML = mpTxt;
+      $('pe-buscar').classList.toggle('hidden', !mercadopago.configurado);
+      $('pe-n').textContent = entrantes.length;
+      $('pe-n').classList.toggle('hidden', !entrantes.length);
+      box.classList.toggle('vacio', !entrantes.length);
+      if (!entrantes.length) {
+        $('pe-lista').innerHTML = `<div class="pe-vacio">${mercadopago.configurado ? 'No hay pagos nuevos para revisar.' : 'Cuando se conecte Mercado Pago (y después Galicia), acá van a aparecer solos los pagos que entran, con el cliente y la liquidación sugeridos.'}</div>`;
+        return;
+      }
+      $('pe-lista').innerHTML = entrantes.map((e) => {
+        const c = e.cliente_sugerido;
+        const sug = e.sugerencia;
+        return `<div class="pe-card" data-id="${e.id}">
+          <div class="pe-card-izq">
+            <span class="pe-fuente ${e.fuente}">${e.fuente === 'mercadopago' ? 'Mercado Pago' : 'Banco'}</span>
+            <div class="pe-monto">${money(e.importe, e.moneda)}</div>
+            <div class="cob-desc">${formatDate(e.fecha)}</div>
+          </div>
+          <div class="pe-card-med">
+            <div class="pe-quien"><span class="pg-lbl">Pagó</span>${esc(e.nombre_emisor || 'sin nombre')}${e.cuit_emisor ? ` <span class="cob-desc">· ${esc(e.cuit_emisor)}</span>` : ''}${e.referencia ? `<div class="cob-desc">“${esc(e.referencia)}”</div>` : ''}</div>
+            <div class="pe-cliente"><span class="pg-lbl">Cliente</span>${c
+              ? `<b>${esc(c.nombre)}</b> <span class="cob-desc">(${esc(c.por)})</span> <button class="pe-cambiar" data-pe-cambiar="${e.id}">cambiar</button>`
+              : `<span class="pe-nosabe">No sé de quién es</span> <button class="pe-cambiar" data-pe-cambiar="${e.id}">elegir cliente</button>`}
+              <div class="pe-elegir hidden" id="pe-elegir-${e.id}"></div></div>
+            ${sug ? `<div class="pe-sug">💡 ${esc(sug.motivo)}${sug.imputaciones.length ? ` <span class="cob-desc">(${sug.imputaciones.map((i) => esc(i.ref)).join(', ')})</span>` : ''}</div>` : ''}
+          </div>
+          <div class="pe-card-acc">
+            <button class="btn btn-primary" data-pe-revisar="${e.id}" ${c ? '' : 'disabled title="Primero elegí el cliente"'}>Revisar y pasar</button>
+            <button class="pg-link-del" data-pe-descartar="${e.id}">No es de un cliente</button>
+          </div>
+        </div>`;
+      }).join('');
+      box._entrantes = entrantes;
+    } catch (e) {
+      $('pe-lista').innerHTML = `<div class="pe-vacio">${esc(e.message)}</div>`;
+    }
+  }
+
+  $('pe-lista').addEventListener('click', async (ev) => {
+    const box = $('entrantes-box');
+    const bRev = ev.target.closest('[data-pe-revisar]');
+    const bDes = ev.target.closest('[data-pe-descartar]');
+    const bCam = ev.target.closest('[data-pe-cambiar]');
+    try {
+      if (bRev) {
+        const e = (box._entrantes || []).find((x) => String(x.id) === bRev.dataset.peRevisar);
+        if (!e || !e.cliente_sugerido) return;
+        bRev.disabled = true;
+        const pend = await api.cobranzas.pendientes(e.cliente_sugerido.id);
+        bRev.disabled = false;
+        abrirModal({ clienteId: e.cliente_sugerido.id, nombre: e.cliente_sugerido.nombre, pend, entrante: e, sugerencia: e.sugerencia });
+      } else if (bDes) {
+        const motivo = prompt('¿Qué es este movimiento? (ej.: reintegro, plata nuestra, cobro de UPS)');
+        if (motivo === null) return;
+        await api.cobranzas.descartarEntrante(bDes.dataset.peDescartar, motivo);
+        cargarEntrantes();
+      } else if (bCam) {
+        const id = bCam.dataset.peCambiar;
+        const cont = $(`pe-elegir-${id}`);
+        const lista = await listaClientes();
+        cont.innerHTML = `<select data-pe-cliente="${id}"><option value="">Elegí el cliente…</option>${lista.map((c) => `<option value="${c.id}">${esc(c.nombre)}</option>`).join('')}</select>`;
+        cont.classList.remove('hidden');
+        cont.querySelector('select').focus();
+      }
+    } catch (err) {
+      showAlert(alertBox, err.message);
+    }
+  });
+  $('pe-lista').addEventListener('change', async (ev) => {
+    const sel = ev.target.closest('[data-pe-cliente]');
+    if (!sel || !sel.value) return;
+    try {
+      await api.cobranzas.clienteEntrante(sel.dataset.peCliente, sel.value);
+      cargarEntrantes();
+    } catch (err) { showAlert(alertBox, err.message); }
+  });
+  $('pe-buscar').addEventListener('click', async () => {
+    const b = $('pe-buscar');
+    b.disabled = true;
+    try {
+      const r = await api.cobranzas.sincronizarEntrantes();
+      showAlert(alertBox, r.nuevos ? `Entraron ${r.nuevos} pagos nuevos.` : 'No hay pagos nuevos en Mercado Pago.', 'success');
+      await cargarEntrantes();
+    } catch (err) { showAlert(alertBox, err.message); } finally { b.disabled = false; }
+  });
+
   // ══ Modal: cargar pago ═════════════════════════════════════════════════════════════
   let libroPago = 'SF';
   let nValor = 0;
+  // ctx = para quién es el pago: { clienteId, nombre, pend, entrante?, sugerencia? }.
+  // Desde la ficha es la ficha abierta; desde "Pagos que entraron" es el movimiento a revisar.
+  let ctx = null;
 
-  function abrirModal() {
-    if (!ficha) return;
-    $('mp-cliente').textContent = ficha.nombre;
-    const p = ficha.pend;
+  function abrirModal(c) {
+    ctx = c && c.clienteId ? c : ficha;
+    if (!ctx) return;
+    const ent = ctx.entrante || null;
+    $('mp-titulo-txt').textContent = ent ? `Revisar pago de ${ent.fuente === 'mercadopago' ? 'Mercado Pago' : 'banco'}` : 'Cargar pago';
+    $('mp-cliente').textContent = ctx.nombre;
+    const p = ctx.pend;
     // Arranca en el libro que tiene deuda (si tiene en los dos, el de dólares, que es el más común).
-    libroPago = p.SF.some((x) => ['FA', 'LQ', 'ND'].includes(x.tipo)) || !p.CF.length ? 'SF' : 'CF';
-    $('mp-fecha').value = hoyLocal();
+    libroPago = ctx.sugerencia ? ctx.sugerencia.libro
+      : (p.SF.some((x) => ['FA', 'LQ', 'ND'].includes(x.tipo)) || !p.CF.length ? 'SF' : 'CF');
+    $('mp-fecha').value = ent ? ent.fecha : hoyLocal();
     $('mp-fecha').max = hoyLocal();
-    $('mp-tc').value = '';
+    $('mp-fecha').disabled = !!ent;
+    $('mp-tc').value = ctx.sugerencia && ctx.sugerencia.tc ? ctx.sugerencia.tc : '';
     $('mp-talonario').value = '';
     $('mp-obs').value = '';
     $('mp-valores').innerHTML = '';
     nValor = 0;
     agregarValor();
+    $('mp-agregar-valor').classList.toggle('hidden', !!ent);
+    $('mp-entrante').classList.toggle('hidden', !ent);
+    if (ent) {
+      // Lo que entró lo dice el banco / MP: no se toca.
+      const row = document.querySelector('#mp-valores .mp-valor');
+      row.querySelector('.mp-medio').value = ent.fuente === 'mercadopago' ? 'mercadopago' : 'transferencia';
+      row.querySelector('.mp-moneda').value = ent.moneda;
+      row.querySelector('.mp-moneda').dataset.tocado = '1';
+      row.querySelector('.mp-importe').value = ent.importe;
+      row.querySelectorAll('select, input').forEach((x) => { x.disabled = true; });
+      row.classList.add('bloqueado');
+      $('mp-entrante').innerHTML = `<b>${ent.fuente === 'mercadopago' ? 'Mercado Pago' : 'Banco'}</b> · ${formatDate(ent.fecha)} · ${esc(ent.nombre_emisor || 'sin nombre')}${ent.cuit_emisor ? ` · CUIT/DNI ${esc(ent.cuit_emisor)}` : ''}${ent.referencia ? ` · “${esc(ent.referencia)}”` : ''}`
+        + (ctx.sugerencia ? `<div class="mp-sug">💡 ${esc(ctx.sugerencia.motivo)} Revisalo y corregí lo que haga falta.</div>` : '');
+      actualizarValor(row);
+      row.querySelector('.mp-file').classList.add('hidden');
+    }
     marcarLibro();
+    if (ctx.sugerencia) aplicarSugerencia(ctx.sugerencia);
     $('mp-aviso').textContent = puedeConfirmar()
       ? 'Queda confirmado al guardar.'
-      : 'Queda "sin confirmar" hasta que Marcelo lo confirme. La deuda baja cuando él lo confirma.';
+      : (ent ? 'Pasa a Marcelo para que lo apruebe. La deuda baja cuando él lo aprueba.'
+        : 'Queda "sin confirmar" hasta que Marcelo lo confirme. La deuda baja cuando él lo confirma.');
+    $('mp-guardar').textContent = ent && !puedeConfirmar() ? 'Pasar a Marcelo' : 'Guardar pago';
+    $('mp-error').textContent = '';
     $('modal-pago').classList.remove('hidden');
+  }
+
+  // Tilda las deudas que sugirió el sistema (la oficina las puede cambiar).
+  function aplicarSugerencia(sug) {
+    if (sug.libro !== libroPago) return;
+    for (const im of sug.imputaciones || []) {
+      const lab = document.querySelector(`#mp-deudas .mp-deuda[data-id="${im.comprobante_id}"]`);
+      if (!lab) continue;
+      lab.querySelector('.mp-chk').checked = true;
+      const imp = lab.querySelector('.mp-d-imp');
+      imp.disabled = false;
+      imp.value = Number(im.importe).toFixed(2);
+      lab.classList.add('on', 'sugerida');
+    }
+    recalcular();
   }
 
   function marcarLibro() {
@@ -248,7 +404,7 @@
 
   function renderDeudas() {
     const moneda = MONEDA_LIBRO[libroPago];
-    const deudas = (ficha.pend[libroPago] || []).filter((x) => ['FA', 'LQ', 'ND'].includes(x.tipo) && x.saldo > 0.005);
+    const deudas = (ctx.pend[libroPago] || []).filter((x) => ['FA', 'LQ', 'ND'].includes(x.tipo) && x.saldo > 0.005);
     $('mp-deudas').innerHTML = deudas.length ? deudas.map((d) => `
       <label class="mp-deuda" data-id="${d.id}" data-saldo="${d.saldo}">
         <input type="checkbox" class="mp-chk">
@@ -319,7 +475,7 @@
   function cerrarModal() { $('modal-pago').classList.add('hidden'); }
   $('mp-cerrar').addEventListener('click', cerrarModal);
   $('mp-cancelar').addEventListener('click', cerrarModal);
-  $('btn-cargar-pago').addEventListener('click', abrirModal);
+  $('btn-cargar-pago').addEventListener('click', () => abrirModal(null));
 
   $('mp-guardar').addEventListener('click', async () => {
     const btn = $('mp-guardar');
@@ -328,13 +484,14 @@
     err('');
     if (!vals.length) return err('Poné el importe de lo que entró.');
     for (const v of vals) {
-      if (CON_COMPROBANTE.includes(v.medio) && !v.file) return err('Falta adjuntar el comprobante de la transferencia.');
+      if (CON_COMPROBANTE.includes(v.medio) && !v.file && !ctx.entrante) return err('Falta adjuntar el comprobante de la transferencia.');
       if (v.medio === 'cheque' && (!v.banco || !v.numero || !v.fecha_vto)) return err('Del cheque falta el banco, el número o la fecha de cobro.');
     }
     if (totalAplicado() > totalPago() + 0.005) return err('Lo aplicado supera lo que entró.');
     const fd = new FormData();
     const datos = {
-      cliente_id: ficha.clienteId, libro: libroPago, fecha: $('mp-fecha').value,
+      cliente_id: ctx.clienteId, libro: libroPago, fecha: $('mp-fecha').value,
+      entrante_id: ctx.entrante ? ctx.entrante.id : null,
       tc_pago: $('mp-tc').value || null, numero_talonario: $('mp-talonario').value.trim() || null,
       observaciones: $('mp-obs').value.trim() || null,
       valores: vals.map((v, i) => {
@@ -350,8 +507,9 @@
     try {
       await api.cobranzas.cargarPago(fd);
       cerrarModal();
-      showAlert(alertBox, puedeConfirmar() ? 'Pago cargado y confirmado.' : 'Pago cargado. Queda para que Marcelo lo confirme.', 'success');
+      showAlert(alertBox, puedeConfirmar() ? 'Pago cargado y confirmado.' : (ctx.entrante ? 'Revisado. Pasó a Marcelo para que lo apruebe.' : 'Pago cargado. Queda para que Marcelo lo confirme.'), 'success');
       await refrescarTodo();
+      cargarEntrantes();
     } catch (e) {
       err(e.message);
     } finally {

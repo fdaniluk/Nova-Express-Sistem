@@ -22,4 +22,13 @@ router.post('/pagos/:id/eliminar', ctrl.eliminarPago);
 router.get('/clientes/:id/pagos', ctrl.pagosCliente);
 router.get('/adjuntos/:valorId', ctrl.adjunto);
 
+// Pagos que entraron solos (Mercado Pago; después Galicia). El sistema sugiere, la oficina
+// revisa y pasa (POST /pagos con entrante_id), Marcelo aprueba.
+router.get('/entrantes', ctrl.listarEntrantes);
+router.post('/entrantes/sincronizar', ctrl.sincronizarEntrantes);
+router.get('/entrantes/:id/sugerencia', ctrl.sugerenciaEntrante);
+router.post('/entrantes/:id/cliente', ctrl.clienteEntrante);
+router.post('/entrantes/:id/descartar', ctrl.descartarEntrante);
+router.post('/entrantes/:id/reabrir', ctrl.reabrirEntrante);
+
 module.exports = router;

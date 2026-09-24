@@ -2,6 +2,8 @@
 // manuales + tipo de cambio). Recibos, imputación y cheques llegan en la etapa 2.
 const cc = require('../models/cuenta-corriente.model');
 const recibos = require('../models/recibos.model');
+const entrantes = require('../models/entrantes.model');
+const mp = require('../services/mercadopago.service');
 const { getDb } = require('../db');
 
 function esFecha(f) {
@@ -136,7 +138,32 @@ const adjunto = conError(async (req, res) => {
   res.sendFile(ruta, { headers: { 'Cache-Control': 'private, max-age=3600' } });
 });
 
+// ── Pagos que entraron solos ─────────────────────────────────────────────────────
+const ESTADOS_ENTRANTE = ['nuevo', 'revisado', 'descartado'];
+const listarEntrantes = conError(async (req, res) => {
+  const estado = ESTADOS_ENTRANTE.includes(req.query.estado) ? req.query.estado : 'nuevo';
+  res.json({ entrantes: await entrantes.listar({ estado }), mercadopago: await mp.estado() });
+});
+const sincronizarEntrantes = conError(async (req, res) => {
+  if (!mp.configurado()) return res.status(409).json({ error: 'Mercado Pago todavía no está conectado (falta el token en el servidor)' });
+  try {
+    res.json(await mp.sincronizar({ dias: Math.min(60, Number(req.body && req.body.dias) || 7) }));
+  } catch (e) {
+    await mp.registrarError(e.message);
+    throw e;
+  }
+});
+const sugerenciaEntrante = conError(async (req, res) => { res.json(await entrantes.sugerencia(Number(req.params.id))); });
+const clienteEntrante = conError(async (req, res) => {
+  res.json(await entrantes.asignarCliente(Number(req.params.id), Number((req.body || {}).cliente_id)));
+});
+const descartarEntrante = conError(async (req, res) => {
+  res.json(await entrantes.descartar(Number(req.params.id), (req.body || {}).motivo, req.usuario));
+});
+const reabrirEntrante = conError(async (req, res) => { res.json(await entrantes.reabrir(Number(req.params.id))); });
+
 module.exports = {
   saldos, pendientes, historial, crearComprobante, listarTC, guardarTC,
   cargarPago, bandejaPagos, obtenerPago, confirmarPago, eliminarPago, pagosCliente, adjunto,
+  listarEntrantes, sincronizarEntrantes, sugerenciaEntrante, clienteEntrante, descartarEntrante, reabrirEntrante,
 };

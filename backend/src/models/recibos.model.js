@@ -23,6 +23,7 @@ const crypto = require('crypto');
 const { getDb } = require('../db');
 const config = require('../config');
 const { hoyLocal } = require('../utils/fecha');
+const entrantes = require('./entrantes.model');
 
 const MEDIOS = ['efectivo', 'transferencia', 'cheque', 'mercadopago', 'otro'];
 const MEDIOS_CON_COMPROBANTE = ['transferencia', 'mercadopago'];
@@ -76,6 +77,18 @@ async function cargarPago(datos, archivos, usuario) {
   const libro = datos.libro;
   if (!MONEDA_LIBRO[libro]) throw err('libro debe ser CF o SF');
   const monedaLibro = MONEDA_LIBRO[libro];
+  // Pago que entró solo (Mercado Pago / banco): el "con qué pagó" lo manda el movimiento,
+  // no la pantalla, y el comprobante es el propio movimiento (no hace falta adjunto).
+  let entrante = null;
+  if (datos.entrante_id) {
+    entrante = await entrantes.obtener(Number(datos.entrante_id), db);
+    if (!entrante) throw err('Movimiento inexistente', 404);
+    if (entrante.estado !== 'nuevo') throw err('Ese movimiento ya se revisó', 409);
+    datos.valores = [{ medio: entrante.fuente === 'mercadopago' ? 'mercadopago' : 'transferencia', moneda: entrante.moneda,
+      importe: entrante.importe, cuit_emisor: entrante.cuit_emisor, numero: `${entrante.fuente}:${entrante.id_externo}` }];
+    datos.fecha = entrante.fecha; // la fecha del pago es la del movimiento
+  }
+
   const fecha = String(datos.fecha || '');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) throw err('Fecha inválida');
   if (fecha > hoyLocal()) throw err('La fecha del pago no puede ser futura');
@@ -92,7 +105,7 @@ async function cargarPago(datos, archivos, usuario) {
     const importe = r2(v.importe);
     if (!(importe > 0)) throw err(`Valor ${i + 1}: el importe tiene que ser mayor a 0`);
     const file = v.adjunto ? archivos[v.adjunto] : null;
-    if (MEDIOS_CON_COMPROBANTE.includes(medio) && !file) throw err(`Valor ${i + 1}: la ${medio === 'mercadopago' ? 'transferencia de Mercado Pago' : 'transferencia'} necesita el comprobante adjunto`);
+    if (MEDIOS_CON_COMPROBANTE.includes(medio) && !file && !entrante) throw err(`Valor ${i + 1}: la ${medio === 'mercadopago' ? 'transferencia de Mercado Pago' : 'transferencia'} necesita el comprobante adjunto`);
     if (medio === 'cheque' && (!v.banco || !v.numero || !v.fecha_vto)) throw err(`Valor ${i + 1}: el cheque necesita banco, número y fecha de cobro`);
     const enLibro = aMonedaLibro(importe, moneda, monedaLibro, tc);
     total = r2(total + enLibro);
@@ -179,6 +192,7 @@ async function cargarPago(datos, archivos, usuario) {
       await db.prepare('INSERT INTO cc_recibo_imputaciones (recibo_id, comprobante_id, importe, estado) VALUES (?, ?, ?, ?)')
         .run(reciboId, im.comprobante_id, im.importe, confirma ? 'aplicada' : 'pendiente_valor');
     }
+    if (entrante) await entrantes.marcarRevisado(db, entrante.id, reciboId, clienteId, usuario);
     if (confirma) await aplicar(db, reciboId, usuario);
     return reciboId;
   });
@@ -250,6 +264,7 @@ async function eliminarPago(reciboId, motivo, usuario) {
     const marca = [ahora(), usuario.usuario, motivo];
     if (ac) await db.prepare('UPDATE cc_comprobantes SET anulado_at = ?, anulado_por = ?, anulado_motivo = ?, saldo = 0 WHERE id = ?').run(...marca, ac.id);
     await db.prepare('UPDATE cc_comprobantes SET anulado_at = ?, anulado_por = ?, anulado_motivo = ? WHERE id = ?').run(...marca, r.comprobante_id);
+    await entrantes.liberarPorRecibo(db, reciboId);
     await db.prepare(
       `UPDATE cc_cheques SET estado = 'anulado', estado_at = ?, estado_por = ?
        WHERE recibo_valor_id IN (SELECT id FROM cc_recibo_valores WHERE recibo_id = ?)`
@@ -273,6 +288,7 @@ async function obtenerRecibo(reciboId) {
     `SELECT i.id, i.comprobante_id, i.importe, i.estado, c.tipo, c.numero, c.fecha, c.importe AS importe_comprobante, c.liquidacion_id
      FROM cc_recibo_imputaciones i JOIN cc_comprobantes c ON c.id = i.comprobante_id WHERE i.recibo_id = ? ORDER BY c.fecha, c.id`
   ).all(reciboId);
+  r.entrante = await db.prepare('SELECT id, fuente, id_externo, fecha, nombre_emisor, cuit_emisor, referencia FROM pagos_entrantes WHERE recibo_id = ?').get(reciboId) || null;
   r.a_favor = r2(r.total - r.imputaciones.filter((i) => i.estado !== 'revertida').reduce((a, i) => a + i.importe, 0));
   return r;
 }

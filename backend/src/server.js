@@ -76,6 +76,25 @@ initDb()
     } else {
       console.log('[tracking-auto] sin credenciales UPS: el semáforo automático queda apagado');
     }
+    // Mercado Pago (24/09/2026): cada 10 minutos trae los cobros de los últimos 3 días y
+    // guarda los nuevos en pagos_entrantes (no duplica: cada cobro tiene su id de MP).
+    // Solo lectura. Sin MP_ACCESS_TOKEN en el .env queda apagado.
+    if ((process.env.MP_ACCESS_TOKEN || '').trim()) {
+      const mp = require('./services/mercadopago.service');
+      const correrMp = async () => {
+        try {
+          const r = await mp.sincronizar({ dias: 3 });
+          if (r.nuevos) console.log(`[mercadopago] ${r.nuevos} cobros nuevos (${r.vistos} vistos)`);
+        } catch (err) {
+          console.error('[mercadopago] la consulta falló:', err.message);
+          await mp.registrarError(err.message).catch(() => {});
+        }
+      };
+      setTimeout(correrMp, 30 * 1000);
+      setInterval(correrMp, 10 * 60 * 1000);
+    } else {
+      console.log('[mercadopago] sin MP_ACCESS_TOKEN: la lectura de cobros queda apagada');
+    }
     app.listen(config.port, () => {
       console.log(`Nova Express API en http://localhost:${config.port}`);
       console.log(`Base de datos: ${config.dbPath}`);
