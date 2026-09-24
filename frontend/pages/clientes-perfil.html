@@ -6,7 +6,7 @@
   <title>Perfil de cliente — Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260915a">
-  <link rel="stylesheet" href="../css/modules/clientes.css?v=20260917a">
+  <link rel="stylesheet" href="../css/modules/clientes.css?v=20260924a">
   <!-- Las fuentes del cuadro de la cotización (el mismo que dibuja el cotizador). -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500;600&display=swap">
 </head>
@@ -130,6 +130,7 @@
         <a href="#card-cotizaciones">Cotizaciones</a>
         <a href="#card-envios">Envíos</a>
         <a href="#card-direcciones">Direcciones y libretas</a>
+        <a href="#card-razones">Razones sociales</a>
       </nav>
 
       <!-- Stats -->
@@ -268,6 +269,30 @@
                 <input type="text" id="nueva-direccion" placeholder="Ej: Av. Rivadavia 3200, CABA">
                 <button class="btn btn-coral btn-sm" id="btn-guardar-dir">Guardar</button>
                 <button class="btn btn-outline btn-sm" id="btn-cancelar-dir">Cancelar</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Razones sociales (24/09/2026): a quién se le factura. Un cliente puede tener
+               varias (distintos CUIT) o pedir que se facture a un tercero. -->
+          <div class="per-card" id="card-razones">
+            <div class="per-card-cab"><div><h2>Razones sociales</h2><p>A quién se le factura. Puede tener más de una (distinto CUIT) o un tercero al que factura por pedido del cliente.</p></div></div>
+            <div class="per-card-cuerpo">
+              <ul class="per-lista rs-lista" id="rs-lista"><li class="vacio">Cargando...</li></ul>
+              <button class="per-add" id="btn-agregar-rs">+ Agregar razón social</button>
+              <div class="rs-form" id="rs-form">
+                <input type="hidden" id="rs-id">
+                <div class="full"><label for="rs-razon">Razón social *</label><input type="text" id="rs-razon" maxlength="120"></div>
+                <div><label for="rs-cuit">CUIT</label><input type="text" id="rs-cuit" placeholder="30-12345678-9"></div>
+                <div><label for="rs-iva">Condición IVA</label>
+                  <select id="rs-iva"><option value="">—</option><option value="RI">Responsable inscripto</option><option value="MT">Monotributo</option><option value="EX">Exento</option><option value="CF">Consumidor final</option><option value="EXT">Exterior</option></select></div>
+                <label class="chk"><input type="checkbox" id="rs-principal"> Principal (se propone por defecto)</label>
+                <label class="chk"><input type="checkbox" id="rs-tercero"> Es un tercero</label>
+                <div class="full"><label for="rs-nota">Nota</label><input type="text" id="rs-nota" placeholder="Opcional"></div>
+                <div class="acc">
+                  <button class="btn btn-outline btn-sm" id="btn-cancelar-rs">Cancelar</button>
+                  <button class="btn btn-coral btn-sm" id="btn-guardar-rs">Guardar</button>
+                </div>
               </div>
             </div>
           </div>
@@ -441,10 +466,10 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260915a"></script>
-<script src="../js/api.js?v=20260923a"></script>
+<script src="/js/auth-guard.js?v=20260924a"></script>
+<script src="../js/api.js?v=20260924a"></script>
 <script src="../js/main.js?v=20260915a"></script>
 <script src="../js/cotizacion-imagen.js?v=20260922a"></script>
-<script src="../js/modules/clientes-perfil.js?v=20260923a"></script>
+<script src="../js/modules/clientes-perfil.js?v=20260924a"></script>
 </body>
 </html>

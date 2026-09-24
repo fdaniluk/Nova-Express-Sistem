@@ -122,4 +122,72 @@ async function unirClientes(origenId, destinoId, { usuario = null } = {}) {
   });
 }
 
-module.exports = { listar, crear, editar, moverACliente, unirClientes, soloDigitos };
+
+// ── Vista previa de la unión ──────────────────────────────────────────────────────
+// Lo mismo que unirClientes pero sin escribir: cuenta qué tiene cada cliente en cada
+// tabla, para que el admin vea qué se mueve antes de confirmar.
+const TABLAS_LEGIBLES = {
+  envios: 'envíos', liquidaciones: 'liquidaciones', cotizaciones: 'cotizaciones', pickups: 'pickups',
+  cc_comprobantes: 'movimientos de cuenta corriente', cc_recibos: 'recibos', cc_cheques: 'cheques', cc_reclamos: 'reclamos',
+  clientes_razones_sociales: 'razones sociales', cliente_direcciones: 'direcciones', remitentes: 'remitentes', destinatarios: 'destinatarios',
+  profit_overrides: 'celdas de la matriz de tarifas', cliente_tramos: 'tramos de peso', tarifa_kg_overrides: 'precios por kilo',
+  cotizador_links: 'links de cotización', tarifario_emitidos: 'tarifarios emitidos', cobros_pickup: 'cobros en pickup',
+};
+async function previewUnion(origenId, destinoId) {
+  const db = getDb();
+  origenId = Number(origenId); destinoId = Number(destinoId);
+  if (!origenId || !destinoId || origenId === destinoId) throw Object.assign(new Error('Elegí dos clientes distintos'), { status: 400 });
+  const origen = await db.prepare('SELECT * FROM clientes WHERE id = ?').get(origenId);
+  const destino = await db.prepare('SELECT * FROM clientes WHERE id = ?').get(destinoId);
+  if (!origen || !destino) throw Object.assign(new Error('Cliente inexistente'), { status: 404 });
+  const tablas = (await db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT IN ('clientes', 'clientes_uniones')").all()).map((t) => t.name);
+  const filas = [];
+  for (const t of tablas) {
+    const cols = (await db.prepare(`PRAGMA table_info(${t})`).all()).map((c) => c.name);
+    if (!cols.includes('cliente_id')) continue;
+    const o = (await db.prepare(`SELECT COUNT(*) AS n FROM ${t} WHERE cliente_id = ?`).get(origenId)).n;
+    const d = (await db.prepare(`SELECT COUNT(*) AS n FROM ${t} WHERE cliente_id = ?`).get(destinoId)).n;
+    if (o || d) filas.push({ tabla: t, nombre: TABLAS_LEGIBLES[t] || t, origen: o, destino: d });
+  }
+  const saldo = async (id) => db.prepare(
+    `SELECT ROUND(COALESCE(SUM(CASE WHEN libro='CF' AND tipo IN ('FA','LQ','ND') THEN saldo WHEN libro='CF' THEN -saldo END),0),2) AS cf,
+            ROUND(COALESCE(SUM(CASE WHEN libro='SF' AND tipo IN ('FA','LQ','ND') THEN saldo WHEN libro='SF' THEN -saldo END),0),2) AS sf
+     FROM cc_comprobantes WHERE cliente_id = ? AND anulado_at IS NULL`).get(id);
+  // Campos del origen que el destino tiene vacíos y se van a completar.
+  const completa = {};
+  for (const col of ['cuit', 'email', 'whatsapp', 'telefono', 'direccion_recoleccion', 'codigo_postal', 'localidad', 'provincia', 'contacto', 'plazo_pago_dias']) {
+    if ((destino[col] === null || destino[col] === '') && origen[col] !== null && origen[col] !== '') completa[col] = origen[col];
+  }
+  const pick = (c, s) => ({ id: c.id, nombre: c.nombre, nombre_nova: c.nombre_nova, cuit: c.cuit, tipo_cobro: c.tipo_cobro, activo: c.activo, saldo_cf: s.cf, saldo_sf: s.sf });
+  return { origen: pick(origen, await saldo(origenId)), destino: pick(destino, await saldo(destinoId)), filas, completa };
+}
+
+// ── Posibles duplicados ───────────────────────────────────────────────────────────
+// Pares de clientes que parecen el mismo: mismo CUIT (solo dígitos) o mismo nombre
+// normalizado (sin tildes, sin puntuación, sin "SA/SRL/S.A."). Es una sugerencia; decide
+// una persona.
+function claveNombre(s) {
+  return String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
+    .replace(/\b(s\.?a\.?|s\.?r\.?l\.?|sas|srl|sa)\b/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+}
+async function posiblesDuplicados() {
+  const db = getDb();
+  const cs = await db.prepare('SELECT id, nombre, nombre_nova, cuit, activo, tipo_cobro FROM clientes ORDER BY id').all();
+  const pares = new Map();
+  const add = (a, b, motivo) => {
+    const k = a.id < b.id ? `${a.id}-${b.id}` : `${b.id}-${a.id}`;
+    if (!pares.has(k)) pares.set(k, { a, b, motivos: [] });
+    pares.get(k).motivos.push(motivo);
+  };
+  const porCuit = new Map(), porNombre = new Map();
+  for (const c of cs) {
+    const cu = soloDigitos(c.cuit);
+    if (cu.length >= 11) { if (porCuit.has(cu)) add(porCuit.get(cu), c, 'mismo CUIT'); else porCuit.set(cu, c); }
+    for (const n of new Set([claveNombre(c.nombre), claveNombre(c.nombre_nova)].filter((x) => x.length >= 4))) {
+      if (porNombre.has(n)) { const o = porNombre.get(n); if (o.id !== c.id) add(o, c, 'mismo nombre'); } else porNombre.set(n, c);
+    }
+  }
+  return [...pares.values()].map((p) => ({ ...p, motivo: [...new Set(p.motivos)].join(' y ') }));
+}
+
+module.exports = { listar, crear, editar, moverACliente, unirClientes, previewUnion, posiblesDuplicados, soloDigitos };

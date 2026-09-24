@@ -7,6 +7,8 @@ const { requireAdmin } = require('../middleware/auth');
 
 const router = Router();
 router.get('/', ctrl.listar);
+// Antes de /:id, si no Express lo toma como un id.
+router.get('/duplicados', requireAdmin, rsCtrl.duplicados);
 router.post('/', ctrl.crear);
 router.get('/:id/perfil', ctrl.perfil);
 
@@ -40,6 +42,7 @@ router.put('/razones-sociales/:rid', rsCtrl.editar);
 router.post('/razones-sociales/:rid/mover', requireAdmin, rsCtrl.mover);
 router.get('/:id/razones-sociales', rsCtrl.listar);
 router.post('/:id/razones-sociales', rsCtrl.crear);
+router.post('/:id/unir/preview', requireAdmin, rsCtrl.unirPreview);
 router.post('/:id/unir', requireAdmin, rsCtrl.unir);
 
 router.get('/:id', ctrl.buscarPorId);

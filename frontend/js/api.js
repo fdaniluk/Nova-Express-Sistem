@@ -69,6 +69,10 @@ const api = {
     activar: (id, activo = true) => api.put(`/clientes/${id}/activo`, { activo }),
     eliminar: (id) => api.delete(`/clientes/${id}`),
     perfil: (id) => api.get(`/clientes/${id}/perfil`),
+    // Unir clientes duplicados (admin). El origen desaparece; todo pasa al destino.
+    duplicados: () => api.get('/clientes/duplicados'),
+    unirPreview: (origenId, destinoId) => api.post(`/clientes/${origenId}/unir/preview`, { destino_id: destinoId }),
+    unir: (origenId, destinoId) => api.post(`/clientes/${origenId}/unir`, { destino_id: destinoId }),
   },
 
   envios: {
@@ -140,6 +144,14 @@ const api = {
         tolerancia_peso_kg,
       }),
   },
+};
+
+// Razones sociales del cliente (varios CUIT / facturar a un tercero), 24/09/2026.
+api.clientes.razonesSociales = {
+  listar: (clienteId) => api.get(`/clientes/${clienteId}/razones-sociales`),
+  crear: (clienteId, data) => api.post(`/clientes/${clienteId}/razones-sociales`, data),
+  editar: (rid, data) => api.put(`/clientes/razones-sociales/${rid}`, data),
+  mover: (rid, clienteDestinoId) => api.post(`/clientes/razones-sociales/${rid}/mover`, { cliente_id: clienteDestinoId }),
 };
 
 api.clientes.direcciones = {

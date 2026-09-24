@@ -31,6 +31,7 @@
       renderResumenTarifas(clienteData);
       bindEdicion();
       bindDirecciones();
+      bindRazones();
       bindTarifas();
       bindTarifario();
       bindLinks();
@@ -38,7 +39,7 @@
       bindBuscadorEnvios();
       // Lo demás se pide EN PARALELO (antes era una cascada: perfil → direcciones → links →
       // cotizaciones, una atrás de otra).
-      await Promise.all([cargarDirecciones(), cargarLinks(), cargarCotizacionesCliente(), cargarLibretas()]);
+      await Promise.all([cargarDirecciones(), cargarLinks(), cargarCotizacionesCliente(), cargarLibretas(), cargarRazones()]);
     } catch (err) {
       NovaUtils.showAlert(alertBox, 'Error al cargar perfil: ' + err.message);
     }
@@ -377,6 +378,129 @@
         NovaUtils.showAlert(alertBox, err.message);
       }
     });
+  }
+
+
+  // ── Razones sociales (24/09/2026) ─────────────────────────────────────────────
+
+  let razones = [];
+  const fARS = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
+  const fUSD = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'USD' });
+  const IVA_LABEL = { RI: 'Resp. inscripto', MT: 'Monotributo', EX: 'Exento', CF: 'Cons. final', EXT: 'Exterior' };
+
+  async function cargarRazones() {
+    try {
+      const r = await NovaAPI.clientes.razonesSociales.listar(clienteId);
+      razones = r.razones_sociales || [];
+      renderRazones();
+    } catch (err) {
+      NovaUtils.showAlert(alertBox, 'Error al cargar razones sociales: ' + err.message);
+    }
+  }
+
+  function renderRazones() {
+    const list = document.getElementById('rs-lista');
+    if (!razones.length) { list.innerHTML = '<li class="vacio">Sin razones sociales cargadas.</li>'; return; }
+    const esAdmin = window.currentUser && window.currentUser.rol === 'admin';
+    list.innerHTML = razones.map((r) => `<li data-rid="${r.id}">
+        <span class="txt"><b>${esc(r.razon_social)}</b>
+          <small>${r.cuit ? `CUIT ${esc(r.cuit)}` : 'sin CUIT'}${r.condicion_iva ? ` · ${esc(IVA_LABEL[r.condicion_iva] || r.condicion_iva)}` : ''}${r.nota ? ` · ${esc(r.nota)}` : ''}</small>
+          <span class="rs-chips">
+            ${r.principal ? '<span class="rs-chip principal">principal</span>' : ''}
+            ${r.es_tercero ? '<span class="rs-chip tercero">tercero</span>' : ''}
+            ${r.activa ? '' : '<span class="rs-chip inactiva">inactiva</span>'}
+            ${r.gecom_agenda ? `<span class="rs-chip" title="Agenda del GECOM">GECOM ${esc(r.gecom_agenda)}</span>` : ''}
+            ${r.comprobantes ? `<span class="rs-chip">${r.comprobantes} comprobantes</span>` : ''}
+            ${Math.abs(r.saldo_cf) > 0.005 ? `<span class="rs-chip saldo">${fARS.format(r.saldo_cf)}</span>` : ''}
+            ${Math.abs(r.saldo_sf) > 0.005 ? `<span class="rs-chip saldo">${fUSD.format(r.saldo_sf)}</span>` : ''}
+          </span>
+        </span>
+        <span class="rs-acc">
+          <button type="button" data-rs="editar">Editar</button>
+          ${r.activa ? '<button type="button" data-rs="baja" title="Deja de proponerse; conserva sus comprobantes">Dar de baja</button>' : '<button type="button" data-rs="alta">Reactivar</button>'}
+          ${esAdmin ? '<button type="button" data-rs="mover" title="Pasar esta razón social, con todos sus comprobantes, a otro cliente">Mover</button>' : ''}
+        </span>
+      </li>`).join('');
+    list.querySelectorAll('button[data-rs]').forEach((btn) => btn.addEventListener('click', () => {
+      const rid = Number(btn.closest('li').dataset.rid);
+      const r = razones.find((x) => x.id === rid);
+      const a = btn.dataset.rs;
+      if (a === 'editar') abrirFormRazon(r);
+      else if (a === 'baja' || a === 'alta') guardarRazon(rid, { activa: a === 'alta' ? 1 : 0 });
+      else if (a === 'mover') moverRazon(r);
+    }));
+  }
+
+  function abrirFormRazon(r = null) {
+    const f = document.getElementById('rs-form');
+    document.getElementById('rs-id').value = r ? r.id : '';
+    document.getElementById('rs-razon').value = r ? r.razon_social : '';
+    document.getElementById('rs-cuit').value = r ? (r.cuit || '') : '';
+    document.getElementById('rs-iva').value = r ? (r.condicion_iva || '') : '';
+    document.getElementById('rs-principal').checked = r ? !!r.principal : !razones.length;
+    document.getElementById('rs-tercero').checked = r ? !!r.es_tercero : false;
+    document.getElementById('rs-nota').value = r ? (r.nota || '') : '';
+    f.classList.add('visible');
+    document.getElementById('btn-agregar-rs').style.display = 'none';
+    document.getElementById('rs-razon').focus();
+  }
+
+  function cerrarFormRazon() {
+    document.getElementById('rs-form').classList.remove('visible');
+    document.getElementById('btn-agregar-rs').style.display = '';
+  }
+
+  async function guardarRazon(rid, data) {
+    try {
+      if (rid) await NovaAPI.clientes.razonesSociales.editar(rid, data);
+      else await NovaAPI.clientes.razonesSociales.crear(clienteId, data);
+      cerrarFormRazon();
+      await cargarRazones();
+    } catch (err) {
+      NovaUtils.showAlert(alertBox, err.message);
+    }
+  }
+
+  async function moverRazon(r) {
+    // Lista corta de clientes para elegir el destino; con ~100 alcanza un prompt con búsqueda.
+    let lista;
+    try { lista = await NovaAPI.clientes.listar({ todos: 1 }); } catch (err) { NovaUtils.showAlert(alertBox, err.message); return; }
+    const cs = (lista.clientes || lista).filter((c) => String(c.id) !== String(clienteId));
+    const q = prompt(`Mover "${r.razon_social}" (con sus ${r.comprobantes || 0} comprobantes) a otro cliente.\nEscribí parte del nombre del cliente destino:`);
+    if (!q) return;
+    const n = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+    const cand = cs.filter((c) => n(c.nombre).includes(n(q)) || n(c.nombre_nova).includes(n(q)));
+    if (!cand.length) { NovaUtils.showAlert(alertBox, 'Ningún cliente coincide con eso.'); return; }
+    let dest = cand[0];
+    if (cand.length > 1) {
+      const idx = prompt(`Coinciden varios. Número del elegido:\n${cand.slice(0, 15).map((c, i) => `${i + 1}. ${c.nombre_nova || c.nombre} (#${c.id})`).join('\n')}`);
+      dest = cand[Number(idx) - 1];
+      if (!dest) return;
+    }
+    if (!confirm(`¿Mover "${r.razon_social}" y todos sus comprobantes a "${dest.nombre_nova || dest.nombre}"?`)) return;
+    try {
+      const res = await NovaAPI.clientes.razonesSociales.mover(r.id, dest.id);
+      NovaUtils.showAlert(alertBox, `Movida a ${dest.nombre_nova || dest.nombre} (${res.movidos} comprobantes).`, 'success');
+      await cargarRazones();
+    } catch (err) { NovaUtils.showAlert(alertBox, err.message); }
+  }
+
+  function bindRazones() {
+    document.getElementById('btn-agregar-rs').addEventListener('click', () => abrirFormRazon(null));
+    document.getElementById('btn-cancelar-rs').addEventListener('click', cerrarFormRazon);
+    document.getElementById('btn-guardar-rs').addEventListener('click', () => {
+      const razon_social = document.getElementById('rs-razon').value.trim();
+      if (!razon_social) { NovaUtils.showAlert(alertBox, 'La razón social es obligatoria.'); return; }
+      guardarRazon(Number(document.getElementById('rs-id').value) || null, {
+        razon_social,
+        cuit: document.getElementById('rs-cuit').value.trim() || null,
+        condicion_iva: document.getElementById('rs-iva').value || null,
+        principal: document.getElementById('rs-principal').checked ? 1 : 0,
+        es_tercero: document.getElementById('rs-tercero').checked ? 1 : 0,
+        nota: document.getElementById('rs-nota').value.trim() || null,
+      });
+    });
+    window.addEventListener('nova:usuario', () => { if (razones.length) renderRazones(); }, { once: true });
   }
 
   // ── Direcciones de recolección ────────────────────────

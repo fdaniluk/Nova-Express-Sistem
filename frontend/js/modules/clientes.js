@@ -40,6 +40,7 @@
     bindBuscador();
     bindFiltros();
     bindCopiarGuia();
+    bindUnir();
   }
 
   // Sin tildes y en minúsculas, para que "Perez" encuentre a "PÉREZ" — el mismo criterio
@@ -160,6 +161,7 @@
           <a class="btn btn-sm btn-outline" href="clientes-perfil.html?id=${c.id}">Perfil</a>
           <a class="btn btn-sm btn-outline" href="cotizador.html?cliente=${c.id}" title="Abre el cotizador con este cliente elegido">Cotizar</a>
           <button type="button" class="btn btn-sm btn-outline" data-id="${c.id}" data-action="editar">Editar</button>
+          <button type="button" class="btn btn-sm btn-outline" data-id="${c.id}" data-action="unir" data-perm="solo_admin" title="Fundir esta ficha en otra del mismo cliente">Unir</button>
           ${c.activo
             ? `<button type="button" class="btn btn-sm btn-peligro" data-id="${c.id}" data-action="desactivar" title="Lo saca de los selectores; conserva todo su historial">Desactivar</button>`
             : `<button type="button" class="btn btn-sm btn-outline" data-id="${c.id}" data-action="activar">Activar</button>
@@ -176,8 +178,122 @@
         else if (a === 'eliminar') confirmarEliminar(id);
         else if (a === 'desactivar') cambiarActivo(id, false);
         else if (a === 'activar') cambiarActivo(id, true);
+        else if (a === 'unir') abrirUnir(id);
       });
     });
+    // Los botones con data-perm que se dibujan después de auth-guard: aplicar la regla acá.
+    aplicarPermisosTabla();
+  }
+
+  // auth-guard esconde los [data-perm] que existen al cargar; la tabla se dibuja después
+  // (y se redibuja con cada filtro), así que la regla se aplica acá también. Si el usuario
+  // todavía no llegó, se vuelve a aplicar cuando llegue.
+  function aplicarPermisosTabla() {
+    const u = window.currentUser;
+    if (!u) { window.addEventListener('nova:usuario', aplicarPermisosTabla, { once: true }); return; }
+    if (u.rol !== 'admin') tabla.querySelectorAll('[data-perm]').forEach((el) => { el.style.display = 'none'; });
+  }
+
+  // ── Unir clientes duplicados (admin) ────────────────────────────────────────────
+  const unir = {
+    modal: document.getElementById('unir-modal'), origen: null, destino: null, preview: null,
+  };
+  const $u = (id) => document.getElementById(id);
+
+  function abrirUnir(origenId = null) {
+    unir.origen = origenId; unir.destino = null; unir.preview = null;
+    unir.modal.classList.remove('hidden');
+    mostrarPasoUnir('elegir');
+    const opts = clientes.slice().sort((a, b) => normalizar(a.nombre_nova || a.nombre).localeCompare(normalizar(b.nombre_nova || b.nombre)))
+      .map((c) => `<option value="${c.id}">${esc(c.nombre_nova || c.nombre)}${c.nombre_nova && c.nombre !== c.nombre_nova ? ` (${esc(c.nombre)})` : ''}${c.cuit ? ` · ${esc(c.cuit)}` : ''}${c.activo ? '' : ' · inactivo'}</option>`).join('');
+    $u('unir-origen').innerHTML = '<option value="">Elegir…</option>' + opts;
+    $u('unir-destino').innerHTML = '<option value="">Elegir…</option>' + opts;
+    if (origenId) $u('unir-origen').value = String(origenId);
+    actualizarSiguiente();
+    cargarSugerenciasUnir();
+  }
+
+  async function cargarSugerenciasUnir() {
+    const box = $u('unir-sugerencias');
+    try {
+      const { pares } = await NovaAPI.clientes.duplicados();
+      if (!pares.length) { box.innerHTML = '<span class="vacio">No encontré fichas con el mismo nombre o CUIT.</span>'; return; }
+      box.innerHTML = pares.map((p) => `<button type="button" data-a="${p.a.id}" data-b="${p.b.id}"><b>${esc(p.a.nombre_nova || p.a.nombre)}</b> <span>#${p.a.id}</span> + <b>${esc(p.b.nombre_nova || p.b.nombre)}</b> <span>#${p.b.id}</span><small>${esc(p.motivo)}</small></button>`).join('');
+      box.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
+        // El de id más bajo suele ser el viejo, el que tiene historia: queda. El otro desaparece.
+        const a = Number(b.dataset.a), c = Number(b.dataset.b);
+        $u('unir-destino').value = String(Math.min(a, c));
+        $u('unir-origen').value = String(Math.max(a, c));
+        actualizarSiguiente();
+      }));
+    } catch (e) { box.innerHTML = `<span class="vacio">${esc(e.message)}</span>`; }
+  }
+
+  function actualizarSiguiente() {
+    const o = Number($u('unir-origen').value), d = Number($u('unir-destino').value);
+    $u('unir-siguiente').disabled = !(o && d && o !== d);
+  }
+
+  function mostrarPasoUnir(paso) {
+    $u('unir-paso-elegir').classList.toggle('hidden', paso !== 'elegir');
+    $u('unir-paso-preview').classList.toggle('hidden', paso !== 'preview');
+    $u('unir-paso-listo').classList.toggle('hidden', paso !== 'listo');
+    $u('unir-volver').classList.toggle('hidden', paso !== 'preview');
+    $u('unir-siguiente').classList.toggle('hidden', paso !== 'elegir');
+    $u('unir-confirmar').classList.toggle('hidden', paso !== 'preview');
+    $u('unir-ok').checked = false; $u('unir-confirmar').disabled = true;
+  }
+
+  const fARS = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
+  const fUSD = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'USD' });
+
+  async function previewUnir() {
+    unir.origen = Number($u('unir-origen').value); unir.destino = Number($u('unir-destino').value);
+    try {
+      const p = await NovaAPI.clientes.unirPreview(unir.origen, unir.destino);
+      unir.preview = p;
+      const lado = (c, rol, clase) => `<div class="unir-lado ${clase}"><div class="rol">${rol}</div><div class="nombre">${esc(c.nombre_nova || c.nombre)}</div>
+        <small>${esc(c.nombre)}${c.cuit ? ` · ${esc(c.cuit)}` : ' · sin CUIT'} · #${c.id}${c.activo ? '' : ' · inactivo'}</small>
+        <small>${NovaUtils.tipoCobroLabel(c.tipo_cobro)} · saldo ${fARS.format(c.saldo_cf)} · ${fUSD.format(c.saldo_sf)}</small></div>`;
+      $u('unir-lados').innerHTML = lado(p.origen, 'Desaparece', 'origen') + lado(p.destino, 'Queda', 'destino');
+      $u('unir-tabla').innerHTML = p.filas.length
+        ? p.filas.map((f) => `<tr><td>${esc(f.nombre)}</td><td class="n ${f.origen ? '' : 'cero'}">${f.origen || '—'}</td><td class="n ${f.destino ? '' : 'cero'}">${f.destino || '—'}</td></tr>`).join('')
+        : '<tr><td colspan="3" class="empty">Ninguna de las dos fichas tiene datos asociados.</td></tr>';
+      const comp = Object.keys(p.completa);
+      $u('unir-completa').textContent = comp.length
+        ? `La ficha que queda tiene vacío ${comp.join(', ')}: se completa con lo de la que desaparece.`
+        : 'La ficha que queda conserva todos sus datos; nada se sobreescribe.';
+      $u('unir-ok-texto').textContent = `Entiendo: "${p.origen.nombre_nova || p.origen.nombre}" desaparece y todo pasa a "${p.destino.nombre_nova || p.destino.nombre}".`;
+      mostrarPasoUnir('preview');
+    } catch (e) { NovaUtils.showAlert(alertBox, e.message); }
+  }
+
+  async function confirmarUnir() {
+    const btn = $u('unir-confirmar');
+    btn.disabled = true; btn.textContent = 'Uniendo…';
+    try {
+      const r = await NovaAPI.clientes.unir(unir.origen, unir.destino);
+      const det = Object.entries(r.detalle || {});
+      $u('unir-paso-listo').innerHTML = `<div class="unir-resultado"><b>Listo.</b> "${esc(r.origen)}" se unió a "${esc(r.destino)}".
+        ${det.length ? `<ul>${det.map(([t, v]) => `<li>${esc((unir.preview.filas.find((f) => f.tabla === t) || {}).nombre || t)}: ${esc(v)}</li>`).join('')}</ul>` : ''}</div>
+        <p class="unir-nota">Quedó registrado quién lo unió y cuándo. Si hay que revisar algo, está en <b>clientes_uniones</b>.</p>`;
+      mostrarPasoUnir('listo');
+      await cargarClientes();
+    } catch (e) {
+      NovaUtils.showAlert(alertBox, e.message);
+    } finally { btn.textContent = 'Unir clientes'; }
+  }
+
+  function bindUnir() {
+    if (!unir.modal) return;
+    document.getElementById('btn-unir').addEventListener('click', () => abrirUnir());
+    $u('unir-cerrar').addEventListener('click', () => unir.modal.classList.add('hidden'));
+    unir.modal.addEventListener('click', (e) => { if (e.target === unir.modal) unir.modal.classList.add('hidden'); });
+    ['unir-origen', 'unir-destino'].forEach((id) => $u(id).addEventListener('change', actualizarSiguiente));
+    $u('unir-siguiente').addEventListener('click', previewUnir);
+    $u('unir-volver').addEventListener('click', () => mostrarPasoUnir('elegir'));
+    $u('unir-ok').addEventListener('change', () => { $u('unir-confirmar').disabled = !$u('unir-ok').checked; });
+    $u('unir-confirmar').addEventListener('click', confirmarUnir);
   }
 
   function bindBtnNuevo() {

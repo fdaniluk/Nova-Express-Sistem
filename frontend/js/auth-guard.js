@@ -9,6 +9,8 @@
       }
       return res.json().then(function (user) {
         window.currentUser = user;
+        // Aviso para las pantallas que dibujan botones con data-perm después de cargar.
+        try { window.dispatchEvent(new CustomEvent('nova:usuario', { detail: user })); } catch (e) { /* navegador viejo */ }
 
         if (user.ver_dashboard !== 1) {
           document.querySelectorAll(

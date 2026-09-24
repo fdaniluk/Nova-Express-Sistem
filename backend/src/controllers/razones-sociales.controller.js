@@ -38,7 +38,26 @@ async function unir(req, res, next) {
     const dest = Number((req.body || {}).destino_id);
     if (!dest) return res.status(400).json({ error: 'destino_id es obligatorio' });
     res.json(await svc.unirClientes(req.params.id, dest, { usuario: req.usuario ? req.usuario.usuario : null }));
-  } catch (e) { next(e); }
+  } catch (e) {
+    if (e.status) return res.status(e.status).json({ error: e.message });
+    next(e);
+  }
 }
 
-module.exports = { listar, crear, editar, mover, unir };
+// POST /api/clientes/:id/unir/preview  { destino_id }
+async function unirPreview(req, res, next) {
+  try {
+    const dest = Number((req.body || {}).destino_id);
+    if (!dest) return res.status(400).json({ error: 'destino_id es obligatorio' });
+    res.json(await svc.previewUnion(req.params.id, dest));
+  } catch (e) {
+    if (e.status) return res.status(e.status).json({ error: e.message });
+    next(e);
+  }
+}
+// GET /api/clientes/duplicados
+async function duplicados(req, res, next) {
+  try { res.json({ pares: await svc.posiblesDuplicados() }); } catch (e) { next(e); }
+}
+
+module.exports = { listar, crear, editar, mover, unir, unirPreview, duplicados };
