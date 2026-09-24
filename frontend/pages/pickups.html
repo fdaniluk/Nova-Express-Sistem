@@ -6,7 +6,7 @@
   <title>Pickups — Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260915a">
-  <link rel="stylesheet" href="../css/modules/pickups.css?v=20260915a">
+  <link rel="stylesheet" href="../css/modules/pickups.css?v=20260924a">
 </head>
 <body>
 <div class="app-layout">
@@ -104,8 +104,8 @@
       <h1>Pickups</h1>
       <div class="pku-controls">
         <div class="view-toggle">
-          <button class="view-btn active" id="btn-vista-dia">📋 Día</button>
-          <button class="view-btn" id="btn-vista-semana">📅 Semana</button>
+          <button class="view-btn active" id="btn-vista-dia"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="4" cy="6" r="1"/><circle cx="4" cy="12" r="1"/><circle cx="4" cy="18" r="1"/></svg> Día</button>
+          <button class="view-btn" id="btn-vista-semana"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg> Semana</button>
         </div>
         <div class="pickups-nav">
           <button class="btn-week" id="btn-prev-week">← Ant.</button>
@@ -129,19 +129,19 @@
           <span class="dia-count" id="dia-count"></span>
         </div>
         <div class="resumen-bar">
-          <div class="resumen-card pend" id="count-pend">● 0 sin confirmar</div>
-          <div class="resumen-card conf" id="count-conf">⚑ 0 Ricardo</div>
-          <div class="resumen-card cam" id="count-cam">🚐 0 en camioneta</div>
-          <div class="resumen-card dep" id="count-dep">✓ 0 en depósito</div>
+          <div class="resumen-card pend" id="count-pend"><i class="rc-dot"></i><b>0</b> sin confirmar</div>
+          <div class="resumen-card conf" id="count-conf"><i class="rc-dot"></i><b>0</b> Ricardo</div>
+          <div class="resumen-card cam" id="count-cam"><i class="rc-dot"></i><b>0</b> en camioneta</div>
+          <div class="resumen-card dep" id="count-dep"><i class="rc-dot"></i><b>0</b> en depósito</div>
           <!-- Solo aparece si el día tiene entregas de importación: cuenta las que ya se
                entregaron sobre el total (las que faltan siguen en sin confirmar / Ricardo /
                camioneta, como cualquier pickup del chofer). -->
           <div class="resumen-card ent" id="count-ent" style="display:none"
-               title="Entregas de importación del día: entregadas sobre el total">📦 0/0 entregas impo</div>
+               title="Entregas de importación del día: entregadas sobre el total"><i class="rc-dot"></i><b>0/0</b> entregas impo</div>
           <!-- Solo aparece si el dia tiene pickups sin cadena de chofer (los trae el
                cliente o los levanta el courier): no son "sin confirmar", son otra cosa. -->
           <div class="resumen-card gris" id="count-gris" style="display:none"
-               title="Los trae el cliente al depósito o los levanta UPS/DHL: no llevan confirmación de chofer">◼ 0 cliente/courier</div>
+               title="Los trae el cliente al depósito o los levanta UPS/DHL: no llevan confirmación de chofer"><i class="rc-dot"></i><b>0</b> cliente/courier</div>
         </div>
         <div class="pickup-cards-list" id="pickups-dia-list">
           <div class="dia-empty">Cargando...</div>
@@ -354,6 +354,6 @@
 <script src="/js/auth-guard.js?v=20260924b"></script>
 <script src="../js/api.js?v=20260924c"></script>
 <script src="../js/main.js?v=20260915a"></script>
-<script src="../js/modules/pickups.js?v=20260921a"></script>
+<script src="../js/modules/pickups.js?v=20260924a"></script>
 </body>
 </html>

@@ -14,8 +14,9 @@
   --pend-border: #F87171;
   --pend-badge-bg: #FCA5A5;
   --pend-badge-text: #7F1D1D;
-  --pku-green: #3B6D11;
-  --pku-green-hover: #2d5509;
+  /* Controles de la pantalla (vista, día elegido): azul de la marca (antes verde oscuro) */
+  --pku-green: var(--color-primary);
+  --pku-green-hover: var(--color-primary-light);
   /* Azul: en camioneta */
   --cam-bg: #EFF6FF;
   --cam-border: #60A5FA;
@@ -56,6 +57,11 @@
   min-height: 32px;
 }
 
+.view-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
 .view-btn.active {
   background: var(--pku-green);
   color: #fff;
@@ -112,12 +118,13 @@
   align-items: center;
   gap: 2px;
   padding: 0.4rem 0.9rem;
-  border-radius: 20px;
+  border-radius: 12px;
   border: 1.5px solid var(--color-border);
   background: #f8fafc;
   cursor: pointer;
   flex-shrink: 0;
   min-height: 54px;
+  min-width: 58px;
   justify-content: center;
   transition: border-color 0.12s, background 0.12s, color 0.12s;
   color: var(--color-text);
@@ -128,14 +135,15 @@
 }
 
 .day-pill.today:not(.active) {
-  border-color: var(--pku-green);
-  color: var(--pku-green);
+  border-color: var(--color-accent);
+  color: var(--color-accent);
 }
 
 .day-pill.active {
   background: var(--pku-green);
   border-color: var(--pku-green);
   color: #fff;
+  box-shadow: 0 2px 8px rgba(42, 54, 97, 0.25);
 }
 
 .day-pill-label {
@@ -181,7 +189,6 @@
   font-weight: 600;
   color: var(--color-primary);
   margin: 0;
-  text-transform: capitalize;
 }
 
 .dia-count {
@@ -191,6 +198,7 @@
 
 .resumen-bar {
   display: flex;
+  flex-wrap: wrap;
   gap: 0.65rem;
   margin-bottom: 1.1rem;
 }
@@ -198,13 +206,23 @@
 .resumen-card {
   display: inline-flex;
   align-items: center;
-  gap: 0.4rem;
-  padding: 0.45rem 1rem;
+  gap: 0.45rem;
+  padding: 0.45rem 0.95rem;
   border-radius: 8px;
-  font-size: 0.875rem;
-  font-weight: 600;
+  font-size: 0.85rem;
+  font-weight: 500;
   border: 1.5px solid;
+  white-space: nowrap;
 }
+.resumen-card b { font-size: 1rem; font-weight: 700; }
+/* Punto del mismo color que los puntitos de los días (antes eran emojis) */
+.rc-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; background: currentColor; }
+.resumen-card.pend .rc-dot { background: #F87171; }
+.resumen-card.conf .rc-dot { background: #FBBF24; }
+.resumen-card.cam  .rc-dot { background: #60A5FA; }
+.resumen-card.dep  .rc-dot { background: #97C459; }
+.resumen-card.ent  .rc-dot { background: #F59E0B; }
+.resumen-card.gris .rc-dot { background: #9CA3AF; }
 
 .resumen-card.cam {
   background: var(--cam-bg);
@@ -233,9 +251,9 @@
 /* Pickups sin cadena de chofer (cliente/courier): cuenta aparte, en gris, para que no
    se mezclen con los "sin confirmar" (Felipe, 26/08). */
 .resumen-card.gris {
-  background: #ece9f1;
-  color: #6b6478;
-  border-color: #d5d0de;
+  background: #F3F4F6;
+  color: #4B5563;
+  border-color: #D1D5DB;
 }
 
 /* ── Tarjetas pickup (vista día) ─────────────────────────── */
@@ -277,7 +295,7 @@
 
 /* ── Franja recolector ───────────────────────────────── */
 .pickup-rec-stripe {
-  width: 56px;
+  width: 44px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
@@ -294,8 +312,9 @@
   word-break: break-all;
 }
 
-.pickup-rec-stripe.stripe-juanqui { background: #F97316; }
-.pickup-rec-stripe.stripe-otro    { background: #8B5CF6; }
+/* Colores de la marca: Juanqui naranja Nova, otro chofer azul Nova */
+.pickup-rec-stripe.stripe-juanqui { background: var(--color-accent); }
+.pickup-rec-stripe.stripe-otro    { background: var(--color-primary-light); }
 .pickup-rec-stripe.stripe-ninguno { background: #9CA3AF; }
 
 .pickup-card-v2-header {
@@ -383,10 +402,14 @@
 .pickup-badge.pend { background: var(--pend-badge-bg); color: var(--pend-badge-text); }
 
 .pickup-direccion {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.35rem;
   font-size: 0.85rem;
   color: var(--color-muted);
   margin-bottom: 0.8rem;
 }
+.pickup-direccion svg { flex-shrink: 0; margin-top: 0.15rem; color: var(--color-accent); }
 
 .pickup-actions {
   display: flex;
@@ -1102,8 +1125,8 @@
   white-space: nowrap;
 }
 
-.semana-rec-chip.chip-juanqui { background: #FDBA74; color: #7C2D12; }
-.semana-rec-chip.chip-otro    { background: #C4B5FD; color: #3B0764; }
+.semana-rec-chip.chip-juanqui { background: #FBDDD5; color: #9A3A22; }
+.semana-rec-chip.chip-otro    { background: #DDE1F0; color: var(--color-primary); }
 .semana-rec-chip.chip-ninguno { background: #E5E7EB; color: #6B7280; }
 
 /* ── Tipos cliente / courier: gris reusado (#9CA3AF "sin asignar") ──────── */

@@ -226,18 +226,18 @@
     document.getElementById('dia-count').textContent = delDia.length === 0
       ? 'Sin pickups'
       : `${delDia.length} pickup${delDia.length !== 1 ? 's' : ''}`;
-    document.getElementById('count-dep').textContent  = `✓ ${depCount} en depósito`;
-    document.getElementById('count-cam').textContent  = `🚐 ${camCount} en camioneta`;
-    document.getElementById('count-conf').textContent = `⚑ ${confCount} Ricardo`;
-    document.getElementById('count-pend').textContent = `● ${pendCount} sin confirmar`;
+    document.getElementById('count-dep').innerHTML  = `<i class="rc-dot"></i><b>${depCount}</b> en depósito`;
+    document.getElementById('count-cam').innerHTML  = `<i class="rc-dot"></i><b>${camCount}</b> en camioneta`;
+    document.getElementById('count-conf').innerHTML = `<i class="rc-dot"></i><b>${confCount}</b> Ricardo`;
+    document.getElementById('count-pend').innerHTML = `<i class="rc-dot"></i><b>${pendCount}</b> sin confirmar`;
     const grisEl = document.getElementById('count-gris');
     if (grisEl) {
-      grisEl.textContent = `◼ ${grisCount} cliente/courier`;
+      grisEl.innerHTML = `<i class="rc-dot"></i><b>${grisCount}</b> cliente/courier`;
       grisEl.style.display = grisCount > 0 ? '' : 'none';
     }
     const entEl = document.getElementById('count-ent');
     if (entEl) {
-      entEl.textContent = `📦 ${entCount}/${entregas.length} entrega${entregas.length !== 1 ? 's' : ''} impo`;
+      entEl.innerHTML = `<i class="rc-dot"></i><b>${entCount}/${entregas.length}</b> entrega${entregas.length !== 1 ? 's' : ''} impo`;
       entEl.style.display = entregas.length > 0 ? '' : 'none';
     }
 
@@ -362,7 +362,7 @@
     }
 
     const cobroBadgeHtml = p.tiene_cobro ? '<span class="cobro-badge">$ Cobro</span>' : '';
-    const entregaBadgeHtml = esEntrega ? '<span class="entrega-badge" title="Entrega de importación: la caja ya está en el depósito y se lleva al cliente">📦 ENTREGA IMPO</span>' : '';
+    const entregaBadgeHtml = esEntrega ? '<span class="entrega-badge" title="Entrega de importación: la caja ya está en el depósito y se lleva al cliente">ENTREGA IMPO</span>' : '';
     const llevarPlataBadgeHtml = p.llevar_plata ? '<span class="cobro-badge">Llevar plata</span>' : '';
 
     // Botón "Cargar cobranza": aparece sólo si el pickup tiene cobro. Titila mientras
@@ -394,7 +394,7 @@
           </div>
           <div class="pickup-client-name">${escHtml(p.cliente_nombre)}</div>
         </div>
-        <div class="pickup-direccion">📍 ${esEntrega && tipo !== 'cliente' ? 'Entregar en: ' : ''}${escHtml(p.direccion)}</div>
+        <div class="pickup-direccion"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg><span>${esEntrega && tipo !== 'cliente' ? 'Entregar en: ' : ''}${escHtml(p.direccion)}</span></div>
         <div class="pickup-actions">
           ${actionsHtml}
           ${cobranzaRowHtml}
