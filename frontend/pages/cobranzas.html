@@ -6,7 +6,7 @@
   <title>Cobranzas – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260915a">
-  <link rel="stylesheet" href="../css/modules/cobranzas.css?v=20260924a">
+  <link rel="stylesheet" href="../css/modules/cobranzas.css?v=20260924b">
 </head>
 <body>
 <div class="app-layout">
@@ -102,6 +102,7 @@
       <h1 id="titulo">Cobranzas</h1>
       <div class="actions" style="margin:0">
         <button class="btn btn-secondary btn-sm hidden" id="btn-volver">← Volver a saldos</button>
+        <button class="btn btn-primary btn-sm hidden" id="btn-cargar-pago">+ Cargar pago</button>
         <a class="btn btn-secondary btn-sm hidden" id="btn-perfil" href="#">Ver perfil del cliente</a>
       </div>
     </div>
@@ -111,6 +112,15 @@
 
       <!-- ===== Vista 1: saldos por cliente ===== -->
       <div id="vista-saldos">
+        <!-- Bandeja: pagos cargados por la oficina que esperan confirmación (solo quien confirma) -->
+        <section class="pg-bandeja hidden" id="bandeja-pagos">
+          <div class="pg-bandeja-head">
+            <h3>Pagos para confirmar <span class="pg-bandeja-n" id="bandeja-n">0</span></h3>
+            <span class="cob-desc">Revisá el comprobante y confirmá: recién ahí baja la deuda del cliente.</span>
+          </div>
+          <div id="bandeja-lista"></div>
+        </section>
+
         <div class="cob-resumen">
           <div class="metric-card">
             <div class="metric-label">Deuda con factura</div>
@@ -223,6 +233,19 @@
         </div>
 
         <div class="card">
+          <div class="pg-head">
+            <h2>Pagos <span class="pg-head-n" id="fc-pagos-n"></span></h2>
+            <label class="cob-toggle"><input type="checkbox" id="p-eliminados"><span>Ver eliminados</span></label>
+          </div>
+          <div class="table-wrap">
+            <table class="pg-tabla">
+              <thead><tr><th>Fecha</th><th>Libro</th><th>Con qué pagó</th><th class="num">Total</th><th>Se aplicó a</th><th>Estado</th><th></th></tr></thead>
+              <tbody id="fc-pagos"><tr><td colspan="7" class="empty">—</td></tr></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="card">
           <h2>Historial</h2>
           <p class="cob-desc" style="margin:-.5rem 0 .75rem">Movimientos del cliente. Lo traído del GECOM arranca en 2026 (los años anteriores se importan más adelante); por eso no se muestra saldo acumulado, sino lo que falta cobrar de cada comprobante.</p>
           <div class="cob-hist-filtros">
@@ -248,9 +271,59 @@
   </div>
 </div>
 
+<!-- ===== Modal: cargar pago ===== -->
+<div class="modal-overlay hidden" id="modal-pago">
+  <div class="modal-box mp-box" role="dialog" aria-labelledby="mp-titulo">
+    <div class="modal-header">
+      <h2 id="mp-titulo">Cargar pago · <span id="mp-cliente"></span></h2>
+      <button class="modal-close" id="mp-cerrar" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="mp-paso">
+        <div class="mp-paso-t"><span>1</span> Qué entró</div>
+        <div class="mp-fila">
+          <div class="mp-seg" id="mp-libro">
+            <button type="button" data-libro="SF">Sin factura · US$</button>
+            <button type="button" data-libro="CF">Con factura · $</button>
+          </div>
+          <div class="form-group mp-fecha"><label for="mp-fecha">Fecha del pago</label><input type="date" id="mp-fecha"></div>
+        </div>
+        <div id="mp-valores"></div>
+        <button type="button" class="mp-mas" id="mp-agregar-valor">+ Otro medio en el mismo pago</button>
+        <div class="form-group mp-tc hidden" id="mp-tc-box">
+          <label for="mp-tc">Tipo de cambio del pago ($ por US$)</label>
+          <input type="number" id="mp-tc" min="0" step="0.01" placeholder="ej. 1450">
+        </div>
+      </div>
+
+      <div class="mp-paso">
+        <div class="mp-paso-t"><span>2</span> A qué se aplica <span class="cob-desc">tildá las deudas que cancela este pago; lo que sobre queda a favor del cliente</span></div>
+        <div id="mp-deudas"></div>
+        <div class="mp-totales" id="mp-totales">
+          <div><span>Entró</span><b id="mp-tot-pago">—</b></div>
+          <div><span>Aplicado</span><b id="mp-tot-aplicado">—</b></div>
+          <div><span>Queda a favor</span><b id="mp-tot-favor">—</b></div>
+        </div>
+      </div>
+
+      <div class="mp-fila">
+        <div class="form-group"><label for="mp-talonario">Nº recibo de talonario (si se hizo en papel)</label><input type="text" id="mp-talonario" maxlength="30"></div>
+        <div class="form-group mp-obs"><label for="mp-obs">Observaciones</label><input type="text" id="mp-obs" maxlength="200"></div>
+      </div>
+      <div class="mp-error" id="mp-error"></div>
+    </div>
+    <div class="modal-footer">
+      <span class="mp-aviso" id="mp-aviso"></span>
+      <button class="btn btn-secondary" id="mp-cancelar">Cancelar</button>
+      <button class="btn btn-primary" id="mp-guardar">Guardar pago</button>
+    </div>
+  </div>
+</div>
+
 <script src="/js/auth-guard.js?v=20260924b"></script>
-<script src="../js/api.js?v=20260924c"></script>
+<script src="../js/api.js?v=20260924e"></script>
 <script src="../js/main.js?v=20260915a"></script>
-<script src="../js/modules/cobranzas.js?v=20260924a"></script>
+<script src="../js/modules/cobranzas.js?v=20260924b"></script>
+<script src="../js/modules/cobranzas-pagos.js?v=20260924a"></script>
 </body>
 </html>

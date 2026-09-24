@@ -1,6 +1,7 @@
 // Módulo Cobranzas — cuenta corriente por cliente (etapa 1: consultas + comprobantes
 // manuales + tipo de cambio). Recibos, imputación y cheques llegan en la etapa 2.
 const cc = require('../models/cuenta-corriente.model');
+const recibos = require('../models/recibos.model');
 const { getDb } = require('../db');
 
 function esFecha(f) {
@@ -92,4 +93,50 @@ async function guardarTC(req, res, next) {
   } catch (e) { next(e); }
 }
 
-module.exports = { saldos, pendientes, historial, crearComprobante, listarTC, guardarTC };
+// ── Pagos (entrega 3) ────────────────────────────────────────────────────────────
+const conError = (fn) => async (req, res, next) => {
+  try { await fn(req, res); } catch (e) {
+    if (e.status) return res.status(e.status).json({ error: e.message });
+    next(e);
+  }
+};
+
+// POST /api/cobranzas/pagos — multipart: campo `datos` (JSON) + un archivo por valor.
+const cargarPago = conError(async (req, res) => {
+  let datos;
+  try { datos = JSON.parse(req.body && req.body.datos ? req.body.datos : '{}'); } catch (e) { return res.status(400).json({ error: 'datos inválidos' }); }
+  const archivos = {};
+  for (const f of req.files || []) archivos[f.fieldname] = f;
+  const id = await recibos.cargarPago(datos, archivos, req.usuario);
+  res.status(201).json(await recibos.obtenerRecibo(id));
+});
+
+const bandejaPagos = conError(async (req, res) => { res.json({ pagos: await recibos.bandeja() }); });
+
+const obtenerPago = conError(async (req, res) => {
+  const r = await recibos.obtenerRecibo(Number(req.params.id));
+  if (!r) return res.status(404).json({ error: 'Pago inexistente' });
+  res.json(r);
+});
+
+const confirmarPago = conError(async (req, res) => { res.json(await recibos.confirmarPago(Number(req.params.id), req.usuario)); });
+
+const eliminarPago = conError(async (req, res) => {
+  res.json(await recibos.eliminarPago(Number(req.params.id), (req.body || {}).motivo, req.usuario));
+});
+
+const pagosCliente = conError(async (req, res) => {
+  res.json({ pagos: await recibos.pagosCliente(Number(req.params.id), { incluirEliminados: req.query.eliminados === '1' }) });
+});
+
+// GET /api/cobranzas/adjuntos/:valorId — el comprobante, solo con sesión.
+const adjunto = conError(async (req, res) => {
+  const ruta = await recibos.adjuntoDeValor(Number(req.params.valorId));
+  if (!ruta) return res.status(404).json({ error: 'Sin comprobante' });
+  res.sendFile(ruta, { headers: { 'Cache-Control': 'private, max-age=3600' } });
+});
+
+module.exports = {
+  saldos, pendientes, historial, crearComprobante, listarTC, guardarTC,
+  cargarPago, bandejaPagos, obtenerPago, confirmarPago, eliminarPago, pagosCliente, adjunto,
+};

@@ -174,7 +174,8 @@ async function historialCliente(clienteId, { libro = null, desde = null, hasta =
   if (desde) { where += ' AND cc.fecha >= ?'; params.push(desde); }
   if (hasta) { where += ' AND cc.fecha <= ?'; params.push(hasta); }
   const rows = await db.prepare(
-    `SELECT cc.*, ref.tipo AS ref_tipo, ref.numero AS ref_numero, rs.razon_social
+    `SELECT cc.*, ref.tipo AS ref_tipo, ref.numero AS ref_numero, rs.razon_social,
+            (SELECT r.estado FROM cc_recibos r WHERE r.comprobante_id = cc.id) AS recibo_estado
      FROM cc_comprobantes cc LEFT JOIN cc_comprobantes ref ON ref.id = cc.referencia_id
        LEFT JOIN clientes_razones_sociales rs ON rs.id = cc.razon_social_id
      WHERE ${where} ORDER BY cc.libro, cc.fecha, cc.id`

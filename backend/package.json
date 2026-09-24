@@ -91,7 +91,8 @@
     "test-pantalla-liquidaciones-pendientes": "node scripts/test-pantalla-liquidaciones-pendientes.js",
     "test-borrador-duplicado": "node scripts/test-borrador-duplicado.js",
     "test-pantalla-cargar-envio": "node scripts/test-pantalla-cargar-envio.js",
-    "test-pantalla-entrega-impo": "node scripts/test-pantalla-entrega-impo.js"
+    "test-pantalla-entrega-impo": "node scripts/test-pantalla-entrega-impo.js",
+    "test-pagos": "node scripts/test-pagos.js"
   },
   "keywords": [
     "nova-express",

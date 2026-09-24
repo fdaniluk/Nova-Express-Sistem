@@ -702,6 +702,16 @@ async function migrateUsuarios() {
       await dbApi.exec(`ALTER TABLE usuarios ADD COLUMN ${col} ${def}`);
     }
   }
+  // Cambios de datos que tienen que correr UNA vez (no en cada arranque).
+  await dbApi.exec(`CREATE TABLE IF NOT EXISTS migraciones_una_vez (
+    clave TEXT PRIMARY KEY, hecho_at TEXT NOT NULL DEFAULT (datetime('now','localtime')))`);
+  // 24/09/2026: confirma pagos Marcelo. Una sola vez: si después se lo sacan desde
+  // Usuarios, no vuelve solo al reiniciar.
+  const hecho = await dbApi.prepare("SELECT 1 FROM migraciones_una_vez WHERE clave = 'confirmar_pagos_marcelo'").get();
+  if (!hecho) {
+    await dbApi.prepare("UPDATE usuarios SET confirmar_pagos = 1 WHERE LOWER(usuario) = 'marcelo'").run();
+    await dbApi.prepare("INSERT INTO migraciones_una_vez (clave) VALUES ('confirmar_pagos_marcelo')").run();
+  }
 }
 
 // Cobros en pickup (antes "cobranzas"): registro/log informativo de la plata que el

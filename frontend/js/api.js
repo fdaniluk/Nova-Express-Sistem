@@ -432,6 +432,12 @@ api.cobranzas = {
     const qs = q.toString();
     return api.get(`/cobranzas/clientes/${clienteId}/historial${qs ? '?' + qs : ''}`);
   },
+  // Pagos (entrega 3): multipart con `datos` (JSON) + un archivo por comprobante.
+  cargarPago: (formData) => request('/cobranzas/pagos', { method: 'POST', body: formData }),
+  pagosCliente: (clienteId, eliminados) => api.get(`/cobranzas/clientes/${clienteId}/pagos${eliminados ? '?eliminados=1' : ''}`),
+  bandeja: () => api.get('/cobranzas/pagos/bandeja'),
+  confirmarPago: (id) => api.post(`/cobranzas/pagos/${id}/confirmar`, {}),
+  eliminarPago: (id, motivo) => api.post(`/cobranzas/pagos/${id}/eliminar`, { motivo }),
 };
 
 // Comisiones por vendedor (24/09/2026). Solo admin.

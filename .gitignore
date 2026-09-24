@@ -5,6 +5,7 @@ database/nova.db-wal
 database/nova.db-shm
 database/*.db
 database/backups/
+database/adjuntos/
 .env
 backend/.env
 *.log

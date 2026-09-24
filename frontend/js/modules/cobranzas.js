@@ -51,6 +51,7 @@
 
   // ---------- Vista 1: saldos ----------
   async function cargarSaldos() {
+    window.dispatchEvent(new CustomEvent('cob:saldos'));
     const libro = $('f-libro').value;
     const tipo_cobro = $('f-tipo').value;
     const todos = $('f-todos').checked;
@@ -158,6 +159,8 @@
       }
       renderLibro('CF', pend.CF, pend.saldo_cf, 'ARS');
       renderLibro('SF', pend.SF, pend.saldo_sf, 'USD');
+      // Pagos (cobranzas-pagos.js): lista del cliente y botón "Cargar pago".
+      window.dispatchEvent(new CustomEvent('cob:ficha', { detail: { clienteId: clienteActual, nombre: $('fc-nombre').textContent, pend } }));
       // El historial arranca en el libro que tiene movimiento.
       libroHist = pend.CF.length || !pend.SF.length ? 'CF' : 'SF';
       document.querySelectorAll('.cob-hist-filtros .tab').forEach((t) => t.classList.toggle('active', t.dataset.libro === libroHist));
@@ -203,7 +206,7 @@
       const movs = (data.movimientos || []).slice().reverse(); // lo más nuevo arriba
       if (!movs.length) { tb.innerHTML = '<tr><td colspan="7" class="empty">Sin movimientos en este libro</td></tr>'; return; }
       tb.innerHTML = movs.map((m) => {
-        const detalle = [mostrarRS ? m.razon_social : null, m.descripcion, m.ref_tipo ? `sobre ${m.ref_tipo} ${m.ref_numero || ''}` : ''].filter(Boolean).join(' · ');
+        const detalle = [mostrarRS ? m.razon_social : null, m.descripcion, m.ref_tipo ? `sobre ${m.ref_tipo} ${m.ref_numero || ''}` : '', m.recibo_estado === 'informado' && !m.anulado_at ? 'SIN CONFIRMAR (todavía no bajó la deuda)' : ''].filter(Boolean).join(' · ');
         const pend = m.anulado_at ? '' : (m.saldo > 0.005 ? money(m.saldo, moneda) : '<span class="cob-cero">—</span>');
         return `<tr class="${m.anulado_at ? 'anulado' : ''}">
           <td>${formatDate(m.fecha)}</td>
@@ -249,6 +252,13 @@
     const id = new URLSearchParams(location.search).get('cliente');
     if (id) abrirFicha(id, false); else volverASaldos(false);
   });
+
+  // Para cobranzas-pagos.js: refrescar después de cargar / confirmar / eliminar un pago.
+  window.NovaCobranzas = {
+    recargarFicha: () => (clienteActual ? abrirFicha(clienteActual, false) : cargarSaldos()),
+    recargarSaldos: () => cargarSaldos(),
+    abrirFicha: (id) => abrirFicha(id),
+  };
 
   // ---------- arranque ----------
   const inicial = new URLSearchParams(location.search).get('cliente');
