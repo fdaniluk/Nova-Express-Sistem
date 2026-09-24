@@ -6,7 +6,7 @@
   <title>Operaciones — Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260915a">
-  <link rel="stylesheet" href="../css/modules/operaciones.css?v=20260915a">
+  <link rel="stylesheet" href="../css/modules/operaciones.css?v=20260924a">
 </head>
 <body>
 <div class="app-layout">
@@ -101,7 +101,7 @@
     <div class="page-header">
       <div>
         <h1>Operaciones</h1>
-        <div id="subtitle-ops" style="font-size:0.82rem;color:var(--color-muted);margin-top:0.1rem">—</div>
+        <div class="op-subtitulo" id="subtitle-ops">—</div>
       </div>
       <div class="date-nav">
         <button class="btn-day" id="btn-prev-day" title="Día anterior">&#8249;</button>
@@ -109,26 +109,32 @@
         <button class="btn-day" id="btn-next-day" title="Día siguiente">&#8250;</button>
         <input type="date" id="date-picker" title="Ir a fecha">
       </div>
+      <!-- Envio SIN pickup (pedido de operaciones, 26/08): una importacion no la pasa a
+           buscar nadie, pero operaciones la necesita aca para seguir sus checks. -->
+      <button type="button" class="btn btn-primary" id="btn-nuevo-suelto">+ Envío sin pickup</button>
     </div>
 
     <div class="page-body">
-      <!-- Envio SIN pickup (pedido de operaciones, 26/08): una importacion no la pasa a
-           buscar nadie, pero operaciones la necesita aca para seguir sus checks. -->
-      <div style="display:flex;justify-content:flex-end;margin-bottom:0.5rem">
-        <button type="button" class="btn btn-secondary" id="btn-nuevo-suelto"
-                style="font-size:12.5px;padding:5px 12px">+ Envío sin pickup</button>
+      <div id="form-suelto" class="op-form-suelto hidden" style="display:none">
+        <div class="form-group op-fs-cliente">
+          <label for="suelto-cliente">Cliente</label>
+          <select id="suelto-cliente"></select>
+        </div>
+        <div class="form-group op-fs-desc">
+          <label for="suelto-titulo">Descripción (ej: "Impo 3 cajas repuestos")</label>
+          <input type="text" id="suelto-titulo" maxlength="120">
+        </div>
+        <button type="button" class="btn btn-primary" id="btn-crear-suelto">Agregar al día</button>
+        <button type="button" class="btn btn-secondary" id="btn-cancelar-suelto">Cancelar</button>
       </div>
-      <div id="form-suelto" class="hidden" style="display:none;background:#fbfafc;border:1px solid #e6e3ec;border-radius:8px;padding:10px 12px;margin-bottom:0.75rem;gap:8px;flex-wrap:wrap;align-items:end">
-        <div style="min-width:220px">
-          <label style="font-size:11px;color:#777;display:block">Cliente</label>
-          <select id="suelto-cliente" style="width:100%"></select>
+
+      <!-- Avance del día: pasos hechos sobre el total (datos, guía, proforma, despachado) -->
+      <div class="op-resumen hidden" id="op-resumen">
+        <div class="op-resumen-top">
+          <div class="op-pasos-txt" id="op-pasos">—</div>
+          <div class="op-chips" id="op-chips"></div>
         </div>
-        <div style="flex:1;min-width:200px">
-          <label style="font-size:11px;color:#777;display:block">Descripción (ej: "Impo 3 cajas repuestos")</label>
-          <input type="text" id="suelto-titulo" maxlength="120" style="width:100%">
-        </div>
-        <button type="button" class="btn btn-primary" id="btn-crear-suelto" style="font-size:12.5px;padding:6px 14px">Agregar al día</button>
-        <button type="button" class="btn btn-secondary" id="btn-cancelar-suelto" style="font-size:12.5px;padding:6px 10px">Cancelar</button>
+        <div class="op-bar"><div class="op-bar-fill" id="op-bar-fill"></div><span class="op-pct" id="op-pct">0%</span></div>
       </div>
 
       <div id="alert-box"></div>
@@ -142,6 +148,6 @@
 <script src="/js/auth-guard.js?v=20260924b"></script>
 <script src="../js/api.js?v=20260924c"></script>
 <script src="../js/main.js?v=20260915a"></script>
-<script src="../js/modules/operaciones.js?v=20260915a"></script>
+<script src="../js/modules/operaciones.js?v=20260924a"></script>
 </body>
 </html>

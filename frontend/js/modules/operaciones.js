@@ -53,14 +53,41 @@
   }
 
   function actualizarHeader() {
-    dateLabel.textContent = formatearFechaTitulo(fechaActual);
+    const t = formatearFechaTitulo(fechaActual);
+    dateLabel.textContent = t.charAt(0).toUpperCase() + t.slice(1);
     datePicker.value = toYMD(fechaActual);
 
     const total = pickupsDelDia.length;
     const pendientes = pickupsDelDia.filter((p) => estadoPickup(p) !== 'dep').length;
     const partes = [`${total} pickup${total !== 1 ? 's' : ''}`];
-    if (pendientes > 0) partes.push(`${pendientes} pendiente${pendientes !== 1 ? 's' : ''}`);
+    if (pendientes > 0) partes.push(`${pendientes} sin llegar al depósito`);
     subtitleEl.textContent = partes.join(' · ');
+    actualizarProgreso();
+  }
+
+  // Barra de avance del día: cuántos de los 4 pasos (datos, guía, proforma,
+  // despachado) están hechos sobre el total, contando pickups y cuadrantes de HOY.
+  // Los de días anteriores van aparte (chip naranja), no mueven la barra.
+  const CAMPOS = ['check_datos', 'check_guia', 'check_proforma', 'check_despachado'];
+  function actualizarProgreso() {
+    const box = document.getElementById('op-resumen');
+    if (!box) return;
+    const items = [...pickupsDelDia, ...cuadrantes];
+    const totalPasos = items.length * CAMPOS.length;
+    const hechos = items.reduce((n, it) => n + CAMPOS.filter((c) => Number(it[c]) === 1).length, 0);
+    const despachados = items.filter((it) => Number(it.check_despachado) === 1).length;
+    const porDespachar = items.length - despachados;
+    const atrasados = rezagados.length + cuadrantesRezagados.length;
+    if (!items.length && !atrasados) { box.classList.add('hidden'); return; }
+    box.classList.remove('hidden');
+    const pct = totalPasos ? Math.round((hechos / totalPasos) * 100) : 0;
+    document.getElementById('op-pct').textContent = `${pct}%`;
+    document.getElementById('op-bar-fill').style.width = `${pct}%`;
+    document.getElementById('op-pasos').innerHTML = `<b>${hechos}</b> de ${totalPasos} pasos hechos`;
+    document.getElementById('op-chips').innerHTML =
+      `<span class="op-chip"><i class="op-dot" style="background:var(--color-primary-light)"></i><b>${porDespachar}</b> por despachar</span>` +
+      `<span class="op-chip"><i class="op-dot" style="background:var(--color-primary)"></i><b>${despachados}</b> despachado${despachados !== 1 ? 's' : ''}</span>` +
+      (atrasados ? `<span class="op-chip warn"><i class="op-dot" style="background:#F59E0B"></i><b>${atrasados}</b> de días anteriores</span>` : '');
   }
 
   function estadoPickup(p) {
@@ -106,6 +133,7 @@
       !cuadrantesRezagados.length
     ) {
       opsList.innerHTML = '<div class="ops-empty">No hay pickups registrados para este día.</div>';
+      actualizarProgreso();
       return;
     }
 
@@ -115,13 +143,19 @@
       renderCardPickupStandalone(p, esRezagado) +
       cuadrantesDePickup(p.id, esRezagado).map((q) => renderCardCuadrante(q, esRezagado)).join('');
 
-    const partes = [
-      ...pickupsPendientes.map((p) => renderPickupConCuadrantes(p, false)),
-      ...pickupsDeposito.map((p) => renderPickupConCuadrantes(p, false)),
-      ...pickupsDespachados.map((p) => renderPickupConCuadrantes(p, false)),
-    ];
+    const seccion = (titulo, n, extra = '') =>
+      `<div class="op-seccion ${extra}"><span>${titulo}</span><span class="op-seccion-n">${n}</span></div>`;
 
-    let html = partes.join('');
+    let html = '';
+    const porDespachar = [...pickupsPendientes, ...pickupsDeposito];
+    if (porDespachar.length) {
+      html += seccion('Por despachar', porDespachar.length);
+      html += porDespachar.map((p) => renderPickupConCuadrantes(p, false)).join('');
+    }
+    if (pickupsDespachados.length) {
+      html += seccion('Despachados', pickupsDespachados.length, 'ok');
+      html += pickupsDespachados.map((p) => renderPickupConCuadrantes(p, false)).join('');
+    }
 
     // Sección de rezagados (arrastre visual de días anteriores), debajo de lo de
     // hoy. Los rezagados ahora son PICKUPS y se renderizan igual que los del día.
@@ -134,10 +168,7 @@
             : a.fecha.localeCompare(b.fecha)
         );
       const totalRezagados = rezOrdenados.length + cuadrantesRezagados.length;
-      html += `<div class="ops-rezagados-header">
-        <span>Pendientes de días anteriores</span>
-        <span class="ops-rezagados-count">${totalRezagados}</span>
-      </div>`;
+      html += seccion('Pendientes de días anteriores', totalRezagados, 'warn');
       html += rezOrdenados.map((p) => renderPickupConCuadrantes(p, true)).join('');
       // Cuadrantes rezagados que no cuelgan de ningún pickup rezagado mostrado
       // (su pickup ya fue despachado) se renderizan sueltos para no perderlos.
@@ -147,6 +178,7 @@
     }
 
     opsList.innerHTML = html;
+    actualizarProgreso();
     bindCheckboxes();
     bindCuadranteAcciones();
     bindSueltos();
@@ -164,100 +196,108 @@
   // ── Cards de cuadrante (envío manual colgado de un pickup origen) ──
 
   function renderCardCuadrante(cuadrante, esRezagado) {
-    const clases = `envio-card cuadrante-card${esRezagado ? ' rezagado' : ''}`;
+    const despachado = Number(cuadrante.check_despachado) === 1;
+    const clases = `op-card cuadrante-card${despachado ? ' despachado' : ''}${esRezagado ? ' rezagado' : ''}`;
     const badgeRezagado = esRezagado
-      ? `<div class="envio-card-rezagado-badge">cargado el ${formatDDMM(cuadrante.fecha)}</div>`
+      ? `<span class="op-rezagado">cargado el ${formatDDMM(cuadrante.fecha)}</span>`
       : '';
     return `<div class="${clases}" data-cuadrante-id="${cuadrante.id}">
-      <div class="envio-card-body">
-        <div class="envio-card-info">
-          <div class="cuadrante-top">
-            <span class="cuadrante-badge">cuadrante</span>
-            <span class="envio-card-cliente">${escHtml(cuadrante.cliente_nombre)}</span>
-          </div>
-          <input type="text" class="cuadrante-titulo-input" placeholder="Título…"
-            value="${escHtml(cuadrante.titulo || '')}" data-cuadrante-titulo="${cuadrante.id}">
+      <div class="op-stripe ${despachado ? 'st-desp' : 'st-cuad'}"></div>
+      <div class="op-main">
+        <div class="op-top">
+          <span class="cuadrante-badge">Cuadrante</span>
+          <span class="op-cliente">${escHtml(cuadrante.cliente_nombre)}</span>
           ${badgeRezagado}
         </div>
-        <div class="envio-card-checks">
-          ${renderCheck('cuadrante', cuadrante.id, 'check_datos', cuadrante.check_datos, 'Datos completos')}
-          ${renderCheck('cuadrante', cuadrante.id, 'check_guia', cuadrante.check_guia, 'Guía aérea')}
-          ${renderCheck('cuadrante', cuadrante.id, 'check_proforma', cuadrante.check_proforma, 'Proforma')}
-          ${renderCheck('cuadrante', cuadrante.id, 'check_despachado', cuadrante.check_despachado, 'Despachado')}
-          <button type="button" class="btn-del-cuadrante" data-del-cuadrante="${cuadrante.id}">Borrar</button>
+        <input type="text" class="op-nota" placeholder="Título del cuadrante…"
+          value="${escHtml(cuadrante.titulo || '')}" data-cuadrante-titulo="${cuadrante.id}">
+        <div class="op-acciones">
+          <button type="button" class="op-link danger" data-del-cuadrante="${cuadrante.id}">Borrar cuadrante</button>
         </div>
+      </div>
+      <div class="op-side">
+        ${renderPasos('cuadrante', cuadrante)}
       </div>
     </div>`;
   }
 
   // ── Cards de pickup standalone ────────────────────────
 
+  const PIN = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>';
+
   function renderCardPickupStandalone(pickup, esRezagado) {
     const despachado = pickupDespachado(pickup);
     const sc = estadoPickup(pickup);
-    let headerHtml;
+    const tipo = pickup.tipo_recoleccion || 'normal';
+    let est, estClase;
     if (despachado) {
-      headerHtml = `<div class="envio-card-header header-despachado"><span>✓ Despachado</span></div>`;
+      est = 'Despachado'; estClase = 'desp';
     } else if (sc === 'gris') {
-      const tipo = pickup.tipo_recoleccion || 'normal';
-      const leyenda = tipo === 'courier'
-        ? '📦 Lo levanta UPS/DHL'
-        : tipo === 'ninguna'
-        ? '📄 Sin pickup (impo / ya está acá)'
-        : pickup.en_deposito_at
-        ? '🏭 En depósito · lo trae el cliente'
-        : '📥 Lo trae el cliente';
-      headerHtml = `<div class="envio-card-header tipo-gris"><span>${leyenda}</span></div>`;
+      est = tipo === 'courier' ? 'Lo levanta UPS/DHL'
+        : tipo === 'ninguna' ? 'Sin pickup · impo / ya está acá'
+        : pickup.en_deposito_at ? 'En depósito · lo trajo el cliente'
+        : 'Lo trae el cliente';
+      estClase = 'gris';
     } else if (sc === 'dep') {
-      headerHtml = `<div class="envio-card-header en-deposito"><span>🏭 En depósito</span></div>`;
+      est = 'En depósito'; estClase = 'dep';
     } else if (sc === 'cam') {
-      headerHtml = `<div class="envio-card-header en-camioneta-pickup"><span>🚐 En camioneta</span></div>`;
+      est = 'En camioneta'; estClase = 'cam';
     } else {
-      headerHtml = `<div class="envio-card-header pickup-pendiente">
-           <span>🕐 Pickup pendiente · ${escHtml(pickup.hora_inicio)}–${escHtml(pickup.hora_fin)}</span>
-         </div>`;
+      est = `Pickup pendiente · ${escHtml(pickup.hora_inicio)}–${escHtml(pickup.hora_fin)}`; estClase = 'pend';
     }
 
     const badgeRezagado = esRezagado
-      ? `<div class="envio-card-rezagado-badge">cargado el ${formatDDMM(pickup.fecha)}</div>`
+      ? `<span class="op-rezagado">cargado el ${formatDDMM(pickup.fecha)}</span>`
       : '';
 
-    return `<div class="envio-card standalone-pickup${despachado ? ' despachado' : ''}${esRezagado ? ' rezagado' : ''}" data-pickup-id="${pickup.id}">
-      ${headerHtml}
-      <div class="envio-card-body">
-        <div class="envio-card-info">
-          <div class="envio-card-cliente">${escHtml(pickup.cliente_nombre)}</div>
-          ${(pickup.tipo_recoleccion === 'ninguna')
-            ? ''
-            : `<div class="envio-card-guia" style="color:var(--color-muted)">📍 ${escHtml(pickup.direccion)}</div>`}
-          <input type="text" class="cuadrante-titulo-input" placeholder="Nota…"
-            value="${escHtml(pickup.titulo || '')}" data-pickup-titulo="${pickup.id}">
+    return `<div class="op-card standalone-pickup${despachado ? ' despachado' : ''}${esRezagado ? ' rezagado' : ''}" data-pickup-id="${pickup.id}">
+      <div class="op-stripe st-${estClase}"></div>
+      <div class="op-main">
+        <div class="op-top">
+          <span class="op-cliente">${escHtml(pickup.cliente_nombre)}</span>
+          <span class="op-estado est-${estClase}"><i></i>${est}</span>
           ${badgeRezagado}
         </div>
-        <div class="envio-card-checks">
-          ${renderCheck('pickup', pickup.id, 'check_datos', pickup.check_datos, 'Datos completos')}
-          ${renderCheck('pickup', pickup.id, 'check_guia', pickup.check_guia, 'Guía aérea')}
-          ${renderCheck('pickup', pickup.id, 'check_proforma', pickup.check_proforma, 'Proforma')}
-          ${renderCheck('pickup', pickup.id, 'check_despachado', pickup.check_despachado, 'Despachado')}
+        ${(tipo === 'ninguna' || !pickup.direccion)
+          ? ''
+          : `<div class="op-dir">${PIN}<span>${escHtml(pickup.direccion)}</span></div>`}
+        <input type="text" class="op-nota" placeholder="Nota…"
+          value="${escHtml(pickup.titulo || '')}" data-pickup-titulo="${pickup.id}">
+        <div class="op-acciones">
+          <button type="button" class="op-link" data-add-cuadrante-pickup="${pickup.id}">+ Agregar cuadrante</button>
+          ${(tipo === 'ninguna')
+            ? `<button type="button" class="op-link danger" data-borrar-suelto="${pickup.id}">Quitar</button>`
+            : ''}
         </div>
       </div>
-      <div class="envio-card-footer">
-        <button type="button" class="btn-add-cuadrante" data-add-cuadrante-pickup="${pickup.id}">+ agregar cuadrante</button>
-        ${(pickup.tipo_recoleccion === 'ninguna')
-          ? `<button type="button" class="btn-add-cuadrante" data-borrar-suelto="${pickup.id}" style="color:#8c2f26">✕ quitar</button>`
-          : ''}
+      <div class="op-side">
+        ${renderPasos('pickup', pickup)}
       </div>
     </div>`;
   }
 
   // ── Helpers de render ─────────────────────────────────
 
+  const TILDE = '<svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+
+  // Los 4 checks como pasos en línea. Sigue siendo un <input type="checkbox"> (oculto):
+  // el CSS pinta el paso con :has(:checked), así que tildar no necesita re-render.
+  function renderPasos(tipo, item) {
+    return `<div class="op-pasos">
+      ${renderCheck(tipo, item.id, 'check_datos', item.check_datos, 'Datos')}
+      ${renderCheck(tipo, item.id, 'check_guia', item.check_guia, 'Guía')}
+      ${renderCheck(tipo, item.id, 'check_proforma', item.check_proforma, 'Proforma')}
+      ${renderCheck(tipo, item.id, 'check_despachado', item.check_despachado, 'Despachado')}
+    </div>`;
+  }
+
   function renderCheck(tipo, itemId, campo, valor, label) {
     const checked = Number(valor) === 1 ? 'checked' : '';
-    return `<label class="check-item">
+    const titulos = { check_datos: 'Datos completos', check_guia: 'Guía aérea', check_proforma: 'Proforma', check_despachado: 'Despachado' };
+    return `<label class="op-paso paso-${campo.replace('check_', '')}" title="${titulos[campo] || label}">
       <input type="checkbox" ${checked}
         data-tipo="${tipo}" data-item-id="${itemId}" data-campo="${campo}">
-      ${escHtml(label)}
+      <span class="op-paso-ico">${TILDE}</span>${escHtml(label)}
     </label>`;
   }
 
@@ -275,6 +315,7 @@
         } else if (tipo === 'cuadrante') {
           await onCheckboxCuadranteChange(itemId, campo, valor, cb);
         }
+        actualizarProgreso();
       });
     });
   }
@@ -376,7 +417,7 @@
         // Al despachar, el cuadrante rezagado deja de arrastrarse.
         if (campo === 'check_despachado' && valor === 1) cuadrantesRezagados.splice(rIdx, 1);
       }
-      if (campo === 'check_despachado' && valor === 1) renderLista();
+      if (campo === 'check_despachado') renderLista();
     } catch (e) {
       cb.checked = !cb.checked;
       NovaUtils.showAlert(alertBox, 'Error al guardar: ' + e.message);
