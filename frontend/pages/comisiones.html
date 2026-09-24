@@ -6,7 +6,7 @@
   <title>Comisiones – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260915a">
-  <link rel="stylesheet" href="../css/modules/comisiones.css?v=20260924a">
+  <link rel="stylesheet" href="../css/modules/comisiones.css?v=20260924b">
 </head>
 <body>
 <div class="app-layout">
@@ -116,6 +116,9 @@
           <div class="com-cabecera">
             <label for="r-mes" style="margin:0;font-size:.8rem;color:var(--color-muted)">Mes</label>
             <select id="r-mes"></select>
+            <label for="r-tc" style="margin:0 0 0 .5rem;font-size:.8rem;color:var(--color-muted)">TC del mes</label>
+            <input type="number" id="r-tc" min="1" step="0.01" placeholder="$/US$" style="width:110px;padding:.45rem .6rem;border:1px solid var(--color-border);border-radius:6px;font:inherit" title="Pesos por dólar, para pasar el sueldo (piso) a dólares. Vacío = último cargado en Cobranzas.">
+            <span class="com-hist" id="r-tc-fuente"></span>
             <span class="com-total" id="r-total" style="margin:0 0 0 .5rem"></span>
             <a class="btn btn-secondary btn-sm" id="r-excel" href="#" style="margin-left:auto">Bajar Excel</a>
           </div>
@@ -124,11 +127,11 @@
         <div class="card">
           <div class="table-wrap">
             <table class="com-tabla">
-              <thead><tr><th>Vendedor / cliente</th><th class="num">Envíos</th><th class="num">Venta USD</th><th class="num">Utilidad USD</th><th class="num">%</th><th class="num">Comisión USD</th></tr></thead>
-              <tbody id="r-tabla"><tr><td colspan="6" class="empty">Cargando…</td></tr></tbody>
+              <thead><tr><th>Vendedor / cliente</th><th class="num">Envíos</th><th class="num">Venta USD</th><th class="num">Utilidad USD</th><th class="num">%</th><th class="num">Comisión bruta</th><th class="num">Piso</th><th class="num">A pagar</th></tr></thead>
+              <tbody id="r-tabla"><tr><td colspan="8" class="empty">Cargando…</td></tr></tbody>
             </table>
           </div>
-          <p class="com-hist" style="margin:.75rem 0 0">La comisión se calcula sobre la <b>utilidad</b> (venta − costo) de los envíos que <b>salieron</b> en el mes, con el mismo número que muestra el Dashboard. Clic en un cliente para ver sus envíos. Los envíos con utilidad negativa restan.</p>
+          <p class="com-hist" style="margin:.75rem 0 0">La comisión se calcula sobre la <b>utilidad</b> (venta − costo) de los envíos que <b>salieron</b> en el mes, con el mismo número que muestra el Dashboard. Clic en un cliente para ver sus envíos. Los envíos con utilidad negativa restan. <b>Piso</b>: el sueldo del vendedor pasado a dólares con el TC del mes; se paga solo la comisión que lo supera.</p>
         </div>
       </section>
 
@@ -157,8 +160,8 @@
         <div class="card">
           <div class="table-wrap com-vendedores">
             <table>
-              <thead><tr><th>Vendedor</th><th class="num">% sobre utilidad</th><th class="num">Clientes</th><th>Estado</th><th></th></tr></thead>
-              <tbody id="v-tabla"><tr><td colspan="5" class="empty">Cargando…</td></tr></tbody>
+              <thead><tr><th>Vendedor</th><th class="num">% sobre utilidad</th><th>Piso mensual (sueldo)</th><th class="num">Clientes</th><th>Estado</th><th></th></tr></thead>
+              <tbody id="v-tabla"><tr><td colspan="6" class="empty">Cargando…</td></tr></tbody>
             </table>
           </div>
           <div class="com-vend-form">
@@ -166,7 +169,7 @@
             <div class="form-group"><label for="v-pct">% comisión</label><input type="number" id="v-pct" min="0" max="100" step="0.5" value="0"></div>
             <button class="btn btn-primary btn-sm" id="v-agregar">Agregar</button>
           </div>
-          <p class="com-hist" style="margin:.75rem 0 0"><b>Nova Express</b> es la casa: sus clientes no generan comisión. Un vendedor inactivo conserva su historial y no se puede asignar a clientes nuevos.</p>
+          <p class="com-hist" style="margin:.75rem 0 0"><b>Piso mensual</b>: si está cargado, la comisión se paga solo por lo que supera ese monto en el mes (vacío = se paga toda). <b>Nova Express</b> es la casa: sus clientes no generan comisión. Un vendedor inactivo conserva su historial y no se puede asignar a clientes nuevos.</p>
         </div>
       </section>
     </div>
@@ -174,8 +177,8 @@
 </div>
 
 <script src="/js/auth-guard.js?v=20260924b"></script>
-<script src="../js/api.js?v=20260924b"></script>
+<script src="../js/api.js?v=20260924c"></script>
 <script src="../js/main.js?v=20260915a"></script>
-<script src="../js/modules/comisiones.js?v=20260924a"></script>
+<script src="../js/modules/comisiones.js?v=20260924b"></script>
 </body>
 </html>

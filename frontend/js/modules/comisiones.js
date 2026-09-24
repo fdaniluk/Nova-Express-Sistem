@@ -35,9 +35,11 @@
 
   async function cargarResumen() {
     mes = $('r-mes').value || mes;
-    $('r-excel').href = `/api/comisiones/resumen.xlsx?mes=${mes}`;
+    const tc = $('r-tc').value;
+    $('r-excel').href = `/api/comisiones/resumen.xlsx?mes=${mes}${tc ? `&tc=${tc}` : ''}`;
     try {
-      resumen = await api.comisiones.resumen(mes);
+      resumen = await api.comisiones.resumen(mes, tc);
+      $('r-tc-fuente').textContent = resumen.tc ? `${resumen.tc_fuente === 'manual' ? '' : `$ ${resumen.tc} · `}${resumen.tc_fuente}` : 'sin TC cargado: cargalo acá o en Cobranzas';
       renderTarjetas();
       renderTablaResumen();
     } catch (e) { showAlert(alertBox, e.message); }
@@ -45,11 +47,11 @@
 
   function renderTarjetas() {
     const r = resumen;
-    $('r-total').innerHTML = `<span>Envíos <b>${r.total.envios}</b></span><span>Venta <b>${fUSD.format(r.total.venta)}</b></span><span>Utilidad <b>${fUSD.format(r.total.utilidad)}</b></span><span>Comisiones <b>${fUSD.format(r.total.comision)}</b></span>`;
+    $('r-total').innerHTML = `<span>Envíos <b>${r.total.envios}</b></span><span>Venta <b>${fUSD.format(r.total.venta)}</b></span><span>Utilidad <b>${fUSD.format(r.total.utilidad)}</b></span><span>Comisión bruta <b>${fUSD.format(r.total.comision)}</b></span><span>A pagar <b>${fUSD.format(r.total.a_pagar)}</b></span>`;
     const tarjeta = (g, clase, id) => `<div class="com-tarjeta ${clase} ${String(vendedorActivo) === String(id) ? 'activa' : ''}" data-id="${id}">
         <div class="nombre">${esc(g.vendedor)}${g.es_casa ? '<small>casa</small>' : (g.vendedor_id ? `<small>${pctTxt(g.pct)}</small>` : '')}</div>
-        <div class="comision">${g.es_casa ? 'sin comisión' : fUSD.format(g.comision)}</div>
-        <div class="datos"><b>${g.envios}</b> envíos · <b>${g.clientes.length}</b> clientes<br>venta <b>${fUSD.format(g.venta)}</b> · utilidad <b>${fUSD.format(g.utilidad)}</b></div>
+        <div class="comision">${g.es_casa ? 'sin comisión' : (g.a_pagar == null ? '<span style="color:#b45309;font-size:1rem">falta TC</span>' : fUSD.format(g.a_pagar))}</div>
+        <div class="datos"><b>${g.envios}</b> envíos · <b>${g.clientes.length}</b> clientes<br>venta <b>${fUSD.format(g.venta)}</b> · utilidad <b>${fUSD.format(g.utilidad)}</b>${g.piso_usd != null ? `<br>bruta <b>${fUSD.format(g.comision)}</b> − piso <b>${fUSD.format(g.piso_usd)}</b>${g.piso_estado === 'no alcanzado' ? ' <span class="com-chip">no llega</span>' : ''}` : (g.piso_estado === 'falta TC' ? `<br>bruta <b>${fUSD.format(g.comision)}</b> · piso $ ${g.piso_mensual} <span class="com-chip sin">sin TC</span>` : '')}</div>
       </div>`;
     $('r-tarjetas').innerHTML = r.vendedores.map((g) => tarjeta(g, g.es_casa ? 'casa' : '', g.vendedor_id)).join('')
       + (r.sin_asignar.envios ? tarjeta(r.sin_asignar, 'sin', 'sin') : '');
@@ -63,12 +65,14 @@
     const r = resumen;
     const grupos = [...r.vendedores, ...(r.sin_asignar.envios ? [r.sin_asignar] : [])]
       .filter((g) => vendedorActivo == null || String(g.vendedor_id ?? 'sin') === String(vendedorActivo));
-    if (!grupos.length || !r.total.envios) { $('r-tabla').innerHTML = '<tr><td colspan="6" class="empty">Sin envíos en este mes</td></tr>'; return; }
+    if (!grupos.length || !r.total.envios) { $('r-tabla').innerHTML = '<tr><td colspan="8" class="empty">Sin envíos en este mes</td></tr>'; return; }
+    const pisoTd = (g) => g.es_casa || g.vendedor_id == null ? '<td class="num">—</td><td class="num">—</td>'
+      : `<td class="num">${g.piso_usd != null ? usd(g.piso_usd) : (g.piso_estado === 'falta TC' ? '<span class="com-chip sin">sin TC</span>' : '—')}</td><td class="num"><b>${g.a_pagar != null ? usd(g.a_pagar) : '—'}</b></td>`;
     $('r-tabla').innerHTML = grupos.filter((g) => g.envios).map((g) => `
       <tr class="grupo"><td>${esc(g.vendedor)}${g.es_casa ? '<span class="com-chip">casa</span>' : ''}${g.vendedor_id == null ? '<span class="com-chip sin">asignar en la pestaña Clientes</span>' : ''}</td>
-        <td class="num">${g.envios}</td><td class="num">${usd(g.venta)}</td><td class="num">${usd(g.utilidad)}</td><td class="num">${g.es_casa ? '—' : pctTxt(g.pct)}</td><td class="num">${g.es_casa ? '—' : usd(g.comision)}</td></tr>
+        <td class="num">${g.envios}</td><td class="num">${usd(g.venta)}</td><td class="num">${usd(g.utilidad)}</td><td class="num">${g.es_casa ? '—' : pctTxt(g.pct)}</td><td class="num">${g.es_casa ? '—' : usd(g.comision)}</td>${pisoTd(g)}</tr>
       ${g.clientes.map((c) => `<tr class="cliente" data-v="${g.vendedor_id ?? 'sin'}" data-c="${c.cliente_id}"><td>${esc(c.cliente)}${c.pct_origen === 'cliente' ? '<span class="com-chip cliente">% especial</span>' : ''}</td>
-        <td class="num">${c.envios}</td><td class="num">${usd(c.venta)}</td><td class="num">${usd(c.utilidad)}</td><td class="num">${g.es_casa ? '—' : pctTxt(c.pct)}</td><td class="num">${g.es_casa ? '—' : usd(c.comision)}</td></tr>`).join('')}`).join('');
+        <td class="num">${c.envios}</td><td class="num">${usd(c.venta)}</td><td class="num">${usd(c.utilidad)}</td><td class="num">${g.es_casa ? '—' : pctTxt(c.pct)}</td><td class="num">${g.es_casa ? '—' : usd(c.comision)}</td><td></td><td></td></tr>`).join('')}`).join('');
     $('r-tabla').querySelectorAll('tr.cliente').forEach((tr) => tr.addEventListener('click', () => toggleEnvios(tr)));
   }
 
@@ -82,7 +86,7 @@
       const mios = envios.filter((e) => String(e.cliente_id) === tr.dataset.c);
       const chip = (f) => f === 'real' ? '<span class="com-chip real">costo real</span>' : f === 'liquidación' ? '<span class="com-chip liq">liquidada</span>' : '<span class="com-chip">estimada</span>';
       tr.insertAdjacentHTML('afterend', mios.map((e) => `<tr class="envio"><td>${formatDate(e.fecha)} · <span class="code">${esc(e.numero_guia)}</span> · ${esc(e.courier)} · ${esc(e.pais_destino)} ${chip(e.fuente)}</td>
-        <td class="num"></td><td class="num">${usd(e.venta)}</td><td class="num">${usd(e.utilidad)}</td><td class="num">${e.es_casa ? '—' : pctTxt(e.pct)}</td><td class="num">${e.es_casa ? '—' : usd(e.comision)}</td></tr>`).join(''));
+        <td class="num"></td><td class="num">${usd(e.venta)}</td><td class="num">${usd(e.utilidad)}</td><td class="num">${e.es_casa ? '—' : pctTxt(e.pct)}</td><td class="num">${e.es_casa ? '—' : usd(e.comision)}</td><td></td><td></td></tr>`).join(''));
     } catch (e) { showAlert(alertBox, e.message); }
   }
 
@@ -175,6 +179,7 @@
       $('v-tabla').innerHTML = vendedores.map((v) => `<tr data-id="${v.id}">
           <td>${v.es_casa ? `<b>${esc(v.nombre)}</b> <span class="com-chip">casa · sin comisión</span>` : `<input type="text" data-campo="nombre" value="${esc(v.nombre)}">`}</td>
           <td class="num">${v.es_casa ? '—' : `<input type="number" data-campo="pct" min="0" max="100" step="0.5" value="${v.comision_pct}"> %`}</td>
+          <td>${v.es_casa ? '—' : `<input type="number" data-campo="piso" min="0" step="1000" value="${v.piso_mensual ?? ''}" placeholder="sin piso" style="width:120px"> <select data-campo="piso_moneda"><option value="ARS" ${v.piso_moneda !== 'USD' ? 'selected' : ''}>$ pesos</option><option value="USD" ${v.piso_moneda === 'USD' ? 'selected' : ''}>US$</option></select>`}</td>
           <td class="num">${v.clientes}</td>
           <td>${v.activo ? '<span class="badge badge-liquidado">Activo</span>' : '<span class="badge badge-pendiente">Inactivo</span>'}</td>
           <td>${v.es_casa ? '' : `<button class="btn btn-secondary btn-sm" data-accion="guardar">Guardar</button> <button class="btn btn-secondary btn-sm" data-accion="${v.activo ? 'baja' : 'alta'}">${v.activo ? 'Dar de baja' : 'Reactivar'}</button>`}</td>
@@ -182,7 +187,8 @@
       $('v-tabla').querySelectorAll('button[data-accion]').forEach((b) => b.addEventListener('click', async () => {
         const tr = b.closest('tr'); const id = Number(tr.dataset.id); const a = b.dataset.accion;
         try {
-          if (a === 'guardar') await api.comisiones.editarVendedor(id, { nombre: tr.querySelector('[data-campo=nombre]').value, comision_pct: Number(tr.querySelector('[data-campo=pct]').value) });
+          if (a === 'guardar') await api.comisiones.editarVendedor(id, { nombre: tr.querySelector('[data-campo=nombre]').value, comision_pct: Number(tr.querySelector('[data-campo=pct]').value),
+            piso_mensual: tr.querySelector('[data-campo=piso]').value === '' ? null : Number(tr.querySelector('[data-campo=piso]').value), piso_moneda: tr.querySelector('[data-campo=piso_moneda]').value });
           else await api.comisiones.editarVendedor(id, { activo: a === 'alta' ? 1 : 0 });
           await cargarVendedores();
         } catch (e) { showAlert(alertBox, e.message); }
@@ -199,6 +205,7 @@
 
   // ── Arranque ──────────────────────────────────────────────────────────────────
   $('r-mes').addEventListener('change', cargarResumen);
+  $('r-tc').addEventListener('change', cargarResumen);
   (async () => {
     try { await cargarMeses(); await cargarResumen(); } catch (e) { showAlert(alertBox, e.message); }
   })();

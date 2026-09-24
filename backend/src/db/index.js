@@ -1160,6 +1160,9 @@ async function migrateCotizadorLinks() {
 // Comisiones (24/09/2026): las tablas las crea schema.sql; acá solo se siembran los
 // vendedores iniciales si la tabla está vacía. Idempotente.
 async function migrateComisiones() {
+  const cols = (await dbApi.prepare('PRAGMA table_info(vendedores)').all()).map((c) => c.name);
+  if (!cols.includes('piso_mensual')) await dbApi.exec('ALTER TABLE vendedores ADD COLUMN piso_mensual REAL');
+  if (!cols.includes('piso_moneda')) await dbApi.exec("ALTER TABLE vendedores ADD COLUMN piso_moneda TEXT NOT NULL DEFAULT 'ARS'");
   const n = (await dbApi.prepare('SELECT COUNT(*) AS n FROM vendedores').get()).n;
   if (n > 0) return;
   for (const [nombre, casa] of [['Felipe', 0], ['Victoria', 0], ['Ricardo', 0], ['Nova Express', 1]]) {

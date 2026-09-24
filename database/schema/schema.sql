@@ -1080,6 +1080,8 @@ CREATE TABLE IF NOT EXISTS vendedores (
   nombre        TEXT NOT NULL UNIQUE,
   usuario_id    INTEGER REFERENCES usuarios(id),
   comision_pct  REAL NOT NULL DEFAULT 0,      -- % sobre la utilidad
+  piso_mensual  REAL,                         -- sueldo: la comisión se paga solo por encima de esto (NULL = sin piso)
+  piso_moneda   TEXT NOT NULL DEFAULT 'ARS' CHECK (piso_moneda IN ('ARS','USD')),
   es_casa       INTEGER NOT NULL DEFAULT 0,   -- 1 = la casa (Nova Express): sin comisión
   activo        INTEGER NOT NULL DEFAULT 1,
   creado_at     TEXT NOT NULL DEFAULT (datetime('now','localtime'))

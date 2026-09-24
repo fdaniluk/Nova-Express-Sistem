@@ -444,7 +444,7 @@ api.comisiones = {
   asignar: (clienteId, data) => api.put(`/comisiones/clientes/${clienteId}`, data),
   deshacer: (clienteId) => api.delete(`/comisiones/clientes/${clienteId}/vigente`),
   meses: () => api.get('/comisiones/meses'),
-  resumen: (mes) => api.get(`/comisiones/resumen?mes=${mes}`),
+  resumen: (mes, tc) => api.get(`/comisiones/resumen?mes=${mes}${tc ? `&tc=${tc}` : ''}`),
   detalle: (mes, vendedor) => api.get(`/comisiones/detalle?mes=${mes}${vendedor != null ? `&vendedor=${vendedor}` : ''}`),
 };
 

@@ -20,12 +20,20 @@ async function listarVendedores() {
      ORDER BY v.es_casa, v.activo DESC, v.nombre COLLATE NOCASE`
   ).all();
 }
-async function crearVendedor({ nombre, comision_pct = 0, usuario_id = null }) {
+function validarPiso(piso, moneda) {
+  const p = piso === '' || piso == null ? null : Number(piso);
+  if (p != null && !(p >= 0)) throw err('El piso tiene que ser 0 o más');
+  const m = moneda || 'ARS';
+  if (!['ARS', 'USD'].includes(m)) throw err('piso_moneda debe ser ARS o USD');
+  return { piso: p, moneda: m };
+}
+async function crearVendedor({ nombre, comision_pct = 0, usuario_id = null, piso_mensual = null, piso_moneda = 'ARS' }) {
   const db = getDb();
   if (!nombre || !String(nombre).trim()) throw err('El nombre es obligatorio');
   const pct = Number(comision_pct);
   if (!(pct >= 0 && pct <= 100)) throw err('El % tiene que estar entre 0 y 100');
-  const r = await db.prepare('INSERT INTO vendedores (nombre, comision_pct, usuario_id) VALUES (?, ?, ?)').run(String(nombre).trim(), pct, usuario_id || null);
+  const { piso, moneda } = validarPiso(piso_mensual, piso_moneda);
+  const r = await db.prepare('INSERT INTO vendedores (nombre, comision_pct, usuario_id, piso_mensual, piso_moneda) VALUES (?, ?, ?, ?, ?)').run(String(nombre).trim(), pct, usuario_id || null, piso, moneda);
   return db.prepare('SELECT * FROM vendedores WHERE id = ?').get(r.lastInsertRowid);
 }
 async function editarVendedor(id, data) {
@@ -38,7 +46,8 @@ async function editarVendedor(id, data) {
   if (!(pct >= 0 && pct <= 100)) throw err('El % tiene que estar entre 0 y 100');
   const activo = data.activo !== undefined ? (data.activo ? 1 : 0) : v.activo;
   const usuario_id = data.usuario_id !== undefined ? (data.usuario_id || null) : v.usuario_id;
-  await db.prepare('UPDATE vendedores SET nombre = ?, comision_pct = ?, activo = ?, usuario_id = ? WHERE id = ?').run(nombre, pct, activo, usuario_id, id);
+  const { piso, moneda } = validarPiso(data.piso_mensual !== undefined ? data.piso_mensual : v.piso_mensual, data.piso_moneda !== undefined ? data.piso_moneda : v.piso_moneda);
+  await db.prepare('UPDATE vendedores SET nombre = ?, comision_pct = ?, activo = ?, usuario_id = ?, piso_mensual = ?, piso_moneda = ? WHERE id = ?').run(nombre, pct, activo, usuario_id, piso, moneda, id);
   return db.prepare('SELECT * FROM vendedores WHERE id = ?').get(id);
 }
 
@@ -163,13 +172,23 @@ async function enviosDelPeriodo(desde, hasta) {
   });
 }
 
-async function resumen(mes) {
+// Tipo de cambio del mes para pasar el piso (en pesos) a dólares: el que se pasa por
+// parámetro, o el último cargado en Cobranzas (cc_tipo_cambio) hasta el fin del mes.
+async function tipoCambioMes(hasta, tcManual) {
+  if (tcManual && Number(tcManual) > 0) return { tc: Number(tcManual), tc_fuente: 'manual' };
+  const r = await getDb().prepare('SELECT fecha, venta, promedio FROM cc_tipo_cambio WHERE fecha < ? ORDER BY fecha DESC LIMIT 1').get(hasta);
+  if (r && (r.venta || r.promedio)) return { tc: r.venta || r.promedio, tc_fuente: `Cobranzas (${r.fecha})` };
+  return { tc: null, tc_fuente: 'sin cargar' };
+}
+
+async function resumen(mes, tcManual = null) {
   const { desde, hasta } = rangoMes(mes);
   const envios = await enviosDelPeriodo(desde, hasta);
   const vendedores = await listarVendedores();
+  const { tc, tc_fuente } = await tipoCambioMes(hasta, tcManual);
   const grupos = new Map(); // vendedor_id (null = sin asignar) → acumulado
-  const nuevo = (id, nombre, es_casa, pct) => ({ vendedor_id: id, vendedor: nombre, es_casa, pct, envios: 0, venta: 0, utilidad: 0, comision: 0, clientes: new Map() });
-  for (const v of vendedores) grupos.set(v.id, nuevo(v.id, v.nombre, v.es_casa, v.comision_pct));
+  const nuevo = (id, nombre, es_casa, pct, v = {}) => ({ vendedor_id: id, vendedor: nombre, es_casa, pct, piso_mensual: v.piso_mensual ?? null, piso_moneda: v.piso_moneda || 'ARS', envios: 0, venta: 0, utilidad: 0, comision: 0, clientes: new Map() });
+  for (const v of vendedores) grupos.set(v.id, nuevo(v.id, v.nombre, v.es_casa, v.comision_pct, v));
   grupos.set(null, nuevo(null, 'Sin asignar', 0, 0));
   for (const e of envios) {
     const g = grupos.get(e.vendedor_id) || grupos.get(null);
@@ -178,12 +197,24 @@ async function resumen(mes) {
     if (!c) { c = { cliente_id: e.cliente_id, cliente: e.cliente, pct: e.pct, pct_origen: e.pct_origen, envios: 0, venta: 0, utilidad: 0, comision: 0 }; g.clientes.set(e.cliente_id, c); }
     c.envios++; c.venta += e.venta; c.utilidad += e.utilidad; c.comision += e.comision;
   }
-  const fin = (g) => ({ ...g, venta: r2(g.venta), utilidad: r2(g.utilidad), comision: r2(g.comision),
-    clientes: [...g.clientes.values()].map((c) => ({ ...c, venta: r2(c.venta), utilidad: r2(c.utilidad), comision: r2(c.comision) })).sort((a, b) => b.utilidad - a.utilidad) });
+  // Piso: la comisión se paga solo por lo que supera el sueldo del mes. Si el piso está
+  // en pesos y no hay TC, no se puede calcular → a_pagar null y se avisa.
+  const fin = (g) => {
+    let piso_usd = null, a_pagar = r2(g.comision), piso_estado = 'sin piso';
+    if (!g.es_casa && g.piso_mensual != null && g.piso_mensual > 0) {
+      if (g.piso_moneda === 'USD') piso_usd = g.piso_mensual;
+      else if (tc) piso_usd = r2(g.piso_mensual / tc);
+      if (piso_usd != null) { a_pagar = r2(Math.max(0, g.comision - piso_usd)); piso_estado = g.comision >= piso_usd ? 'superado' : 'no alcanzado'; }
+      else { a_pagar = null; piso_estado = 'falta TC'; }
+    }
+    return { ...g, venta: r2(g.venta), utilidad: r2(g.utilidad), comision: r2(g.comision), piso_usd, a_pagar, piso_estado,
+      clientes: [...g.clientes.values()].map((c) => ({ ...c, venta: r2(c.venta), utilidad: r2(c.utilidad), comision: r2(c.comision) })).sort((a, b) => b.utilidad - a.utilidad) };
+  };
   const lista = [...grupos.values()].filter((g) => g.vendedor_id !== null && (g.envios > 0 || vendedores.find((v) => v.id === g.vendedor_id && v.activo))).map(fin);
   const sin = fin(grupos.get(null));
   const total = envios.reduce((a, e) => ({ envios: a.envios + 1, venta: a.venta + e.venta, utilidad: a.utilidad + e.utilidad, comision: a.comision + e.comision }), { envios: 0, venta: 0, utilidad: 0, comision: 0 });
-  return { mes, desde, hasta, vendedores: lista, sin_asignar: sin, total: { envios: total.envios, venta: r2(total.venta), utilidad: r2(total.utilidad), comision: r2(total.comision) } };
+  const aPagar = lista.reduce((a, g) => a + (g.a_pagar || 0), 0);
+  return { mes, desde, hasta, tc, tc_fuente, vendedores: lista, sin_asignar: sin, total: { envios: total.envios, venta: r2(total.venta), utilidad: r2(total.utilidad), comision: r2(total.comision), a_pagar: r2(aPagar) } };
 }
 
 async function detalle(mes, vendedorId) {
