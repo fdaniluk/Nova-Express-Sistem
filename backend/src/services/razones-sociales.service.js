@@ -179,15 +179,28 @@ async function posiblesDuplicados() {
     if (!pares.has(k)) pares.set(k, { a, b, motivos: [] });
     pares.get(k).motivos.push(motivo);
   };
-  const porCuit = new Map(), porNombre = new Map();
+  const porCuit = new Map();
+  const claves = cs.map((c) => ({ c, ks: [...new Set([claveNombre(c.nombre), claveNombre(c.nombre_nova)].map((k) => k.replace(/\s+/g, '')).filter((k) => k.length >= 5))] }));
   for (const c of cs) {
     const cu = soloDigitos(c.cuit);
     if (cu.length >= 11) { if (porCuit.has(cu)) add(porCuit.get(cu), c, 'mismo CUIT'); else porCuit.set(cu, c); }
-    for (const n of new Set([claveNombre(c.nombre), claveNombre(c.nombre_nova)].filter((x) => x.length >= 4))) {
-      if (porNombre.has(n)) { const o = porNombre.get(n); if (o.id !== c.id) add(o, c, 'mismo nombre'); } else porNombre.set(n, c);
+  }
+  // Nombres: iguales, o uno contenido en el otro ("Polo Top" / "polotop", "Les Gants" /
+  // "Les gants carpincho", "Chini" / "Chini/Battlo"). Es una sugerencia, no un veredicto.
+  for (let i = 0; i < claves.length; i++) {
+    for (let j = i + 1; j < claves.length; j++) {
+      const a = claves[i], b = claves[j];
+      let motivo = null;
+      for (const ka of a.ks) for (const kb of b.ks) {
+        if (ka === kb) motivo = 'mismo nombre';
+        else if (!motivo && (ka.includes(kb) || kb.includes(ka))) motivo = 'nombre parecido';
+      }
+      if (motivo) add(a.c, b.c, motivo);
     }
   }
-  return [...pares.values()].map((p) => ({ ...p, motivo: [...new Set(p.motivos)].join(' y ') }));
+  const orden = { 'mismo CUIT': 0, 'mismo nombre': 1, 'nombre parecido': 2 };
+  return [...pares.values()].map((p) => ({ ...p, motivo: [...new Set(p.motivos)].join(' y ') }))
+    .sort((x, y) => Math.min(...x.motivos.map((m) => orden[m])) - Math.min(...y.motivos.map((m) => orden[m])));
 }
 
 module.exports = { listar, crear, editar, moverACliente, unirClientes, previewUnion, posiblesDuplicados, soloDigitos };

@@ -411,8 +411,8 @@
             ${r.activa ? '' : '<span class="rs-chip inactiva">inactiva</span>'}
             ${r.gecom_agenda ? `<span class="rs-chip" title="Agenda del GECOM">GECOM ${esc(r.gecom_agenda)}</span>` : ''}
             ${r.comprobantes ? `<span class="rs-chip">${r.comprobantes} comprobantes</span>` : ''}
-            ${Math.abs(r.saldo_cf) > 0.005 ? `<span class="rs-chip saldo">${fARS.format(r.saldo_cf)}</span>` : ''}
-            ${Math.abs(r.saldo_sf) > 0.005 ? `<span class="rs-chip saldo">${fUSD.format(r.saldo_sf)}</span>` : ''}
+            ${Math.abs(r.saldo_cf) > 0.005 ? `<span class="rs-chip saldo" title="Saldo con factura">${r.saldo_cf < 0 ? 'a favor ' : 'debe '}${fARS.format(Math.abs(r.saldo_cf))}</span>` : ''}
+            ${Math.abs(r.saldo_sf) > 0.005 ? `<span class="rs-chip saldo" title="Saldo sin factura">${r.saldo_sf < 0 ? 'a favor ' : 'debe '}${fUSD.format(Math.abs(r.saldo_sf))}</span>` : ''}
           </span>
         </span>
         <span class="rs-acc">

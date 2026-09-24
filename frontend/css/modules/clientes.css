@@ -440,7 +440,9 @@ td.tarifa-cell.cero .cell-val { color: #d03b3b; font-weight: 650; }
 .unir-tabla td.n { text-align:right; font-variant-numeric:tabular-nums; }
 .unir-tabla td.n.cero { color:#b9c2d0; }
 .unir-nota { font-size:.8rem; color:var(--color-muted); margin-top:.5rem; }
-.unir-confirma { display:flex; align-items:center; gap:.5rem; font-size:.88rem; margin-top:.9rem; cursor:pointer; }
+.unir-confirma { display:flex; align-items:center; gap:.5rem; font-size:.88rem; margin-top:.9rem; cursor:pointer; text-transform:none; letter-spacing:0; color:var(--color-text); font-weight:500; }
+.unir-confirma input { width:16px; height:16px; }
+.unir-caja .btn:disabled { opacity:.45; cursor:not-allowed; box-shadow:none; }
 .unir-caja > footer { display:flex; justify-content:flex-end; gap:.5rem; padding:.7rem 1.1rem; border-top:1px solid #e5e8ee; background:#fafbfc; }
 .unir-resultado { background:#e8f5ec; border:1px solid #bfe3c8; color:#166534; border-radius:8px; padding:.7rem .9rem; font-size:.88rem; }
 .unir-resultado ul { margin:.3rem 0 0 1rem; padding:0; }
