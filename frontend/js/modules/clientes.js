@@ -220,11 +220,12 @@
       if (!pares.length) { box.innerHTML = '<span class="vacio">No encontré fichas con el mismo nombre o CUIT.</span>'; return; }
       box.innerHTML = pares.map((p) => `<button type="button" data-a="${p.a.id}" data-b="${p.b.id}"><b>${esc(p.a.nombre_nova || p.a.nombre)}</b> <span>#${p.a.id}</span> + <b>${esc(p.b.nombre_nova || p.b.nombre)}</b> <span>#${p.b.id}</span><small>${esc(p.motivo)}</small></button>`).join('');
       box.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => {
-        // El de id más bajo suele ser el viejo, el que tiene historia: queda. El otro desaparece.
+        // Provisorio: la vista previa decide cuál queda (la que tiene más cosas cargadas).
         const a = Number(b.dataset.a), c = Number(b.dataset.b);
         $u('unir-destino').value = String(Math.min(a, c));
         $u('unir-origen').value = String(Math.max(a, c));
         actualizarSiguiente();
+        previewUnir(true);
       }));
     } catch (e) { box.innerHTML = `<span class="vacio">${esc(e.message)}</span>`; }
   }
@@ -247,23 +248,36 @@
   const fARS = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'ARS' });
   const fUSD = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'USD' });
 
-  async function previewUnir() {
+  // `elegirLaMasLlena`: si la ficha que iba a desaparecer tiene MÁS datos que la que queda,
+  // se invierten solas. Nada se pierde en ningún caso (todo se mueve), pero conviene que
+  // quede la que la oficina ya usa. El botón "Invertir" deja elegir lo contrario.
+  async function previewUnir(elegirLaMasLlena = false) {
     unir.origen = Number($u('unir-origen').value); unir.destino = Number($u('unir-destino').value);
     try {
-      const p = await NovaAPI.clientes.unirPreview(unir.origen, unir.destino);
+      let p = await NovaAPI.clientes.unirPreview(unir.origen, unir.destino);
+      if (elegirLaMasLlena) {
+        const tot = (k) => p.filas.reduce((a, f) => a + (f[k] || 0), 0);
+        if (tot('origen') > tot('destino')) {
+          [unir.origen, unir.destino] = [unir.destino, unir.origen];
+          $u('unir-origen').value = String(unir.origen); $u('unir-destino').value = String(unir.destino);
+          p = await NovaAPI.clientes.unirPreview(unir.origen, unir.destino);
+        }
+      }
       unir.preview = p;
       const lado = (c, rol, clase) => `<div class="unir-lado ${clase}"><div class="rol">${rol}</div><div class="nombre">${esc(c.nombre_nova || c.nombre)}</div>
         <small>${esc(c.nombre)}${c.cuit ? ` · ${esc(c.cuit)}` : ' · sin CUIT'} · #${c.id}${c.activo ? '' : ' · inactivo'}</small>
         <small>${NovaUtils.tipoCobroLabel(c.tipo_cobro)} · saldo ${fARS.format(c.saldo_cf)} · ${fUSD.format(c.saldo_sf)}</small></div>`;
-      $u('unir-lados').innerHTML = lado(p.origen, 'Desaparece', 'origen') + lado(p.destino, 'Queda', 'destino');
+      $u('unir-lados').innerHTML = lado(p.origen, 'Se vacía y desaparece', 'origen') + lado(p.destino, 'Queda, con todo', 'destino');
       $u('unir-tabla').innerHTML = p.filas.length
         ? p.filas.map((f) => `<tr><td>${esc(f.nombre)}</td><td class="n ${f.origen ? '' : 'cero'}">${f.origen || '—'}</td><td class="n ${f.destino ? '' : 'cero'}">${f.destino || '—'}</td></tr>`).join('')
         : '<tr><td colspan="3" class="empty">Ninguna de las dos fichas tiene datos asociados.</td></tr>';
+      const tot = (k) => p.filas.reduce((a, f) => a + (f[k] || 0), 0);
+      $u('unir-tabla').insertAdjacentHTML('beforeend', `<tr><td><b>Después de unir</b></td><td class="n cero">0</td><td class="n"><b>${tot('origen') + tot('destino')}</b></td></tr>`);
       const comp = Object.keys(p.completa);
       $u('unir-completa').textContent = comp.length
         ? `La ficha que queda tiene vacío ${comp.join(', ')}: se completa con lo de la que desaparece.`
         : 'La ficha que queda conserva todos sus datos; nada se sobreescribe.';
-      $u('unir-ok-texto').textContent = `Entiendo: "${p.origen.nombre_nova || p.origen.nombre}" desaparece y todo pasa a "${p.destino.nombre_nova || p.destino.nombre}".`;
+      $u('unir-ok-texto').textContent = `Entiendo: todo lo de "${p.origen.nombre_nova || p.origen.nombre}" (#${p.origen.id}) pasa a "${p.destino.nombre_nova || p.destino.nombre}" (#${p.destino.id}), y la ficha #${p.origen.id} queda vacía y se elimina.`;
       mostrarPasoUnir('preview');
     } catch (e) { NovaUtils.showAlert(alertBox, e.message); }
   }
@@ -290,7 +304,11 @@
     $u('unir-cerrar').addEventListener('click', () => unir.modal.classList.add('hidden'));
     unir.modal.addEventListener('click', (e) => { if (e.target === unir.modal) unir.modal.classList.add('hidden'); });
     ['unir-origen', 'unir-destino'].forEach((id) => $u(id).addEventListener('change', actualizarSiguiente));
-    $u('unir-siguiente').addEventListener('click', previewUnir);
+    $u('unir-siguiente').addEventListener('click', () => previewUnir(false));
+    $u('unir-invertir').addEventListener('click', () => {
+      const o = $u('unir-origen').value; $u('unir-origen').value = $u('unir-destino').value; $u('unir-destino').value = o;
+      previewUnir(false);
+    });
     $u('unir-volver').addEventListener('click', () => mostrarPasoUnir('elegir'));
     $u('unir-ok').addEventListener('change', () => { $u('unir-confirmar').disabled = !$u('unir-ok').checked; });
     $u('unir-confirmar').addEventListener('click', confirmarUnir);
