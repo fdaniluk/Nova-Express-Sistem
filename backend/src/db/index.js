@@ -1157,6 +1157,17 @@ async function migrateCotizadorLinks() {
   }
 }
 
+// Comisiones (24/09/2026): las tablas las crea schema.sql; acá solo se siembran los
+// vendedores iniciales si la tabla está vacía. Idempotente.
+async function migrateComisiones() {
+  const n = (await dbApi.prepare('SELECT COUNT(*) AS n FROM vendedores').get()).n;
+  if (n > 0) return;
+  for (const [nombre, casa] of [['Felipe', 0], ['Victoria', 0], ['Ricardo', 0], ['Nova Express', 1]]) {
+    await dbApi.prepare('INSERT INTO vendedores (nombre, es_casa, comision_pct) VALUES (?, ?, 0)').run(nombre, casa);
+  }
+  console.log('Comisiones: vendedores iniciales creados (Felipe, Victoria, Ricardo, Nova Express)');
+}
+
 async function initSchema() {
   const schema = fs.readFileSync(config.schemaPath, 'utf8');
   await dbApi.exec(schema);
@@ -1176,6 +1187,7 @@ async function initSchema() {
   await migrateLiquidacionesCC();
   await migrateCuentaCorriente();
   await migrateRazonesSociales();
+  await migrateComisiones();
   await migrateUpsAreas();
   await migrateCierres();
   await migrateFuelNova();

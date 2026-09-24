@@ -27,12 +27,13 @@
 
         if (user.rol !== 'admin') {
           document.querySelectorAll(
-            'a[href="usuarios.html"], a[href="pages/usuarios.html"], a[href="/pages/usuarios.html"]'
+            'a[href="usuarios.html"], a[href="pages/usuarios.html"], a[href="/pages/usuarios.html"], ' +
+            'a[href="comisiones.html"], a[href="pages/comisiones.html"], a[href="/pages/comisiones.html"]'
           ).forEach(function (el) {
             el.style.display = 'none';
           });
           const path = window.location.pathname;
-          if (path.endsWith('usuarios.html')) {
+          if (path.endsWith('usuarios.html') || path.endsWith('comisiones.html')) {
             location.replace('/pages/envios.html');
             return;
           }

@@ -1069,3 +1069,32 @@ CREATE TABLE IF NOT EXISTS ups_areas (
 CREATE INDEX IF NOT EXISTS idx_ups_areas_iso_num ON ups_areas(iso, cp_desde_num, cp_hasta_num);
 CREATE INDEX IF NOT EXISTS idx_ups_areas_iso_txt ON ups_areas(iso, cp_desde, cp_hasta);
 CREATE INDEX IF NOT EXISTS idx_ups_areas_ciudad  ON ups_areas(iso, ciudad);
+
+-- ─────────────────────────────────────────────────────────────────────────────
+-- COMISIONES (24/09/2026): cada cliente pertenece a un vendedor; la comisión se
+-- calcula sobre la UTILIDAD de los envíos que salieron en el período (fecha de Salidas,
+-- no_volo = 0), con el % del vendedor o el % puntual de esa asignación.
+-- ─────────────────────────────────────────────────────────────────────────────
+CREATE TABLE IF NOT EXISTS vendedores (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  nombre        TEXT NOT NULL UNIQUE,
+  usuario_id    INTEGER REFERENCES usuarios(id),
+  comision_pct  REAL NOT NULL DEFAULT 0,      -- % sobre la utilidad
+  es_casa       INTEGER NOT NULL DEFAULT 0,   -- 1 = la casa (Nova Express): sin comisión
+  activo        INTEGER NOT NULL DEFAULT 1,
+  creado_at     TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+-- Historial de asignaciones. La vigente es la que tiene hasta IS NULL. Un envío cuenta
+-- para la asignación cuyo rango [desde, hasta) contiene su fecha.
+CREATE TABLE IF NOT EXISTS clientes_vendedores (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  cliente_id    INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+  vendedor_id   INTEGER NOT NULL REFERENCES vendedores(id),
+  desde         TEXT NOT NULL,                -- '2000-01-01' = desde siempre
+  hasta         TEXT,                         -- NULL = vigente
+  comision_pct  REAL,                         -- NULL = usa el % del vendedor
+  usuario       TEXT,
+  creado_at     TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_cv_cliente ON clientes_vendedores(cliente_id, desde);

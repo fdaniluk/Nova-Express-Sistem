@@ -1,0 +1,49 @@
+/* Comisiones por vendedor (24/09/2026). Solo admin. */
+.com-cabecera { display:flex; align-items:center; gap:.75rem; flex-wrap:wrap; }
+.com-cabecera select { padding:.45rem .6rem; border:1px solid var(--color-border); border-radius:6px; font:inherit; }
+.com-tarjetas { display:grid; grid-template-columns:repeat(auto-fit, minmax(210px, 1fr)); gap:1rem; margin-bottom:1.25rem; }
+.com-tarjeta { background:var(--color-surface); border:1px solid var(--color-border); border-radius:var(--radius); box-shadow:var(--shadow); padding:1rem 1.15rem; cursor:pointer; position:relative; transition:border-color .15s; }
+.com-tarjeta:hover, .com-tarjeta.activa { border-color:var(--color-primary); }
+.com-tarjeta.activa::before { content:''; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--color-accent); border-radius:var(--radius) 0 0 var(--radius); }
+.com-tarjeta .nombre { font-weight:700; color:var(--color-primary); font-size:1rem; display:flex; align-items:center; gap:.5rem; }
+.com-tarjeta .nombre small { font-weight:500; color:var(--color-muted); font-size:.72rem; background:#f1f5f9; border-radius:4px; padding:.05rem .4rem; }
+.com-tarjeta .comision { font-size:1.55rem; font-weight:700; color:var(--color-success); margin:.35rem 0 .15rem; font-variant-numeric:tabular-nums; }
+.com-tarjeta.casa .comision { color:var(--color-muted); font-size:1.1rem; }
+.com-tarjeta.sin .comision { color:#b45309; }
+.com-tarjeta .datos { font-size:.78rem; color:var(--color-muted); line-height:1.5; }
+.com-tarjeta .datos b { color:var(--color-text); font-weight:600; }
+.com-total { display:flex; gap:1.5rem; flex-wrap:wrap; font-size:.85rem; color:var(--color-muted); margin-bottom:1rem; }
+.com-total b { color:var(--color-text); font-variant-numeric:tabular-nums; }
+
+.com-tabla td.num, .com-tabla th.num { text-align:right; white-space:nowrap; font-variant-numeric:tabular-nums; }
+.com-tabla tr.grupo td { background:#f8fafc; font-weight:700; color:var(--color-primary); }
+.com-tabla tr.cliente td:first-child { padding-left:1.6rem; }
+.com-tabla tr.cliente { cursor:pointer; }
+.com-tabla tr.cliente:hover td { background:#eef1f8; }
+.com-tabla tr.envio td { font-size:.82rem; background:#fcfcfd; color:var(--color-muted); }
+.com-tabla tr.envio td:first-child { padding-left:2.8rem; }
+.com-tabla .code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.8rem; color:var(--color-text); }
+.com-chip { display:inline-block; font-size:.68rem; padding:.08rem .4rem; border-radius:4px; background:#f1f5f9; color:var(--color-muted); font-weight:600; margin-left:.3rem; vertical-align:middle; }
+.com-chip.cliente { background:#fef3c7; color:#92400e; }
+.com-chip.real { background:#e8f5ec; color:#166534; }
+.com-chip.liq { background:#dbeafe; color:#1e40af; }
+.com-chip.sin { background:#fdecea; color:#b91c1c; }
+.com-neg { color:#b91c1c; }
+
+/* Pestaña Clientes */
+.com-filtros { display:flex; gap:.75rem; align-items:flex-end; flex-wrap:wrap; margin-bottom:.75rem; }
+.com-filtros .form-group { margin:0; }
+.com-filtros input[type=search] { min-width:240px; }
+.com-clientes select { padding:.3rem .45rem; border:1px solid var(--color-border); border-radius:6px; font:inherit; font-size:.85rem; }
+.com-clientes input[type=number] { width:64px; padding:.3rem .4rem; border:1px solid var(--color-border); border-radius:6px; font:inherit; font-size:.85rem; }
+.com-clientes input[type=date] { padding:.28rem .4rem; border:1px solid var(--color-border); border-radius:6px; font:inherit; font-size:.82rem; }
+.com-clientes tr.sin-vendedor td:first-child { box-shadow:inset 3px 0 0 #f59e0b; }
+.com-clientes tr.inactivo td { color:var(--color-muted); }
+.com-clientes .guardado { color:var(--color-success); font-size:.78rem; margin-left:.4rem; }
+.com-hist { font-size:.78rem; color:var(--color-muted); }
+
+/* Pestaña Vendedores */
+.com-vend-form { display:flex; gap:.6rem; align-items:flex-end; flex-wrap:wrap; margin-top:.75rem; }
+.com-vend-form .form-group { margin:0; }
+.com-vendedores input[type=number] { width:70px; }
+.com-vendedores input[type=text] { width:180px; }

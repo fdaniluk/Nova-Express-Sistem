@@ -18,6 +18,7 @@ const trackingRoutes = require('./tracking.routes');
 const facturasRoutes = require('./facturas.routes');
 const cobrosPickupRoutes = require('./cobros-pickup.routes');
 const cobranzasRoutes = require('./cobranzas.routes');
+const comisionesRoutes = require('./comisiones.routes');
 const upsAreasRoutes = require('./ups-areas.routes');
 const authRoutes = require('./auth.routes');
 const publicoRoutes = require('./publico.routes');
@@ -70,6 +71,7 @@ router.use('/facturas', facturasRoutes);
 router.use('/cobros-pickup', cobrosPickupRoutes);
 // Cuenta corriente por cliente (módulo Cobranzas, reemplazo del GECOM).
 router.use('/cobranzas', cobranzasRoutes);
+router.use('/comisiones', requireAdmin, comisionesRoutes);
 // Áreas de entrega UPS (extendida / remota) por país + código postal.
 router.use('/ups-areas', upsAreasRoutes);
 // El asistente de la oficina: usa la misma sesion y las mismas rutas que las pantallas.

@@ -1,6 +1,6 @@
 const { Router } = require('express');
 const { getDb } = require('../db');
-const { deriveProfit, costoEstimado } = require('../utils/profit');
+const { deriveProfit, costoEstimado, utilidadEnvio: utilidadEnvioCompartida } = require('../utils/profit');
 const { hoyLocal, hoyLocalMas } = require('../utils/fecha');
 
 const router = Router();
@@ -153,12 +153,8 @@ router.get('/metricas', async (req, res, next) => {
     //   3. ESTIMACIÓN → profit venta − costo estimado vía deriveProfit. IGUAL QUE ANTES.
     // Si deriveProfit no puede calcular (costo 0 y sin liquidación) devuelve profit null:
     // ese envío cuenta 0 (no null), para no romper la suma.
-    const utilidadEnvio = (row) => {
-      const { profit, profit_real } = deriveProfit(row);
-      if (profit_real) return profit;
-      if (row.utilidad_liq != null) return row.utilidad_liq;
-      return profit == null ? 0 : profit;
-    };
+    // Movida a utils/profit.js (24/09/2026) para que Comisiones use la misma. Sin cambios de número.
+    const utilidadEnvio = utilidadEnvioCompartida;
 
     // Agregación en una sola pasada: total del período, acumulado por cliente y por
     // bucket del gráfico. El gráfico agrupa por hora (created_at) en 'hoy', si no por fecha.

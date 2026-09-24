@@ -434,4 +434,18 @@ api.cobranzas = {
   },
 };
 
+// Comisiones por vendedor (24/09/2026). Solo admin.
+api.comisiones = {
+  vendedores: () => api.get('/comisiones/vendedores'),
+  crearVendedor: (data) => api.post('/comisiones/vendedores', data),
+  editarVendedor: (id, data) => api.put(`/comisiones/vendedores/${id}`, data),
+  clientes: () => api.get('/comisiones/clientes'),
+  historial: (clienteId) => api.get(`/comisiones/clientes/${clienteId}/historial`),
+  asignar: (clienteId, data) => api.put(`/comisiones/clientes/${clienteId}`, data),
+  deshacer: (clienteId) => api.delete(`/comisiones/clientes/${clienteId}/vigente`),
+  meses: () => api.get('/comisiones/meses'),
+  resumen: (mes) => api.get(`/comisiones/resumen?mes=${mes}`),
+  detalle: (mes, vendedor) => api.get(`/comisiones/detalle?mes=${mes}${vendedor != null ? `&vendedor=${vendedor}` : ''}`),
+};
+
 window.NovaAPI = api;

@@ -100,4 +100,16 @@ function profitDoble(row) {
   return out;
 }
 
-module.exports = { deriveProfit, costoEstimado, profitDoble };
+// Utilidad de UN envío para agregar (Dashboard y Comisiones usan ESTA función, así los
+// dos coinciden al centavo). Precedencia: costo real aprobado → liquidación confirmada →
+// estimación. Si nada se puede calcular, 0 (no null) para no romper la suma.
+// Espera row.total, row.utilidad_liq (SUM liquidacion_items.utilidad_usd de la liq.
+// confirmada) y las columnas que pide deriveProfit.
+function utilidadEnvio(row) {
+  const { profit, profit_real } = deriveProfit(row);
+  if (profit_real) return profit;
+  if (row.utilidad_liq != null) return row.utilidad_liq;
+  return profit == null ? 0 : profit;
+}
+
+module.exports = { deriveProfit, costoEstimado, profitDoble, utilidadEnvio };
