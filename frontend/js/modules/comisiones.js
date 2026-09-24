@@ -60,8 +60,8 @@
     $('r-total').innerHTML = `
       <div class="com-kpi"><span>Venta</span><b>${fUSD.format(t.venta)}</b><small>${t.envios} envíos en el mes</small></div>
       <div class="com-kpi"><span>Utilidad</span><b>${fUSD.format(t.utilidad)}</b><small>${margen} % de la venta</small></div>
-      <div class="com-kpi"><span>Comisión bruta</span><b>${fUSD.format(t.comision)}</b><small>antes de descontar sueldos</small></div>
-      <div class="com-kpi destacado"><span>A pagar</span><b>${fUSD.format(t.a_pagar)}</b><small>${faltaTC ? 'falta el dólar del mes' : 'comisión que supera el sueldo'}</small></div>`;
+      <div class="com-kpi"><span>Utilidad sobre sueldos</span><b>${faltaTC ? '—' : fUSD.format(r.vendedores.reduce((a, g) => a + (g.excedente ?? (g.es_casa ? 0 : g.utilidad)), 0))}</b><small>${faltaTC ? 'falta el dólar del mes' : 'lo que queda después de cubrir cada sueldo'}</small></div>
+      <div class="com-kpi destacado"><span>A pagar</span><b>${fUSD.format(t.a_pagar)}</b><small>${faltaTC ? 'falta el dólar del mes' : 'el % de cada vendedor sobre esa utilidad'}</small></div>`;
 
     // "Sin asignar" no es un vendedor: va como aviso para que no parezca que se le paga algo.
     const sa = r.sin_asignar;
@@ -84,19 +84,20 @@
         monto = '<div class="com-monto casa">Sin comisión</div>';
         pie = 'La casa: sus clientes no generan comisión';
       } else if (g.a_pagar == null) {
-        monto = `<div class="com-monto falta">${fUSD.format(g.comision)}<small>bruta</small></div>`;
-        pie = `<span class="com-chip sin">falta dólar del mes</span> para descontar el sueldo de $ ${fARS.format(g.piso_mensual)}`;
+        monto = `<div class="com-monto falta">—<small>a pagar</small></div>`;
+        pie = `<span class="com-chip sin">falta dólar del mes</span> para comparar la utilidad con el sueldo de $ ${fARS.format(g.piso_mensual)}`;
       } else {
         monto = `<div class="com-monto">${fUSD.format(g.a_pagar)}<small>a pagar</small></div>`;
         if (g.piso_usd != null) {
-          const pct = g.piso_usd ? Math.min(100, (g.comision / g.piso_usd) * 100) : 100;
-          const supera = g.comision > g.piso_usd;
+          // Barra: utilidad del vendedor contra su sueldo. Pasado el sueldo, cobra su % de lo que sobra.
+          const pct = g.piso_usd ? Math.min(100, (g.utilidad / g.piso_usd) * 100) : 100;
+          const supera = g.utilidad > g.piso_usd;
           barra = `<div class="com-piso ${supera ? 'supera' : ''}"><div class="com-piso-fill" style="width:${pct}%"></div></div>`;
           pie = supera
-            ? `Bruta ${fUSD.format(g.comision)} − sueldo ${fUSD.format(g.piso_usd)}`
-            : `Bruta ${fUSD.format(g.comision)} de ${fUSD.format(g.piso_usd)} de sueldo · le faltan ${fUSD.format(g.piso_usd - g.comision)}`;
+            ? `Utilidad ${fUSD.format(g.utilidad)} − sueldo ${fUSD.format(g.piso_usd)} = <b>${fUSD.format(g.excedente)}</b> × ${pctTxt(g.pct)}`
+            : `Utilidad ${fUSD.format(g.utilidad)} de ${fUSD.format(g.piso_usd)} de sueldo · le faltan ${fUSD.format(g.piso_usd - g.utilidad)} para empezar a comisionar`;
         } else if (!vacio) {
-          pie = `Sin piso: se paga toda la comisión`;
+          pie = `Sin sueldo cargado: cobra su % de toda la utilidad`;
         }
       }
       return `<div class="com-tarjeta ${g.es_casa ? 'casa' : ''} ${vacio ? 'vacia' : ''} ${activa ? 'activa' : ''}" data-id="${g.vendedor_id}">

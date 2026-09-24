@@ -142,11 +142,11 @@
           </div>
           <div class="table-wrap">
             <table class="com-tabla">
-              <thead><tr><th>Vendedor / cliente</th><th class="num">Envíos</th><th class="num">Venta USD</th><th class="num">Utilidad USD</th><th class="num">%</th><th class="num">Comisión bruta</th><th class="num">Piso</th><th class="num">A pagar</th></tr></thead>
+              <thead><tr><th>Vendedor / cliente</th><th class="num">Envíos</th><th class="num">Venta USD</th><th class="num">Utilidad USD</th><th class="num">%</th><th class="num">% de la utilidad</th><th class="num">Sueldo (piso)</th><th class="num">A pagar</th></tr></thead>
               <tbody id="r-tabla"><tr><td colspan="8" class="empty">Cargando…</td></tr></tbody>
             </table>
           </div>
-          <p class="com-hist com-nota">La comisión se calcula sobre la <b>utilidad</b> (venta − costo) de los envíos que <b>salieron</b> en el mes, con el mismo número que muestra el Dashboard. Los envíos con utilidad negativa restan. <b>Piso</b>: el sueldo del vendedor pasado a dólares con el dólar del mes; se paga solo la comisión que lo supera.</p>
+          <p class="com-hist com-nota">La comisión se calcula sobre la <b>utilidad</b> (venta − costo) de los envíos que <b>salieron</b> en el mes, con el mismo número que muestra el Dashboard. Los envíos con utilidad negativa restan. <b>Sueldo (piso)</b>: el sueldo del vendedor pasado a dólares con el dólar del mes. Hasta que la utilidad de sus clientes cubre el sueldo no cobra comisión; de ahí para arriba se lleva su % de la utilidad que sobra. La columna "% de la utilidad" es el % sobre toda la utilidad, antes de descontar el sueldo.</p>
         </div>
       </section>
 
@@ -184,7 +184,7 @@
             <div class="form-group"><label for="v-pct">% comisión</label><input type="number" id="v-pct" min="0" max="100" step="0.5" value="0"></div>
             <button class="btn btn-primary btn-sm" id="v-agregar">Agregar</button>
           </div>
-          <p class="com-hist com-nota"><b>Piso mensual</b>: si está cargado, la comisión se paga solo por lo que supera ese monto en el mes (vacío = se paga toda). <b>Nova Express</b> es la casa: sus clientes no generan comisión. Un vendedor inactivo conserva su historial y no se puede asignar a clientes nuevos.</p>
+          <p class="com-hist com-nota"><b>Piso mensual</b> (sueldo): mientras la utilidad del mes de sus clientes no supere este monto, no cobra comisión; lo que la supera se comisiona a su %. Vacío = comisiona toda la utilidad. <b>Nova Express</b> es la casa: sus clientes no generan comisión. Un vendedor inactivo conserva su historial y no se puede asignar a clientes nuevos.</p>
         </div>
       </section>
     </div>
@@ -194,6 +194,6 @@
 <script src="/js/auth-guard.js?v=20260924b"></script>
 <script src="../js/api.js?v=20260924c"></script>
 <script src="../js/main.js?v=20260915a"></script>
-<script src="../js/modules/comisiones.js?v=20260924c"></script>
+<script src="../js/modules/comisiones.js?v=20260924d"></script>
 </body>
 </html>

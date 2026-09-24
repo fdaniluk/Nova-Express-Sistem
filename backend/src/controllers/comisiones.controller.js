@@ -34,13 +34,14 @@ const excel = manejar(async (req, res) => {
   const ws = wb.addWorksheet('Resumen');
   ws.columns = [{ header: 'Vendedor', key: 'v', width: 18 }, { header: 'Cliente', key: 'c', width: 32 }, { header: 'Envíos', key: 'n', width: 8 },
     { header: 'Venta USD', key: 'venta', width: 14, style: { numFmt: NUM } }, { header: 'Utilidad USD', key: 'u', width: 14, style: { numFmt: NUM } },
-    { header: '% comisión', key: 'p', width: 11 }, { header: 'Comisión bruta USD', key: 'com', width: 16, style: { numFmt: NUM } },
-    { header: 'Piso (sueldo) USD', key: 'piso', width: 16, style: { numFmt: NUM } }, { header: 'A pagar USD', key: 'pagar', width: 14, style: { numFmt: NUM } }];
+    { header: '% comisión', key: 'p', width: 11 }, { header: 'Comisión sin sueldo USD', key: 'com', width: 16, style: { numFmt: NUM } },
+    { header: 'Sueldo (piso) USD', key: 'piso', width: 16, style: { numFmt: NUM } }, { header: 'Utilidad sobre el sueldo USD', key: 'exc', width: 18, style: { numFmt: NUM } },
+    { header: 'A pagar USD', key: 'pagar', width: 14, style: { numFmt: NUM } }];
   cab(ws);
   ws.addRow({ v: `Mes ${mes}`, c: r.tc ? `TC ${r.tc} (${r.tc_fuente})` : 'Sin tipo de cambio cargado', n: '', venta: '', u: '', p: '', com: '', piso: '', pagar: '' }).font = { italic: true };
   const grupos = [...r.vendedores, ...(r.sin_asignar.envios ? [r.sin_asignar] : [])];
   for (const g of grupos) {
-    const fila = ws.addRow({ v: g.vendedor, c: `TOTAL ${g.vendedor}`, n: g.envios, venta: g.venta, u: g.utilidad, p: g.es_casa ? 'casa' : g.pct, com: g.comision, piso: g.piso_usd ?? '', pagar: g.a_pagar ?? (g.piso_estado === 'falta TC' ? 'falta TC' : '') });
+    const fila = ws.addRow({ v: g.vendedor, c: `TOTAL ${g.vendedor}`, n: g.envios, venta: g.venta, u: g.utilidad, p: g.es_casa ? 'casa' : g.pct, com: g.comision, piso: g.piso_usd ?? '', exc: g.excedente ?? '', pagar: g.a_pagar ?? (g.piso_estado === 'falta TC' ? 'falta TC' : '') });
     fila.font = { bold: true };
     for (const c of g.clientes) ws.addRow({ v: '', c: c.cliente, n: c.envios, venta: c.venta, u: c.utilidad, p: c.pct, com: c.comision });
   }

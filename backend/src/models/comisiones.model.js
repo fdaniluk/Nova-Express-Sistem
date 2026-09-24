@@ -197,17 +197,25 @@ async function resumen(mes, tcManual = null) {
     if (!c) { c = { cliente_id: e.cliente_id, cliente: e.cliente, pct: e.pct, pct_origen: e.pct_origen, envios: 0, venta: 0, utilidad: 0, comision: 0 }; g.clientes.set(e.cliente_id, c); }
     c.envios++; c.venta += e.venta; c.utilidad += e.utilidad; c.comision += e.comision;
   }
-  // Piso: la comisión se paga solo por lo que supera el sueldo del mes. Si el piso está
-  // en pesos y no hay TC, no se puede calcular → a_pagar null y se avisa.
+  // Piso (Felipe, 24/09): el sueldo se compara contra la UTILIDAD que trajo el vendedor.
+  // Hasta cubrir el sueldo no cobra nada; de ahí para arriba se lleva su % de la utilidad
+  // que sobra. Ej.: sueldo $1.500.000 / TC 1450 = US$ 1.034,48; utilidad US$ 1.659,42 →
+  // sobran US$ 624,94 × 30 % = US$ 187,48.
+  // Si algún cliente tiene % especial, la comisión de la parte que sobra se reparte en
+  // proporción (comisión bruta × sobrante / utilidad); con un solo % da lo mismo.
+  // Si el piso está en pesos y no hay TC, no se puede calcular → a_pagar null y se avisa.
   const fin = (g) => {
-    let piso_usd = null, a_pagar = r2(g.comision), piso_estado = 'sin piso';
+    let piso_usd = null, a_pagar = r2(g.comision), piso_estado = 'sin piso', excedente = null;
     if (!g.es_casa && g.piso_mensual != null && g.piso_mensual > 0) {
       if (g.piso_moneda === 'USD') piso_usd = g.piso_mensual;
       else if (tc) piso_usd = r2(g.piso_mensual / tc);
-      if (piso_usd != null) { a_pagar = r2(Math.max(0, g.comision - piso_usd)); piso_estado = g.comision >= piso_usd ? 'superado' : 'no alcanzado'; }
-      else { a_pagar = null; piso_estado = 'falta TC'; }
+      if (piso_usd != null) {
+        excedente = r2(Math.max(0, g.utilidad - piso_usd));
+        a_pagar = g.utilidad > 0 ? r2(g.comision * (excedente / g.utilidad)) : 0;
+        piso_estado = g.utilidad >= piso_usd ? 'superado' : 'no alcanzado';
+      } else { a_pagar = null; piso_estado = 'falta TC'; }
     }
-    return { ...g, venta: r2(g.venta), utilidad: r2(g.utilidad), comision: r2(g.comision), piso_usd, a_pagar, piso_estado,
+    return { ...g, venta: r2(g.venta), utilidad: r2(g.utilidad), comision: r2(g.comision), piso_usd, excedente, a_pagar, piso_estado,
       clientes: [...g.clientes.values()].map((c) => ({ ...c, venta: r2(c.venta), utilidad: r2(c.utilidad), comision: r2(c.comision) })).sort((a, b) => b.utilidad - a.utilidad) };
   };
   const lista = [...grupos.values()].filter((g) => g.vendedor_id !== null && (g.envios > 0 || vendedores.find((v) => v.id === g.vendedor_id && v.activo))).map(fin);
