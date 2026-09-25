@@ -4,6 +4,7 @@ const { getDb } = require('../db');
 const { extraerFacturaUPS } = require('../services/factura-ups.service');
 const { hoyLocal } = require('../utils/fecha');
 const configuracionModel = require('../models/configuracion.model');
+const cargosModel = require('../models/envio-cargos.model');
 
 const router = Router();
 const upload = multer({
@@ -272,6 +273,16 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
                   updated_at           = datetime('now', 'localtime')
               WHERE id = ?
             `).run(guia.costo_total, fecha_factura || hoy, envio.id);
+            // Cargo posterior (25/09): los impuestos se le cobran al cliente solos. Si el
+            // envío todavía no se liquidó, entran en su liquidación; si ya se liquidó,
+            // quedan pendientes y salen en la próxima del cliente como "cargo de envío
+            // anterior". Si ya se le cobraron y la factura se recarga con otro monto, no
+            // se toca: se avisa en el resumen.
+            const rc = await cargosModel.registrarImpuestos(db, envio.id, guia.costo_total, fecha_factura || hoy);
+            if (rc.accion === 'ya_liquidado') {
+              resumen.impuestos_ya_liquidados = (resumen.impuestos_ya_liquidados || 0) + 1;
+              (resumen.impuestos_ya_liquidados_lista = resumen.impuestos_ya_liquidados_lista || []).push({ numero_guia: guia.numero_guia, liquidacion_id: rc.liquidacion_id, importe: guia.costo_total });
+            }
             enviosConImpuestos.push(envio.id);
             resumen.guardadas++;
             await db.exec('RELEASE SAVEPOINT factura_row');

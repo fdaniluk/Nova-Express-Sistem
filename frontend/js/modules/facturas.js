@@ -320,6 +320,8 @@
     return `<div class="fac-tipo-banner">
       <strong>Factura de IMPUESTOS DDP</strong> — gastos de importación en destino.
       Se cruzó con ${res.guardadas === 1 ? 'su envío' : 'sus envíos'} por guía. No toca el costo del flete ni la revisión.
+      Los impuestos quedan como <strong>cargo al cliente</strong>: entran en la liquidación del envío o, si ya estaba liquidado, en la próxima liquidación del cliente como "cargo de envío anterior".
+      ${res.impuestos_ya_liquidados > 0 ? `<br><strong>Ojo:</strong> ${res.impuestos_ya_liquidados} ${res.impuestos_ya_liquidados === 1 ? 'guía ya tenía sus impuestos cobrados' : 'guías ya tenían sus impuestos cobrados'} en una liquidación confirmada y el monto cambió; no se tocó: ${(res.impuestos_ya_liquidados_lista || []).map((g) => `${g.numero_guia} (liq. #${g.liquidacion_id})`).join(', ')}.` : ''}
     </div>`;
   }
 

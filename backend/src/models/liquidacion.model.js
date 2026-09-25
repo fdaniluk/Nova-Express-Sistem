@@ -5,6 +5,7 @@ const { redondear2, cotizarEnvio } = require('../services/calculos.service');
 const { descomponerVenta, detallarAdicional } = require('../utils/desgloseVenta');
 const { hoyLocal } = require('../utils/fecha');
 const ccModel = require('./cuenta-corriente.model');
+const cargosModel = require('./envio-cargos.model');
 
 // Migración automática: agrega columnas nuevas si no existen
 async function migrarColumnas() {
@@ -98,7 +99,7 @@ async function calcularItem(envio, adicional = 0, cargosDetalle = []) {
   if (adicManual > 0) {
     const conNombre = (cargosDetalle || []).filter((c) => Number(c.monto) > 0);
     if (conNombre.length) {
-      for (const c of conNombre) adicionalDetalle.push({ tipo: 'manual', label: c.descripcion || 'Adicional de esta liquidación', monto: redondear2(c.monto) });
+      for (const c of conNombre) adicionalDetalle.push({ tipo: c.tipo || 'manual', label: c.descripcion || 'Adicional de esta liquidación', monto: redondear2(c.monto) });
     } else {
       adicionalDetalle.push({ tipo: 'manual', label: 'Adicional de esta liquidación', monto: adicManual });
     }
@@ -199,6 +200,21 @@ async function preview({ cliente_id, envio_ids, cargos = [], cotizaciones = [] }
     cargoMap[c.envio_id] = (cargoMap[c.envio_id] || 0) + (Number(c.monto) || 0);
     (cargosPorEnvio[c.envio_id] = cargosPorEnvio[c.envio_id] || []).push(c);
   }
+  // Cargos posteriores (25/09/2026): lo que se agregó desde Salidas o los impuestos DDP
+  // que facturó UPS después de cargar el envío. Los de ESTOS envíos entran en su ítem,
+  // al costo, con su nombre. Los pendientes de envíos del cliente que YA se liquidaron
+  // van aparte, en "Cargos de envíos anteriores", y se suman al total.
+  const pendPorEnvio = await cargosModel.pendientesDeEnvios(envio_ids, db);
+  const cargosEnviosIds = [];
+  for (const [envioId, lista] of Object.entries(pendPorEnvio)) {
+    for (const c of lista) {
+      cargoMap[envioId] = (cargoMap[envioId] || 0) + c.monto;
+      (cargosPorEnvio[envioId] = cargosPorEnvio[envioId] || []).push({ envio_id: Number(envioId), monto: c.monto, descripcion: c.label, tipo: 'cargo', cargo_id: c.id });
+      cargosEnviosIds.push(c.id);
+    }
+  }
+  const cargos_anteriores = await cargosModel.pendientesAnterioresDeCliente(cliente_id, db);
+  const total_cargos_anteriores = redondear2(cargos_anteriores.reduce((s, c) => s + c.monto, 0));
 
   // `cotizaciones` se sigue aceptando para no romper la API y el botón manual "Cotizar"
   // por fila, pero la liquidación YA NO recotiza: el desglose se arma leyendo lo guardado
@@ -208,11 +224,18 @@ async function preview({ cliente_id, envio_ids, cargos = [], cotizaciones = [] }
   const items = await Promise.all(
     envios.map((e) => calcularItem(e, cargoMap[e.id] || 0, cargosPorEnvio[e.id] || []))
   );
-  const total = redondear2(items.reduce((s, i) => s + i.total_usd, 0));
+  for (const it of items) it.cargos_posteriores = pendPorEnvio[it.envio_id] || [];
+  const total_envios = redondear2(items.reduce((s, i) => s + i.total_usd, 0));
+  const total = redondear2(total_envios + total_cargos_anteriores);
   const utilidadTotal = redondear2(items.reduce((s, i) => s + (i.utilidad_usd || 0), 0));
   // Pendiente 52: la vista previa avisa si alguno de estos envíos ya está en otro borrador.
   const en_borrador = await borradoresConEnvios(envio_ids);
-  return { items, total, utilidad_total: utilidadTotal, cantidad: items.length, en_borrador };
+  return {
+    items, total, total_envios, cargos_anteriores, total_cargos_anteriores,
+    utilidad_total: utilidadTotal, cantidad: items.length, en_borrador,
+    // Interno: ids de envio_cargos que esta vista previa metió en los ítems (crear los ata).
+    _cargos_envios_ids: cargosEnviosIds,
+  };
 }
 
 async function crear({
@@ -297,10 +320,19 @@ async function crear({
       for (const c of list) {
         await insertCargo.run(item.envio_id, liquidacionId, c.descripcion || 'Adicional', c.monto);
       }
-      if (item.adicional > 0 && list.length === 0) {
+      // La fila espejo "Cargo adicional" no se escribe si el Adicional viene de un cargo
+      // posterior (ese ya tiene su propia fila en envio_cargos, con nombre).
+      const conCargoPosterior = (item.cargos_posteriores || []).length > 0;
+      if (item.adicional > 0 && list.length === 0 && !conCargoPosterior) {
         await insertCargo.run(item.envio_id, liquidacionId, 'Cargo adicional', item.adicional);
       }
     }
+
+    // Cargos posteriores: quedan atados a esta liquidación (los de sus envíos y los de
+    // envíos anteriores del cliente). Si el borrador se borra, se sueltan (eliminarBorrador).
+    await cargosModel.asignarLiquidacion(
+      previewData._cargos_envios_ids.concat(previewData.cargos_anteriores.map((c) => c.id)), liquidacionId, db
+    );
 
     if (confirmar) {
       // hoyLocal(): toISOString() es UTC y dejaba una liquidación confirmada el 31 a las
@@ -394,6 +426,20 @@ async function confirmar(id, envioIdsEsperados = null, usuario = null) {
   // Defecto 3: confirmar un borrador con ítems en cero también se frena acá.
   validarSinCeros(liq.items);
 
+  // Cargos posteriores (25/09): si después de armar el borrador entró un cargo (un
+  // extracargo desde Salidas o los impuestos DDP de una factura), no se confirma sin
+  // que la oficina lo vea. Se pide recalcular: la vista previa nueva lo incluye sola.
+  const nuevos = await cargosModel.pendientesFueraDe(id, liq.cliente_id, envioIds, db);
+  if (nuevos.length) {
+    const lista = nuevos.map((c) => `${c.numero_guia ? c.numero_guia : 'envío ' + c.envio_id}: ${c.label} USD ${c.monto.toFixed(2)}`).join('; ');
+    const err = new Error(
+      `Hay ${nuevos.length === 1 ? 'un cargo nuevo' : nuevos.length + ' cargos nuevos'} que este borrador no tiene (${lista}). ` +
+      'Apretá Calcular de nuevo para incluirlos y después confirmá.'
+    );
+    err.status = 409;
+    throw err;
+  }
+
   const fecha = hoyLocal();
 
   await db.transaction(async () => {
@@ -437,6 +483,10 @@ async function buscarPorId(id) {
   const cargos = await db
     .prepare('SELECT * FROM cargos_adicionales WHERE liquidacion_id = ?')
     .all(id);
+  // Cargos posteriores de esta liquidación: los de sus envíos se suman a `cargos` (rotulan
+  // el desglose del ítem, igual que los manuales); los de envíos anteriores van aparte.
+  const posteriores = await cargosModel.deLiquidacion(id, db);
+  for (const c of posteriores.enItems) cargos.push({ envio_id: c.envio_id, descripcion: c.label, monto: c.monto, tipo: 'cargo', cargo_id: c.id });
 
   // Detalle del Adicional de cada ítem (07/09): se deriva del envío con el MISMO helper que
   // usó el cálculo (read-only, no toca lo confirmado). Los envíos liquidados tienen la plata
@@ -461,7 +511,7 @@ async function buscarPorId(id) {
       const filas = cargos.filter((c) => c.envio_id === it.envio_id && Number(c.monto) > 0);
       const sumaFilas = redondear2(filas.reduce((s, c) => s + Number(c.monto), 0));
       if (filas.length && Math.abs(sumaFilas - manual) < 0.011) {
-        for (const c of filas) detalle.push({ tipo: 'manual', label: c.descripcion || 'Adicional de esta liquidación', monto: redondear2(c.monto) });
+        for (const c of filas) detalle.push({ tipo: c.tipo || 'manual', label: c.descripcion || 'Adicional de esta liquidación', monto: redondear2(c.monto) });
       } else {
         detalle.push({ tipo: 'manual', label: 'Adicional de esta liquidación', monto: manual });
       }
@@ -471,7 +521,10 @@ async function buscarPorId(id) {
     delete it.envio_otros; delete it.envio_seguro; delete it.envio_seguro_venta;
   }
 
-  return { ...liq, items, cargos };
+  const total_envios = redondear2(items.reduce((s, it) => s + (Number(it.total_usd) || 0), 0));
+  const cargos_anteriores = posteriores.anteriores;
+  const total_cargos_anteriores = redondear2(cargos_anteriores.reduce((s, c) => s + c.monto, 0));
+  return { ...liq, items, cargos, cargos_anteriores, total_envios, total_cargos_anteriores };
 }
 
 async function listar(filtros = {}) {
@@ -524,6 +577,8 @@ async function eliminarBorrador(id) {
     // Los cargos adicionales pertenecen al ENVÍO; al morir el borrador quedan sueltos
     // (liquidacion_id NULL) y los levanta el próximo, igual que sus envíos.
     await db.prepare('UPDATE cargos_adicionales SET liquidacion_id = NULL WHERE liquidacion_id = ?').run(id);
+    // Los cargos posteriores vuelven a pendientes: los levanta la próxima liquidación.
+    await cargosModel.liberarDeLiquidacion(id, db);
     await db.prepare('DELETE FROM liquidaciones WHERE id = ?').run(id);
   });
   return true;

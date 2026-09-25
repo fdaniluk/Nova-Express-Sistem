@@ -220,3 +220,14 @@ th.liq-interno { color: #166534; font-size: .7rem; }
   .liq-preview .liq-tabla { font-size: .78rem; }
   .liq-lateral { position: static; }
 }
+
+/* Cargos de envíos anteriores (25/09/2026): sección propia debajo de la tabla de la vista previa. */
+.liq-cargos-ant { border: 1px solid #F6C3B4; border-left: 4px solid var(--color-accent); border-radius: 10px; padding: .7rem .9rem; background: #FFFBF9; }
+.liq-cargos-ant[hidden] { display: none; }
+.liq-cargos-ant-head { display: flex; flex-direction: column; gap: .15rem; margin-bottom: .5rem; }
+.liq-cargos-ant-head strong { color: var(--color-primary); }
+.liq-cargos-ant .liq-hint { margin: 0; }
+.liq-tabla-ant { font-size: .84rem; }
+.liq-tabla-ant tfoot td { font-weight: 600; }
+.liq-tabla-ant tfoot .liq-total-general td { font-weight: 700; color: var(--color-primary); border-top: 1px solid var(--color-border); }
+.liq-chip.cargo-ant { background: #FFF4EF; color: #B4492F; border: 1px solid #F6C3B4; cursor: help; }

@@ -567,6 +567,81 @@ async function exportarLiquidacion(liquidacion) {
   ws.getColumn(3).width = Math.max(ws.getColumn(3).width || 0, 16);
   ws.getColumn(13).width = Math.max(ws.getColumn(13).width || 0, 13);
 
+  // ── Cargos de envíos anteriores (25/09/2026) ──
+  // Extracargos o impuestos DDP que llegaron DESPUÉS de que el envío ya estaba liquidado:
+  // se cobran en esta liquidación, en su propia sección, con la guía y la fecha del envío.
+  // Cuando existen, la fila TOTAL de arriba es solo de los envíos; acá se cierra el total
+  // general de la liquidación.
+  const anteriores = Array.isArray(liquidacion.cargos_anteriores) ? liquidacion.cargos_anteriores : [];
+  if (anteriores.length) {
+    totalRow.getCell(1).value = 'TOTAL ENVÍOS';
+    let ra = dataRowNum + 2;
+    ws.mergeCells(ra, 1, ra, COL_COUNT);
+    ws.getCell(ra, 1).value = 'CARGOS DE ENVÍOS ANTERIORES';
+    ws.getCell(ra, 1).font = STYLES.subtitle.font;
+    ws.getRow(ra).height = 18;
+    ra++;
+    ws.mergeCells(ra, 1, ra, COL_COUNT);
+    ws.getCell(ra, 1).value = 'Cargos que el courier informó después de liquidado el envío (impuestos de destino, sobrepeso, área remota, etc.).';
+    ws.getCell(ra, 1).font = STYLES.noteFont;
+    ra++;
+    const subA = [['FECHA ENVÍO', 1, 1], ['Nº ENVIO', 2, 4], ['CONCEPTO', 5, 11], ['USD', 12, 13]];
+    for (const [label, c1, c2] of subA) {
+      if (c2 > c1) ws.mergeCells(ra, c1, ra, c2);
+      const cell = ws.getCell(ra, c1);
+      cell.value = label;
+      cell.fill = STYLES.subHeaderFill;
+      cell.font = STYLES.subHeaderFont;
+      cell.alignment = { horizontal: label === 'USD' ? 'right' : (c1 === 1 ? 'center' : 'left'), vertical: 'middle' };
+      for (let c = c1; c <= c2; c++) ws.getCell(ra, c).border = BORDES;
+    }
+    ra++;
+    let totalAnt = 0;
+    anteriores.forEach((c, i) => {
+      const fill = i % 2 === 0 ? STYLES.rowWhite : STYLES.rowAlt;
+      ws.mergeCells(ra, 2, ra, 4);
+      ws.mergeCells(ra, 5, ra, 11);
+      ws.mergeCells(ra, 12, ra, 13);
+      ws.getCell(ra, 1).value = parseFechaExcel(c.envio_fecha);
+      ws.getCell(ra, 1).numFmt = FMT_DATE;
+      ws.getCell(ra, 2).value = c.numero_guia || '';
+      ws.getCell(ra, 5).value = c.label;
+      ws.getCell(ra, 12).value = Number(c.monto) || 0;
+      ws.getCell(ra, 12).numFmt = FMT_MONEY;
+      for (let col = 1; col <= COL_COUNT; col++) {
+        setCellStyle(ws.getCell(ra, col), { fill, font: col === 2 ? { ...STYLES.rowFont, bold: true } : STYLES.rowFont });
+        ws.getCell(ra, col).border = BORDES;
+      }
+      ws.getCell(ra, 1).alignment = { horizontal: 'center', vertical: 'middle' };
+      ws.getCell(ra, 12).alignment = { horizontal: 'right', vertical: 'middle' };
+      ws.getRow(ra).height = 16;
+      totalAnt += Number(c.monto) || 0;
+      ra++;
+    });
+    ws.mergeCells(ra, 1, ra, 11);
+    ws.mergeCells(ra, 12, ra, 13);
+    ws.getCell(ra, 1).value = 'TOTAL CARGOS DE ENVÍOS ANTERIORES';
+    ws.getCell(ra, 12).value = Math.round(totalAnt * 100) / 100;
+    ws.getCell(ra, 12).numFmt = FMT_MONEY;
+    for (let col = 1; col <= COL_COUNT; col++) {
+      setCellStyle(ws.getCell(ra, col), { fill: STYLES.totalFill, font: STYLES.totalFont });
+      ws.getCell(ra, col).alignment = { vertical: 'middle', horizontal: col === 1 ? 'right' : 'right' };
+    }
+    ws.getRow(ra).height = 18;
+    ra++;
+    ws.mergeCells(ra, 1, ra, 11);
+    ws.mergeCells(ra, 12, ra, 13);
+    ws.getCell(ra, 1).value = 'TOTAL LIQUIDACIÓN';
+    ws.getCell(ra, 12).value = Math.round((totals.total_usd + totalAnt) * 100) / 100;
+    ws.getCell(ra, 12).numFmt = FMT_MONEY;
+    for (let col = 1; col <= COL_COUNT; col++) {
+      setCellStyle(ws.getCell(ra, col), { fill: STYLES.totalFill, font: { ...STYLES.totalFont, size: (STYLES.totalFont.size || 10) + 1 } });
+      ws.getCell(ra, col).alignment = { vertical: 'middle', horizontal: 'right' };
+    }
+    ws.getRow(ra).height = 20;
+    dataRowNum = ra;
+  }
+
   // ── Detalle de adicionales (07/09): qué compone la columna ADICIONAL, guía por guía ──
   // Surge (con su fuel), GoGreen, manejo, remota, derechos, extras manuales… Solo se dibuja
   // si alguna guía tiene algo que desglosar.

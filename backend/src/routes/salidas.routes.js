@@ -8,6 +8,7 @@ const configuracionModel = require('../models/configuracion.model');
 const cierreService = require('../services/cierre.service');
 const { hoyLocal } = require('../utils/fecha');
 const { requireCierre } = require('../middleware/auth');
+const cargosModel = require('../models/envio-cargos.model');
 
 const router = Router();
 
@@ -118,11 +119,16 @@ async function listarSalidas({ desde, hasta } = {}) {
     -- manual). La consume deriveProfit para la rama de costo real: cuando el envío está
     -- liquidado, el costo real se resta contra ESTA venta (la completa), no contra
     -- total_cobrado. Pre-agregado por envío para no duplicar filas. SOLO lectura.
+    -- Los impuestos DDP que entraron en el ítem se restan: UPS los factura aparte del
+    -- flete (no están en costo_facturado), así que no son venta a comparar con el costo.
     LEFT JOIN (
-      SELECT envio_id, SUM(total_usd) AS venta_liq
-      FROM liquidacion_items
-      WHERE liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
-      GROUP BY envio_id
+      SELECT li.envio_id,
+             SUM(li.total_usd) - COALESCE((SELECT SUM(ec.monto) FROM envio_cargos ec
+                                           WHERE ec.envio_id = li.envio_id AND ec.origen = 'impuestos_ddp'
+                                             AND ec.anulado_at IS NULL AND ec.liquidacion_id = li.liquidacion_id), 0) AS venta_liq
+      FROM liquidacion_items li
+      WHERE li.liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
+      GROUP BY li.envio_id
     ) li ON li.envio_id = e.id
     WHERE 1=1`;
 
@@ -214,6 +220,10 @@ async function listarSalidas({ desde, hasta } = {}) {
   // por esa guía. Puede haber VARIAS filas por envío si la factura se recargó; nos quedamos
   // con la MÁS RECIENTE (mayor id). Una sola query (sin N+1), indexada por envio_id igual
   // que bultosPorEnvio. Sin factura cargada → el envío no está en el mapa → array vacío.
+  // Cargos posteriores (25/09): extracargos agregados desde Salidas e impuestos DDP. Van
+  // en la fila para el chip "cargo pendiente" y el bloque del modal.
+  const cargosPorEnvio = await cargosModel.porEnvios(rows.map((r) => r.id), db);
+
   const recargosPorEnvio = new Map();
   if (envioIds.length > 0) {
     const placeholders = envioIds.map(() => '?').join(', ');
@@ -360,6 +370,9 @@ async function listarSalidas({ desde, hasta } = {}) {
     no_volo_en: row.no_volo_en ?? null,
     liquidado: Boolean(row.liquidado),
     fecha_liquidacion: row.fecha_liquidacion,
+    liquidacion_id: row.liquidacion_id ?? null,
+    cargos: cargosPorEnvio.get(row.id) || [],
+    cargos_pendientes: (cargosPorEnvio.get(row.id) || []).filter((c) => c.estado === 'pendiente').reduce((s, c) => s + c.monto, 0),
     bultos: bultosDe(row),
   }));
 
@@ -384,6 +397,39 @@ router.get('/', async (req, res, next) => {
 // en el mismo lugar, que es justo lo que este mecanismo viene a evitar.
 //
 // Va ANTES de cualquier ruta con :id, para que 'exportar' no se lea como un id.
+
+// ── Cargos posteriores (25/09/2026) ──────────────────────────────────────────────────
+// Extracargos que se agregan DESPUÉS de cargado el envío (manejo, sobrepeso, área remota,
+// DDP…). Van al costo y se le cobran al cliente en la liquidación del envío o, si ya está
+// liquidado, en la próxima del cliente (ver models/envio-cargos.model.js).
+router.get('/cargos/tipos', (req, res) => res.json(cargosModel.TIPOS));
+
+router.get('/:id/cargos', async (req, res, next) => {
+  try {
+    res.json(await cargosModel.listarDeEnvio(parseInt(req.params.id, 10)));
+  } catch (e) { next(e); }
+});
+
+router.post('/:id/cargos', async (req, res, next) => {
+  try {
+    const cargo = await cargosModel.agregar(parseInt(req.params.id, 10), req.body || {}, req.usuario);
+    res.status(201).json(cargo);
+  } catch (e) {
+    if (e.status) return res.status(e.status).json({ error: e.message });
+    next(e);
+  }
+});
+
+router.delete('/:id/cargos/:cargoId', async (req, res, next) => {
+  try {
+    const c = await cargosModel.obtener(parseInt(req.params.cargoId, 10));
+    if (!c || Number(c.envio_id) !== parseInt(req.params.id, 10)) return res.status(404).json({ error: 'Cargo inexistente' });
+    res.json(await cargosModel.anular(c.id, req.usuario));
+  } catch (e) {
+    if (e.status) return res.status(e.status).json({ error: e.message });
+    next(e);
+  }
+});
 router.get('/exportar', requireCierre, async (req, res, next) => {
   try {
     const { tipo, mes, semana, desde, hasta } = req.query || {};

@@ -1681,3 +1681,36 @@ body.salidas-page .page-header.sal-header {
   .sal-suma { right: 10px; left: 10px; bottom: 28px; justify-content: center; gap: 0.6rem;
     font-size: 0.8rem; padding-left: 0.7rem; }
 }
+
+/* ── Cargos posteriores (25/09/2026) ─────────────────────────────────────────────
+   Extracargos que aparecen después de cargado el envío. Chip naranja en la grilla
+   mientras están pendientes de cobrar; bloque propio en el modal, debajo del desglose. */
+.chip-cargo {
+  display: inline-block; font-size: 10px; font-weight: 700; line-height: 1;
+  padding: 2px 5px; border-radius: 4px; white-space: nowrap; cursor: help;
+  background: #FFF4EF; border: 1px solid #F6C3B4; color: #B4492F;
+}
+.saled-cargos { margin-top: 0.7rem; }
+.saled-cargos-help {
+  display: inline-flex; align-items: center; justify-content: center; width: 14px; height: 14px;
+  border-radius: 50%; background: var(--color-primary); color: #fff; font-size: 9px; margin-left: 4px; cursor: help;
+}
+.saled-cargo-meta { color: var(--color-muted); font-size: 11px; }
+.saled-cargo-est {
+  display: inline-block; font-size: 10px; font-weight: 700; line-height: 1; padding: 2px 5px;
+  border-radius: 4px; margin-left: 4px; vertical-align: middle;
+}
+.saled-cargo-est.pend { background: #FFF4EF; color: #B4492F; border: 1px solid #F6C3B4; }
+.saled-cargo-est.liq { background: #EEF0F7; color: var(--color-primary); border: 1px solid #C9CFE3; }
+.saled-cargo-est.anulado { background: #F3F4F6; color: #6B7280; }
+.saled-cargo-del {
+  background: none; border: none; color: #9CA3AF; cursor: pointer; font-size: 14px; line-height: 1; padding: 0 2px; vertical-align: middle;
+}
+.saled-cargo-del:hover { color: var(--color-danger); }
+.saled-cargo-add { margin-top: 0.5rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+.saled-cargo-form { display: flex; align-items: center; gap: 0.4rem; flex-wrap: wrap; }
+.saled-cargo-form select, .saled-cargo-form input {
+  padding: 0.35rem 0.5rem; border: 1px solid var(--color-border); border-radius: 6px; font: inherit; font-size: 12.5px;
+}
+.saled-cargo-form input[type=number] { width: 130px; }
+.saled-cargo-form input[type=text] { width: 200px; }

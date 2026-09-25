@@ -1250,6 +1250,8 @@ async function initSchema() {
   await migrateRazonesSociales();
   await migrateComisiones();
   await migratePagosEntrantes();
+  // Cargos posteriores (extracargos desde Salidas + impuestos DDP) — 25/09/2026.
+  await require('../models/envio-cargos.model').migrar(dbApi);
   await migrateUpsAreas();
   await migrateCierres();
   await migrateFuelNova();

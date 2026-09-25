@@ -591,7 +591,7 @@
     tr.innerHTML = `
       <td class="chk-cell">${chkCell}</td>
       <td data-col="numero_salida" class="numsal-cell" title="Marcar fila">${fmtNum(e.num_sal_mes)}</td>
-      <td data-col="courier">${env(courierBadge(e.courier) + tarifa50Chip(e) + ddpChip(e))}</td>
+      <td data-col="courier">${env(courierBadge(e.courier) + tarifa50Chip(e) + ddpChip(e) + cargoChip(e))}</td>
       <td data-col="fecha">${env(NovaUtils.formatDate(e.fecha))}</td>
       <td class="mono${guiaMalaAttrs(e.courier, bultoGuia)}" data-col="numero_guia"><span class="bulto-guia-text">${esc(bultoGuia)}</span>${bultoGuiaEdit}${guiaIcons}</td>
       <td data-col="tipo_cobro">${env(cobroBadge(e.tipo_cobro))}</td>
@@ -2018,7 +2018,22 @@
     if (imp == null) {
       return ` <span class="chip-ddp chip-ddp-espera" title="Envío DDP: los impuestos de destino los paga Nova y se le liquidan al cliente aparte. La factura de impuestos de UPS todavía no llegó (suele tardar 1 a 2 meses).">DDP</span>`;
     }
-    return ` <span class="chip-ddp chip-ddp-facturado" title="Envío DDP. UPS facturó USD ${Number(imp).toFixed(2)} de impuestos de destino${fecha ? ' el ' + fecha : ''}. Pendiente de liquidar al cliente.">DDP ${fmtUSD(imp)}</span>`;
+    const cImp = (e.cargos || []).find((c) => c.origen === 'impuestos_ddp' && c.estado !== 'anulado');
+    const est = !cImp ? 'Pendiente de liquidar al cliente.'
+      : cImp.estado === 'liquidado' ? `Cobrado al cliente en la liquidación #${cImp.liquidacion_id}.`
+      : 'Pendiente de cobrar al cliente (entra solo en la próxima liquidación).';
+    return ` <span class="chip-ddp chip-ddp-facturado" title="Envío DDP. UPS facturó USD ${Number(imp).toFixed(2)} de impuestos de destino${fecha ? ' el ' + fecha : ''}. ${est}">DDP ${fmtUSD(imp)}</span>`;
+  }
+
+  // Cargos posteriores (25/09/2026): extracargos agregados desde Salidas después de cargar
+  // el envío, o los impuestos DDP de la factura. Naranja mientras están pendientes de
+  // cobrar; se apaga cuando entran en una liquidación.
+  function cargoChip(e) {
+    const pend = Number(e.cargos_pendientes) || 0;
+    if (!(pend > 0)) return '';
+    const n = (e.cargos || []).filter((c) => c.estado === 'pendiente');
+    const det = n.map((c) => `${c.label} USD ${Number(c.monto).toFixed(2)}`).join(' · ');
+    return ` <span class="chip-cargo" title="Cargo pendiente de cobrar al cliente: ${escAttr(det)}. ${e.liquidado ? 'El envío ya está liquidado: va en la próxima liquidación del cliente como cargo de envío anterior.' : 'Entra en la liquidación de este envío.'}">cargo ${fmtUSD(pend)}</span>`;
   }
 
   function cobroBadge(c) {
@@ -2243,6 +2258,11 @@
               <div class="form-group"><label>Otros</label><input type="number" id="saled-otros" step="0.01"></div>
             </div>
             <div id="saled-extras-block" class="saled-extras"></div>
+            <!-- Cargos posteriores (25/09/2026): extracargos que aparecen DESPUÉS de cargado
+                 el envío (manejo, sobrepeso, área remota, DDP…). Van al costo y se le cobran
+                 al cliente en la liquidación del envío o, si ya está liquidado, en la
+                 próxima del cliente. -->
+            <div id="saled-cargos-block" class="saled-cargos"></div>
           </div>
           <div class="form-group">
             <label>Observaciones</label>
@@ -2482,6 +2502,7 @@
     editTarifa50Dirty = false;
     pintarAvisoTarifa50();
     renderExtrasBlock();
+    renderCargosBlock();
 
     // Peso y medidas. Multi-bulto = más de un bulto: las medidas salen de cada bulto y el
     // peso balanza es la suma (no editable arriba). Bulto único = campos sueltos editables.
@@ -2825,6 +2846,111 @@
       <div id="saled-extras-warn" class="saled-extras-warn hidden">Total ajustado a mano — el desglose puede no coincidir.</div>`;
 
     updateExtrasWarn();
+  }
+
+  // ── Cargos posteriores (25/09/2026) ────────────────────────────────────────────
+  const CARGO_TIPOS = [
+    ['manejo', 'Cargo por manejo'], ['sobrepeso', 'Sobrepeso'], ['mayor_tamano', 'Paquete de mayor tamaño'],
+    ['remota', 'Área remota'], ['residencial', 'Entrega residencial'], ['ddp', 'Impuestos de destino (DDP)'], ['otro', 'Otro (escribir)'],
+  ];
+
+  function cargoEstadoHtml(c) {
+    if (c.estado === 'anulado') return '<span class="saled-cargo-est anulado">anulado</span>';
+    if (c.estado === 'liquidado') {
+      return `<span class="saled-cargo-est liq" title="Ya está en la liquidación #${c.liquidacion_id}${c.liquidacion_estado === 'borrador' ? ' (borrador)' : ''}">liq. #${c.liquidacion_id}${c.liquidacion_estado === 'borrador' ? ' (borrador)' : ''}</span>`;
+    }
+    return '<span class="saled-cargo-est pend" title="Todavía no se le cobró al cliente: entra en la próxima liquidación">pendiente</span>';
+  }
+
+  function renderCargosBlock() {
+    const block = document.getElementById('saled-cargos-block');
+    if (!block || !editEnvio) return;
+    const cargos = (editEnvio.cargos || []).filter((c) => c.estado !== 'anulado');
+    const rows = cargos.map((c) => `
+      <div class="saled-extra-row saled-cargo-row">
+        <span class="saled-extra-label">${esc(c.label)}<span class="saled-cargo-meta"> · ${NovaUtils.formatDate(c.fecha)}${c.origen === 'impuestos_ddp' ? ' · factura UPS' : (c.creado_por ? ' · ' + esc(c.creado_por) : '')}</span> ${cargoEstadoHtml(c)}</span>
+        <span class="saled-extra-monto">${fmtUSD(c.monto)}${c.estado === 'pendiente' ? ` <button type="button" class="saled-cargo-del" data-cargo-id="${c.id}" title="Anular este cargo (todavía no se cobró)">×</button>` : ''}</span>
+      </div>`).join('');
+    const pend = cargos.filter((c) => c.estado === 'pendiente').reduce((s, c) => s + parseNum(c.monto), 0);
+    const destino = editEnvio.liquidado
+      ? 'El envío ya está liquidado: lo pendiente va en la próxima liquidación del cliente como "cargo de envío anterior".'
+      : 'Entra en la liquidación de este envío, como una línea más del Adicional.';
+    block.innerHTML = `
+      <div class="saled-extras-title">Cargos posteriores <span class="saled-cargos-help" title="Extracargos que aparecen después de cargado el envío (manejo, sobrepeso, área remota, impuestos DDP…). Van al costo, sin profit, y se le cobran al cliente. ${escAttr(destino)}">?</span></div>
+      ${cargos.length ? `<div class="saled-extras-list">${rows}${pend > 0 ? `
+        <div class="saled-extra-row saled-extra-total"><span class="saled-extra-label">Pendiente de cobrar</span><span class="saled-extra-monto">${fmtUSD(pend)}</span></div>` : ''}
+      </div>` : '<div class="saled-extras-empty">Sin cargos posteriores</div>'}
+      <div class="saled-cargo-add">
+        <button type="button" class="btn btn-secondary btn-sm btn-dashed" id="saled-cargo-btn">+ Agregar cargo</button>
+        <form id="saled-cargo-form" class="saled-cargo-form hidden">
+          <select id="saled-cargo-tipo">${CARGO_TIPOS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
+          <input type="text" id="saled-cargo-label" placeholder="Nombre del cargo" class="hidden" maxlength="80">
+          <input type="number" id="saled-cargo-monto" step="0.01" min="0.01" placeholder="USD (al costo)" required>
+          <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
+          <button type="button" class="btn btn-secondary btn-sm" id="saled-cargo-cancel">Cancelar</button>
+          <span id="saled-cargo-status" class="saled-recalc-status"></span>
+        </form>
+      </div>`;
+
+    const form = document.getElementById('saled-cargo-form');
+    const tipoSel = document.getElementById('saled-cargo-tipo');
+    const labelIn = document.getElementById('saled-cargo-label');
+    document.getElementById('saled-cargo-btn').addEventListener('click', () => {
+      form.classList.remove('hidden');
+      document.getElementById('saled-cargo-btn').classList.add('hidden');
+      document.getElementById('saled-cargo-monto').focus();
+    });
+    document.getElementById('saled-cargo-cancel').addEventListener('click', () => renderCargosBlock());
+    tipoSel.addEventListener('change', () => {
+      labelIn.classList.toggle('hidden', tipoSel.value !== 'otro');
+      if (tipoSel.value === 'otro') labelIn.focus();
+    });
+    form.addEventListener('submit', async (ev) => {
+      ev.preventDefault();
+      ev.stopPropagation();
+      const status = document.getElementById('saled-cargo-status');
+      const tipo = tipoSel.value;
+      const label = labelIn.value.trim();
+      const monto = parseNum(document.getElementById('saled-cargo-monto').value);
+      if (tipo === 'otro' && !label) { status.textContent = 'Escribí el nombre del cargo.'; labelIn.focus(); return; }
+      if (!(monto > 0)) { status.textContent = 'Ingresá el importe.'; return; }
+      status.textContent = 'Guardando…';
+      try {
+        const cargo = await NovaAPI.salidas.agregarCargo(editEnvio.id, { tipo, label, monto });
+        editEnvio.cargos = (editEnvio.cargos || []).concat([cargo]);
+        actualizarCargosEnGrilla();
+        renderCargosBlock();
+      } catch (err) {
+        status.textContent = err.message || 'No se pudo guardar el cargo.';
+      }
+    });
+    block.querySelectorAll('.saled-cargo-del').forEach((btn) => {
+      btn.addEventListener('click', async () => {
+        const id = Number(btn.dataset.cargoId);
+        const c = (editEnvio.cargos || []).find((x) => x.id === id);
+        if (!c || !confirm(`¿Anular el cargo "${c.label}" de USD ${Number(c.monto).toFixed(2)}? No se le va a cobrar al cliente.`)) return;
+        try {
+          const upd = await NovaAPI.salidas.anularCargo(editEnvio.id, id);
+          editEnvio.cargos = (editEnvio.cargos || []).map((x) => (x.id === id ? upd : x));
+          actualizarCargosEnGrilla();
+          renderCargosBlock();
+        } catch (err) {
+          alert(err.message || 'No se pudo anular el cargo.');
+        }
+      });
+    });
+  }
+
+  // Refleja los cargos del envío en edición en la fila de la grilla (chip) sin refrescar.
+  function actualizarCargosEnGrilla() {
+    if (!editEnvio) return;
+    const d = allData.find((x) => x.id === editEnvio.id);
+    if (d) {
+      d.cargos = editEnvio.cargos;
+      d.cargos_pendientes = (d.cargos || []).filter((c) => c.estado === 'pendiente').reduce((s, c) => s + parseNum(c.monto), 0);
+    }
+    editEnvio.cargos_pendientes = (editEnvio.cargos || []).filter((c) => c.estado === 'pendiente').reduce((s, c) => s + parseNum(c.monto), 0);
+    renderPage();
   }
 
   // Muestra el cartelito ámbar si el total de Adicionales (editable) ya no coincide con la

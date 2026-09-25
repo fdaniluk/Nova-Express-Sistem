@@ -620,6 +620,21 @@ async function listarPendientesPorCliente(filtros = {}) {
     g.envios.push(row);
     g.total_cobrado += row.total_cobrado || 0;
   }
+  // Cargos posteriores pendientes de envíos YA liquidados (25/09): se avisan en el grupo
+  // del cliente porque van a entrar solos en su próxima liquidación.
+  if (grupos.size) {
+    const ids = [...grupos.keys()];
+    const filas = await db.prepare(
+      `SELECT e.cliente_id, COUNT(*) AS n, SUM(c.monto) AS total
+       FROM envio_cargos c JOIN envios e ON e.id = c.envio_id
+       WHERE e.liquidado = 1 AND c.liquidacion_id IS NULL AND c.anulado_at IS NULL AND e.cliente_id IN (${ids.map(() => '?').join(',')})
+       GROUP BY e.cliente_id`
+    ).all(...ids);
+    for (const f of filas) {
+      const g = grupos.get(f.cliente_id);
+      if (g) { g.cargos_anteriores_n = f.n; g.cargos_anteriores_total = Math.round(f.total * 100) / 100; }
+    }
+  }
   return [...grupos.values()];
 }
 

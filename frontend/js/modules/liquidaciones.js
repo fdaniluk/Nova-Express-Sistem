@@ -164,6 +164,7 @@
           <span class="cliente-grupo-meta">
             <span class="liq-chip cobro">${NovaUtils.tipoCobroLabel(g.tipo_cobro)}</span>
             <span>${g.envios.length} envío(s)</span>
+            ${g.cargos_anteriores_n ? `<span class="liq-chip cargo-ant" title="Extracargos o impuestos DDP de envíos ya liquidados: entran solos en la próxima liquidación de este cliente.">+ ${g.cargos_anteriores_n} cargo${g.cargos_anteriores_n === 1 ? '' : 's'} de envíos anteriores · ${NovaUtils.formatMoney(g.cargos_anteriores_total)}</span>` : ''}
             <span class="cliente-grupo-total">${NovaUtils.formatMoney(g.total_cobrado)}</span>
           </span>
           <button type="button" class="btn btn-sm btn-primary" data-liq-cliente="${g.cliente_id}">Liquidar</button>
@@ -422,7 +423,11 @@
           <td class="liq-interno">${profitInternoHtml(i)}</td>
         </tr>`).join('');
 
-      document.getElementById('liq-total').innerHTML = `<strong>${NovaUtils.formatMoney(preview.total)}</strong>`;
+      // Con cargos de envíos anteriores, el pie de la tabla es "Total envíos" y el total
+      // general lo cierra la sección de abajo (igual que el Excel).
+      const conAnteriores = Array.isArray(preview.cargos_anteriores) && preview.cargos_anteriores.length > 0;
+      document.getElementById('liq-total').innerHTML = `<strong>${NovaUtils.formatMoney(conAnteriores ? preview.total_envios : preview.total)}</strong>`;
+      pintarCargosAnteriores(preview);
       // Total interno: utilidad de la liquidación y % sobre el costo (misma convención que Salidas).
       {
         const util = preview.items.reduce((s, i) => s + (Number(i.utilidad_usd) || 0), 0);
@@ -649,6 +654,46 @@
     const util = Number(i.utilidad_usd) || 0;
     const pct = i.profit_pct != null ? `${Number(i.profit_pct).toFixed(1)}% · ` : '';
     return `<span class="${util < 0 ? 'neg' : ''}" title="Utilidad estimada del envío: venta − costo congelado en el alta">${pct}${NovaUtils.formatMoney(util)}</span>`;
+  }
+
+  // Cargos de envíos anteriores (25/09/2026): extracargos o impuestos DDP que llegaron
+  // cuando el envío ya estaba liquidado. Entran solos en esta liquidación, en su propia
+  // sección (guía, fecha del envío, concepto, importe), igual que en el Excel.
+  function pintarCargosAnteriores(preview) {
+    let box = document.getElementById('liq-cargos-ant');
+    const wrap = document.querySelector('#liq-preview .liq-tabla-wrap');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'liq-cargos-ant';
+      box.className = 'liq-cargos-ant';
+      wrap.insertAdjacentElement('afterend', box);
+    }
+    const lista = Array.isArray(preview.cargos_anteriores) ? preview.cargos_anteriores : [];
+    const foot = document.querySelector('#liq-preview tfoot td:first-child');
+    if (!lista.length) { box.hidden = true; box.innerHTML = ''; if (foot) foot.textContent = 'Total liquidación'; return; }
+    if (foot) foot.textContent = 'Total envíos';
+    const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    box.hidden = false;
+    box.innerHTML = `
+      <div class="liq-cargos-ant-head">
+        <strong>Cargos de envíos anteriores</strong>
+        <span class="liq-hint">Extracargos o impuestos DDP que llegaron con el envío ya liquidado. Se cobran en esta liquidación, en su propia sección del Excel.</span>
+      </div>
+      <table class="liq-tabla liq-tabla-ant">
+        <thead><tr><th>Fecha envío</th><th>Guía</th><th>Concepto</th><th class="n">USD</th></tr></thead>
+        <tbody>${lista.map((c) => `
+          <tr>
+            <td>${NovaUtils.formatDate(c.envio_fecha)}</td>
+            <td><span class="guia-num">${esc(c.numero_guia)}</span>${c.liquidacion_original_id ? ` <span class="liq-num-id" title="El envío se liquidó en la #${c.liquidacion_original_id}">liq. #${c.liquidacion_original_id}</span>` : ''}</td>
+            <td>${esc(c.label)}${c.origen === 'impuestos_ddp' ? ' <span class="liq-chip">factura UPS</span>' : ''}</td>
+            <td class="n">${NovaUtils.formatMoney(c.monto)}</td>
+          </tr>`).join('')}
+        </tbody>
+        <tfoot>
+          <tr><td colspan="3">Total cargos de envíos anteriores</td><td class="n">${NovaUtils.formatMoney(preview.total_cargos_anteriores)}</td></tr>
+          <tr class="liq-total-general"><td colspan="3">Total liquidación</td><td class="n"><strong>${NovaUtils.formatMoney(preview.total)}</strong></td></tr>
+        </tfoot>
+      </table>`;
   }
 
   function adicDetalleHtml(detalle) {

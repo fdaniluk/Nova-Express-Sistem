@@ -295,6 +295,10 @@ api.salidas = {
   // NO VOLO: marcar / desmarcar un envio que no salio. no_volo: 1 marca, 0 deshace.
   noVolo: (id, noVolo) =>
     request(`/salidas/${id}/no-volo`, { method: 'PATCH', body: { no_volo: noVolo ? 1 : 0 } }),
+  // Cargos posteriores (25/09/2026): extracargos después de cargado el envío.
+  cargos: (id) => api.get(`/salidas/${id}/cargos`),
+  agregarCargo: (id, data) => request(`/salidas/${id}/cargos`, { method: 'POST', body: data }),
+  anularCargo: (id, cargoId) => request(`/salidas/${id}/cargos/${cargoId}`, { method: 'DELETE' }),
 };
 
 api.tracking = {

@@ -93,7 +93,8 @@
     "test-pantalla-cargar-envio": "node scripts/test-pantalla-cargar-envio.js",
     "test-pantalla-entrega-impo": "node scripts/test-pantalla-entrega-impo.js",
     "test-pagos": "node scripts/test-pagos.js",
-    "test-entrantes": "node scripts/test-entrantes.js"
+    "test-entrantes": "node scripts/test-entrantes.js",
+    "test-cargos": "node scripts/test-cargos-posteriores.js && node scripts/test-pantalla-cargos-posteriores.js"
   },
   "keywords": [
     "nova-express",
