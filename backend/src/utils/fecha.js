@@ -28,4 +28,12 @@ function hoyLocalMas(dias, base = new Date()) {
   return hoyLocal(d);
 }
 
-module.exports = { hoyLocal, hoyLocalMas };
+// 'DD/MM/AAAA' (como viene la fecha de la factura en el PDF de UPS) → 'AAAA-MM-DD'. Lo que
+// ya está en ISO o no se reconoce vuelve tal cual. Sin esto, la fecha de corte del control
+// comparaba '31/08/2026' >= '2026-09-01' como TEXTO y daba verdadero (28/09/2026).
+function aISO(s) {
+  const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec(String(s || '').trim());
+  return m ? `${m[3]}-${m[2]}-${m[1]}` : s;
+}
+
+module.exports = { hoyLocal, hoyLocalMas, aISO };

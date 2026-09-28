@@ -2,7 +2,7 @@ const { Router } = require('express');
 const multer = require('multer');
 const { getDb } = require('../db');
 const { extraerFacturaUPS } = require('../services/factura-ups.service');
-const { hoyLocal } = require('../utils/fecha');
+const { hoyLocal, aISO } = require('../utils/fecha');
 const configuracionModel = require('../models/configuracion.model');
 const cargosModel = require('../models/envio-cargos.model');
 
@@ -130,10 +130,13 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
 
     const extraido = await extraerFacturaUPS(req.file.buffer);
     const {
-      numero_factura, fecha_factura, guias,
+      numero_factura, guias,
       advertencias, total_declarado, suma_guias, diferencia, cuadra,
       subtotal_factura, percepciones,
     } = extraido;
+    // La fecha de la factura se guarda en ISO (28/09): el PDF la trae 'DD/MM/AAAA' y así
+    // guardada rompía la fecha de corte del control (se comparaba como texto).
+    const fecha_factura = aISO(extraido.fecha_factura) || null;
     const tipo = extraido.tipo || 'flete';
     const esImpuestos = tipo === 'impuestos';
 

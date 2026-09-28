@@ -1217,6 +1217,31 @@ async function migratePagosEntrantes() {
   `);
 }
 
+// Limpieza antes del cierre de mes (28/09/2026), una sola vez:
+//   1. Las fechas de factura estaban guardadas como 'DD/MM/AAAA' (así vienen del PDF): la
+//      fecha de corte del control las comparaba como texto y daba TODO como posterior al
+//      corte (35 guías sin envío y 25 facturas de julio/agosto en rojo). Pasan a ISO, y
+//      también las columnas que las copiaron (impuestos_fecha, envio_cargos.fecha).
+//   2. Filas huérfanas de envio_bultos (apuntan a envíos que ya no existen): se borran.
+async function migrateLimpiezaCierre() {
+  await dbApi.exec(`CREATE TABLE IF NOT EXISTS migraciones_una_vez (clave TEXT PRIMARY KEY, hecho_at TEXT NOT NULL DEFAULT (datetime('now','localtime')))`);
+  const hecho = await dbApi.prepare("SELECT 1 FROM migraciones_una_vez WHERE clave = 'limpieza_cierre_2809'").get();
+  if (hecho) return;
+  const ISO = (col) => `substr(${col},7,4) || '-' || substr(${col},4,2) || '-' || substr(${col},1,2)`;
+  const arreglos = [
+    ['facturas_cargadas', 'fecha_factura'],
+    ['envios', 'impuestos_fecha'],
+    ['envio_cargos', 'fecha'],
+  ];
+  for (const [tabla, col] of arreglos) {
+    const r = await dbApi.prepare(`UPDATE ${tabla} SET ${col} = ${ISO(col)} WHERE ${col} LIKE '__/__/____'`).run();
+    if (r.changes) console.log(`[migración] ${tabla}.${col}: ${r.changes} fecha(s) pasadas de DD/MM/AAAA a ISO`);
+  }
+  const h = await dbApi.prepare('DELETE FROM envio_bultos WHERE envio_id NOT IN (SELECT id FROM envios)').run();
+  if (h.changes) console.log(`[migración] envio_bultos: ${h.changes} fila(s) huérfanas borradas`);
+  await dbApi.prepare("INSERT INTO migraciones_una_vez (clave) VALUES ('limpieza_cierre_2809')").run();
+}
+
 async function migrateComisiones() {
   const cols = (await dbApi.prepare('PRAGMA table_info(vendedores)').all()).map((c) => c.name);
   if (!cols.includes('piso_mensual')) await dbApi.exec('ALTER TABLE vendedores ADD COLUMN piso_mensual REAL');
@@ -1252,6 +1277,7 @@ async function initSchema() {
   await migratePagosEntrantes();
   // Cargos posteriores (extracargos desde Salidas + impuestos DDP) — 25/09/2026.
   await require('../models/envio-cargos.model').migrar(dbApi);
+  await migrateLimpiezaCierre();
   await migrateUpsAreas();
   await migrateCierres();
   await migrateFuelNova();

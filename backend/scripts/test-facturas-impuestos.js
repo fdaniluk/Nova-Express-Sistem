@@ -161,7 +161,8 @@ async function main() {
   check('el resumen dice el tipo', car.body.tipo === 'impuestos');
   const a = await envio(A.id);
   check('el envío A tiene los impuestos facturados: 146,95', cerca(a.impuestos_facturados, 146.95), String(a.impuestos_facturados));
-  check('con la fecha de la FACTURA (24/08/2026), no la de la carga', a.impuestos_fecha === '24/08/2026', String(a.impuestos_fecha));
+  // Desde el 28/09 la fecha de la factura se guarda en ISO (la fecha de corte la compara como texto).
+  check('con la fecha de la FACTURA (24/08/2026), no la de la carga', a.impuestos_fecha === '2026-08-24', String(a.impuestos_fecha));
   check('y apunta a la factura cargada', a.impuestos_factura_id != null);
   check('el costo del FLETE no se tocó', a.costo_facturado === null, String(a.costo_facturado));
   check('ni la revisión del flete', a.estado_revision === null, String(a.estado_revision));
@@ -196,7 +197,8 @@ async function main() {
   const pdfX = facturaImpuestos({ numero: '0001-00926700', guias: [{ guia: '1Z327W099999999999', importe: 33.33 }] });
   const carX = await subir('cargar', pdfX);
   check('no encontrada: 1', carX.body.no_encontradas === 1);
-  const sinEnvio = await (await fetch(`${BASE}/api/facturas/sin-envio`, { headers: H })).json();
+  // La factura es del 24/08, anterior al corte del control (01/09): se pide con ?todo=1.
+  const sinEnvio = await (await fetch(`${BASE}/api/facturas/sin-envio?todo=1`, { headers: H })).json();
   const lista = Array.isArray(sinEnvio) ? sinEnvio : (sinEnvio.guias || sinEnvio.data || []);
   const x = lista.find((g) => g.numero_guia === '1Z327W099999999999');
   check('aparece en "Sin envío" con su tipo', x && x.tipo === 'impuestos' && cerca(x.costo_total, 33.33), JSON.stringify(x));
@@ -205,7 +207,7 @@ async function main() {
   const sal = await (await fetch(`${BASE}/api/salidas?desde=${hoy}&hasta=${hoy}`, { headers: H })).json();
   const filas = Array.isArray(sal) ? sal : (sal.envios || sal.data || []);
   const fA = filas.find((f) => f.id === A.id), fB = filas.find((f) => f.id === B.id), fC = filas.find((f) => f.id === C.id);
-  check('A: DDP con impuestos facturados', fA && fA.ddp === true && cerca(fA.impuestos_facturados, 150) && fA.impuestos_fecha === '24/08/2026', JSON.stringify(fA && [fA.ddp, fA.impuestos_facturados]));
+  check('A: DDP con impuestos facturados', fA && fA.ddp === true && cerca(fA.impuestos_facturados, 150) && fA.impuestos_fecha === '2026-08-24', JSON.stringify(fA && [fA.ddp, fA.impuestos_facturados]));
   check('B: impuestos facturados SIN DDP (el caso rojo)', fB && fB.ddp === false && cerca(fB.impuestos_facturados, 184.49));
   check('C: DDP esperando la factura', fC && fC.ddp === true && fC.impuestos_facturados === null);
   const salidasJs = fs.readFileSync(path.join(__dirname, '..', '..', 'frontend', 'js', 'modules', 'salidas.js'), 'utf8');

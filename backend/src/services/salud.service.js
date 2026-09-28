@@ -31,7 +31,7 @@ const fs = require('fs');
 const path = require('path');
 const { getDb } = require('../db');
 const config = require('../config');
-const { hoyLocal, hoyLocalMas } = require('../utils/fecha');
+const { hoyLocal, hoyLocalMas, aISO } = require('../utils/fecha');
 
 // Tope de filas de detalle por chequeo. Si hay más, se informa cuántas quedaron afuera
 // (`truncado`) — nunca se recorta en silencio: un panel que dice "5 casos" cuando hay
@@ -173,7 +173,7 @@ async function chequeoGuiasSinEnvio(db, corte) {
     GROUP BY fg.numero_guia
     ORDER BY MAX(fg.costo_total) DESC
   `).all();
-  const filas = todas.filter((f) => !f.fecha_factura || f.fecha_factura >= corte);
+  const filas = todas.filter((f) => !f.fecha_factura || aISO(f.fecha_factura) >= corte);
   const anteriores = todas.length - filas.length;
 
   if (!filas.length) {
@@ -220,13 +220,16 @@ async function chequeoFacturasQueNoCuadran(db, corte) {
     ORDER BY f.fecha_factura DESC
   `).all();
   // Fecha de corte del control (07/09): las facturas anteriores no se destacan.
-  const filas = todas.filter((f) => !f.fecha_factura || f.fecha_factura >= corte);
+  const filas = todas.filter((f) => !f.fecha_factura || aISO(f.fecha_factura) >= corte);
   const anterioresCorte = todas.length - filas.length;
 
   const sinTotal = filas.filter((f) => f.total_declarado == null);
   const descuadradas = filas
     .filter((f) => f.total_declarado != null)
-    .map((f) => ({ ...f, dif: r2(f.total_declarado - (f.suma_guias + f.suma_percepcion)) }))
+    // OJO (28/09): `costo_total` de cada guía YA incluye la percepción repartida (el parser
+    // la suma adentro y además la guarda aparte en `percepcion`). Sumarla de nuevo hacía
+    // que TODAS las facturas con percepción "no cuadraran" por exactamente ese importe.
+    .map((f) => ({ ...f, dif: r2(f.total_declarado - f.suma_guias) }))
     .filter((f) => Math.abs(f.dif) >= 0.05);
 
   const conAgujeros = filas.filter((f) => f.sin_costo > 0);
@@ -246,25 +249,25 @@ async function chequeoFacturasQueNoCuadran(db, corte) {
   const detalle = [
     ...descuadradas.map((f) => ({
       factura: f.numero_factura || `#${f.id}`,
-      fecha: f.fecha_factura || '—',
+      fecha: f.fecha_factura ? fechaCorta(aISO(f.fecha_factura)) : '—',
       total_factura: r2(f.total_declarado),
-      suma_guias: r2(f.suma_guias + f.suma_percepcion),
+      suma_guias: r2(f.suma_guias),
       diferencia: f.dif,
       nota: 'No cuadra',
     })),
     ...conAgujeros.filter((f) => !descuadradas.some((d) => d.id === f.id)).map((f) => ({
       factura: f.numero_factura || `#${f.id}`,
-      fecha: f.fecha_factura || '—',
+      fecha: f.fecha_factura ? fechaCorta(aISO(f.fecha_factura)) : '—',
       total_factura: f.total_declarado != null ? r2(f.total_declarado) : null,
-      suma_guias: r2(f.suma_guias + f.suma_percepcion),
+      suma_guias: r2(f.suma_guias),
       diferencia: null,
       nota: `${f.sin_costo} guía(s) sin costo`,
     })),
     ...sinTotal.filter((f) => f.sin_costo === 0).map((f) => ({
       factura: f.numero_factura || `#${f.id}`,
-      fecha: f.fecha_factura || '—',
+      fecha: f.fecha_factura ? fechaCorta(aISO(f.fecha_factura)) : '—',
       total_factura: null,
-      suma_guias: r2(f.suma_guias + f.suma_percepcion),
+      suma_guias: r2(f.suma_guias),
       diferencia: null,
       nota: 'Sin total guardado, no verificable',
     })),
@@ -353,10 +356,29 @@ async function chequeoFuelDesfasado(db, corte) {
   const actual = {};
   for (const c of cfg) actual[c.courier] = c.fuel_pct;
 
+  // El fuel cambia seguido (UPS lo mueve casi todas las semanas) y el envío congela el
+  // que estaba vigente cuando se cargó. Comparar contra el de HOY marcaba como "raro" a
+  // todo envío anterior al último cambio (159 el 28/09, todos con el fuel correcto de su
+  // día). Ahora se compara contra el fuel que REGÍA cuando se cargó el envío, usando el
+  // historial de Configuración: solo canta si el envío quedó con un número que nunca
+  // fue el de Configuración en esa fecha.
+  const hist = await db.prepare('SELECT courier, fuel_pct_anterior, fuel_pct_nuevo, fecha_cambio FROM configuracion_historial ORDER BY fecha_cambio').all();
+  const cambios = {};
+  for (const h of hist) (cambios[h.courier] = cambios[h.courier] || []).push(h);
+  const vigenteEn = (courier, fechaHora) => {
+    const lista = cambios[courier] || [];
+    let v = lista.length ? lista[0].fuel_pct_anterior : actual[courier];
+    for (const h of lista) {
+      if (String(h.fecha_cambio) <= fechaHora) v = h.fuel_pct_nuevo; else break;
+    }
+    return v;
+  };
+  const cerca = (a, b) => a != null && b != null && Math.abs(a - b) <= 0.001;
+
   // Últimos 60 días, y nunca antes de la fecha de corte del control (07/09).
   const desde = [hoyLocalMas(-60), corte].sort()[1];
   const envios = await db.prepare(`
-    SELECT e.id, e.numero_guia, e.fecha, e.courier, e.fuel_pct, c.nombre AS cliente
+    SELECT e.id, e.numero_guia, e.fecha, e.created_at, e.courier, e.fuel_pct, c.nombre AS cliente
     FROM envios e
     LEFT JOIN clientes c ON c.id = e.cliente_id
     WHERE e.fecha >= ? AND e.fuel_pct IS NOT NULL
@@ -364,25 +386,34 @@ async function chequeoFuelDesfasado(db, corte) {
   `).all(desde);
 
   const filas = envios
-    .filter((e) => actual[e.courier] != null && Math.abs(e.fuel_pct - actual[e.courier]) > 0.001)
+    .filter((e) => {
+      if (actual[e.courier] == null) return false;
+      if (cerca(e.fuel_pct, actual[e.courier])) return false;
+      // Vale el fuel vigente al momento de la carga (created_at) o el del día del envío:
+      // la oficina a veces carga el envío uno o dos días después de despacharlo.
+      const enCarga = vigenteEn(e.courier, String(e.created_at || e.fecha));
+      const enFecha = vigenteEn(e.courier, `${e.fecha} 23:59:59`);
+      return !cerca(e.fuel_pct, enCarga) && !cerca(e.fuel_pct, enFecha);
+    })
     .map((e) => ({
       guia: e.numero_guia || `#${e.id}`,
       cliente: e.cliente || '—',
       fecha: e.fecha,
       courier: e.courier,
       fuel_del_envio: e.fuel_pct,
-      fuel_de_config: actual[e.courier],
+      fuel_vigente_ese_dia: vigenteEn(e.courier, `${e.fecha} 23:59:59`),
+      fuel_de_config_hoy: actual[e.courier],
     }));
 
   if (!filas.length) {
-    return { severidad: 'ok', cantidad: 0, resumen: 'Todos los envíos de los últimos 60 días usan el fuel de Configuración.', detalle: [] };
+    return { severidad: 'ok', cantidad: 0, resumen: 'Todos los envíos de los últimos 60 días usan el fuel que regía en Configuración el día que se cargaron.', detalle: [] };
   }
   return {
     severidad: 'ambar',
     cantidad: filas.length,
     resumen:
-      `${filas.length} envío(s) de los últimos 60 días quedaron con un fuel distinto al de Configuración. `
-      + 'Puede ser un cambio legítimo de fuel a mitad de período, o un valor hardcodeado disparando.',
+      `${filas.length} envío(s) de los últimos 60 días quedaron con un fuel que no era el de Configuración ni el día del envío ni el de la carga. `
+      + 'Puede ser un valor tipeado a mano o un cambio de fuel que no se registró.',
     ...acotar(filas),
   };
 }

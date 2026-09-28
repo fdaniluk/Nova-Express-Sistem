@@ -485,7 +485,7 @@
 
       tbody.innerHTML = guias.map((g) => `<tr>
         <td class="mono">${esc(g.numero_guia)}</td>
-        <td>${esc(g.factura || '')}${g.tipo === 'impuestos' ? ' <span class="fac-chip-imp">impuestos DDP</span>' : ''}<div class="em" style="font-size:11px">${esc(g.fecha_factura || '')}</div></td>
+        <td>${esc(g.factura || '')}${g.tipo === 'impuestos' ? ' <span class="fac-chip-imp">impuestos DDP</span>' : ''}<div class="em" style="font-size:11px">${g.fecha_factura ? NovaUtils.formatDate(g.fecha_factura) : ''}</div></td>
         <td>${esc(g.pais || '')}</td>
         <td class="num">${g.peso_facturado != null ? Number(g.peso_facturado).toFixed(1) + ' kg' : '<span class="em">—</span>'}</td>
         <td class="num">${fmtUSD(g.costo_total)}</td>
