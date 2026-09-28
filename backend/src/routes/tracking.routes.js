@@ -25,6 +25,19 @@ router.get('/ups/:guia', async (req, res, next) => {
   }
 });
 
+// Todas las cajas de un envío UPS (28/09): para ver qué informa UPS de un envío de varios
+// bultos (número de cada caja y su último movimiento). No escribe nada.
+router.get('/ups/:guia/paquetes', async (req, res, next) => {
+  const guia = (req.params.guia || '').trim();
+  if (!esGuiaUpsValida(guia)) return res.status(400).json({ error: 'Numero de guia UPS invalido' });
+  try {
+    const { getPaquetesEnvio } = require('../services/ups.service');
+    res.json(await getPaquetesEnvio(guia));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Una pasada del semáforo automático A PEDIDO (el job corre solo cada 4 horas; esto es
 // para no esperar: después de cargar las salidas del día, o probando). Devuelve el
 // resumen de la pasada. Requiere credenciales UPS en el servidor, como el job.

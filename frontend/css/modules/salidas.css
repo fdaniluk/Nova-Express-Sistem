@@ -1203,6 +1203,11 @@ td.detail-expandable { cursor: pointer; }
   font-weight: 600;
   font-size: 0.8rem;
 }
+/* Guía UPS de cada caja (28/09): la completa el sistema con lo que informa UPS. */
+.saled-bulto-guia { display: block; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 9.5px; font-weight: 500; color: var(--color-muted); letter-spacing: .02em; }
+.saled-bulto-row { grid-template-columns: 110px repeat(4, minmax(0, 1fr)); }
+.saled-bultos-head { grid-template-columns: 110px repeat(4, minmax(0, 1fr)); }
+.saled-bulto-row:has(.saled-bulto-quitar) { grid-template-columns: 110px repeat(4, minmax(0, 1fr)) auto; }
 
 /* Agregar bultos desde Salidas (03/09/2026). La fila de un bulto NUEVO lleva una sexta
    columna con la ✕ para quitarlo antes de guardar; las filas de bultos existentes no. */

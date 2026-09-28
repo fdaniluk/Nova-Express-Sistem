@@ -31,7 +31,28 @@
  * todo el circuito sin red y sin credenciales.
  */
 
-const { getTracking, semaforoDeEstado } = require('./ups.service');
+const { getTracking, getPaquetesEnvio, semaforoDeEstado } = require('./ups.service');
+
+// Completa `envio_bultos.numero_guia` con las cajas que informó UPS (28/09/2026). Con
+// varios bultos, cada caja sale con su propio número y la oficina solo tipea el de la
+// primera; el sistema los busca solo. Bulto 1 = la guía principal; el resto en el orden
+// de UPS. Solo escribe en los bultos que NO tienen guía: lo tipeado a mano se respeta.
+// Devuelve cuántos completó.
+async function completarGuiasBultos(db, envioId, paquetes) {
+  const bultos = await db.prepare('SELECT id, numero_bulto, numero_guia FROM envio_bultos WHERE envio_id = ? ORDER BY numero_bulto').all(envioId);
+  if (!bultos.length || !Array.isArray(paquetes) || paquetes.length < 2) return 0;
+  const usadas = new Set(bultos.map((b) => String(b.numero_guia || '').trim().toUpperCase()).filter(Boolean));
+  const libres = paquetes.map((p) => String(p.guia || '').trim().toUpperCase()).filter((g) => g && !usadas.has(g));
+  let n = 0;
+  for (const b of bultos) {
+    if (String(b.numero_guia || '').trim()) continue;
+    const g = libres.shift();
+    if (!g) break;
+    await db.prepare('UPDATE envio_bultos SET numero_guia = ? WHERE id = ?').run(g, b.id);
+    n++;
+  }
+  return n;
+}
 
 // Guía UPS: "1Z" + 16 alfanuméricos (igual que tracking.routes.js).
 const UPS_GUIA_REGEX = /^1Z[0-9A-Z]{16}$/i;
@@ -46,9 +67,12 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
  * @param pausaMs     respiro entre llamadas a UPS
  * @returns {consultados, pintados, errores, omitidos}
  */
-async function refrescarSemaforo(db, { obtenerTracking = getTracking, limite = 300, pausaMs = 250 } = {}) {
+async function refrescarSemaforo(db, { obtenerTracking = getTracking, obtenerPaquetes = null, limite = 300, pausaMs = 250 } = {}) {
+  // Con un UPS simulado (tests) que solo inyecta obtenerTracking, se usa ese para todo.
+  if (!obtenerPaquetes) obtenerPaquetes = obtenerTracking === getTracking ? getPaquetesEnvio : obtenerTracking;
   const candidatos = await db.prepare(`
-    SELECT id, numero_guia
+    SELECT id, numero_guia,
+           (SELECT COUNT(*) FROM envio_bultos b WHERE b.envio_id = envios.id) AS n_bultos
     FROM envios
     WHERE UPPER(courier) LIKE '%UPS%'
       AND numero_guia IS NOT NULL AND TRIM(numero_guia) != ''
@@ -77,16 +101,26 @@ async function refrescarSemaforo(db, { obtenerTracking = getTracking, limite = 3
 
     resumen.consultados++;
     try {
-      const t = await obtenerTracking(guia);
+      // Varios bultos: se pide el envío entero (una entrada por caja), se completan las
+      // guías de los bultos que falten y el semáforo se pinta CAJA POR CAJA (28/09).
+      const varios = Number(e.n_bultos) > 1;
+      const t = varios ? await obtenerPaquetes(guia) : await obtenerTracking(guia);
       const color = semaforoDeEstado(t?.tipo, t?.estado);
       const detalle = [t?.estado, t?.ubicacion].filter(Boolean).join(' — ') || null;
+      if (varios && Array.isArray(t?.paquetes)) resumen.guias_completadas = (resumen.guias_completadas || 0) + await completarGuiasBultos(db, e.id, t.paquetes);
       if (color) {
         await db.prepare(`
           UPDATE envios SET tracking_estado = ?, tracking_detalle = ?, tracking_fecha = datetime('now', 'localtime')
           WHERE id = ?
         `).run(color, detalle, e.id);
-        // Gana UPS siempre: pisa lo manual en los bultos de este envío.
+        // Gana UPS siempre: pisa lo manual en los bultos de este envío. Por caja si UPS
+        // informó cada una; si no, el color del envío para todas.
         await db.prepare('UPDATE envio_bultos SET estado_caja = ? WHERE envio_id = ?').run(color, e.id);
+        if (varios && Array.isArray(t?.paquetes)) {
+          for (const p of t.paquetes) {
+            if (p.guia && p.semaforo) await db.prepare('UPDATE envio_bultos SET estado_caja = ? WHERE envio_id = ? AND UPPER(TRIM(numero_guia)) = ?').run(p.semaforo, e.id, String(p.guia).toUpperCase());
+          }
+        }
         resumen.pintados++;
       } else {
         // UPS respondió pero sin nada útil: se deja constancia de que se miró.
@@ -122,7 +156,7 @@ async function refrescarSemaforo(db, { obtenerTracking = getTracking, limite = 3
  * gana UPS), y por caja cuando la guía de la caja coincide con `envio_bultos.numero_guia`.
  * Devuelve un resumen listo para la pantalla; NUNCA marca nada como "ok" sin respuesta.
  */
-async function escaneoDelDia(db, { fecha, obtenerTracking = getTracking, pausaMs = 250 } = {}) {
+async function escaneoDelDia(db, { fecha, obtenerPaquetes = getPaquetesEnvio, pausaMs = 250 } = {}) {
   const dia = /^\d{4}-\d{2}-\d{2}$/.test(String(fecha || '')) ? fecha
     : new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' });
   const envios = await db.prepare(`
@@ -149,15 +183,27 @@ async function escaneoDelDia(db, { fecha, obtenerTracking = getTracking, pausaMs
       continue;
     }
     try {
-      const t = await obtenerTracking(guia);
+      const t = await obtenerPaquetes(guia);
       const paquetes = Array.isArray(t?.paquetes) && t.paquetes.length ? t.paquetes
         : [{ guia, tipo: t?.tipo || null, estado: t?.estado || null, semaforo: semaforoDeEstado(t?.tipo, t?.estado), fecha: t?.fecha || null, hora: null, ubicacion: t?.ubicacion || null }];
+      // Las guías de las cajas que UPS informó se guardan en los bultos que no las tenían.
+      fila.guias_completadas = await completarGuiasBultos(db, e.id, paquetes);
+      if (fila.guias_completadas) {
+        for (const b of bultos) {
+          const r = await db.prepare('SELECT numero_guia FROM envio_bultos WHERE id = ?').get(b.id);
+          b.numero_guia = r ? r.numero_guia : b.numero_guia;
+        }
+      }
       fila.paquetes = paquetes.map((p) => ({ ...p, escaneada: Boolean(p.semaforo && p.semaforo !== 'rojo') }));
       fila.escaneadas = fila.paquetes.filter((p) => p.escaneada).length;
       // Si UPS informa menos cajas que las cargadas, las que faltan cuentan como sin escanear.
       fila.sin_escanear = Math.max(0, esperadas - fila.escaneadas);
       fila.estado = fila.sin_escanear === 0 ? 'ok' : (fila.escaneadas === 0 ? 'sin_escanear' : 'parcial');
       fila.detalle = [t?.estado, t?.ubicacion].filter(Boolean).join(' — ') || null;
+      // UPS informa menos cajas que las cargadas en el envío: o el envío se cargó con más
+      // bultos de los que salieron, o las cajas se despacharon como envíos separados
+      // (cada una con su guía suelta). Se dice, para que la oficina lo mire.
+      if (paquetes.length < esperadas) fila.detalle = `UPS informa ${paquetes.length} caja${paquetes.length === 1 ? '' : 's'} para esta guía y el envío tiene ${esperadas}. ${fila.detalle || ''}`.trim();
       totales.escaneadas += fila.escaneadas;
       totales.sin_escanear += fila.sin_escanear;
 
@@ -183,7 +229,8 @@ async function escaneoDelDia(db, { fecha, obtenerTracking = getTracking, pausaMs
   // Los que tienen problema primero.
   const orden = { sin_escanear: 0, parcial: 1, sin_respuesta: 2, sin_guia: 3, ok: 4 };
   filas.sort((a, b) => (orden[a.estado] - orden[b.estado]) || a.envio_id - b.envio_id);
+  totales.guias_completadas = filas.reduce((s, f) => s + (f.guias_completadas || 0), 0);
   return { fecha: dia, consultado_en: new Date().toLocaleString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' }), totales, filas, todo_ok: totales.envios > 0 && totales.sin_escanear === 0 && totales.sin_respuesta === 0 };
 }
 
-module.exports = { refrescarSemaforo, escaneoDelDia, UPS_GUIA_REGEX };
+module.exports = { refrescarSemaforo, escaneoDelDia, completarGuiasBultos, UPS_GUIA_REGEX };

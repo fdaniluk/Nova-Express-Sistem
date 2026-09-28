@@ -34,7 +34,8 @@ async function parteServicio() {
   };
   const e1 = await alta('1Z000ESC000000001A', 2); // 2 cajas, las dos escaneadas
   await db.prepare(`INSERT INTO envio_bultos (envio_id, numero_bulto, numero_guia, peso_real, largo, ancho, alto) VALUES (?, 1, '1Z000ESC000000001A', 1, 10, 10, 10), (?, 2, '1Z000ESC000000001B', 1, 10, 10, 10)`).run(e1, e1);
-  const e2 = await alta('1Z000ESC000000002A', 3); // 3 cajas, UPS escaneó 2
+  const e2 = await alta('1Z000ESC000000002A', 3); // 3 cajas, UPS escaneó 2 — sin guías en los bultos
+  await db.prepare(`INSERT INTO envio_bultos (envio_id, numero_bulto, peso_real, largo, ancho, alto) VALUES (?, 1, 1, 10, 10, 10), (?, 2, 1, 10, 10, 10), (?, 3, 1, 10, 10, 10)`).run(e2, e2, e2);
   const e3 = await alta('1Z000ESC000000003A', 1); // solo manifest
   const e4 = await alta('SINFORMATO', 1);
   const e5 = await alta('1Z000ESC000000005A', 1); // UPS falla
@@ -48,7 +49,7 @@ async function parteServicio() {
   };
   const obtenerTracking = async (g) => { if (respuestas[g]) return respuestas[g]; throw new Error('TV1002 Invalid inquiry number'); };
   const { escaneoDelDia } = require('../src/services/tracking-auto.service');
-  const r = await escaneoDelDia(db, { fecha: hoy, obtenerTracking, pausaMs: 0 });
+  const r = await escaneoDelDia(db, { fecha: hoy, obtenerPaquetes: obtenerTracking, pausaMs: 0 });
   check('mira solo los envíos UPS del día', r.totales.envios === 5, JSON.stringify(r.totales));
   check('cuenta las cajas (2+3+1+1+1 = 8)', r.totales.cajas === 8);
   check('escaneadas: 2 + 2 = 4', r.totales.escaneadas === 4);
@@ -63,9 +64,16 @@ async function parteServicio() {
   check('los problemas van primero', r.filas[0].estado !== 'ok' && r.filas[r.filas.length - 1].estado === 'ok');
   const b = await db.prepare('SELECT numero_bulto, estado_caja FROM envio_bultos WHERE envio_id = ? ORDER BY numero_bulto').all(e1);
   check('el semáforo se pintó por caja (amarillo las dos)', b.every((x) => x.estado_caja === 'amarillo'), JSON.stringify(b));
+  const b2 = await db.prepare('SELECT numero_bulto, numero_guia, estado_caja FROM envio_bultos WHERE envio_id = ? ORDER BY numero_bulto').all(e2);
+  check('las guías de las cajas que informó UPS se guardaron en los bultos (A, B, C)', b2.map((x) => x.numero_guia).join() === '1Z000ESC000000002A,1Z000ESC000000002B,1Z000ESC000000002C', JSON.stringify(b2));
+  check('y el semáforo quedó por caja: amarillo, amarillo, rojo', b2.map((x) => x.estado_caja).join() === 'amarillo,amarillo,rojo', JSON.stringify(b2));
+  check('el resumen cuenta las guías completadas', r.totales.guias_completadas === 3, String(r.totales.guias_completadas));
+  // Segunda pasada: no pisa lo que ya está.
+  const r2 = await escaneoDelDia(db, { fecha: hoy, obtenerPaquetes: obtenerTracking, pausaMs: 0 });
+  check('en la segunda pasada no completa nada (ya estaban)', r2.totales.guias_completadas === 0);
   const s3 = await db.prepare('SELECT tracking_estado FROM envios WHERE id = ?').get(e3);
   check('el envío solo con manifest queda rojo', s3.tracking_estado === 'rojo');
-  const rVacio = await escaneoDelDia(db, { fecha: '2000-01-01', obtenerTracking, pausaMs: 0 });
+  const rVacio = await escaneoDelDia(db, { fecha: '2000-01-01', obtenerPaquetes: obtenerTracking, pausaMs: 0 });
   check('un día sin envíos UPS: 0 y no "todo ok"', rVacio.totales.envios === 0 && rVacio.todo_ok === false);
   const { closeDb } = require('../src/db');
   await closeDb();

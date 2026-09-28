@@ -2695,7 +2695,7 @@
       const row = document.createElement('div');
       row.className = 'saled-bulto-row';
       row.innerHTML = `
-        <span>Bulto ${b.numero_bulto != null ? b.numero_bulto : i + 1}</span>
+        <span>Bulto ${b.numero_bulto != null ? b.numero_bulto : i + 1}${b.numero_guia ? `<small class="saled-bulto-guia" title="Guía UPS de esta caja (la completa el sistema con lo que informa UPS)">${esc(b.numero_guia)}</small>` : ''}</span>
         <input type="number" data-bidx="${i}" data-field="largo" placeholder="Largo" step="0.1" min="0" value="${b.largo ?? ''}">
         <input type="number" data-bidx="${i}" data-field="ancho" placeholder="Ancho" step="0.1" min="0" value="${b.ancho ?? ''}">
         <input type="number" data-bidx="${i}" data-field="alto" placeholder="Alto" step="0.1" min="0" value="${b.alto ?? ''}">

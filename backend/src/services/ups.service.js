@@ -136,6 +136,67 @@ async function getTracking(numeroGuia) {
   };
 }
 
+// Un paquete de la respuesta de UPS → lo que guarda el sistema.
+function resumirPaquete(p) {
+  const act = p?.activity?.[0];
+  const a = act?.location?.address || {};
+  return {
+    guia: p?.trackingNumber || null,
+    tipo: act?.status?.type || null,
+    estado: act?.status?.description || null,
+    ubicacion: [a.city, a.stateProvince, a.countryCode].filter(Boolean).join(', ') || null,
+    fecha: fmtFecha(act?.date),
+    hora: fmtHora(act?.time),
+    semaforo: semaforoDeEstado(act?.status?.type, act?.status?.description),
+  };
+}
+
+/**
+ * TODAS las cajas de un envío (28/09/2026). El endpoint `details/{guia}` devuelve SOLO la
+ * caja consultada (comprobado en producción con un envío de 8 cajas: volvía una). Para un
+ * envío de varias cajas UPS tiene `shipment/details/{guia}`, que devuelve una entrada por
+ * caja del envío, cada una con su propio número y su última actividad (paginado con
+ * count/offset). Es lo que usa el chequeo de escaneo y lo que completa las guías de los
+ * bultos que la oficina no tipeó. Si UPS rechaza ese endpoint, se cae a `details` para no
+ * dejar el envío sin nada.
+ */
+async function getPaquetesEnvio(numeroGuia) {
+  const token = await getToken();
+  const cabeceras = { Authorization: `Bearer ${token}`, transId: `nova-${Date.now()}`, transactionSrc: 'nova-express' };
+  const paquetes = [];
+  let packageCount = null;
+  let offset = 0;
+  const COUNT = 50;
+  for (let pagina = 0; pagina < 10; pagina++) {
+    const url = `${UPS_API_BASE}/api/track/v1/shipment/details/${encodeURIComponent(numeroGuia)}?locale=en_US&returnSignature=false&count=${COUNT}&offset=${offset}`;
+    const res = await fetch(url, { headers: cabeceras });
+    if (!res.ok) {
+      const text = await res.text().catch(() => '');
+      if (pagina === 0) {
+        console.warn(`[ups.tracking] shipment/details ${numeroGuia} falló (${res.status}): ${text.slice(0, 200)} — se usa details`);
+        const uno = await getTracking(numeroGuia);
+        return { guia: numeroGuia, packageCount: uno.paquetes.length, paquetes: uno.paquetes, origen: 'details', estado: uno.estado, tipo: uno.tipo, ubicacion: uno.ubicacion };
+      }
+      break;
+    }
+    const data = await res.json();
+    const shipment = data.trackResponse?.shipment?.[0];
+    const lista = shipment?.package || [];
+    if (packageCount == null) packageCount = Number(shipment?.packageCount) || null;
+    for (const p of lista) paquetes.push(resumirPaquete(p));
+    offset += lista.length;
+    if (!lista.length || (packageCount != null && offset >= packageCount) || lista.length < COUNT) break;
+  }
+  if (!paquetes.length) {
+    const uno = await getTracking(numeroGuia);
+    return { guia: numeroGuia, packageCount: uno.paquetes.length, paquetes: uno.paquetes, origen: 'details', estado: uno.estado, tipo: uno.tipo, ubicacion: uno.ubicacion };
+  }
+  // La caja consultada primero (es la principal); el resto en el orden de UPS.
+  paquetes.sort((a, b) => (String(a.guia).toUpperCase() === String(numeroGuia).toUpperCase() ? -1 : 0) - (String(b.guia).toUpperCase() === String(numeroGuia).toUpperCase() ? -1 : 0));
+  const principal = paquetes[0];
+  return { guia: numeroGuia, packageCount: packageCount || paquetes.length, paquetes, origen: 'shipment', estado: principal.estado, tipo: principal.tipo, ubicacion: principal.ubicacion };
+}
+
 // Body de error UPS -> "TV1002 Invalid inquiry number, TV0021 ..." (null si no parsea).
 function parseUpsErrores(text) {
   if (!text) return null;
@@ -178,4 +239,4 @@ function semaforoDeEstado(tipo, descripcion) {
   return descripcion ? 'amarillo' : null;
 }
 
-module.exports = { getToken, getTracking, semaforoDeEstado };
+module.exports = { getToken, getTracking, getPaquetesEnvio, semaforoDeEstado };
