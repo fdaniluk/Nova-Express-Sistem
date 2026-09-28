@@ -109,4 +109,81 @@ async function refrescarSemaforo(db, { obtenerTracking = getTracking, limite = 3
   return resumen;
 }
 
-module.exports = { refrescarSemaforo, UPS_GUIA_REGEX };
+/**
+ * Chequeo de escaneo del cierre del día (28/09/2026, pedido de Felipe): "revisar en
+ * sistema si UPS, cuando buscó las cajas, las escaneó a todas". Para cada envío UPS de la
+ * fecha le pregunta a UPS por la guía principal, que devuelve TODAS las cajas del envío
+ * con su última actividad, y compara contra las cajas que el envío dice tener.
+ *
+ *   caja escaneada   = UPS tiene un movimiento real (pickup, en tránsito, entregada…)
+ *   caja sin escanear = UPS solo tiene el "manifest" (M/MV): la etiqueta existe, nadie la tocó
+ *
+ * De paso pinta el semáforo con lo que contestó UPS (misma regla que refrescarSemaforo:
+ * gana UPS), y por caja cuando la guía de la caja coincide con `envio_bultos.numero_guia`.
+ * Devuelve un resumen listo para la pantalla; NUNCA marca nada como "ok" sin respuesta.
+ */
+async function escaneoDelDia(db, { fecha, obtenerTracking = getTracking, pausaMs = 250 } = {}) {
+  const dia = /^\d{4}-\d{2}-\d{2}$/.test(String(fecha || '')) ? fecha
+    : new Date().toLocaleDateString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' });
+  const envios = await db.prepare(`
+    SELECT e.id, e.numero_guia, e.cantidad_bultos, e.no_volo, e.tracking_estado,
+           COALESCE(NULLIF(c.nombre_nova,''), c.nombre) AS cliente
+    FROM envios e JOIN clientes c ON c.id = e.cliente_id
+    WHERE e.fecha = ? AND UPPER(e.courier) LIKE '%UPS%' AND (e.no_volo IS NULL OR e.no_volo = 0)
+    ORDER BY e.id
+  `).all(dia);
+
+  const filas = [];
+  const totales = { envios: envios.length, cajas: 0, escaneadas: 0, sin_escanear: 0, sin_respuesta: 0, sin_guia: 0 };
+  for (const e of envios) {
+    const guia = String(e.numero_guia || '').trim();
+    const bultos = await db.prepare('SELECT id, numero_bulto, numero_guia FROM envio_bultos WHERE envio_id = ? ORDER BY numero_bulto').all(e.id);
+    const esperadas = Math.max(Number(e.cantidad_bultos) || 0, bultos.length, 1);
+    totales.cajas += esperadas;
+    const fila = { envio_id: e.id, guia: guia || null, cliente: e.cliente, cajas: esperadas, escaneadas: 0, sin_escanear: esperadas, paquetes: [], estado: 'sin_guia', detalle: null };
+    if (!UPS_GUIA_REGEX.test(guia)) {
+      fila.detalle = guia ? 'La guía no tiene formato UPS' : 'El envío no tiene guía cargada';
+      totales.sin_guia++;
+      totales.sin_escanear += esperadas;
+      filas.push(fila);
+      continue;
+    }
+    try {
+      const t = await obtenerTracking(guia);
+      const paquetes = Array.isArray(t?.paquetes) && t.paquetes.length ? t.paquetes
+        : [{ guia, tipo: t?.tipo || null, estado: t?.estado || null, semaforo: semaforoDeEstado(t?.tipo, t?.estado), fecha: t?.fecha || null, hora: null, ubicacion: t?.ubicacion || null }];
+      fila.paquetes = paquetes.map((p) => ({ ...p, escaneada: Boolean(p.semaforo && p.semaforo !== 'rojo') }));
+      fila.escaneadas = fila.paquetes.filter((p) => p.escaneada).length;
+      // Si UPS informa menos cajas que las cargadas, las que faltan cuentan como sin escanear.
+      fila.sin_escanear = Math.max(0, esperadas - fila.escaneadas);
+      fila.estado = fila.sin_escanear === 0 ? 'ok' : (fila.escaneadas === 0 ? 'sin_escanear' : 'parcial');
+      fila.detalle = [t?.estado, t?.ubicacion].filter(Boolean).join(' — ') || null;
+      totales.escaneadas += fila.escaneadas;
+      totales.sin_escanear += fila.sin_escanear;
+
+      // Pintar el semáforo con la respuesta (gana UPS), por caja cuando se puede.
+      const color = semaforoDeEstado(t?.tipo, t?.estado);
+      if (color) {
+        await db.prepare(`UPDATE envios SET tracking_estado = ?, tracking_detalle = ?, tracking_fecha = datetime('now', 'localtime') WHERE id = ?`).run(color, fila.detalle, e.id);
+        for (const b of bultos) {
+          const p = b.numero_guia ? fila.paquetes.find((x) => String(x.guia || '').toUpperCase() === String(b.numero_guia).trim().toUpperCase()) : null;
+          await db.prepare('UPDATE envio_bultos SET estado_caja = ? WHERE id = ?').run(p && p.semaforo ? p.semaforo : color, b.id);
+        }
+      }
+    } catch (err) {
+      fila.estado = 'sin_respuesta';
+      fila.detalle = 'UPS no respondió: ' + String(err.message || err).slice(0, 160);
+      totales.sin_respuesta++;
+      totales.sin_escanear += esperadas;
+      await db.prepare(`UPDATE envios SET tracking_detalle = ?, tracking_fecha = datetime('now', 'localtime') WHERE id = ?`).run('Error al rastrear: ' + String(err.message || err).slice(0, 200), e.id);
+    }
+    filas.push(fila);
+    if (pausaMs > 0) await esperar(pausaMs);
+  }
+  // Los que tienen problema primero.
+  const orden = { sin_escanear: 0, parcial: 1, sin_respuesta: 2, sin_guia: 3, ok: 4 };
+  filas.sort((a, b) => (orden[a.estado] - orden[b.estado]) || a.envio_id - b.envio_id);
+  return { fecha: dia, consultado_en: new Date().toLocaleString('sv-SE', { timeZone: 'America/Argentina/Buenos_Aires' }), totales, filas, todo_ok: totales.envios > 0 && totales.sin_escanear === 0 && totales.sin_respuesta === 0 };
+}
+
+module.exports = { refrescarSemaforo, escaneoDelDia, UPS_GUIA_REGEX };

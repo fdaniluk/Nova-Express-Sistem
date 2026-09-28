@@ -42,5 +42,20 @@ router.post('/refrescar', async (req, res, next) => {
   }
 });
 
+// Chequeo de escaneo del día (28/09): paso nuevo del cierre diario. ¿UPS escaneó todas las
+// cajas de los envíos UPS de hoy? Consulta a UPS envío por envío y devuelve el detalle.
+router.post('/escaneo-dia', async (req, res, next) => {
+  try {
+    if (!(process.env.UPS_CLIENT_ID || '').trim()) {
+      return res.status(503).json({ error: 'El servidor no tiene credenciales UPS configuradas' });
+    }
+    const { getDb } = require('../db');
+    const { escaneoDelDia } = require('../services/tracking-auto.service');
+    res.json(await escaneoDelDia(getDb(), { fecha: (req.body && req.body.fecha) || req.query.fecha }));
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
 module.exports.esGuiaUpsValida = esGuiaUpsValida;

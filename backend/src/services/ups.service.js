@@ -98,8 +98,27 @@ async function getTracking(numeroGuia) {
     };
   });
 
+  // Todos los paquetes del envío (28/09): consultando por la guía principal, UPS devuelve
+  // una entrada por caja, cada una con su propio número y su última actividad. Es lo que
+  // usa el chequeo de escaneo del cierre del día: una caja que solo tiene "manifest"
+  // (M/MV) es una caja que UPS todavía no tocó.
+  const paquetes = (shipment.package || []).map((p) => {
+    const act = p?.activity?.[0];
+    const a = act?.location?.address || {};
+    return {
+      guia: p?.trackingNumber || null,
+      tipo: act?.status?.type || null,
+      estado: act?.status?.description || null,
+      ubicacion: [a.city, a.stateProvince, a.countryCode].filter(Boolean).join(', ') || null,
+      fecha: fmtFecha(act?.date),
+      hora: fmtHora(act?.time),
+      semaforo: semaforoDeEstado(act?.status?.type, act?.status?.description),
+    };
+  });
+
   return {
     guia: numeroGuia,
+    paquetes,
     estado: activity?.status?.description || 'Sin información',
     // Código de tipo de la actividad más reciente, tal como lo manda UPS:
     //   M/MV = manifest (la etiqueta existe pero nadie la escaneó) · I = en tránsito ·

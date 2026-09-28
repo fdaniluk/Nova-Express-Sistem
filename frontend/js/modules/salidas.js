@@ -1370,6 +1370,89 @@
     });
 
     refrescarUltimoCierre();
+
+    const btnEsc = document.getElementById('btn-escaneo-ups');
+    if (btnEsc) btnEsc.addEventListener('click', () => revisarEscaneoUps());
+  }
+
+  // ── Escaneo UPS del día (28/09/2026) ─────────────────────────────────────────
+  // Paso nuevo del cierre diario: cuando UPS ya pasó a buscar las cajas, la oficina
+  // revisa que las haya escaneado a TODAS. El botón le pregunta a UPS por cada envío UPS
+  // del día (por la guía principal, que trae todas las cajas) y muestra qué caja se
+  // escaneó y cuál no. De paso pinta el semáforo de la grilla con la respuesta.
+  async function revisarEscaneoUps(fecha) {
+    const btn = document.getElementById('btn-escaneo-ups');
+    const dia = fecha || todayStr();
+    abrirEscaneoModal(`<div class="esc-cargando">Consultando a UPS los envíos del ${NovaUtils.formatDate(dia)}…</div>`, dia);
+    if (btn) btn.disabled = true;
+    try {
+      const r = await fetch('/api/tracking/escaneo-dia', {
+        method: 'POST', credentials: 'same-origin',
+        headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ fecha: dia }),
+      });
+      const data = await r.json().catch(() => null);
+      if (!r.ok) throw new Error((data && data.error) || `Error ${r.status}`);
+      abrirEscaneoModal(renderEscaneo(data), dia);
+      // El semáforo de la grilla se refresca con lo que contestó UPS.
+      try { await loadData(); } catch { /* la grilla se refresca en la próxima carga */ }
+    } catch (e) {
+      abrirEscaneoModal(`<div class="esc-error">No se pudo consultar a UPS: ${esc(e.message)}</div>`, dia);
+    } finally {
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  function renderEscaneo(d) {
+    const t = d.totales;
+    if (!t.envios) {
+      return `<div class="esc-vacio">No hay envíos UPS cargados con fecha ${NovaUtils.formatDate(d.fecha)}.</div>`;
+    }
+    const ok = d.todo_ok;
+    const cab = ok
+      ? `<div class="esc-resumen ok"><span class="esc-big">✔</span><div><strong>Todo escaneado.</strong> UPS escaneó las ${t.cajas} caja${t.cajas === 1 ? '' : 's'} de los ${t.envios} envío${t.envios === 1 ? '' : 's'} del día.</div></div>`
+      : `<div class="esc-resumen mal"><span class="esc-big">!</span><div><strong>${t.sin_escanear} caja${t.sin_escanear === 1 ? '' : 's'} sin escanear</strong> de ${t.cajas} en ${t.envios} envío${t.envios === 1 ? '' : 's'} UPS del día${t.sin_respuesta ? ` · ${t.sin_respuesta} sin respuesta de UPS` : ''}${t.sin_guia ? ` · ${t.sin_guia} sin guía` : ''}.</div></div>`;
+    const EST = { ok: ['Escaneado', 'ok'], parcial: ['Faltan cajas', 'mal'], sin_escanear: ['Sin escanear', 'mal'], sin_respuesta: ['Sin respuesta', 'gris'], sin_guia: ['Sin guía', 'gris'] };
+    const filas = d.filas.map((f) => {
+      const [lbl, cls] = EST[f.estado] || [f.estado, 'gris'];
+      const cajas = (f.paquetes || []).map((p, i) => `<span class="esc-caja ${p.escaneada ? 'si' : 'no'}" title="${escAttr((p.guia || '') + (p.estado ? ' · ' + p.estado : '') + (p.fecha ? ' · ' + NovaUtils.formatDate(p.fecha) + (p.hora ? ' ' + p.hora : '') : ''))}">${p.escaneada ? '✔' : '✕'} ${i + 1}</span>`).join('');
+      return `<tr class="esc-${cls}">
+        <td><span class="guia-num">${esc(f.guia || '—')}</span></td>
+        <td>${esc(f.cliente || '')}</td>
+        <td class="n">${f.escaneadas} / ${f.cajas}</td>
+        <td>${cajas || '<span class="em">—</span>'}</td>
+        <td><span class="esc-est ${cls}">${lbl}</span>${f.detalle ? `<div class="esc-det">${esc(f.detalle)}</div>` : ''}</td>
+      </tr>`;
+    }).join('');
+    return `${cab}
+      <table class="esc-tabla">
+        <thead><tr><th>Guía</th><th>Cliente</th><th class="n">Escaneadas</th><th>Cajas</th><th>Estado</th></tr></thead>
+        <tbody>${filas}</tbody>
+      </table>
+      <div class="esc-pie">Consultado a UPS a las ${esc(String(d.consultado_en || '').slice(11, 16))}. El semáforo de la grilla quedó actualizado con esta respuesta.</div>`;
+  }
+
+  function abrirEscaneoModal(html, dia) {
+    let ov = document.getElementById('esc-overlay');
+    if (!ov) {
+      ov = document.createElement('div');
+      ov.id = 'esc-overlay';
+      ov.className = 'sal-modal-overlay';
+      ov.innerHTML = `
+        <div class="sal-modal-box esc-box">
+          <div class="sal-modal-header">
+            <div><h2>Escaneo UPS del día</h2><div class="sal-modal-meta"><input type="date" id="esc-fecha" class="cierre-mes"><button type="button" class="btn btn-sm btn-secondary" id="esc-otra-vez">Volver a consultar</button></div></div>
+            <button class="sal-modal-close" id="esc-close" title="Cerrar">×</button>
+          </div>
+          <div class="esc-body" id="esc-body"></div>
+        </div>`;
+      document.body.appendChild(ov);
+      ov.addEventListener('click', (e) => { if (e.target === ov) ov.classList.add('hidden'); });
+      document.getElementById('esc-close').addEventListener('click', () => ov.classList.add('hidden'));
+      document.getElementById('esc-otra-vez').addEventListener('click', () => revisarEscaneoUps(document.getElementById('esc-fecha').value));
+    }
+    document.getElementById('esc-fecha').value = dia;
+    document.getElementById('esc-body').innerHTML = html;
+    ov.classList.remove('hidden');
   }
 
   // La descarga va por fetch y no por un link directo para poder leer el resultado: si el
@@ -1411,9 +1494,10 @@
         NovaUtils.showAlert(alertBox,
           `Cierre de ${comoSeLlama} descargado: ${filas} envío(s). Guardalo en la carpeta de respaldos.`,
           'success');
-        // Cierre de LA SEMANA = fin de la semana de trabajo: festejo con confeti y foto
-        // (pedido de Felipe, 22/09). El del mes no, que ese es de administración.
-        if (/tipo=semana/.test(query) && window.NovaFinde) {
+        // Cierre = fin de la semana de trabajo: festejo con confeti y foto (pedido de
+        // Felipe, 22/09). Desde el 28/09 también con el botón de MES: los viernes los
+        // chicos bajan el cierre desde ahí y se quedaban sin foto.
+        if (window.NovaFinde) {
           const quien = (window.currentUser && (window.currentUser.nombre || window.currentUser.usuario)) || '';
           NovaFinde.celebrar({ filas, quien });
         }

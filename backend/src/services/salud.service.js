@@ -365,6 +365,16 @@ async function chequeoFuelDesfasado(db, corte) {
   const hist = await db.prepare('SELECT courier, fuel_pct_anterior, fuel_pct_nuevo, fecha_cambio FROM configuracion_historial ORDER BY fecha_cambio').all();
   const cambios = {};
   for (const h of hist) (cambios[h.courier] = cambios[h.courier] || []).push(h);
+  // El "Fuel Nova" (el que se le cobra al cliente en DHL, distinto del del courier) tiene su
+  // propia configuración e historial. Un envío cargado con fuel_origen = 'nova' se compara
+  // contra ESE, no contra el de DHL/UPS. Los de origen 'manual' o 'cliente' no se miran:
+  // son decisiones de una persona sobre ese envío o ese cliente.
+  try {
+    const nova = await db.prepare('SELECT fuel_pct FROM configuracion_nova WHERE id = 1').get();
+    if (nova) actual.NOVA = nova.fuel_pct;
+    const histNova = await db.prepare('SELECT fuel_pct_anterior, fuel_pct_nuevo, fecha_cambio FROM configuracion_nova_historial ORDER BY fecha_cambio').all();
+    if (histNova.length) cambios.NOVA = histNova;
+  } catch (e) { /* base vieja sin Fuel Nova */ }
   const vigenteEn = (courier, fechaHora) => {
     const lista = cambios[courier] || [];
     let v = lista.length ? lista[0].fuel_pct_anterior : actual[courier];
@@ -378,7 +388,7 @@ async function chequeoFuelDesfasado(db, corte) {
   // Últimos 60 días, y nunca antes de la fecha de corte del control (07/09).
   const desde = [hoyLocalMas(-60), corte].sort()[1];
   const envios = await db.prepare(`
-    SELECT e.id, e.numero_guia, e.fecha, e.created_at, e.courier, e.fuel_pct, c.nombre AS cliente
+    SELECT e.id, e.numero_guia, e.fecha, e.created_at, e.courier, e.fuel_pct, e.fuel_origen, c.nombre AS cliente
     FROM envios e
     LEFT JOIN clientes c ON c.id = e.cliente_id
     WHERE e.fecha >= ? AND e.fuel_pct IS NOT NULL
@@ -387,22 +397,32 @@ async function chequeoFuelDesfasado(db, corte) {
 
   const filas = envios
     .filter((e) => {
-      if (actual[e.courier] == null) return false;
-      if (cerca(e.fuel_pct, actual[e.courier])) return false;
+      const origen = String(e.fuel_origen || '').toLowerCase();
+      if (origen === 'manual' || origen === 'cliente') return false;
+      const ref = origen === 'nova' ? 'NOVA' : e.courier;
+      if (actual[ref] == null) return false;
+      if (cerca(e.fuel_pct, actual[ref])) return false;
+      // Sin origen guardado (envíos de antes del desplegable) también vale el Fuel Nova.
+      if (!origen && actual.NOVA != null && cerca(e.fuel_pct, actual.NOVA)) return false;
       // Vale el fuel vigente al momento de la carga (created_at) o el del día del envío:
       // la oficina a veces carga el envío uno o dos días después de despacharlo.
-      const enCarga = vigenteEn(e.courier, String(e.created_at || e.fecha));
-      const enFecha = vigenteEn(e.courier, `${e.fecha} 23:59:59`);
-      return !cerca(e.fuel_pct, enCarga) && !cerca(e.fuel_pct, enFecha);
+      const enCarga = vigenteEn(ref, String(e.created_at || e.fecha));
+      const enFecha = vigenteEn(ref, `${e.fecha} 23:59:59`);
+      if (cerca(e.fuel_pct, enCarga) || cerca(e.fuel_pct, enFecha)) return false;
+      if (!origen && actual.NOVA != null) {
+        if (cerca(e.fuel_pct, vigenteEn('NOVA', String(e.created_at || e.fecha))) || cerca(e.fuel_pct, vigenteEn('NOVA', `${e.fecha} 23:59:59`))) return false;
+      }
+      return true;
     })
     .map((e) => ({
       guia: e.numero_guia || `#${e.id}`,
       cliente: e.cliente || '—',
       fecha: e.fecha,
       courier: e.courier,
+      origen: e.fuel_origen || '—',
       fuel_del_envio: e.fuel_pct,
-      fuel_vigente_ese_dia: vigenteEn(e.courier, `${e.fecha} 23:59:59`),
-      fuel_de_config_hoy: actual[e.courier],
+      fuel_vigente_ese_dia: vigenteEn(String(e.fuel_origen || '').toLowerCase() === 'nova' ? 'NOVA' : e.courier, `${e.fecha} 23:59:59`),
+      fuel_de_config_hoy: actual[String(e.fuel_origen || '').toLowerCase() === 'nova' ? 'NOVA' : e.courier],
     }));
 
   if (!filas.length) {
