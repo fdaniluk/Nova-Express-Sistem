@@ -308,7 +308,7 @@
 <script src="/js/auth-guard.js?v=20260924b"></script>
 <script src="/js/api.js?v=20260925a"></script>
 <script src="/shared/cotizador/cotizador-core.js?v=20260922a"></script>
-<script src="/js/cotizacion-imagen.js?v=20260922a"></script>
+<script src="/js/cotizacion-imagen.js?v=20260929a"></script>
 <script>
 let bultoId=0;
 /* agregarBulto(datos, despuesDeInfo)
@@ -455,7 +455,7 @@ return`<div class="res-fila"><div class="result-card"><div class="result-header 
   }
   /* Lo que necesita el dibujante de la imagen. Se guarda aparte del DOM porque la imagen
      NO es una captura de la tarjeta: se dibuja de cero en un canvas. */
-  window.__cot={results,bultosProc,tipo,arancel,valor};
+  window.__cot={results,bultosProc,tipo,arancel,valor,pais:document.getElementById('pais').value};
   /* Cotizacion nueva = cotizacion SIN guardar. Los botones "Guardar este precio" se
      redibujan apagados con los resultados, y el proximo click crea una CTZ nueva en vez
      de seguir editando las marcas de la anterior. */
@@ -744,7 +744,7 @@ async function copiarImagen(i,btn){
   const dias=document.getElementById('pres_dias').value||15;
   const c=await CotizacionImagen.dibujar({
     nombre:(document.getElementById('pres_nombre').value||'').trim(),
-    servicio:res.courier, zona:res.zona, pf:res.pf, total:res.total,
+    servicio:res.courier, zona:res.zona, pais:est.pais, pf:res.pf, total:res.total,
     flete:res.conGan, surge:res.surgeAmt, subtotal:res.subtotalConSurge,
     fuel_pct:res.fuelPctUsado, fuel_monto:res.fuelMonto, extras:res.extraRows||[],
     bultos:est.bultosProc, tipo:est.tipo, valor:est.valor,

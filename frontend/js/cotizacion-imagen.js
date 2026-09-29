@@ -136,17 +136,18 @@
       const prT = bultos.reduce((s, x) => s + (Number(x.pr) || 0), 0);
       const pvT = bultos.reduce((s, x) => s + (Number(x.pv) || 0), 0);
       const dir = tipo === 'export' ? 'Exportación' : 'Importación';
+      const cab = `Zona ${d.zona}`;
       if (bultos.length === 1) {
         const u = bultos[0];
         return [
-          [`Zona ${d.zona} · ${u.pr} kg real · ${u.l}×${u.a}×${u.al} cm · ${Number(u.pv).toFixed(1)} kg vol · `, false],
+          [`${cab} · ${u.pr} kg real · ${u.l}×${u.a}×${u.al} cm · ${Number(u.pv).toFixed(1)} kg vol · `, false],
           [`${Number(u.pf).toFixed(1)} kg facturable`, true],
           /* El FOB va también en la imagen (pedido de la oficina, 24/08). */
           [` · 1 bulto · ${dir}${valor > 0 ? ` · FOB ${fmt(valor)}` : ''}`, false],
         ];
       }
       return [
-        [`Zona ${d.zona} · ${prT.toFixed(1)} kg real · ${pvT.toFixed(1)} kg vol · `, false],
+        [`${cab} · ${prT.toFixed(1)} kg real · ${pvT.toFixed(1)} kg vol · `, false],
         [`${pf.toFixed(1)} kg facturable`, true],
         [` · ${bultos.length} bultos · ${dir}${valor > 0 ? ` · FOB ${fmt(valor)}` : ''}`, false],
       ];
@@ -186,6 +187,24 @@
     const anchoNova = x.measureText('Nova Express').width;
     x.font = '400 15px "DM Sans", sans-serif'; x.fillStyle = '#5c5a54';
     x.fillText(' – ' + nombreCorto(d.servicio), P + anchoNova, yc);
+    /* El PAÍS de destino, a continuación del servicio (pedido de Felipe, 29/09): al cliente
+       la "zona 5" sola no le dice nada. Va en el renglón del courier y no en el de medidas,
+       que ya se achica para entrar. Se dibuja solo si entra antes del total. */
+    {
+      const destino = String(d.pais || '').trim();
+      if (destino) {
+        const xd = P + anchoNova + x.measureText(' – ' + nombreCorto(d.servicio)).width;
+        const txt = '  →  ' + destino;
+        x.font = '500 14px "DM Sans", sans-serif';
+        const wd = x.measureText(txt).width;
+        x.font = '600 23px "DM Mono", monospace';
+        const topeIzq = W - P - x.measureText(fmt(total)).width - 14;
+        if (xd + wd <= topeIzq) {
+          x.font = '500 14px "DM Sans", sans-serif'; x.fillStyle = esDhl ? '#7a5f1f' : '#3d5a8a';
+          x.fillText(txt, xd, yc);
+        }
+      }
+    }
     /* Cartel "Tarifa +50Kg", solo impo DHL de más de 50 kg, pegado al nombre del courier y
        SOLO si entra antes del total (25/08). */
     if (tipo === 'import' && esDhl && pf > 50) {
@@ -336,7 +355,7 @@
     try { entrada = typeof q.entrada === 'string' ? JSON.parse(q.entrada || '{}') : (q.entrada || {}); } catch (_) { entrada = {}; }
     return {
       nombre: q.cliente_nombre_actual || q.cliente_nombre || '',
-      servicio: op.servicio, zona: op.zona ?? q.zona, pf: op.pf ?? q.peso_facturable, total: op.total,
+      servicio: op.servicio, zona: op.zona ?? q.zona, pais: q.pais || entrada.pais || '', pf: op.pf ?? q.peso_facturable, total: op.total,
       flete: op.flete, surge: op.surge, subtotal: op.subtotal, fuel_pct: op.fuel_pct, fuel_monto: op.fuel_monto,
       extras: op.extras || [],
       bultos: Array.isArray(entrada.bultos) ? entrada.bultos : [],
