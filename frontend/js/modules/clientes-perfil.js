@@ -216,69 +216,80 @@
   }
 
   // ── Chart utilidad mensual ────────────────────────────
+  // Hasta el 29/09 se dibujaba a mano en un canvas de 700×200 estirado por CSS: se veía
+  // borroso y con dos barras sueltas cuando había pocos meses. Ahora es Chart.js, el mismo
+  // que usa el Dashboard (nítido en cualquier pantalla), con los 12 meses seguidos —los
+  // vacíos en cero— y la cantidad de envíos en el tooltip.
+  let chartMensual = null;
+  const MESES_CORTOS = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
 
   function renderChart(mensual) {
     const canvas = document.getElementById('chart-mensual');
     const emptyMsg = document.getElementById('chart-empty');
-    if (!mensual || !mensual.length) {
+    if (!mensual || !mensual.length || !window.Chart) {
       canvas.classList.add('hidden');
       emptyMsg.classList.remove('hidden');
       return;
     }
+    canvas.classList.remove('hidden');
+    emptyMsg.classList.add('hidden');
 
-    // Mostrar en orden cronológico (la API devuelve DESC)
-    const data = [...mensual].reverse();
-
-    const ctx = canvas.getContext('2d');
-    const w = canvas.width;
-    const h = canvas.height;
-    ctx.clearRect(0, 0, w, h);
-
-    const pad = { top: 24, right: 12, bottom: 36, left: 70 };
-    const cw = w - pad.left - pad.right;
-    const ch = h - pad.top - pad.bottom;
-    const maxVal = Math.max(...data.map((d) => d.utilidad_usd), 1);
-    const barW = Math.max(10, (cw / data.length) * 0.55);
-    const gap = cw / data.length;
-
-    // Gridlines + Y labels
-    ctx.lineWidth = 1;
-    for (let i = 0; i <= 4; i++) {
-      const y = pad.top + ch * (1 - i / 4);
-      ctx.strokeStyle = '#e2e8f0';
-      ctx.beginPath();
-      ctx.moveTo(pad.left, y);
-      ctx.lineTo(pad.left + cw, y);
-      ctx.stroke();
-      ctx.fillStyle = '#94a3b8';
-      ctx.font = '10px sans-serif';
-      ctx.textAlign = 'right';
-      ctx.fillText(NovaUtils.formatMoney((maxVal * i) / 4), pad.left - 6, y + 3);
+    // Los últimos 12 meses SEGUIDOS, terminando en el mes de hoy: un mes sin envíos es una
+    // barra en cero, no un hueco que hace que dos meses parezcan vecinos.
+    const porMes = new Map(mensual.map((m) => [m.mes, m]));
+    const hoy = new Date();
+    const meses = [];
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+      const k = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const m = porMes.get(k) || { mes: k, utilidad_usd: 0, cantidad_envios: 0 };
+      meses.push({ ...m, label: `${MESES_CORTOS[d.getMonth()]} ${String(d.getFullYear()).slice(2)}` });
     }
+    const valores = meses.map((m) => Number(m.utilidad_usd) || 0);
+    const maxAbs = Math.max(1, ...valores.map((v) => Math.abs(v)));
 
-    data.forEach((d, i) => {
-      const barH = Math.max(2, (d.utilidad_usd / maxVal) * ch);
-      const x = pad.left + i * gap + (gap - barW) / 2;
-      const y = pad.top + ch - barH;
-
-      // Bar
-      ctx.fillStyle = '#2A3661';
-      ctx.fillRect(x, y, barW, barH);
-
-      // Envíos tooltip dentro de la barra si hay espacio
-      if (barH > 18) {
-        ctx.fillStyle = 'rgba(255,255,255,0.8)';
-        ctx.font = 'bold 9px sans-serif';
-        ctx.textAlign = 'center';
-        ctx.fillText(d.cantidad_envios + ' env.', x + barW / 2, y + 12);
-      }
-
-      // X label (mes YYYY-MM → MM/YYYY)
-      const [anio, mes] = d.mes.split('-');
-      ctx.fillStyle = '#64748b';
-      ctx.font = '10px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.fillText(`${mes}/${anio.slice(2)}`, x + barW / 2, h - 6);
+    Chart.defaults.font.family = "'Segoe UI', system-ui, -apple-system, sans-serif";
+    Chart.defaults.font.size = 11;
+    Chart.defaults.color = '#64748b';
+    if (chartMensual) chartMensual.destroy();
+    chartMensual = new Chart(canvas, {
+      type: 'bar',
+      data: {
+        labels: meses.map((m) => m.label),
+        datasets: [{
+          data: valores,
+          backgroundColor: valores.map((v) => (v < 0 ? '#EA6749' : '#2A3661')),
+          borderRadius: 4,
+          maxBarThickness: 42,
+        }],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 250 },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              title: (items) => items[0].label,
+              label: (it) => {
+                const m = meses[it.dataIndex];
+                const n = Number(m.cantidad_envios) || 0;
+                return [`Utilidad ${NovaUtils.formatMoney(it.parsed.y)}`, `${n} envío${n === 1 ? '' : 's'}`];
+              },
+            },
+          },
+        },
+        scales: {
+          x: { grid: { display: false }, ticks: { maxRotation: 0, autoSkip: false } },
+          y: {
+            beginAtZero: true,
+            suggestedMax: maxAbs * 1.15,
+            grid: { color: '#eef1f5' },
+            ticks: { callback: (v) => NovaUtils.formatMoney(v), maxTicksLimit: 5 },
+          },
+        },
+      },
     });
   }
 

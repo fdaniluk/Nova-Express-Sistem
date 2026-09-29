@@ -209,7 +209,8 @@ a.btn, a.btn:hover { text-decoration:none; }
 .tarifas-extra b { color:var(--color-text); }
 
 /* Grafico */
-#chart-mensual { width:100%; max-width:100%; height:auto; }
+.chart-mensual-wrap { position:relative; height:240px; width:100%; }
+#chart-mensual.hidden { display:none; }
 
 /* ── Telefono ──────────────────────────────────────────────────────────────────── */
 @media (max-width:640px) {
