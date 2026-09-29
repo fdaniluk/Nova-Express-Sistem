@@ -53,11 +53,19 @@ const r2 = (n) => Math.round(n * 100) / 100;
       }
     }
     for (const id of pl.cliente_ids) {
-      const cli = await db.prepare('SELECT id, nombre FROM clientes WHERE id = ?').get(id);
+      const cli = await db.prepare('SELECT id, nombre, tarifa_pct FROM clientes WHERE id = ?').get(id);
       if (!cli) { resumen.push([key, id, 'CLIENTE INEXISTENTE']); continue; }
       if (simular) { resumen.push([key, id, `${cli.nombre}: ${celdas.length} celdas (simulado)${faltan ? ', faltan ' + faltan : ''}`]); continue; }
       await P.cambiarPasoTramos(id, { paso: 0.5, hasta: 70 });
       const r = await P.cargarMatrizMasiva(id, { servicio: 'UPS_EXP', tipo: 'export', celdas, reemplazar: true });
+      // Respaldo para lo que la matriz no cubre (DHL, importación): la mediana de la matriz
+      // en clientes.tarifa_pct, como se hizo el 28/09 — solo si el cliente no tiene ninguno.
+      if (!(Number(cli.tarifa_pct) > 0) && celdas.length) {
+        const ord = celdas.map((c) => c.profit_pct).sort((a, b) => a - b);
+        const mediana = r2(ord[Math.floor(ord.length / 2)]);
+        await db.prepare('UPDATE clientes SET tarifa_pct = ? WHERE id = ?').run(mediana, id);
+        console.log(`  ${cli.nombre}: tarifa general de respaldo ${mediana} % (mediana de la matriz)`);
+      }
       // Verificación: 12 pesos al azar tienen que dar el precio de la planilla al centavo.
       let peor = 0;
       for (const [w, z, p] of pl.precios.filter((_, i) => i % 71 === 0)) {
