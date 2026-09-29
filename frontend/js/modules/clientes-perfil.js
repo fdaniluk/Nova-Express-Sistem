@@ -647,6 +647,8 @@
   ];
   let TARIFAS_SUGERIDOS = [];
   let tramosPropios = false;
+  let pasoActual = 5;          // 5 | 1 | 0.5 | null (juego irregular, cargado a mano)
+  let buscarPeso = '';         // filtro de la grilla cuando el juego es largo (1 o 0,5 kg)
   const TARIFAS_ZONAS = [1, 2, 3, 4, 5, 6];
 
   // Trae los tramos del cliente. Si falla, se sigue con los que haya: es preferible una
@@ -657,6 +659,7 @@
       if (r && Array.isArray(r.tramos) && r.tramos.length > 0) {
         TARIFAS_BANDAS = r.tramos;
         tramosPropios = Boolean(r.propios);
+        pasoActual = r.paso === undefined ? (tramosPropios ? null : 5) : r.paso;
       }
       if (r && Array.isArray(r.sugeridos)) TARIFAS_SUGERIDOS = r.sugeridos;
     } catch { /* se dibuja con los por defecto */ }
@@ -799,15 +802,64 @@
     fuel.value = fuelPropio === null || fuelPropio === undefined ? '' : fuelPropio;
     btnBorrarFuel.classList.toggle('hidden', fuelPropio === null || fuelPropio === undefined);
 
+    renderPaso();
     const ayuda = document.getElementById('tarifas-grid-ayuda');
     if (ayuda) {
       const deQuienSonLosTramos = tramosPropios
-        ? 'Este cliente tiene tramos de peso propios, negociados con él: no son los que usa el resto.'
-        : 'Los tramos de peso son los generales.';
+        ? (pasoActual ? `Este cliente tiene su tarifa con tramos de ${pasoActual === 0.5 ? '0,5' : pasoActual} kg (${TARIFAS_BANDAS.length} tramos).` : 'Este cliente tiene tramos de peso propios, negociados con él: no son los que usa el resto.')
+        : 'Los tramos de peso son los generales (de 5 kg).';
       ayuda.textContent = `Lo que se carga es lo que se cobra: el precio por kilo gana en su cuadrante, el porcentaje cubre el resto. ${deQuienSonLosTramos} Para cambiar precios: Editar porcentaje o Editar precio por kilo.`;
     }
 
     renderSeguro();
+  }
+
+  // ── Paso de la tarifa (29/09/2026) ─────────────────────────────────────────────
+  function renderPaso() {
+    const seg = document.getElementById('paso-seg');
+    if (!seg) return;
+    seg.querySelectorAll('button').forEach((b) => b.classList.toggle('on', Number(b.dataset.paso) === pasoActual));
+    const hasta = document.getElementById('paso-hasta');
+    const lbl = document.getElementById('paso-hasta-lbl');
+    const fino = pasoActual === 1 || pasoActual === 0.5;
+    hasta.classList.toggle('hidden', !fino); lbl.classList.toggle('hidden', !fino);
+    if (fino) {
+      const ultimo = TARIFAS_BANDAS[TARIFAS_BANDAS.length - 1];
+      if (ultimo && ultimo.max === null) hasta.value = ultimo.min;
+    }
+    const hint = document.getElementById('paso-hint');
+    hint.textContent = pasoActual === null
+      ? 'Tramos cargados a mano (irregulares). Elegí un paso para reordenarlos; los valores se conservan.'
+      : (fino ? `${TARIFAS_BANDAS.length} tramos. Cambiar el paso conserva los precios: los tramos nuevos heredan el valor del que los contenía.`
+        : 'Los tramos generales. Con 1 kg o 0,5 kg cada tramo puede tener su propio %, como en los tarifarios viejos.');
+  }
+
+  async function cambiarPaso(paso) {
+    const hastaEl = document.getElementById('paso-hasta');
+    const hasta = paso === 5 ? undefined : Math.max(paso, Number(hastaEl.value) || 70);
+    const mismo = paso === pasoActual && (paso === 5 || Number(hastaEl.value) === (TARIFAS_BANDAS[TARIFAS_BANDAS.length - 1] || {}).min);
+    if (mismo) return;
+    const aFino = pasoActual !== null && paso < pasoActual;
+    const msg = aFino
+      ? `¿Pasar la tarifa a tramos de ${paso === 0.5 ? '0,5' : paso} kg hasta ${hasta} kg? No se mueve ningún precio: cada tramo nuevo hereda el valor del tramo actual que lo contiene. Después podés afinar celda por celda.`
+      : `¿Pasar la tarifa a tramos de ${paso === 0.5 ? '0,5' : paso} kg${paso === 5 ? ' (los generales)' : ` hasta ${hasta} kg`}? OJO: al agrandar los tramos, cada tramo nuevo se queda con el PROMEDIO de los tramos que abarca. Donde hoy hay valores distintos dentro de un mismo tramo nuevo, el precio cambia.`;
+    if (!confirm(msg)) { renderPaso(); return; }
+    try {
+      const r = await NovaAPI.clientes.tramos.paso(clienteId, paso, hasta);
+      buscarPeso = '';
+      NovaUtils.showAlert(alertBox, `Tarifa en tramos de ${paso === 0.5 ? '0,5' : paso} kg: ${r.tramos.length} tramos, ${r.celdas_pct} celdas de % y ${r.celdas_kg} precios por kilo rearmados${r.tramos_promediados ? ` (${r.tramos_promediados} tramos quedaron con el promedio)` : ' sin cambiar ningún precio'}.`, 'success');
+      await cargarMatriz();
+    } catch (err) {
+      NovaUtils.showAlert(alertBox, err.message, 'error');
+      renderPaso();
+    }
+  }
+
+  function bindPaso() {
+    const seg = document.getElementById('paso-seg');
+    if (!seg) return;
+    seg.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => cambiarPaso(Number(b.dataset.paso))));
+    document.getElementById('paso-hasta').addEventListener('change', () => { if (pasoActual === 1 || pasoActual === 0.5) cambiarPaso(pasoActual); });
   }
 
   // Seguro negociado del cliente. Vale para DHL y UPS por igual: cuando esta cargado,
@@ -866,8 +918,21 @@
   }
 
   function tablaHtml(serv, tipo) {
-    const filas = filasDeGrilla(serv, tipo);
-    let html = '<div class="tarifas-grid-wrap"><table class="tarifas-grid"><thead><tr><th></th><th class="col-todas">Todas</th>';
+    let filas = filasDeGrilla(serv, tipo);
+    // Juegos largos (1 kg = 71 filas, 0,5 kg = 141): la tabla tiene scroll propio y un
+    // buscador de peso arriba, para ir directo al tramo que se quiere ver o tocar.
+    const largo = filas.length > 15;
+    if (largo && buscarPeso !== '') {
+      const w = Number(String(buscarPeso).replace(',', '.'));
+      if (Number.isFinite(w)) {
+        filas = filas.filter((b) => (b.max === null ? w > b.min : (b.min === 0 ? w <= b.max : w > b.min && w <= b.max)) || Math.abs(b.min - w) <= (pasoActual || 1) * 2);
+      }
+    }
+    let html = '';
+    if (largo) {
+      html += `<div class="grid-buscar"><label>Ir al peso</label><input type="number" step="0.5" min="0" class="grid-buscar-input" data-serv="${serv}" data-tipo="${tipo}" value="${buscarPeso}" placeholder="kg"> <span class="tarifas-hint">${buscarPeso !== '' ? `mostrando los tramos alrededor de ${buscarPeso} kg · ` : ''}${filasDeGrilla(serv, tipo).length} tramos</span>${buscarPeso !== '' ? `<button type="button" class="btn btn-secondary btn-sm grid-buscar-todo">Ver todos</button>` : ''}</div>`;
+    }
+    html += `<div class="tarifas-grid-wrap${largo ? ' largo' : ''}"><table class="tarifas-grid"><thead><tr><th></th><th class="col-todas">Todas</th>`;
     TARIFAS_ZONAS.forEach((z) => { html += `<th>Zona ${z}</th>`; });
     html += '</tr></thead><tbody>';
     const m = matrices[claveM(serv, tipo)] || {};
@@ -989,6 +1054,12 @@
 
   function bindGridEvents() {
     const wrap = document.getElementById('tarifas-grid');
+    // Buscador de peso de los juegos largos (29/09): filtra las filas sin volver al servidor.
+    wrap.querySelectorAll('.grid-buscar-input').forEach((inp) => {
+      let t = null;
+      inp.addEventListener('input', () => { clearTimeout(t); t = setTimeout(() => { buscarPeso = inp.value; const s = inp.dataset.serv; renderGrid(); const n = document.querySelector(`#sec-${s} .grid-buscar-input`); if (n) n.focus(); }, 350); });
+    });
+    wrap.querySelectorAll('.grid-buscar-todo').forEach((b) => b.addEventListener('click', () => { buscarPeso = ''; renderGrid(); }));
     // En la VISTA no se edita nada: para eso está el botón Editar. Pedido de Felipe (13/08).
     if (editando !== null) {
       wrap.querySelectorAll('td.tarifa-cell').forEach((td) => {
@@ -1169,6 +1240,7 @@
   }
 
   function bindTarifas() {
+    bindPaso();
     const btnEditar = document.getElementById('btn-editar-tarifas');
     const panel = document.getElementById('tarifas-panel');
     const tabs = document.getElementById('tarifas-tabs');

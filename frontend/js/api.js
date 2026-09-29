@@ -249,6 +249,8 @@ api.tarifario = {
 api.clientes.tramos = {
   obtener: (id) => api.get(`/clientes/${id}/tramos`),
   guardar: (id, tramos) => api.put(`/clientes/${id}/tramos`, { tramos }),
+  // Paso de la tarifa (29/09): 5 (general) / 1 / 0,5 kg. Rearma la matriz sin mover precios.
+  paso: (id, paso, hasta) => api.put(`/clientes/${id}/tramos/paso`, { paso, hasta }),
 };
 
 api.dashboard = {

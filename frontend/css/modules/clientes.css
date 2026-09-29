@@ -466,3 +466,21 @@ td.tarifa-cell.cero .cell-val { color: #d03b3b; font-weight: 650; }
 .rs-form .full { grid-column:1 / -1; }
 .rs-form .chk { display:flex; align-items:center; gap:.35rem; font-size:.82rem; padding-top:1.1rem; }
 .rs-form .acc { grid-column:1 / -1; display:flex; gap:.4rem; justify-content:flex-end; }
+
+/* ── Paso de la tarifa (29/09/2026) ─────────────────────────────────────────────── */
+.tarifas-paso { align-items: center; }
+.paso-seg { display: inline-flex; border: 1.5px solid var(--color-border); border-radius: 999px; overflow: hidden; }
+.paso-seg button { border: none; background: #fff; padding: .35rem .8rem; font: inherit; font-size: .82rem; font-weight: 600; color: var(--color-muted); cursor: pointer; }
+.paso-seg button + button { border-left: 1.5px solid var(--color-border); }
+.paso-seg button.on { background: var(--color-primary); color: #fff; }
+#paso-hasta { width: 70px; }
+#paso-hasta.hidden, #paso-hasta-lbl.hidden { display: none; }
+/* Juegos largos (1 kg / 0,5 kg): la tabla tiene scroll propio con la cabecera y la columna del
+   tramo fijas, y un buscador de peso arriba. */
+.grid-buscar { display: flex; align-items: center; gap: .5rem; margin: .4rem 0; font-size: .85rem; }
+.grid-buscar label { white-space: nowrap; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--color-muted); }
+.grid-buscar-input { width: 90px; padding: .3rem .45rem; border: 1px solid var(--color-border); border-radius: 6px; font: inherit; }
+.tarifas-grid-wrap.largo { max-height: 520px; overflow: auto; border: 1px solid var(--color-border); border-radius: 8px; }
+.tarifas-grid-wrap.largo table.tarifas-grid thead th { position: sticky; top: 0; z-index: 2; }
+.tarifas-grid-wrap.largo table.tarifas-grid td.banda-label { position: sticky; left: 0; z-index: 1; }
+.tarifas-grid-wrap.largo table.tarifas-grid th:first-child { left: 0; z-index: 3; }

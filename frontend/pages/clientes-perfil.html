@@ -6,7 +6,7 @@
   <title>Perfil de cliente — Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260915a">
-  <link rel="stylesheet" href="../css/modules/clientes.css?v=20260924b">
+  <link rel="stylesheet" href="../css/modules/clientes.css?v=20260929a">
   <!-- Las fuentes del cuadro de la cotización (el mismo que dibuja el cotizador). -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500;600&display=swap">
 </head>
@@ -199,6 +199,20 @@
             <span class="tarifas-key"><span class="dot h"></span> heredado</span>
             <span class="tarifas-key"><span class="dot v"></span> vacío → porcentaje</span>
             <span class="tarifas-key"><span class="dot z"></span> USD 0,00 · flete gratis</span>
+          </div>
+          <!-- Paso de la tarifa (29/09/2026, pedido de Felipe): tramos de 5 kg (los generales),
+               1 kg o 0,5 kg. Cambiar el paso rearma la matriz heredando los valores: de grueso
+               a fino no se mueve ningún precio. -->
+          <div class="tarifas-modo tarifas-paso" id="tarifas-paso">
+            <label>Paso de la tarifa</label>
+            <div class="paso-seg" id="paso-seg">
+              <button type="button" data-paso="5" title="Los tramos generales del sistema: 0-5, 5-10 … 40-50, 50+">5 kg</button>
+              <button type="button" data-paso="1" title="Un tramo por cada kilo hasta el tope">1 kg</button>
+              <button type="button" data-paso="0.5" title="Un tramo por cada medio kilo hasta el tope (como los tarifarios viejos)">0,5 kg</button>
+            </div>
+            <label for="paso-hasta" id="paso-hasta-lbl">hasta</label>
+            <input type="number" id="paso-hasta" min="5" max="300" step="1" value="70" title="Tope: de ahí en adelante rige un solo tramo">
+            <span class="tarifas-hint" id="paso-hint"></span>
           </div>
           <span class="tarifas-hint" id="tarifas-grid-ayuda"></span>
           <div class="tarifas-alerta" id="tarifas-alerta"></div>
@@ -471,9 +485,9 @@
 </div>
 
 <script src="/js/auth-guard.js?v=20260924b"></script>
-<script src="../js/api.js?v=20260925a"></script>
+<script src="../js/api.js?v=20260929a"></script>
 <script src="../js/main.js?v=20260915a"></script>
 <script src="../js/cotizacion-imagen.js?v=20260929a"></script>
-<script src="../js/modules/clientes-perfil.js?v=20260924b"></script>
+<script src="../js/modules/clientes-perfil.js?v=20260929a"></script>
 </body>
 </html>
