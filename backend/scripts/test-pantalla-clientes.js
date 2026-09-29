@@ -196,8 +196,9 @@ async function main() {
   check('"por kilo" para el que cobra por kilo', fila(porKilo.id).margen === 'por kilo', fila(porKilo.id).margen);
   check('"sin margen" para el que no tiene nada', fila(sinMargen.id).margen === 'sin margen', fila(sinMargen.id).margen);
   check('"60 %" pelado para el que solo tiene el general', fila(soloPct.id).margen === '60 %', fila(soloPct.id).margen);
-  check('los botones de la fila son Perfil · Cotizar · Editar · Desactivar (Eliminar no aparece en un activo)',
-    JSON.stringify(fila(conMatriz.id).acciones) === JSON.stringify(['Perfil', 'Cotizar', 'Editar', 'Desactivar']), JSON.stringify(fila(conMatriz.id).acciones));
+  // "Unir" existe desde las razones sociales (24/09/2026): unir dos fichas del mismo cliente.
+  check('los botones de la fila son Perfil · Cotizar · Editar · Unir · Desactivar (Eliminar no aparece en un activo)',
+    JSON.stringify(fila(conMatriz.id).acciones) === JSON.stringify(['Perfil', 'Cotizar', 'Editar', 'Unir', 'Desactivar']), JSON.stringify(fila(conMatriz.id).acciones));
   const pill = await page.$eval('#cli-pill', (e) => e.textContent.trim());
   const sinMargenApi = activosApi.filter((c) => !(Number(c.tarifa_pct) > 0) && !c.matriz_celdas && !c.kg_celdas && c.modo_tarifa !== 'por_kg').length;
   check('la cabecera cuenta clientes y cuántos sin margen', pill === `${activosApi.length} clientes · ${sinMargenApi} sin margen`, `${pill} · esperado ${activosApi.length} / ${sinMargenApi}`);

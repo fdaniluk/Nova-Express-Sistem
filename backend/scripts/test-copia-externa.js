@@ -214,6 +214,21 @@ async function main() {
   check('una marca ilegible se trata como fallo, no como éxito', rota.severidad === 'rojo',
     `${rota.severidad} · ${rota.resumen}`);
 
+  // Los comprobantes de Cobranzas (29/09): viajan con la copia y se cuentan aparte.
+  escribirMarca({ ok: true, cuando: haceHoras(1), archivo: 'x.gz', tamano_kb: 21, destino: 'onedrive:Nova Backups', copias_remotas: 47, error: null, adjuntos_ok: true, adjuntos_locales: 12, adjuntos_remotos: 12 });
+  const adjOk = await pedirBackups();
+  check('con los comprobantes copiados sigue en verde y los cuenta', adjOk.severidad === 'ok' && /12 archivo\(s\), copiados/.test(adjOk.resumen),
+    `${adjOk.severidad} · ${adjOk.resumen}`);
+  escribirMarca({ ok: true, cuando: haceHoras(1), archivo: 'x.gz', tamano_kb: 21, destino: 'onedrive:Nova Backups', copias_remotas: 47, error: null, adjuntos_ok: false, adjuntos_locales: 12, adjuntos_remotos: 9 });
+  const adjFalta = await pedirBackups();
+  check('si la base subió pero faltan comprobantes se pone en ÁMBAR (no rojo)', adjFalta.severidad === 'ambar',
+    `${adjFalta.severidad} · ${adjFalta.resumen}`);
+  check('y dice cuántos hay de cada lado', /9 en onedrive:Nova Backups de 12/.test(adjFalta.resumen), adjFalta.resumen);
+  escribirMarca({ ok: true, cuando: haceHoras(1), archivo: 'x.gz', tamano_kb: 21, destino: 'onedrive:Nova Backups', copias_remotas: 47, error: null });
+  const adjSinDato = await pedirBackups();
+  check('una marca vieja sin datos de comprobantes no alarma ni los menciona',
+    adjSinDato.severidad === 'ok' && !/Comprobantes/.test(adjSinDato.resumen), `${adjSinDato.severidad} · ${adjSinDato.resumen}`);
+
   fs.unlinkSync(MARCA);
   check('si se borra la marca vuelve al ámbar de antes',
     (await pedirBackups()).severidad === 'ambar');

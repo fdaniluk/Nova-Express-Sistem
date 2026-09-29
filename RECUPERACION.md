@@ -39,6 +39,8 @@ Es un solo archivo: `nova.db`. Está en tres lugares a la vez:
   porque están en el mismo disco.
 - En **OneDrive, carpeta `Nova Backups`** — una copia por día, comprimida (`.db.gz`),
   ordenada por año. Además se guarda para siempre la copia del día 1 de cada mes.
+  Desde el 29/09/2026 también van los **comprobantes de Cobranzas** (los archivos que la
+  oficina adjunta a cada pago), en la subcarpeta `adjuntos`.
   **Esta es la única que sobrevive a que se pierda el servidor entero.**
 
 La computadora de Felipe **no guarda nada que no esté en los otros dos lados.**
@@ -173,6 +175,18 @@ cd /root/Nova-Express-Sistem/backend && node scripts/verificar-backup.js ../data
 
 Tiene que decir **"El backup sirve para restaurar"** y mostrar cuántos clientes y envíos
 tiene. Si dice que no sirve, usar el archivo del día anterior y volver a probar.
+
+Después, los **comprobantes de Cobranzas**. Están en la misma carpeta de OneDrive, en
+`adjuntos`. Si rclone ya está configurado (sección [Volver a configurar la copia a
+OneDrive](#copia)) se traen todos de una:
+
+```
+rclone copy "onedrive:Nova Backups/adjuntos" /root/Nova-Express-Sistem/database/adjuntos
+```
+
+Si no, bajarlos desde la web de OneDrive y subirlos a `database/adjuntos/` respetando las
+subcarpetas. Sin este paso el sistema anda igual, pero en Cobranzas los pagos van a decir
+que el comprobante no está.
 
 ### B.7 — Arrancar
 
@@ -310,8 +324,9 @@ Entrar al sistema como administrador y abrir la pantalla **Salud**. El chequeo
 "Backups de la base" tiene que estar en **verde** y decir cuántas copias hay en OneDrive
 y de cuándo es la última.
 
-- **Ámbar** = el sistema hace copias pero ninguna sale del servidor. Falta configurar
-  rclone.
+- **Ámbar** = el sistema hace copias pero ninguna sale del servidor (falta configurar
+  rclone), o la base salió pero faltan copiar comprobantes de Cobranzas — el cartel dice
+  cuántos hay en OneDrive y cuántos en el servidor.
 - **Rojo** = la copia a OneDrive falló o dejó de correr. El motivo aparece en el mismo
   cartel.
 

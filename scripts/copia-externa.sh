@@ -16,6 +16,10 @@
 #   4. Comprueba que lo que llegó pese lo mismo que lo que salió.
 #   5. Borra las copias remotas viejas, pero se queda para siempre con la del día 1 de
 #      cada mes. Sirve para el caso en que un error se descubre tres meses después.
+#   5b. Sube los COMPROBANTES de Cobranzas (database/adjuntos/, desde el 24/09/2026): la
+#      base guarda el nombre del archivo, el archivo vive en esa carpeta. Sin esto, una
+#      restauración deja los pagos sin su comprobante. Se copian solo los nuevos (rclone
+#      copy) y nunca se borra nada de arriba.
 #   6. Deja escrito cómo le fue. El panel de salud lee ese archivo: si esto deja de
 #      correr, el panel se pone en rojo y se sabe ese día, no el día de restaurar.
 #
@@ -34,6 +38,7 @@ DIAS_REMOTOS="${NOVA_DIAS_REMOTOS:-90}"     # las diarias se guardan estos días
 RCLONE="${RCLONE_BIN:-rclone}"
 
 DB="$RAIZ/database/nova.db"
+DIR_ADJUNTOS="${ADJUNTOS_DIR:-$RAIZ/database/adjuntos}"
 DIR_BACKUPS="$RAIZ/database/backups"
 MARCA="$DIR_BACKUPS/.copia-externa.json"
 LOG="$DIR_BACKUPS/copia-externa.log"
@@ -52,6 +57,7 @@ decir() {
 
 # La marca es el puente con el panel de salud. Se escribe SIEMPRE, salga bien o mal:
 # una copia que falla y no deja rastro es peor que una que falla y avisa.
+ADJ_LOCAL=0; ADJ_REMOTO=0; ADJ_OK=true
 escribir_marca() {
   local ok="$1" archivo="$2" kb="$3" error="$4" remotas="$5"
   cat > "$MARCA" <<JSON
@@ -62,6 +68,9 @@ escribir_marca() {
   "tamano_kb": $kb,
   "destino": "$REMOTO",
   "copias_remotas": $remotas,
+  "adjuntos_ok": $ADJ_OK,
+  "adjuntos_locales": $ADJ_LOCAL,
+  "adjuntos_remotos": $ADJ_REMOTO,
   "error": $( [[ -z "$error" ]] && echo null || printf '"%s"' "$(echo "$error" | tr '"' "'" | tr -d '\n')" )
 }
 JSON
@@ -120,6 +129,7 @@ DESTINO="$REMOTO/$ANIO"
 
 if [[ $PRUEBA == 1 ]]; then
   decir "PRUEBA: acá subiría $NOMBRE.gz (${KB_GZ} KB) a $DESTINO"
+  [[ -d "$DIR_ADJUNTOS" ]] && ADJ_LOCAL="$(find "$DIR_ADJUNTOS" -type f 2>/dev/null | wc -l)" && decir "PRUEBA: y $ADJ_LOCAL comprobante(s) de $DIR_ADJUNTOS a $REMOTO/adjuntos"
   escribir_marca true "$NOMBRE.gz" "$KB_GZ" "" 0
   decir "Prueba terminada, no se tocó nada afuera."
   exit 0
@@ -158,6 +168,29 @@ done < <("$RCLONE" lsf "$REMOTO" --recursive --files-only 2>/dev/null | sed 's#.
 
 REMOTAS="$("$RCLONE" lsf "$REMOTO" --recursive --files-only 2>/dev/null | grep -c '\.gz$')"
 REMOTAS="${REMOTAS:-0}"
+
+# ── 5b. Comprobantes de Cobranzas ───────────────────────────────────────────
+# `rclone copy` sube lo que falta y deja lo que ya está; nunca borra arriba. Si acá se
+# borrara un comprobante por error, la copia de OneDrive lo conserva.
+if [[ -d "$DIR_ADJUNTOS" ]]; then
+  ADJ_LOCAL="$(find "$DIR_ADJUNTOS" -type f 2>/dev/null | wc -l)"
+  if [[ "$ADJ_LOCAL" -gt 0 ]]; then
+    decir "Subiendo comprobantes ($ADJ_LOCAL archivo(s)) a $REMOTO/adjuntos …"
+    if "$RCLONE" copy "$DIR_ADJUNTOS" "$REMOTO/adjuntos" >> "$LOG" 2>&1; then
+      ADJ_REMOTO="$("$RCLONE" lsf "$REMOTO/adjuntos" --recursive --files-only 2>/dev/null | wc -l)"
+      ADJ_REMOTO="${ADJ_REMOTO:-0}"
+      if [[ "$ADJ_REMOTO" -lt "$ADJ_LOCAL" ]]; then
+        ADJ_OK=false
+        decir "AVISO: en OneDrive hay $ADJ_REMOTO comprobante(s) y acá $ADJ_LOCAL — faltan subir."
+      else
+        decir "Comprobantes al día: $ADJ_REMOTO en OneDrive."
+      fi
+    else
+      ADJ_OK=false
+      decir "AVISO: rclone no pudo subir los comprobantes (ver $LOG). La base sí quedó arriba."
+    fi
+  fi
+fi
 
 # ── 6. Dejar dicho cómo salió ───────────────────────────────────────────────
 escribir_marca true "$NOMBRE.gz" "$KB_GZ" "" "$REMOTAS"

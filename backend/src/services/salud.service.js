@@ -605,6 +605,11 @@ function leerCopiaExterna(dir) {
       destino: m.destino || '—',
       archivo: m.archivo || '',
       copias: Number(m.copias_remotas) || 0,
+      // Comprobantes de Cobranzas (database/adjuntos) — desde el 29/09 viajan con la copia.
+      // Una marca vieja no trae estos campos: se toma como "no se sabe" (null), no como falla.
+      adjuntos_ok: m.adjuntos_ok === undefined ? null : m.adjuntos_ok !== false,
+      adjuntos_locales: m.adjuntos_locales === undefined ? null : (Number(m.adjuntos_locales) || 0),
+      adjuntos_remotos: m.adjuntos_remotos === undefined ? null : (Number(m.adjuntos_remotos) || 0),
       horas: Number.isNaN(cuando.getTime()) ? null : (Date.now() - cuando.getTime()) / 3600000,
       cuando: Number.isNaN(cuando.getTime()) ? '—' : cuando.toISOString().slice(0, 16).replace('T', ' '),
     };
@@ -674,6 +679,14 @@ function chequeoBackups() {
     resumenExterna =
       `Copia fuera del VPS OK: ${ext.copias} copia(s) en ${ext.destino}, `
       + `la última hace ${ext.horas < 1 ? 'menos de una hora' : `${Math.round(ext.horas)} h`}.`;
+    // Los comprobantes de Cobranzas: si la base viajó pero los adjuntos no (o faltan
+    // algunos), es ámbar — la base está a salvo, los comprobantes no del todo.
+    if (ext.adjuntos_ok === false || (ext.adjuntos_locales != null && ext.adjuntos_remotos != null && ext.adjuntos_remotos < ext.adjuntos_locales)) {
+      if (severidad === 'ok') severidad = 'ambar';
+      resumenExterna += ` Comprobantes de Cobranzas: ${ext.adjuntos_remotos ?? '?'} en ${ext.destino} de ${ext.adjuntos_locales ?? '?'} en el VPS — faltan copiar.`;
+    } else if (ext.adjuntos_locales != null) {
+      resumenExterna += ` Comprobantes de Cobranzas: ${ext.adjuntos_locales} archivo(s), copiados.`;
+    }
   }
 
   return {
