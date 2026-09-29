@@ -876,9 +876,10 @@ async function obtenerTramosCliente(clienteId) {
     .prepare('SELECT peso_min, peso_max FROM cliente_tramos WHERE cliente_id = ? ORDER BY peso_min')
     .all(clienteId);
   if (!rows || rows.length === 0) {
-    return { propios: false, tramos: TRAMOS_POR_DEFECTO.map((t) => ({ ...t })) };
+    return { propios: false, paso: 5, tramos: TRAMOS_POR_DEFECTO.map((t) => ({ ...t })) };
   }
-  return { propios: true, tramos: rows.map((r) => ({ min: r.peso_min, max: r.peso_max })) };
+  const tramos = rows.map((r) => ({ min: r.peso_min, max: r.peso_max }));
+  return { propios: true, paso: pasoDe(tramos), tramos };
 }
 
 /**
@@ -948,7 +949,141 @@ async function guardarTramosCliente(clienteId, lista) {
   return obtenerTramosCliente(clienteId);
 }
 
+// ── Paso de la tarifa (29/09/2026) ──────────────────────────────────────────────────
+// Pedido de Felipe (28/09): que cada cliente pueda tener su tarifa con tramos de 5, 1 o
+// 0,5 kg, elegible con un botón, y que cambiar el paso NO mueva ningún precio: los tramos
+// nuevos heredan el % (o el precio por kilo) del tramo viejo que los contenía. De fino a
+// grueso (0,5 → 5) un tramo nuevo abarca varios viejos y se queda con el promedio de
+// ellos: ahí sí puede haber una diferencia chica, y la pantalla lo avisa.
+const PASOS = [5, 1, 0.5];
+const HASTA_POR_DEFECTO = 70;
+const r1 = (n) => Math.round(n * 10) / 10;
+
+function generarTramosPaso(paso, hasta = HASTA_POR_DEFECTO) {
+  const p = Number(paso);
+  const h = Number(hasta);
+  if (!PASOS.includes(p)) {
+    const e = new Error(`paso inválido: ${paso}. Válidos: ${PASOS.join(', ')} kg`); e.status = 400; throw e;
+  }
+  if (!Number.isFinite(h) || h < p || h > 300) {
+    const e = new Error(`"hasta" inválido: ${hasta} (tiene que estar entre ${p} y 300 kg)`); e.status = 400; throw e;
+  }
+  const tramos = [];
+  for (let min = 0; min < h - 1e-9; min = r1(min + p)) tramos.push({ min: r1(min), max: r1(Math.min(min + p, h)) });
+  tramos.push({ min: r1(h), max: null });
+  return tramos;
+}
+
+// Detecta el paso de un juego (para mostrarlo en la ficha): 5 / 1 / 0,5 o null si es irregular.
+function pasoDe(tramos) {
+  const cerrados = (tramos || []).filter((t) => t.max !== null);
+  if (!cerrados.length) return null;
+  const anchos = new Set(cerrados.map((t) => r1(t.max - t.min)));
+  if (anchos.size !== 1) return null;
+  const w = [...anchos][0];
+  return PASOS.includes(w) ? w : null;
+}
+
+async function cambiarPasoTramos(clienteId, { paso, hasta } = {}) {
+  const db = getDb();
+  // Paso 5 = el juego general del sistema (0-5 … 30-40, 40-50, 50+): el cliente vuelve a
+  // heredar los tramos por defecto. 1 y 0,5 generan un juego propio hasta `hasta`.
+  const esDefecto = Number(paso) === 5;
+  const nuevos = esDefecto ? TRAMOS_POR_DEFECTO.map((t) => ({ ...t })) : generarTramosPaso(paso, hasta ?? HASTA_POR_DEFECTO);
+  const viejos = await obtenerTramos(clienteId);
+  // El % que regía en el juego viejo para un peso dado: el de su tramo, por
+  // servicio/tipo/zona. Se lee TODO de una vez y se indexa.
+  const filasPct = await db.prepare(`SELECT servicio, tipo, zona, peso_min, peso_max, profit_pct AS valor FROM profit_overrides WHERE cliente_id = ? AND peso_min IS NOT NULL`).all(clienteId);
+  const filasKg = await db.prepare(`SELECT servicio, tipo, zona, peso_min, peso_max, precio_kg AS valor FROM tarifa_kg_overrides WHERE cliente_id = ? AND peso_min IS NOT NULL`).all(clienteId);
+  const clave = (f) => `${f.servicio}|${f.tipo}|${f.zona === null ? '' : f.zona}`;
+  const agrupar = (filas) => {
+    const g = new Map();
+    for (const f of filas) { if (!g.has(clave(f))) g.set(clave(f), new Map()); g.get(clave(f)).set(f.peso_min, f); }
+    return g;
+  };
+  const gPct = agrupar(filasPct); const gKg = agrupar(filasKg);
+  // Los tramos viejos que se solapan con uno nuevo: (min, max] ∩ (min', max'] ≠ ∅.
+  const solapan = (nuevo) => viejos.filter((v) => {
+    const vMax = v.max === null ? Infinity : v.max; const nMax = nuevo.max === null ? Infinity : nuevo.max;
+    return v.min < nMax && nuevo.min < vMax;
+  });
+  const heredar = (porTramo, nuevo) => {
+    const vals = solapan(nuevo).map((v) => porTramo.get(v.min)).filter(Boolean).map((f) => f.valor);
+    if (!vals.length) return null;
+    return Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100;
+  };
+  let celdasPct = 0; let celdasKg = 0; let cambiaron = 0;
+  await db.transaction(async () => {
+    await db.prepare('DELETE FROM profit_overrides WHERE cliente_id = ? AND peso_min IS NOT NULL').run(clienteId);
+    await db.prepare('DELETE FROM tarifa_kg_overrides WHERE cliente_id = ? AND peso_min IS NOT NULL').run(clienteId);
+    await db.prepare('DELETE FROM cliente_tramos WHERE cliente_id = ?').run(clienteId);
+    if (!esDefecto) {
+      for (const t of nuevos) await db.prepare('INSERT INTO cliente_tramos (cliente_id, peso_min, peso_max) VALUES (?, ?, ?)').run(clienteId, t.min, t.max);
+    }
+    for (const [k, porTramo] of gPct) {
+      const [servicio, tipo, zona] = k.split('|');
+      for (const t of nuevos) {
+        const v = heredar(porTramo, t);
+        if (v === null) continue;
+        const exacto = solapan(t).length === 1;
+        if (!exacto) cambiaron++;
+        await db.prepare(`INSERT INTO profit_overrides (cliente_id, servicio, tipo, zona, peso_min, peso_max, profit_pct) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+          .run(clienteId, servicio, tipo, zona === '' ? null : Number(zona), t.min, t.max, v);
+        celdasPct++;
+      }
+    }
+    for (const [k, porTramo] of gKg) {
+      const [servicio, tipo, zona] = k.split('|');
+      for (const t of nuevos) {
+        const v = heredar(porTramo, t);
+        if (v === null) continue;
+        await db.prepare(`INSERT INTO tarifa_kg_overrides (cliente_id, servicio, tipo, zona, peso_min, peso_max, precio_kg) VALUES (?, ?, ?, ?, ?, ?, ?)`)
+          .run(clienteId, servicio, tipo, zona === '' ? null : Number(zona), t.min, t.max, v);
+        celdasKg++;
+      }
+    }
+  });
+  const res = await obtenerTramosCliente(clienteId);
+  return { ...res, paso: res.paso, celdas_pct: celdasPct, celdas_kg: celdasKg, tramos_promediados: cambiaron };
+}
+
+/**
+ * Carga masiva de una matriz de % (29/09): todas las celdas de un servicio/tipo en una
+ * transacción. Con paso 0,5 kg son 846 celdas por cliente; de a una por la API no va.
+ * `reemplazar` = true borra primero las celdas de ese servicio/tipo (las de peso).
+ */
+async function cargarMatrizMasiva(clienteId, { servicio, tipo, celdas, reemplazar = false } = {}) {
+  const db = getDb();
+  if (!SERVICIOS.includes(servicio)) { const e = new Error(`servicio inválido: ${servicio}`); e.status = 400; throw e; }
+  if (!TIPOS.includes(tipo)) { const e = new Error(`tipo inválido: ${tipo}`); e.status = 400; throw e; }
+  if (!Array.isArray(celdas) || !celdas.length) { const e = new Error('celdas vacías'); e.status = 400; throw e; }
+  const tramos = await obtenerTramos(clienteId);
+  const normalizadas = celdas.map((c, i) => {
+    const coord = validarCoordenadas({ servicio, tipo, zona: c.zona, peso_min: c.peso_min, peso_max: c.peso_max }, tramos);
+    const pct = Number(c.profit_pct);
+    if (!Number.isFinite(pct)) { const e = new Error(`celda ${i + 1}: profit_pct inválido (${c.profit_pct})`); e.status = 400; throw e; }
+    return { ...coord, profit_pct: pct };
+  });
+  let n = 0;
+  await db.transaction(async () => {
+    if (reemplazar) await db.prepare('DELETE FROM profit_overrides WHERE cliente_id = ? AND servicio = ? AND tipo = ? AND peso_min IS NOT NULL').run(clienteId, servicio, tipo);
+    for (const c of normalizadas) {
+      const ex = await db.prepare(`SELECT id FROM profit_overrides WHERE cliente_id = ? AND servicio = ? AND tipo = ? AND zona IS ? AND peso_min IS ?`).get(clienteId, servicio, tipo, c.zona, c.peso_min);
+      if (ex) await db.prepare('UPDATE profit_overrides SET profit_pct = ?, peso_max = ? WHERE id = ?').run(c.profit_pct, c.peso_max, ex.id);
+      else await db.prepare(`INSERT INTO profit_overrides (cliente_id, servicio, tipo, zona, peso_min, peso_max, profit_pct) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(clienteId, servicio, tipo, c.zona, c.peso_min, c.peso_max, c.profit_pct);
+      n++;
+    }
+  });
+  return { servicio, tipo, celdas: n };
+}
+
 module.exports = {
+  PASOS,
+  HASTA_POR_DEFECTO,
+  generarTramosPaso,
+  pasoDe,
+  cambiarPasoTramos,
+  cargarMatrizMasiva,
   SERVICIOS,
   TIPOS,
   ZONAS,

@@ -96,7 +96,9 @@
     "test-entrantes": "node scripts/test-entrantes.js",
     "test-cargos": "node scripts/test-cargos-posteriores.js && node scripts/test-pantalla-cargos-posteriores.js",
     "test-limpieza": "node scripts/test-limpieza-cierre.js",
-    "test-escaneo": "node scripts/test-escaneo-dia.js"
+    "test-escaneo": "node scripts/test-escaneo-dia.js",
+    "test-paso": "node scripts/test-paso-tarifa.js",
+    "cargar-tarifarios-viejos": "node scripts/cargar-tarifarios-viejos.js"
   },
   "keywords": [
     "nova-express",

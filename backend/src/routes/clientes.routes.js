@@ -14,6 +14,7 @@ router.get('/:id/perfil', ctrl.perfil);
 
 // Matriz de profit por cliente (ver services/profit.service.js).
 router.get('/:id/profit-matrix', profitCtrl.getMatrix);
+router.put('/:id/profit-matrix/bulk', profitCtrl.putMatrizMasiva);
 router.put('/:id/profit-matrix', profitCtrl.putOverride);
 router.delete('/:id/profit-matrix', profitCtrl.deleteOverride);
 router.get('/:id/profit-resolve', profitCtrl.resolve);
@@ -34,6 +35,7 @@ router.get('/:id/tarifario/emitidos', tarifarioCtrl.emitidos);
 
 // Tramos de peso del cliente. Los usan las DOS matrices, la de porcentaje y la de kilo.
 router.get('/:id/tramos', profitCtrl.getTramos);
+router.put('/:id/tramos/paso', profitCtrl.putPasoTramos);
 router.put('/:id/tramos', profitCtrl.putTramos);
 
 // Razones sociales del cliente (varios CUIT / facturar a un tercero) y unir clientes duplicados.

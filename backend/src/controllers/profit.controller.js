@@ -195,7 +195,34 @@ async function putTramos(req, res, next) {
   }
 }
 
+// PUT /api/clientes/:id/tramos/paso  Body: { paso: 5|1|0.5, hasta?: 70 }
+// Cambia el paso de la tarifa del cliente y rearma la matriz heredando los valores (29/09).
+async function putPasoTramos(req, res, next) {
+  try {
+    const { id } = req.params;
+    if (!(await profitService.clienteExiste(id))) return res.status(404).json({ error: 'Cliente no encontrado' });
+    res.json(await profitService.cambiarPasoTramos(id, req.body || {}));
+  } catch (e) {
+    if (e.status === 400) return res.status(400).json({ error: e.message });
+    next(e);
+  }
+}
+
+// PUT /api/clientes/:id/profit-matrix/bulk  Body: { servicio, tipo, celdas: [{zona, peso_min, peso_max, profit_pct}], reemplazar? }
+async function putMatrizMasiva(req, res, next) {
+  try {
+    const { id } = req.params;
+    if (!(await profitService.clienteExiste(id))) return res.status(404).json({ error: 'Cliente no encontrado' });
+    res.json(await profitService.cargarMatrizMasiva(id, req.body || {}));
+  } catch (e) {
+    if (e.status === 400) return res.status(400).json({ error: e.message });
+    next(e);
+  }
+}
+
 module.exports = {
+  putPasoTramos,
+  putMatrizMasiva,
   getMatrix,
   putOverride,
   deleteOverride,
