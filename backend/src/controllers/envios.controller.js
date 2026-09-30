@@ -2,6 +2,8 @@ const envioModel = require('../models/envio.model');
 const { calcularPesos } = require('../services/calculos.service');
 const excelService = require('../services/excel.service');
 const proformaService = require('../services/proforma.service');
+const { esFechaValida } = require('../utils/fecha');
+const clienteModel = require('../models/cliente.model');
 
 async function listar(req, res, next) {
   try {
@@ -74,6 +76,16 @@ async function crear(req, res, next) {
       });
     }
 
+    // Fecha y cliente (29/09/2026): la misma regla que PATCH /salidas/:id. Sin esto una
+    // fecha "28/09/2026" rompía el correlativo del mes y un cliente inexistente daba un 500
+    // de FOREIGN KEY.
+    if (!esFechaValida(String(req.body.fecha))) {
+      return res.status(400).json({ error: 'La fecha debe tener formato YYYY-MM-DD válido.' });
+    }
+    if (!(await clienteModel.buscarPorId(req.body.cliente_id))) {
+      return res.status(400).json({ error: `No existe un cliente con id ${req.body.cliente_id}.` });
+    }
+
     const body = { ...req.body };
     if (body.peso_real === undefined || body.peso_real === '' || body.peso_real === null) {
       body.peso_real = 0;
@@ -106,6 +118,18 @@ async function actualizar(req, res, next) {
         req.body.courier !== undefined ? req.body.courier : actual.courier
       );
       if (errDoc) return res.status(400).json({ error: errDoc });
+    }
+    if (req.body.fecha !== undefined && !esFechaValida(String(req.body.fecha))) {
+      return res.status(400).json({ error: 'La fecha debe tener formato YYYY-MM-DD válido.' });
+    }
+    if (req.body.courier !== undefined && req.body.courier !== 'DHL' && req.body.courier !== 'UPS') {
+      return res.status(400).json({ error: `El courier debe ser "DHL" o "UPS" (se recibio "${req.body.courier}").` });
+    }
+    if (req.body.tipo_envio !== undefined && req.body.tipo_envio !== 'exportacion' && req.body.tipo_envio !== 'importacion') {
+      return res.status(400).json({ error: `El tipo de envio debe ser "exportacion" o "importacion" (se recibio "${req.body.tipo_envio}").` });
+    }
+    if (req.body.cliente_id !== undefined && !(await clienteModel.buscarPorId(req.body.cliente_id))) {
+      return res.status(400).json({ error: `No existe un cliente con id ${req.body.cliente_id}.` });
     }
     const envio = await envioModel.actualizar(req.params.id, req.body);
     if (!envio) return res.status(404).json({ error: 'Envío no encontrado' });

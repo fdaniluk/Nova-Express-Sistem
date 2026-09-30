@@ -355,7 +355,7 @@ async function crear({
 function validarSinCeros(items) {
   const enCero = items.filter((i) => !(Number(i.total_usd) > 0));
   if (enCero.length > 0) {
-    const guias = enCero.map((i) => i.numero_guia || `envío ${i.envio_id}`).join(', ');
+    const guias = enCero.map((i) => i.numero_guia || (i.envio && i.envio.numero_guia) || `envío ${i.envio_id}`).join(', ');
     const err = new Error(
       `No se puede confirmar: ${enCero.length} envío(s) sin precio de venta (total USD 0): ${guias}. ` +
       'Cargales el precio o sacalos de la liquidación. Si se confirmara así, quedarían ' +
@@ -576,7 +576,9 @@ async function eliminarBorrador(id) {
     await db.prepare('DELETE FROM liquidacion_items WHERE liquidacion_id = ?').run(id);
     // Los cargos adicionales pertenecen al ENVÍO; al morir el borrador quedan sueltos
     // (liquidacion_id NULL) y los levanta el próximo, igual que sus envíos.
-    await db.prepare('UPDATE cargos_adicionales SET liquidacion_id = NULL WHERE liquidacion_id = ?').run(id);
+    // Los cargos manuales viven solo en el borrador (preview los toma del body, nadie relee
+    // filas sueltas): al borrarlo se borran, en vez de quedar huérfanos (29/09/2026).
+    await db.prepare('DELETE FROM cargos_adicionales WHERE liquidacion_id = ?').run(id);
     // Los cargos posteriores vuelven a pendientes: los levanta la próxima liquidación.
     await cargosModel.liberarDeLiquidacion(id, db);
     await db.prepare('DELETE FROM liquidaciones WHERE id = ?').run(id);

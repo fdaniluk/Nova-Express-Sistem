@@ -77,7 +77,7 @@ async function refrescarSemaforo(db, { obtenerTracking = getTracking, obtenerPaq
     WHERE UPPER(courier) LIKE '%UPS%'
       AND numero_guia IS NOT NULL AND TRIM(numero_guia) != ''
       AND (no_volo IS NULL OR no_volo = 0)
-      AND fecha >= date('now', '-45 day')
+      AND fecha >= date('now', 'localtime', '-45 day')
       AND (tracking_estado IS NULL OR tracking_estado != 'verde')
     ORDER BY fecha DESC, id DESC
   `).all();

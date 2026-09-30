@@ -7,7 +7,7 @@
 
 
   async function init() {
-    await loadClientes();
+    try { await loadClientes(); } catch (e) { NovaUtils.showAlert(document.getElementById('alert-box'), 'No se pudieron cargar los clientes: ' + e.message, 'error'); }
     bindTabs();
     bindPendientes();
     bindCrear();
@@ -702,5 +702,5 @@
     return `<span class="liq-adic-detalle">${detalle.map((d) => `<span>${esc(d.label)} ${NovaUtils.formatMoney(d.monto)}</span>`).join(' · ')}</span>`;
   }
 
-  init();
+  init().catch((e) => NovaUtils.showAlert(document.getElementById('alert-box'), 'No se pudo cargar la pantalla: ' + e.message, 'error'));
 })();

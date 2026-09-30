@@ -269,7 +269,7 @@
         <small>${NovaUtils.tipoCobroLabel(c.tipo_cobro)} · saldo ${fARS.format(c.saldo_cf)} · ${fUSD.format(c.saldo_sf)}</small></div>`;
       $u('unir-lados').innerHTML = lado(p.origen, 'Se vacía y desaparece', 'origen') + lado(p.destino, 'Queda, con todo', 'destino');
       $u('unir-tabla').innerHTML = p.filas.length
-        ? p.filas.map((f) => `<tr><td>${esc(f.nombre)}</td><td class="n ${f.origen ? '' : 'cero'}">${f.origen || '—'}</td><td class="n ${f.destino ? '' : 'cero'}">${f.destino || '—'}</td></tr>`).join('')
+        ? p.filas.map((f) => `<tr><td>${esc(f.nombre)}${f.nota ? ` <small class="unir-nota">(${esc(f.nota)})</small>` : ''}</td><td class="n ${f.origen ? '' : 'cero'}">${f.origen || '—'}</td><td class="n ${f.destino ? '' : 'cero'}">${f.destino || '—'}</td></tr>`).join('')
         : '<tr><td colspan="3" class="empty">Ninguna de las dos fichas tiene datos asociados.</td></tr>';
       const tot = (k) => p.filas.reduce((a, f) => a + (f[k] || 0), 0);
       $u('unir-tabla').insertAdjacentHTML('beforeend', `<tr><td><b>Después de unir</b></td><td class="n cero">0</td><td class="n"><b>${tot('origen') + tot('destino')}</b></td></tr>`);

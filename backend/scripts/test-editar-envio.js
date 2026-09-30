@@ -192,6 +192,22 @@ async function main() {
   check('tras recalcular sigue con el fuel del envío, no el de config',
     Number(d5.fuel_pct) === 10, `fuel_pct=${d5.fuel_pct}`);
 
+  // 5b (29/09/2026): el caso real. El form de edición manda SIEMPRE fuel_origen (el
+  // guardado, 'nova') y fuel_pct (el congelado). Con fuente 'nova' el resolvedor releía el
+  // Fuel Nova de HOY e ignoraba el congelado: un envío de mayo se re-costeaba con el fuel
+  // de septiembre. Se simula subiendo el Fuel Nova después del alta.
+  const e5b = await alta('E2', { fuel_origen: 'nova' });
+  const a5b = await leer(e5b.id);
+  const novaAntes = Number(a5b.fuel_pct);
+  await q("UPDATE configuracion_nova SET fuel_pct = ? WHERE id = (SELECT MAX(id) FROM configuracion_nova)", [novaAntes + 7]);
+  await editar(e5b.id, { peso_real: 9, fuel_origen: 'nova', fuel_pct: novaAntes });
+  const d5b = await leer(e5b.id);
+  check('editar con la misma fuente (nova) conserva el fuel congelado aunque el Fuel Nova de hoy cambió',
+    Number(d5b.fuel_pct) === novaAntes && d5b.fuel_origen === 'nova', `fuel_pct=${d5b.fuel_pct} (nova hoy=${novaAntes + 7}) origen=${d5b.fuel_origen}`);
+  await editar(e5b.id, { fuel_origen: 'manual', fuel_pct: 3 });
+  const d5c = await leer(e5b.id);
+  check('cambiar la fuente a manual 3% sí lo aplica y guarda la etiqueta', Number(d5c.fuel_pct) === 3 && d5c.fuel_origen === 'manual', `fuel_pct=${d5c.fuel_pct} origen=${d5c.fuel_origen}`);
+
   // ── 6. Un envío liquidado sigue trabado ─────────────────────────────────────
   console.log('\n6. Los envíos liquidados siguen protegidos\n');
 

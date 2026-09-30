@@ -235,10 +235,18 @@
     } catch (e) { showAlert(alertBox, e.message); }
   }
 
+  // El historial se abre en una fila debajo del cliente (29/09/2026), no en un alert().
   async function verHistorial(id) {
+    const tr = $('c-tabla').querySelector(`tr[data-id="${id}"]`);
+    const abierta = tr && tr.nextElementSibling && tr.nextElementSibling.classList.contains('com-hist');
+    if (abierta) { tr.nextElementSibling.remove(); return; }
     try {
       const { historial } = await api.comisiones.historial(id);
-      alert(historial.map((h) => `${h.desde === '2000-01-01' ? 'desde siempre' : 'desde ' + formatDate(h.desde)}${h.hasta ? ' hasta ' + formatDate(h.hasta) : ' (vigente)'}: ${h.vendedor}${h.comision_pct != null ? ` · ${h.comision_pct} %` : ''}${h.usuario ? ` · cargó ${h.usuario}` : ''}`).join('\n'));
+      const lineas = historial.map((h) => `<li>${h.desde === '2000-01-01' ? 'desde siempre' : 'desde ' + formatDate(h.desde)}${h.hasta ? ' hasta ' + formatDate(h.hasta) : ' <b>(vigente)</b>'}: ${esc(h.vendedor)}${h.comision_pct != null ? ` · ${h.comision_pct} %` : ''}${h.usuario ? ` · cargó ${esc(h.usuario)}` : ''}</li>`).join('');
+      const fila = document.createElement('tr');
+      fila.className = 'com-hist';
+      fila.innerHTML = `<td colspan="${tr.children.length}"><ul>${lineas || '<li>Sin historial.</li>'}</ul></td>`;
+      tr.after(fila);
     } catch (e) { showAlert(alertBox, e.message); }
   }
 

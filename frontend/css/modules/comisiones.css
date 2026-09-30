@@ -317,3 +317,7 @@
   .com-excel { margin-left: 0; }
   .com-aviso { flex-wrap: wrap; }
 }
+
+/* Historial de vendedores debajo del cliente (29/09/2026) */
+.com-hist td { background: #f7f8fb; font-size: 13px; }
+.com-hist ul { margin: 4px 0; padding-left: 18px; }

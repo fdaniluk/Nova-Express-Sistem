@@ -576,19 +576,6 @@ th:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: '⇅'; }
 .revision-static-rev { color: #d97706; }        /* a revisar → ✕ ámbar  */
 .revision-static-reclamar { color: #dc2626; }   /* reclamar  → ⚑ rojo   */
 
-/* ── Expand / collapse (multi-bulto) ── */
-.expand-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  color: var(--color-primary-light);
-  font-size: 11px;
-  padding: 1px 4px;
-  border-radius: 3px;
-}
-
-.expand-btn:hover { background: #e0e7ff; }
-
 /* Sub-filas de bulto (Fase B, 09/09): más bajas y en gris, para que el envío se lea como
    UNA fila con sus bultos colgando y no como cinco filas iguales. El padding vertical baja
    de 6 a 2 px: un envío de 5 bultos pasa de ocupar 5 renglones a ~2,5. */
@@ -662,11 +649,6 @@ td.detail-expandable { cursor: pointer; }
   align-items: center;
   gap: 6px;
   font-size: 11.5px;
-}
-.extras-breakdown-label {
-  color: var(--color-muted);
-  font-weight: 600;
-  margin-right: 2px;
 }
 .extra-chip {
   display: inline-flex;

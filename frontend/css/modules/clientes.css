@@ -184,8 +184,8 @@ a.btn, a.btn:hover { text-decoration:none; }
 .per-lista li small { display:block; color:var(--color-muted); font-size:.74rem; }
 .per-lista li .code { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.78rem; color:var(--color-primary); }
 .per-lista li.vacio { border-style:dashed; color:var(--color-muted); justify-content:center; }
-.btn-borrar-dir, .per-x { background:none; border:none; padding:.2rem .4rem; cursor:pointer; color:#cbd5e1; font-size:.9rem; border-radius:4px; line-height:1; }
-.btn-borrar-dir:hover:not(:disabled), .per-x:hover { color:var(--color-danger); background:#fef2f2; }
+.btn-borrar-dir { background:none; border:none; padding:.2rem .4rem; cursor:pointer; color:#cbd5e1; font-size:.9rem; border-radius:4px; line-height:1; }
+.btn-borrar-dir:hover:not(:disabled) { color:var(--color-danger); background:#fef2f2; }
 .btn-borrar-dir:disabled { opacity:.3; cursor:default; }
 .badge-principal { display:inline-block; padding:.1rem .45rem; border-radius:999px; font-size:.68rem; font-weight:700; background:var(--cli-azul-suave); color:var(--color-primary); }
 .per-add { display:flex; align-items:center; justify-content:center; gap:.4rem; width:100%; margin-top:.6rem; background:none; border:1px dashed #b9c2d0;
@@ -485,3 +485,7 @@ td.tarifa-cell.cero .cell-val { color: #d03b3b; font-weight: 650; }
 .tarifas-grid-wrap.largo table.tarifas-grid thead th { position: sticky; top: 0; z-index: 2; }
 .tarifas-grid-wrap.largo table.tarifas-grid td.banda-label { position: sticky; left: 0; z-index: 1; }
 .tarifas-grid-wrap.largo table.tarifas-grid th:first-child { left: 0; z-index: 3; }
+
+.unir-nota { color: #b45309; font-size: 11px; }
+.rs-mover { display: flex; gap: 6px; align-items: center; margin-top: 6px; width: 100%; font-size: 13px; }
+.rs-mover select { flex: 1; min-width: 0; }

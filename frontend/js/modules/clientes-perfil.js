@@ -438,7 +438,7 @@
       const a = btn.dataset.rs;
       if (a === 'editar') abrirFormRazon(r);
       else if (a === 'baja' || a === 'alta') guardarRazon(rid, { activa: a === 'alta' ? 1 : 0 });
-      else if (a === 'mover') moverRazon(r);
+      else if (a === 'mover') moverRazon(r, btn.closest('li'));
     }));
   }
 
@@ -472,28 +472,35 @@
     }
   }
 
-  async function moverRazon(r) {
-    // Lista corta de clientes para elegir el destino; con ~100 alcanza un prompt con búsqueda.
+  // Mover una razón social (29/09/2026): una lista con los clientes, debajo de la razón
+  // social, en vez de dos prompt() (uno para buscar y otro con una lista numerada).
+  async function moverRazon(r, li) {
+    if (li.querySelector('.rs-mover')) return;
     let lista;
     try { lista = await NovaAPI.clientes.listar({ todos: 1 }); } catch (err) { NovaUtils.showAlert(alertBox, err.message); return; }
-    const cs = (lista.clientes || lista).filter((c) => String(c.id) !== String(clienteId));
-    const q = prompt(`Mover "${r.razon_social}" (con sus ${r.comprobantes || 0} comprobantes) a otro cliente.\nEscribí parte del nombre del cliente destino:`);
-    if (!q) return;
-    const n = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
-    const cand = cs.filter((c) => n(c.nombre).includes(n(q)) || n(c.nombre_nova).includes(n(q)));
-    if (!cand.length) { NovaUtils.showAlert(alertBox, 'Ningún cliente coincide con eso.'); return; }
-    let dest = cand[0];
-    if (cand.length > 1) {
-      const idx = prompt(`Coinciden varios. Número del elegido:\n${cand.slice(0, 15).map((c, i) => `${i + 1}. ${c.nombre_nova || c.nombre} (#${c.id})`).join('\n')}`);
-      dest = cand[Number(idx) - 1];
-      if (!dest) return;
-    }
-    if (!confirm(`¿Mover "${r.razon_social}" y todos sus comprobantes a "${dest.nombre_nova || dest.nombre}"?`)) return;
-    try {
-      const res = await NovaAPI.clientes.razonesSociales.mover(r.id, dest.id);
-      NovaUtils.showAlert(alertBox, `Movida a ${dest.nombre_nova || dest.nombre} (${res.movidos} comprobantes).`, 'success');
-      await cargarRazones();
-    } catch (err) { NovaUtils.showAlert(alertBox, err.message); }
+    const cs = (lista.clientes || lista).filter((c) => String(c.id) !== String(clienteId))
+      .sort((x, y) => String(x.nombre_nova || x.nombre).localeCompare(String(y.nombre_nova || y.nombre), 'es'));
+    const box = document.createElement('div');
+    box.className = 'rs-mover';
+    box.innerHTML = `<span>Mover a</span>
+      <select><option value="">Elegí el cliente…</option>${cs.map((c) => `<option value="${c.id}">${esc(c.nombre_nova || c.nombre)}${c.activo ? '' : ' (inactivo)'}</option>`).join('')}</select>
+      <button type="button" class="btn btn-sm btn-primary">Mover</button>
+      <button type="button" class="btn btn-sm btn-secondary">Cancelar</button>`;
+    li.appendChild(box);
+    const sel = box.querySelector('select');
+    const [ok, cancel] = box.querySelectorAll('button');
+    sel.focus();
+    cancel.addEventListener('click', () => box.remove());
+    ok.addEventListener('click', async () => {
+      const dest = cs.find((c) => String(c.id) === sel.value);
+      if (!dest) { sel.focus(); return; }
+      if (!confirm(`¿Mover "${r.razon_social}" y sus ${r.comprobantes || 0} comprobantes a "${dest.nombre_nova || dest.nombre}"?`)) return;
+      try {
+        const res = await NovaAPI.clientes.razonesSociales.mover(r.id, dest.id);
+        NovaUtils.showAlert(alertBox, `Movida a ${dest.nombre_nova || dest.nombre} (${res.movidos} comprobantes).`, 'success');
+        await cargarRazones();
+      } catch (err) { NovaUtils.showAlert(alertBox, err.message); }
+    });
   }
 
   function bindRazones() {

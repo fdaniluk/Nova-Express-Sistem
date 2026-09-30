@@ -22,23 +22,42 @@ function sha256(str) {
   return crypto.createHash('sha256').update(str).digest('hex');
 }
 
+// Freno de intentos (29/09/2026): 10 fallidos por IP en 15 minutos y se corta hasta que
+// pase la ventana. En memoria alcanza: es un solo proceso y un reinicio no es un problema.
+const VENTANA_MS = 15 * 60 * 1000;
+const MAX_FALLIDOS = 10;
+const fallidos = new Map(); // ip -> [timestamps]
+function intentosRecientes(ip) {
+  const ahora = Date.now();
+  const lista = (fallidos.get(ip) || []).filter((t) => ahora - t < VENTANA_MS);
+  if (lista.length) fallidos.set(ip, lista); else fallidos.delete(ip);
+  return lista;
+}
+function anotarFallido(ip) { intentosRecientes(ip); fallidos.set(ip, [...(fallidos.get(ip) || []), Date.now()]); }
+
 router.post('/login', async (req, res, next) => {
+  const ip = req.ip || 'sin-ip';
+  if (intentosRecientes(ip).length >= MAX_FALLIDOS) {
+    return res.status(429).json({ error: 'Demasiados intentos fallidos. Esperá 15 minutos y probá de nuevo.' });
+  }
+  const rechazar = () => { anotarFallido(ip); return res.status(401).json({ error: 'Usuario o contraseña incorrectos' }); };
   try {
     const usuario = (req.body?.usuario || '').trim();
     const password = (req.body?.password || '').trim();
     if (!usuario || !password) {
-      return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+      return rechazar();
     }
 
     const user = await buscarUsuarioPorNombre(usuario);
     if (!user || !user.activo) {
-      return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+      return rechazar();
     }
 
     const match = await bcrypt.compare(password, user.password_hash);
     if (!match) {
-      return res.status(401).json({ error: 'Usuario o contraseña incorrectos' });
+      return rechazar();
     }
+    fallidos.delete(ip);
 
     const token = crypto.randomBytes(32).toString('hex');
     const tokenHash = sha256(token);

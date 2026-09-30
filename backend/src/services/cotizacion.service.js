@@ -302,6 +302,10 @@ async function normalizarEntrada(crudo = {}) {
     pais, tipo, servicio, pesoFacturable, fob,
     fuelPct: fuel.fuelPct, profitPct, zona, bultos: bultos || [],
     ddp, proteccionDoc, entrega, contenido, precioKgVenta, seguroPropio,
+    // Fecha del envío (29/09/2026): el surge de importación cambió el 27-sep y el de DHL
+    // rige por calendario. Sin esto "Calcular venta" de un envío de agosto usaba la tabla
+    // de hoy mientras el costo congelado usaba la de su fecha.
+    fecha: (c.fecha && /^\d{4}-\d{2}-\d{2}$/.test(String(c.fecha))) ? String(c.fecha) : (envio ? envio.fecha : null),
     // Para mostrar y para auditar de dónde salió cada número
     cliente_id: clienteId,
     envio_id: envio ? envio.id : null,

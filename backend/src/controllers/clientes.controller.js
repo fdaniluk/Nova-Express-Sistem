@@ -1,6 +1,6 @@
 const clienteModel = require('../models/cliente.model');
 const { getDb } = require('../db');
-const { deriveProfit } = require('../utils/profit');
+const { deriveProfit, utilidadEnvio, SUBQUERY_LIQUIDACION } = require('../utils/profit');
 
 async function listar(req, res, next) {
   try {
@@ -111,14 +111,7 @@ async function perfil(req, res, next) {
            li.utilidad_usd AS utilidad_liq,
            li.venta_liq    AS venta_liq
          FROM envios e
-         LEFT JOIN (
-           SELECT envio_id,
-                  SUM(utilidad_usd) AS utilidad_usd,
-                  SUM(total_usd)    AS venta_liq
-           FROM liquidacion_items
-           WHERE liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
-           GROUP BY envio_id
-         ) li ON li.envio_id = e.id
+         LEFT JOIN (${SUBQUERY_LIQUIDACION}) li ON li.envio_id = e.id
          WHERE e.cliente_id = ?
          ORDER BY e.fecha DESC, e.id DESC`
       )
@@ -126,13 +119,6 @@ async function perfil(req, res, next) {
 
     const round2 = (n) => Math.round((n || 0) * 100) / 100;
 
-    // Idéntica a utilidadEnvio del Dashboard: si cambia allá, cambia acá.
-    const utilidadEnvio = (row) => {
-      const { profit, profit_real } = deriveProfit(row);
-      if (profit_real) return profit;
-      if (row.utilidad_liq != null) return row.utilidad_liq;
-      return profit == null ? 0 : profit;
-    };
 
     let utilidadTotal = 0;
     let ultimaLiquidacion = null;

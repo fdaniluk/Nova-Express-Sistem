@@ -16,7 +16,8 @@ const R = require('../src/models/recibos.model');
   console.log('usuarios', u.map(x=>x.usuario+':'+x.confirmar_pagos).join(' '));
   const marcelo = { id: 2, usuario: 'marcelo', confirmar_pagos: 1 };
   const lean = { id: 4, usuario: 'leandro', confirmar_pagos: 0 };
-  const deb = await db.prepare("SELECT * FROM cc_comprobantes WHERE libro='SF' AND tipo IN ('LQ','FA') AND saldo > 100 AND anulado_at IS NULL ORDER BY saldo DESC LIMIT 2").all();
+  // Deudas sin ningún pago informado encima (la copia de la base puede traer pagos sin confirmar).
+  const deb = await db.prepare("SELECT c.* FROM cc_comprobantes c WHERE c.libro='SF' AND c.tipo IN ('LQ','FA') AND c.saldo > 100 AND c.anulado_at IS NULL AND NOT EXISTS (SELECT 1 FROM cc_recibo_imputaciones i JOIN cc_recibos r ON r.id = i.recibo_id JOIN cc_comprobantes rc ON rc.id = r.comprobante_id WHERE i.comprobante_id = c.id AND i.estado = 'pendiente_valor' AND rc.anulado_at IS NULL) ORDER BY c.saldo DESC LIMIT 2").all();
   if (deb.length < 1) { console.log('sin debitos para probar'); process.exit(0); }
   const d = deb[0]; const cli = d.cliente_id;
   const tot0 = await cc.saldosPorCliente({});

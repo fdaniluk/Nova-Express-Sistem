@@ -36,4 +36,13 @@ function aISO(s) {
   return m ? `${m[3]}-${m[2]}-${m[1]}` : s;
 }
 
-module.exports = { hoyLocal, hoyLocalMas, aISO };
+// Fecha en formato ISO estricto YYYY-MM-DD y que sea un día de calendario real.
+function esFechaValida(v) {
+  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
+  const [y, m, d] = v.split('-').map(Number);
+  if (m < 1 || m > 12 || d < 1 || d > 31) return false;
+  const dt = new Date(Date.UTC(y, m - 1, d));
+  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
+}
+
+module.exports = { hoyLocal, hoyLocalMas, aISO, esFechaValida };

@@ -208,7 +208,7 @@ async function main() {
   const entTexto = entEl ? await entEl.textContent() : '';
   check('el resumen cuenta "2/2 entregas impo"', entVisible && /2\/2 entregas impo/.test(entTexto), entTexto);
   const depTexto = await page.textContent('#count-dep');
-  check('y "en depósito" cuenta solo el normal (1)', /✓ 1 en depósito/.test(depTexto), depTexto);
+  check('y "en depósito" cuenta solo el normal (1)', /\b1 en depósito/.test(depTexto), depTexto);
 
   // El modal: el casillero, y lo que cambia al pintarlo.
   await page.click('#btn-nuevo-pickup');

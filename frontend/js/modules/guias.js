@@ -673,7 +673,11 @@
   }
 
   async function loadBorradores() {
-    const lista = await NovaAPI.guias.borradores.listar();
+    let lista;
+    try { lista = await NovaAPI.guias.borradores.listar(); } catch (e) {
+      $('gui-borradores').querySelector('tbody').innerHTML = `<tr><td colspan="7" class="empty">No se pudieron cargar las guías en espera: ${esc(e.message)}</td></tr>`;
+      return;
+    }
     $('gui-badge-borradores').textContent = lista.length ? String(lista.length) : '';
     const tb = $('gui-borradores').querySelector('tbody');
     if (!lista.length) { tb.innerHTML = '<tr><td colspan="7" class="empty">No hay guías en espera.</td></tr>'; return; }
@@ -803,7 +807,11 @@
     if (!q && !listadoTodas && $('gui-f-fecha').value) params.fecha = $('gui-f-fecha').value;
     if ($('gui-f-estado').value) params.estado = $('gui-f-estado').value;
     $('gui-f-todas').textContent = listadoTodas ? 'Solo esta fecha' : 'Todas las fechas';
-    let lista = await NovaAPI.guias.listar(params);
+    let lista;
+    try { lista = await NovaAPI.guias.listar(params); } catch (e) {
+      $('gui-tabla').querySelector('tbody').innerHTML = `<tr><td colspan="8" class="empty">No se pudo cargar el listado: ${esc(e.message)}</td></tr>`;
+      return;
+    }
     if (q) lista = lista.filter((g) => normalizarBusqueda([g.cliente_nombre, g.remitente_nombre, g.destinatario_nombre, g.destinatario_ciudad, g.destinatario_pais, g.numero_guia, g.contenido].join(' ')).includes(q));
     const tb = $('gui-tabla').querySelector('tbody');
     if (!lista.length) {

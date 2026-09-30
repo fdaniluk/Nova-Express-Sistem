@@ -22,7 +22,6 @@
  */
 (function () {
   const P = new URLSearchParams(window.location.search);
-  const bool = (k, def) => (P.get(k) === null ? def : P.get(k) === '1');
 
   const MARCAS = {
     nova: {

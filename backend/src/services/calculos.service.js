@@ -92,6 +92,7 @@ function labelATipo(label) {
   if (l.startsWith('Paquete mayor tamaño') || l.includes('contorno')) return 'contorno';
   if (l.startsWith('Entrega residencial'))                     return 'residencial';
   if (l.startsWith('Tarifa de procesamiento'))                 return 'ipf';
+  if (l.startsWith('Pieza no convencional'))                   return 'no_convencional';
   return 'otro';
 }
 

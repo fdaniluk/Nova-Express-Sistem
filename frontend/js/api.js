@@ -12,7 +12,14 @@ async function request(path, options = {}) {
     config.body = JSON.stringify(config.body);
   }
 
-  const res = await fetch(url, config);
+  let res;
+  try {
+    res = await fetch(url, config);
+  } catch {
+    // Sin red o con el servidor caído, fetch tira "Failed to fetch" (en inglés y técnico)
+    // y las pantallas lo mostraban tal cual (29/09/2026).
+    throw new Error('No hay conexión con el servidor. Revisá internet y probá de nuevo.');
+  }
   if (res.status === 401 && !path.startsWith('/auth/')) {
     location.replace('/pages/login.html');
     throw new Error('Sesión expirada');
@@ -199,8 +206,6 @@ api.clientes.remitentes = {
   actualizar: (clienteId, remId, data) => api.put(`/clientes/${clienteId}/remitentes/${remId}`, data),
   borrar: (clienteId, remId) => api.delete(`/clientes/${clienteId}/remitentes/${remId}`),
 };
-api.envios.proforma = (id) => api.get(`/envios/${id}/proforma`);
-api.envios.proformaUrl = (id) => `${API_BASE}/envios/${id}/proforma.html`;
 
 api.clientes.profit = {
   matriz: (id, servicio, tipo) => {
@@ -254,12 +259,6 @@ api.clientes.tramos = {
 };
 
 api.dashboard = {
-  metricas: (params) => {
-    const p = typeof params === 'string' ? { periodo: params } : params || {};
-    const q = new URLSearchParams(p).toString();
-    return api.get(`/dashboard/metricas${q ? `?${q}` : ''}`);
-  },
-  meses: () => api.get('/dashboard/meses'),
   // Rediseño 10/09/2026: todo el dashboard en una llamada; `q` es el query string armado.
   analitica: (q) => api.get(`/dashboard/analitica${q ? `?${q}` : ''}`),
   analiticaExcelUrl: (q) => `${API_BASE}/dashboard/analitica.xlsx${q ? `?${q}` : ''}`,
@@ -319,22 +318,6 @@ api.cobrosPickup = {
   crear: (data) => api.post('/cobros-pickup', data),
   actualizar: (id, data) => api.patch(`/cobros-pickup/${id}`, data),
   eliminar: (id) => api.delete(`/cobros-pickup/${id}`),
-};
-
-// Cobranzas: cuenta corriente por cliente (dos libros CF/SF). Etapa 1: consultas.
-api.cobranzas = {
-  saldos: (filtros = {}) => {
-    const q = new URLSearchParams(Object.fromEntries(Object.entries(filtros).filter(([, v]) => v))).toString();
-    return api.get(`/cobranzas/saldos${q ? `?${q}` : ''}`);
-  },
-  pendientes: (clienteId) => api.get(`/cobranzas/clientes/${clienteId}/pendientes`),
-  historial: (clienteId, filtros = {}) => {
-    const q = new URLSearchParams(Object.fromEntries(Object.entries(filtros).filter(([, v]) => v))).toString();
-    return api.get(`/cobranzas/clientes/${clienteId}/historial${q ? `?${q}` : ''}`);
-  },
-  crearComprobante: (data) => api.post('/cobranzas/comprobantes', data),
-  tipoCambio: () => api.get('/cobranzas/tipo-cambio'),
-  guardarTipoCambio: (data) => api.post('/cobranzas/tipo-cambio', data),
 };
 
 api.facturas = {

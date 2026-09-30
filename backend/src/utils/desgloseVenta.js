@@ -79,6 +79,11 @@ const LABEL_ADICIONAL = {
   manejo: 'Manejo adicional',
   contorno: 'Mayor tamaño',
   remota: 'Área remota',
+  // Los tipos que produce labelATipo (calculos.service): antes no tenían rótulo acá y el
+  // Excel al cliente mostraba el label crudo del motor (29/09/2026).
+  area_remota: 'Área remota',
+  area_extendida: 'Área extendida',
+  oversize: 'Exceso de medida',
   residencial: 'Entrega residencial',
   ddp: 'DDP',
   ipf: 'Procesamiento internacional',

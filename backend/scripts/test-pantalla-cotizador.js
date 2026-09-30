@@ -126,7 +126,13 @@ async function main() {
 
   const html = await page.content();
   check('la pantalla ya no trae su propio <style>', !/<style[\s>]/i.test(html));
-  check('   ni la tipografía traída de Google', !/fonts\.googleapis/i.test(html));
+  // La PANTALLA usa la tipografía del sistema (main.css), pero la IMAGEN de la cotización se
+  // dibuja en canvas con DM Sans / DM Mono: las fuentes se cargan para que el cuadro salga
+  // igual acá que en el perfil del cliente (29/09/2026). Se chequea que no las use el CSS.
+  check('   carga DM Sans / DM Mono solo para el cuadro (canvas)', /fonts\.googleapis.*DM\+Sans/i.test(html));
+  const cssCot = await (await page.goto(`${BASE}/css/modules/cotizador.css`)).text();
+  check('   y el CSS de la pantalla no usa DM Sans', !/font-family[^;]*DM Sans/i.test(cssCot));
+  await page.goto(`${BASE}/pages/cotizador.html`); await page.waitForSelector('.btn-calc'); await esperar(500);
   check('el CSS vive en css/modules/cotizador.css', /css\/modules\/cotizador\.css/.test(html));
   const linkOk = await page.evaluate(async () => {
     const l = document.querySelector('link[href*="cotizador.css"]');

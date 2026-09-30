@@ -187,35 +187,34 @@
     const anchoNova = x.measureText('Nova Express').width;
     x.font = '400 15px "DM Sans", sans-serif'; x.fillStyle = '#5c5a54';
     x.fillText(' – ' + nombreCorto(d.servicio), P + anchoNova, yc);
+    /* Hasta dónde llega lo escrito en el renglón: el país y el cartel +50 se van pegando a
+       continuación, cada uno solo si entra antes del total. */
+    let xFin = P + anchoNova + x.measureText(' – ' + nombreCorto(d.servicio)).width;
+    x.font = '600 23px "DM Mono", monospace';
+    const topeIzq = W - P - x.measureText(fmt(total)).width - 14;
     /* El PAÍS de destino, a continuación del servicio (pedido de Felipe, 29/09): al cliente
        la "zona 5" sola no le dice nada. Va en el renglón del courier y no en el de medidas,
-       que ya se achica para entrar. Se dibuja solo si entra antes del total. */
+       que ya se achica para entrar. */
     {
       const destino = String(d.pais || '').trim();
       if (destino) {
-        const xd = P + anchoNova + x.measureText(' – ' + nombreCorto(d.servicio)).width;
         const txt = '  →  ' + destino;
         x.font = '500 14px "DM Sans", sans-serif';
         const wd = x.measureText(txt).width;
-        x.font = '600 23px "DM Mono", monospace';
-        const topeIzq = W - P - x.measureText(fmt(total)).width - 14;
-        if (xd + wd <= topeIzq) {
-          x.font = '500 14px "DM Sans", sans-serif'; x.fillStyle = esDhl ? '#7a5f1f' : '#3d5a8a';
-          x.fillText(txt, xd, yc);
+        if (xFin + wd <= topeIzq) {
+          x.fillStyle = esDhl ? '#7a5f1f' : '#3d5a8a';
+          x.fillText(txt, xFin, yc);
+          xFin += wd;
         }
       }
     }
-    /* Cartel "Tarifa +50Kg", solo impo DHL de más de 50 kg, pegado al nombre del courier y
-       SOLO si entra antes del total (25/08). */
+    /* Cartel "Tarifa +50Kg", solo impo DHL de más de 50 kg, después del país (o del courier
+       si el país no entró) y SOLO si entra antes del total (25/08). */
     if (tipo === 'import' && esDhl && pf > 50) {
-      const anchoCourier = x.measureText(' – ' + nombreCorto(d.servicio)).width;
       const etq = 'Tarifa +50Kg';
       x.font = '600 9.5px "DM Sans", sans-serif';
-      const w = x.measureText(etq).width + 14, xb = P + anchoNova + anchoCourier + 10;
-      x.font = '600 23px "DM Mono", monospace';
-      const topeIzq = W - P - x.measureText(fmt(total)).width - 14;
+      const w = x.measureText(etq).width + 14, xb = xFin + 10;
       if (xb + w <= topeIzq) {
-        x.font = '600 9.5px "DM Sans", sans-serif';
         x.fillStyle = '#fdf8ec'; x.fillRect(xb, yc - 13, w, 16);
         x.strokeStyle = '#e8c96a'; x.lineWidth = 1; x.strokeRect(xb + 0.5, yc - 12.5, w - 1, 15);
         x.fillStyle = '#8a6500'; x.fillText(etq, xb + 7, yc - 2);

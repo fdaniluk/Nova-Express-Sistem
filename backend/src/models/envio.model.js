@@ -424,6 +424,9 @@ async function actualizar(id, data) {
   const CAMPOS_QUE_MUEVEN_EL_COSTO = [
     'peso_real', 'largo', 'ancho', 'alto', 'bultos', 'cantidad_bultos',
     'pais_destino', 'zona', 'courier', 'tipo_envio', 'servicio_ups',
+    // La fecha mueve el costo desde el 27-sep-2026: el surge UPS de importación y el de
+    // DHL dependen del día del envío.
+    'fecha',
     'fob', 'fuel_pct', 'fuel_origen', 'tipo_paquete', 'asegurado', 'ddp', 'proteccion_doc', 'remota', 'entrega',
   ];
   const cambioElCosto = CAMPOS_QUE_MUEVEN_EL_COSTO.some((c) => {
@@ -432,15 +435,23 @@ async function actualizar(id, data) {
     return String(data[c] ?? '') !== String(actual[c] ?? '');
   });
 
+  const cambioFuente = data.fuel_origen !== undefined
+    && String(data.fuel_origen || '') !== String(actual.fuel_origen || '');
   let desglose = null;
   if (cambioElCosto) {
     // El fuel se toma del envío (el congelado en su alta) salvo que la edición lo cambie:
     // un envío de mayo se recalcula con el fuel de mayo, no con el de hoy.
+    // OJO (29/09/2026): si la fuente NO cambió, no se vuelve a resolver. Con fuente 'nova'
+    // resolverFuel relee el Fuel Nova de HOY e ignora el porcentaje congelado: cambiarle el
+    // peso a un envío de mayo lo re-costeaba con el fuel de septiembre. Se pasa el
+    // porcentaje del envío (o el que vino en el body, que el form repone con el congelado)
+    // como número fijo; la etiqueta fuel_origen no se toca en el UPDATE.
     desglose = await calcularDesgloseAlCosto({
       ...merged,
       bultos: bultos.length ? bultos : undefined,
       fuel_pct: data.fuel_pct !== undefined ? data.fuel_pct : actual.fuel_pct,
-      fuel_origen: data.fuel_origen !== undefined ? data.fuel_origen : actual.fuel_origen,
+      fuel_origen: cambioFuente ? data.fuel_origen
+        : ((data.fuel_pct ?? actual.fuel_pct) != null ? 'manual' : undefined),
     }, pesoFacturable);
   }
 
@@ -484,7 +495,7 @@ async function actualizar(id, data) {
         cantidad_bultos = ?, peso_real = ?, largo = ?, ancho = ?, alto = ?,
         peso_volumetrico = ?, peso_facturable = ?,
         fob = ?, total_cobrado = ?, observaciones = ?,
-        servicio_ups = ?, fuel_pct = ?,
+        servicio_ups = ?, fuel_pct = ?, fuel_origen = ?,
         tipo_paquete = ?, asegurado = ?, ddp = ?, proteccion_doc = ?, remota = ?, entrega = ?,
         num_sal_cero = ?,
         seguro_venta = ?,
@@ -514,6 +525,8 @@ async function actualizar(id, data) {
       data.observaciones !== undefined ? data.observaciones : actual.observaciones,
       (data.courier ?? actual.courier) === 'UPS' ? (data.servicio_ups !== undefined ? data.servicio_ups : actual.servicio_ups) : null,
       desglose ? desglose.fuel_pct : (data.fuel_pct !== undefined ? data.fuel_pct : actual.fuel_pct),
+      // La etiqueta de la fuente cambia solo si la persona eligió otra en la edición.
+      cambioFuente ? (desglose && desglose.fuel_origen ? desglose.fuel_origen : data.fuel_origen) : (actual.fuel_origen ?? null),
       data.tipo_paquete !== undefined ? data.tipo_paquete : actual.tipo_paquete,
       data.asegurado !== undefined ? (data.asegurado ? 1 : 0) : actual.asegurado,
       data.ddp !== undefined ? (data.ddp ? 1 : 0) : actual.ddp,

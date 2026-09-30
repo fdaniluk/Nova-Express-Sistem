@@ -32,12 +32,21 @@ function formatDate(d) {
   return `${day}/${m}/${y}`;
 }
 
+// Los errores NO se borran solos (29/09/2026): a los 6 s desaparecían listas largas (los
+// errores de UPS al emitir una guía) antes de que la oficina las leyera. Llevan una × para
+// cerrarlos. Los avisos de éxito/info sí se van a los 6 s. Cada aviso nuevo cancela el
+// temporizador del anterior (antes el viejo borraba el nuevo antes de tiempo).
 function showAlert(container, message, type = 'error') {
   if (!container) return;
-  container.innerHTML = `<div class="alert alert-${type}">${message}</div>`;
-  setTimeout(() => {
-    container.innerHTML = '';
-  }, 6000);
+  clearTimeout(container._novaAlertTimer);
+  const cerrable = type === 'error' || type === 'danger';
+  container.innerHTML = `<div class="alert alert-${type}">${cerrable ? '<button type="button" class="alert-cerrar" aria-label="Cerrar">×</button>' : ''}${message}</div>`;
+  if (cerrable) {
+    const b = container.querySelector('.alert-cerrar');
+    if (b) b.addEventListener('click', () => { container.innerHTML = ''; });
+  } else {
+    container._novaAlertTimer = setTimeout(() => { container.innerHTML = ''; }, 6000);
+  }
 }
 
 function tipoCobroLabel(t) {
@@ -45,9 +54,6 @@ function tipoCobroLabel(t) {
   return map[t] || t;
 }
 
-function tipoEnvioLabel(t) {
-  return t === 'importacion' ? 'Importación' : 'Exportación';
-}
 
 window.NovaUtils = {
   formatMoney,
@@ -56,5 +62,4 @@ window.NovaUtils = {
   mesLocal,
   showAlert,
   tipoCobroLabel,
-  tipoEnvioLabel,
 };

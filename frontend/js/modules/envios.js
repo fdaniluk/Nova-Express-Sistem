@@ -18,8 +18,10 @@
     document.getElementById('fecha').value = NovaUtils.hoyLocal();
     rellenarSelectPaises();
     updatePaisLabel();
-    await loadClientes();
-    await loadFuelConfig();
+    // Si falla la carga de clientes o del fuel, la pantalla igual queda andando (pestañas y
+    // botones enganchados) y dice qué pasó. Antes quedaba muerta sin ningún aviso (29/09).
+    try { await loadClientes(); } catch (e) { NovaUtils.showAlert(alertBox, 'No se pudieron cargar los clientes: ' + e.message, 'error'); }
+    try { await loadFuelConfig(); } catch (e) { NovaUtils.showAlert(alertBox, 'No se pudo cargar el fuel: ' + e.message, 'error'); }
     bindTabs();
     bindForm();
     bindFilters();
@@ -1225,23 +1227,49 @@
     await updateCotizacion();
   }
 
+  // Alta rápida de cliente desde Cargar envío (29/09/2026): mini formulario debajo del
+  // selector, con el tipo de cobro en una lista. Antes eran dos prompt() y el tipo se
+  // tipeaba a mano ("D/S/Q/CC").
   function bindNuevoCliente() {
-    document.getElementById('btn-nuevo-cliente').addEventListener('click', async () => {
-      const nombre = prompt('Nombre del cliente:');
-      if (!nombre?.trim()) return;
-      const tipo = prompt('Tipo de cobro (D/S/Q/CC):', 'D')?.toUpperCase() || 'D';
-      if (!['D', 'S', 'Q', 'CC'].includes(tipo)) {
-        NovaUtils.showAlert(alertBox, 'Tipo de cobro inválido', 'error');
-        return;
-      }
-      try {
-        const c = await NovaAPI.clientes.crear({ nombre: nombre.trim(), tipo_cobro: tipo });
-        await loadClientes();
-        document.getElementById('cliente_id').value = c.id;
-        NovaUtils.showAlert(alertBox, 'Cliente creado', 'success');
-      } catch (err) {
-        NovaUtils.showAlert(alertBox, err.message, 'error');
-      }
+    const btn = document.getElementById('btn-nuevo-cliente');
+    btn.addEventListener('click', () => {
+      const fila = btn.closest('.cliente-row');
+      if (document.getElementById('nuevo-cli-box')) { document.getElementById('nuevo-cli-nombre').focus(); return; }
+      const box = document.createElement('div');
+      box.id = 'nuevo-cli-box';
+      box.className = 'nuevo-cli-box';
+      box.innerHTML = `
+        <input type="text" id="nuevo-cli-nombre" placeholder="Nombre del cliente nuevo">
+        <select id="nuevo-cli-cobro" title="Tipo de cobro">
+          <option value="D">Diario</option><option value="S">Semanal</option>
+          <option value="Q">Quincenal</option><option value="CC">Cuenta corriente</option>
+        </select>
+        <button type="button" class="btn btn-sm btn-primary" id="nuevo-cli-ok">Crear</button>
+        <button type="button" class="btn btn-sm btn-secondary" id="nuevo-cli-cancel">Cancelar</button>`;
+      fila.after(box);
+      const nombre = document.getElementById('nuevo-cli-nombre');
+      nombre.focus();
+      const cerrar = () => box.remove();
+      const crear = async () => {
+        const n = nombre.value.trim();
+        if (!n) { nombre.focus(); return; }
+        try {
+          const c = await NovaAPI.clientes.crear({ nombre: n, tipo_cobro: document.getElementById('nuevo-cli-cobro').value });
+          await loadClientes();
+          document.getElementById('cliente_id').value = c.id;
+          document.getElementById('cliente_id').dispatchEvent(new Event('change', { bubbles: true }));
+          cerrar();
+          NovaUtils.showAlert(alertBox, `Cliente "${n}" creado.`, 'success');
+        } catch (err) {
+          NovaUtils.showAlert(alertBox, err.message, 'error');
+        }
+      };
+      document.getElementById('nuevo-cli-ok').addEventListener('click', crear);
+      document.getElementById('nuevo-cli-cancel').addEventListener('click', cerrar);
+      nombre.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter') { ev.preventDefault(); crear(); }
+        if (ev.key === 'Escape') cerrar();
+      });
     });
   }
 
@@ -1254,5 +1282,5 @@
   }
 
   document.getElementById('btn-cancelar-edit').classList.add('hidden');
-  init();
+  init().catch((e) => NovaUtils.showAlert(alertBox, 'No se pudo cargar la pantalla: ' + e.message, 'error'));
 })();

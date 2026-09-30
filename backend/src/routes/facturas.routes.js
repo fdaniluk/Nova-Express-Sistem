@@ -11,6 +11,26 @@ const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 20 * 1024 * 1024 },
 });
+// multer tira sus propios errores (archivo muy grande, campo inesperado) sin `status`, y
+// pdf-parse revienta con un archivo que no es PDF: los dos terminaban en un 500 genérico
+// (29/09/2026). Se envuelven para que el usuario lea qué pasó.
+function subirPdf(req, res, next) {
+  upload.single('pdf')(req, res, (err) => {
+    if (!err) return next();
+    if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'El PDF pesa más de 20 MB.' });
+    return res.status(400).json({ error: `No se pudo recibir el archivo: ${err.message}` });
+  });
+}
+async function extraerOFallar(file, res) {
+  const esPdf = file.buffer && file.buffer.subarray(0, 5).toString('latin1') === '%PDF-';
+  if (!esPdf) { res.status(422).json({ error: `"${file.originalname}" no es un PDF.` }); return null; }
+  try {
+    return await extraerFacturaUPS(file.buffer);
+  } catch (e) {
+    res.status(422).json({ error: `No se pudo leer "${file.originalname}": ${e.message}` });
+    return null;
+  }
+}
 
 // 'pendiente' = neutro: la factura entró pero nadie la miró. Es el estado inicial al
 // cargar. No aparece en la bandeja de Facturas ni resaltado en Salidas. El tilde verde
@@ -26,11 +46,12 @@ function normalizarGuia(g) {
 
 // POST /api/facturas/chequear
 // Solo lectura: extrae el PDF y devuelve qué guías ya tienen costo cargado en la BD.
-router.post('/chequear', upload.single('pdf'), async (req, res, next) => {
+router.post('/chequear', subirPdf, async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Se requiere un archivo PDF' });
 
-    const extraido = await extraerFacturaUPS(req.file.buffer);
+    const extraido = await extraerOFallar(req.file, res);
+    if (!extraido) return;
     const { guias, advertencias, total_declarado, suma_guias, diferencia, cuadra } = extraido;
     const tipo = extraido.tipo || 'flete';
     const esImpuestos = tipo === 'impuestos';
@@ -122,13 +143,14 @@ router.post('/chequear', upload.single('pdf'), async (req, res, next) => {
 // POST /api/facturas/cargar
 // Carga el PDF, actualiza envíos y registra en facturas_cargadas.
 // Body (multipart): pdf (archivo), sobreescribir (string "true"/"false")
-router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
+router.post('/cargar', subirPdf, async (req, res, next) => {
   try {
     if (!req.file) return res.status(400).json({ error: 'Se requiere un archivo PDF' });
 
     const sobreescribir = req.body.sobreescribir === 'true' || req.body.sobreescribir === true;
 
-    const extraido = await extraerFacturaUPS(req.file.buffer);
+    const extraido = await extraerOFallar(req.file, res);
+    if (!extraido) return;
     const {
       numero_factura, guias,
       advertencias, total_declarado, suma_guias, diferencia, cuadra,
@@ -319,7 +341,7 @@ router.post('/cargar', upload.single('pdf'), async (req, res, next) => {
                 estado_revision   = ?,
                 updated_at        = datetime('now', 'localtime')
             WHERE id = ?
-          `).run(costo_facturado, guia.peso ?? null, hoy, estado_revision, envio.id);
+          `).run(costo_facturado, guia.peso ?? null, fecha_factura || hoy, estado_revision, envio.id); // fecha de la FACTURA, como la rama de impuestos (29/09)
 
           resumen.guardadas++;
           if (estado_revision === 'a_revisar') resumen.a_revisar++;

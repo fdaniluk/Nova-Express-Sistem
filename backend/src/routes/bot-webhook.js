@@ -19,6 +19,8 @@
 const { Router } = require('express');
 const canales = require('../services/bot-canales.service');
 
+const crypto = require('crypto');
+
 const router = Router();
 
 const hayTelegram = () => !!(process.env.TELEGRAM_BOT_TOKEN || '').trim();
@@ -62,8 +64,28 @@ router.get('/whatsapp', (req, res) => {
   res.sendStatus(403);
 });
 
+/* Firma de Meta (29/09/2026): cada POST trae X-Hub-Signature-256 = HMAC-SHA256 del body
+   crudo con el "App Secret" de la aplicación. Sin eso, cualquiera que sepa un número
+   vinculado podía mandarle órdenes al asistente en nombre de esa persona. Si el secreto no
+   está en el .env (WHATSAPP_APP_SECRET) se avisa en el log una vez y se sigue como antes,
+   para no apagar el canal de golpe. */
+let avisoSinSecreto = false;
+function firmaWhatsappOk(req) {
+  const secreto = (process.env.WHATSAPP_APP_SECRET || '').trim();
+  if (!secreto) {
+    if (!avisoSinSecreto) { avisoSinSecreto = true; console.warn('[bot-webhook whatsapp] WHATSAPP_APP_SECRET no está en el .env: no se verifica la firma de Meta'); }
+    return true;
+  }
+  const cab = String(req.get('x-hub-signature-256') || '');
+  if (!cab.startsWith('sha256=') || !req.rawBody) return false;
+  const esperado = crypto.createHmac('sha256', secreto).update(req.rawBody).digest('hex');
+  const a = Buffer.from(cab.slice(7), 'hex'); const b = Buffer.from(esperado, 'hex');
+  return a.length === b.length && crypto.timingSafeEqual(a, b);
+}
+
 router.post('/whatsapp', (req, res) => {
   if (!hayWhatsapp()) return res.status(404).json({ error: 'Canal no configurado' });
+  if (!firmaWhatsappOk(req)) return res.status(403).json({ error: 'Firma inválida' });
   try {
     const entradas = (req.body && req.body.entry) || [];
     for (const e of entradas) {

@@ -18,9 +18,13 @@ const mp = require('../src/services/mercadopago.service');
   await initDb();
   const db = getDb();
   // Un cliente con deuda abierta en SF; le ponemos un CUIT conocido en su razón social.
-  const d = await db.prepare("SELECT * FROM cc_comprobantes WHERE libro='SF' AND tipo IN ('LQ','FA') AND saldo > 50 AND anulado_at IS NULL ORDER BY saldo DESC LIMIT 1").get();
+  const d = await db.prepare("SELECT * FROM cc_comprobantes c WHERE c.libro='SF' AND c.tipo IN ('LQ','FA') AND c.saldo > 50 AND c.anulado_at IS NULL AND NOT EXISTS (SELECT 1 FROM cc_comprobantes o WHERE o.cliente_id = c.cliente_id AND o.libro = 'CF' AND o.saldo > 0 AND o.anulado_at IS NULL) AND NOT EXISTS (SELECT 1 FROM cc_recibo_imputaciones i JOIN cc_recibos r ON r.id = i.recibo_id JOIN cc_comprobantes rc ON rc.id = r.comprobante_id WHERE i.comprobante_id = c.id AND i.estado = 'pendiente_valor' AND rc.anulado_at IS NULL) ORDER BY c.saldo DESC LIMIT 1").get();
   assert.ok(d, 'hace falta una deuda abierta en la base de prueba');
   const CUIT = '30712345679';
+  // Restos de otra corrida sobre la misma copia: el CUIT de prueba no puede estar en nadie más.
+  await db.prepare('DELETE FROM cliente_cuentas WHERE cuit = ?').run(CUIT);
+  await db.prepare("UPDATE clientes_razones_sociales SET cuit = NULL WHERE REPLACE(COALESCE(cuit,''),'-','') = ?").run(CUIT);
+  await db.prepare("UPDATE clientes SET cuit = NULL WHERE REPLACE(COALESCE(cuit,''),'-','') = ?").run(CUIT);
   const rs = await db.prepare('SELECT id FROM clientes_razones_sociales WHERE cliente_id = ? LIMIT 1').get(d.cliente_id);
   if (rs) await db.prepare('UPDATE clientes_razones_sociales SET cuit = ?, activa = 1 WHERE id = ?').run('30-71234567-9', rs.id);
   else await db.prepare('UPDATE clientes SET cuit = ? WHERE id = ?').run('30-71234567-9', d.cliente_id);
@@ -38,6 +42,8 @@ const mp = require('../src/services/mercadopago.service');
     return { ok: true, status: 200, text: async () => JSON.stringify(body) };
   };
 
+  // La copia de la base puede traer restos de una corrida anterior: se limpian los ids de prueba.
+  await db.prepare("DELETE FROM pagos_entrantes WHERE fuente = 'mercadopago' AND id_externo IN ('111','222','333','444')").run();
   let r = await mp.sincronizar({ dias: 3 });
   assert.equal(r.nuevos, 2, 'entran solo los 2 cobros aprobados de Nova');
   r = await mp.sincronizar({ dias: 3 });

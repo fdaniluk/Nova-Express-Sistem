@@ -112,4 +112,22 @@ function utilidadEnvio(row) {
   return profit == null ? 0 : profit;
 }
 
-module.exports = { deriveProfit, costoEstimado, profitDoble, utilidadEnvio };
+// Venta y utilidad de la LIQUIDACIÓN CONFIRMADA de cada envío, como subconsulta lista para
+// un LEFT JOIN (alias de columnas: envio_id, utilidad_usd, venta_liq). Fuente única desde
+// el 29/09/2026: antes Salidas restaba los impuestos DDP y Dashboard, Comisiones,
+// Analítica y el perfil del cliente no, así que la utilidad real de un envío DDP liquidado
+// salía inflada por el monto de los impuestos en esas pantallas. Los impuestos DDP que
+// entraron en el ítem del envío se restan porque UPS los factura aparte del flete (no están
+// en costo_facturado): no son venta a comparar contra ese costo.
+const SUBQUERY_LIQUIDACION = `
+  SELECT li.envio_id,
+         SUM(li.utilidad_usd) AS utilidad_usd,
+         SUM(li.total_usd) - COALESCE(SUM((SELECT SUM(ec.monto) FROM envio_cargos ec
+                                           WHERE ec.envio_id = li.envio_id AND ec.origen = 'impuestos_ddp'
+                                             AND ec.anulado_at IS NULL AND ec.liquidacion_id = li.liquidacion_id)), 0) AS venta_liq
+  FROM liquidacion_items li
+  WHERE li.liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
+  GROUP BY li.envio_id`;
+
+module.exports = {
+  SUBQUERY_LIQUIDACION, deriveProfit, costoEstimado, profitDoble, utilidadEnvio };

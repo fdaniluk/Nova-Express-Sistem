@@ -132,22 +132,39 @@ function parseFecha(val) {
   return s;
 }
 
-async function getOrCreateCliente(nombre, tipoCobro) {
-  const clientes = await clienteModel.listar();
-  const found = clientes.find(
-    (c) => c.nombre.toLowerCase() === String(nombre).trim().toLowerCase()
-  );
+// cache: Map nombre-en-minúscula → id, armado una vez por importación (antes se listaban
+// todos los clientes por CADA fila) y con los dos nombres, el de la ficha y el Nova: con
+// solo `nombre` un cliente conocido por su nombre Nova se duplicaba (29/09/2026).
+async function getOrCreateCliente(nombre, tipoCobro, cache = null) {
+  const clave = String(nombre).trim().toLowerCase();
+  if (cache && cache.has(clave)) return cache.get(clave);
+  const clientes = cache ? [] : await clienteModel.listar({ todos: 1 });
+  const found = clientes.find((c) => String(c.nombre || '').toLowerCase() === clave
+    || String(c.nombre_nova || '').toLowerCase() === clave);
   if (found) return found.id;
   const nuevo = await clienteModel.crear({
     nombre: String(nombre).trim(),
     tipo_cobro: tipoCobro || 'D',
     tarifa_especial: null,
   });
+  if (cache) cache.set(clave, nuevo.id);
   return nuevo.id;
+}
+
+async function cacheClientes() {
+  const cache = new Map();
+  for (const c of await clienteModel.listar({ todos: 1 })) {
+    for (const n of [c.nombre, c.nombre_nova]) {
+      const k = String(n || '').trim().toLowerCase();
+      if (k && !cache.has(k)) cache.set(k, c.id);
+    }
+  }
+  return cache;
 }
 
 async function importarSalidas(buffer) {
   const wb = XLSX.read(buffer, { type: 'buffer', cellDates: true });
+  const cacheCli = await cacheClientes();
   const sheetName = wb.SheetNames[0];
   const sheet = wb.Sheets[sheetName];
   const data = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: '' });
@@ -190,7 +207,7 @@ async function importarSalidas(buffer) {
         }
 
         const courier = parseCourier(m.courier) || 'DHL';
-        const cliente_id = await getOrCreateCliente(clienteNombre, parseTipoCobro(m.tipo_cobro));
+        const cliente_id = await getOrCreateCliente(clienteNombre, parseTipoCobro(m.tipo_cobro), cacheCli);
         const observacionesStr = m.observaciones ? String(m.observaciones) : null;
         const { destino, destino_raw, direccion, origen } = normalizarDestino(
           m.pais_destino,

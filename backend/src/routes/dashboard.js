@@ -1,6 +1,6 @@
 const { Router } = require('express');
 const { getDb } = require('../db');
-const { deriveProfit, costoEstimado, utilidadEnvio: utilidadEnvioCompartida } = require('../utils/profit');
+const { deriveProfit, costoEstimado, utilidadEnvio: utilidadEnvioCompartida, SUBQUERY_LIQUIDACION } = require('../utils/profit');
 const { hoyLocal, hoyLocalMas } = require('../utils/fecha');
 
 const router = Router();
@@ -87,14 +87,7 @@ router.get('/metricas', async (req, res, next) => {
              li.venta_liq    AS venta_liq
            FROM envios e
            JOIN clientes c ON c.id = e.cliente_id
-           LEFT JOIN (
-             SELECT envio_id,
-                    SUM(utilidad_usd) AS utilidad_usd,
-                    SUM(total_usd)    AS venta_liq
-             FROM liquidacion_items
-             WHERE liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
-             GROUP BY envio_id
-           ) li ON li.envio_id = e.id
+           LEFT JOIN (${SUBQUERY_LIQUIDACION}) li ON li.envio_id = e.id
            WHERE e.fecha >= ? AND e.fecha < ? AND e.no_volo = 0`
         )
         .all(desde, hasta),

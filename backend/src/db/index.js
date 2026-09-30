@@ -70,12 +70,33 @@ function prepare(sql) {
 // correcto y preferible a perder escrituras. El arreglo de fondo es una conexión
 // por request; esto cierra el agujero sin reescribir la capa de acceso.
 let txQueue = Promise.resolve();
+// Transacción ANIDADA (29/09/2026): un db.transaction() llamado desde adentro de otro
+// esperaba en la cola a que terminara el exterior, que esperaba al interior → el request
+// quedaba colgado para siempre, sin error. Con AsyncLocalStorage se sabe si el código que
+// llama ya está dentro de una transacción; en ese caso corre en la misma (SAVEPOINT).
+const { AsyncLocalStorage } = require('async_hooks');
+const txContext = new AsyncLocalStorage();
+let savepointN = 0;
+
+async function transactionAnidada(fn) {
+  const sp = `sp_${++savepointN}`;
+  await run(`SAVEPOINT ${sp}`);
+  try {
+    const value = await fn();
+    await run(`RELEASE SAVEPOINT ${sp}`);
+    return value;
+  } catch (e) {
+    try { await run(`ROLLBACK TO SAVEPOINT ${sp}`); await run(`RELEASE SAVEPOINT ${sp}`); } catch { /* la exterior hace ROLLBACK */ }
+    throw e;
+  }
+}
 
 function transaction(fn) {
+  if (txContext.getStore()) return transactionAnidada(fn);
   const result = txQueue.then(async () => {
     await run('BEGIN TRANSACTION');
     try {
-      const value = await fn();
+      const value = await txContext.run(true, fn);
       await run('COMMIT');
       return value;
     } catch (e) {
@@ -223,13 +244,20 @@ async function migratePickups() {
     }
   }
 
-  // Pickups anteriores: confirmado_juanqui implicaba "en depósito" en el viejo modelo.
-  // Los backfilleamos para que no queden como "en_camioneta" sin haber llegado a depósito.
-  await dbApi.exec(`
-    UPDATE pickups
-    SET en_deposito_at = confirmado_juanqui, estado = 'en_deposito'
-    WHERE confirmado_juanqui IS NOT NULL AND en_deposito_at IS NULL
-  `);
+  // Pickups anteriores al modelo con depósito: confirmado_juanqui implicaba "en depósito".
+  // UNA sola vez: hoy "confirmado_juanqui sin en_deposito_at" es un estado vivo (en
+  // camioneta), y correr esto en cada arranque lo pisaba (29/09/2026).
+  await unaVez('pickups_backfill_deposito', async () => {
+    // Si ya hay pickups con en_deposito_at, el modelo nuevo ya está en uso y el backfill
+    // viejo ya corrió: no se toca nada (en producción corrió en cada deploy hasta hoy).
+    const enUso = await dbApi.prepare('SELECT 1 FROM pickups WHERE en_deposito_at IS NOT NULL LIMIT 1').get();
+    if (enUso) return;
+    await dbApi.exec(`
+      UPDATE pickups
+      SET en_deposito_at = confirmado_juanqui, estado = 'en_deposito'
+      WHERE confirmado_juanqui IS NOT NULL AND en_deposito_at IS NULL
+    `);
+  });
 }
 
 async function migrateEnvios() {
@@ -305,6 +333,9 @@ async function migrateEnvios() {
     ['no_volo',           'INTEGER NOT NULL DEFAULT 0'],
     ['no_volo_usuario',   'TEXT'],
     ['no_volo_en',        'TEXT'],
+    // "Precio acordado" (cotización atada al envío): EN PAUSA desde el 17/09, ver
+    // docs/claude/PRECIO-ACORDADO-EN-PAUSA.md. Las columnas existen pero nadie las escribe
+    // ni las lee todavía; no es un bug, es una función a medio construir.
     ['cotizacion_id',     'INTEGER'],
     ['precio_acordado',   'REAL'],
     ['precio_recalculado','REAL'],
@@ -782,6 +813,11 @@ async function migrateLiquidacionesCC() {
 }
 
 async function migrateCuentaCorriente() {
+  // Una sola vez (29/09/2026): confirmar() registra su propio débito con razón social y TC;
+  // este backfill solo cubría las liquidaciones confirmadas ANTES de la cuenta corriente.
+  await unaVez('cc_backfill_liquidaciones', migrateCuentaCorrienteBackfill);
+}
+async function migrateCuentaCorrienteBackfill() {
   const r = await dbApi.prepare(`
     INSERT INTO cc_comprobantes (cliente_id, libro, tipo, numero, fecha, vencimiento, moneda,
                                  importe, saldo, liquidacion_id, descripcion, origen, creado_por)
@@ -959,6 +995,7 @@ async function migrateIndices() {
   await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_envios_estado_revision   ON envios(estado_revision)');
   await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_envio_bultos_guia        ON envio_bultos(numero_guia)');
   await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_cuadrantes_pickup        ON cuadrantes(pickup_id)');
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_facturas_numero        ON facturas_cargadas(numero_factura)');
 
   // Único: una guía no puede aparecer dos veces en el detalle de la MISMA factura.
   // Junto con el INSERT OR IGNORE de facturas.routes.js evita que un reintento deje
@@ -1252,6 +1289,20 @@ async function migrateComisiones() {
     await dbApi.prepare('INSERT INTO vendedores (nombre, es_casa, comision_pct) VALUES (?, ?, 0)').run(nombre, casa);
   }
   console.log('Comisiones: vendedores iniciales creados (Felipe, Victoria, Ricardo, Nova Express)');
+}
+
+// Cambios de DATOS que tienen que correr UNA sola vez, no en cada arranque (29/09/2026).
+// Un backfill que corre siempre parece inofensivo hasta el día en que la condición vuelve a
+// darse con datos vivos: migratePickups marcaba "en depósito" en cada reinicio lo que el
+// chofer tenía arriba de la camioneta. La tabla migraciones_una_vez es la memoria.
+async function unaVez(clave, fn) {
+  await dbApi.exec(`CREATE TABLE IF NOT EXISTS migraciones_una_vez (
+    clave TEXT PRIMARY KEY, hecho_at TEXT NOT NULL DEFAULT (datetime('now','localtime')))`);
+  const hecho = await dbApi.prepare('SELECT 1 FROM migraciones_una_vez WHERE clave = ?').get(clave);
+  if (hecho) return false;
+  await fn();
+  await dbApi.prepare('INSERT INTO migraciones_una_vez (clave) VALUES (?)').run(clave);
+  return true;
 }
 
 async function initSchema() {

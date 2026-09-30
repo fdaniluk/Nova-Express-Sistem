@@ -87,8 +87,20 @@ async function unirClientes(origenId, destinoId, { usuario = null } = {}) {
 
   const tablas = (await db.prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT IN ('clientes', 'clientes_uniones')").all()).map((t) => t.name);
   const detalle = {};
+  const tarifa = await quienConservaTarifa(db, origenId, destinoId);
   return db.transaction(async () => {
+    // La TARIFA no se mezcla (29/09/2026): mover celda por celda dejaba un juego de tramos
+    // híbrido y celdas de % del otro cliente. Se conserva un juego entero: el del destino
+    // si tiene, si no el del origen.
+    if (tarifa === 'destino') {
+      for (const t of TABLAS_TARIFA) {
+        if (!tablas.includes(t)) continue;
+        const n = (await db.prepare(`DELETE FROM ${t} WHERE cliente_id = ?`).run(origenId)).changes;
+        if (n) detalle[t] = `${n} descartadas (se conserva la tarifa del destino)`;
+      }
+    }
     for (const t of tablas) {
+      if (tarifa === 'destino' && TABLAS_TARIFA.includes(t)) continue;
       const cols = (await db.prepare(`PRAGMA table_info(${t})`).all()).map((c) => c.name);
       if (!cols.includes('cliente_id')) continue;
       const n = (await db.prepare(`SELECT COUNT(*) AS n FROM ${t} WHERE cliente_id = ?`).get(origenId)).n;
@@ -118,8 +130,25 @@ async function unirClientes(origenId, destinoId, { usuario = null } = {}) {
     await db.prepare('INSERT INTO clientes_uniones (origen_id, origen_nombre, origen_cuit, destino_id, detalle, usuario) VALUES (?, ?, ?, ?, ?, ?)')
       .run(origenId, origen.nombre, origen.cuit, destinoId, JSON.stringify(detalle), usuario);
     await db.prepare('DELETE FROM clientes WHERE id = ?').run(origenId);
-    return { origen: origen.nombre, destino: destino.nombre, detalle };
+    return { origen: origen.nombre, destino: destino.nombre, detalle, tarifa };
   });
+}
+
+const TABLAS_TARIFA = ['profit_overrides', 'cliente_tramos', 'tarifa_kg_overrides'];
+// 'destino' si el destino tiene tarifa propia (matriz, tramos o precio por kilo): se queda
+// con la suya y la del origen se descarta. 'origen' si el destino no tiene nada y el origen
+// sí: la hereda entera. null si ninguno tiene.
+async function quienConservaTarifa(db, origenId, destinoId) {
+  const tiene = async (id) => {
+    for (const t of TABLAS_TARIFA) {
+      const r = await db.prepare(`SELECT 1 FROM ${t} WHERE cliente_id = ? LIMIT 1`).get(id).catch(() => null);
+      if (r) return true;
+    }
+    return false;
+  };
+  if (await tiene(destinoId)) return 'destino';
+  if (await tiene(origenId)) return 'origen';
+  return null;
 }
 
 
@@ -159,7 +188,11 @@ async function previewUnion(origenId, destinoId) {
     if ((destino[col] === null || destino[col] === '') && origen[col] !== null && origen[col] !== '') completa[col] = origen[col];
   }
   const pick = (c, s) => ({ id: c.id, nombre: c.nombre, nombre_nova: c.nombre_nova, cuit: c.cuit, tipo_cobro: c.tipo_cobro, activo: c.activo, saldo_cf: s.cf, saldo_sf: s.sf });
-  return { origen: pick(origen, await saldo(origenId)), destino: pick(destino, await saldo(destinoId)), filas, completa };
+  const tarifa = await quienConservaTarifa(db, origenId, destinoId);
+  for (const f of filas) {
+    if (TABLAS_TARIFA.includes(f.tabla) && tarifa === 'destino' && f.origen) f.nota = 'se descartan: se conserva la tarifa del destino';
+  }
+  return { origen: pick(origen, await saldo(origenId)), destino: pick(destino, await saldo(destinoId)), filas, completa, tarifa };
 }
 
 // ── Posibles duplicados ───────────────────────────────────────────────────────────

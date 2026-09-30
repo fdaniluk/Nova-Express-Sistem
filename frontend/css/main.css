@@ -32,61 +32,6 @@ a {
   color: var(--color-primary-light);
 }
 
-.app-header {
-  background: var(--color-primary);
-  color: #fff;
-  padding: 1rem 1.5rem;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-}
-
-.app-header h1 {
-  margin: 0;
-  font-size: 1.35rem;
-  font-weight: 600;
-}
-
-.app-header a {
-  color: #cbd5e1;
-  text-decoration: none;
-  font-size: 0.9rem;
-}
-
-.app-header a:hover {
-  color: #fff;
-}
-
-.app-main {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 1.25rem 1rem 2rem;
-}
-
-.app-nav {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
-}
-
-.app-nav a {
-  display: inline-block;
-  padding: 0.6rem 1rem;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  text-decoration: none;
-  color: var(--color-primary);
-  font-weight: 500;
-  box-shadow: var(--shadow);
-}
-
-.app-nav a:hover {
-  border-color: var(--color-primary-light);
-}
 
 .card {
   background: var(--color-surface);
@@ -208,10 +153,6 @@ textarea:focus {
   color: var(--color-text);
 }
 
-.btn-accent {
-  background: var(--color-accent);
-  color: #fff;
-}
 
 .btn-danger {
   background: var(--color-danger);
@@ -276,12 +217,6 @@ tr:hover td {
   color: var(--color-success);
 }
 
-/* NO VOLO: envio cargado que nunca salio. No cuenta en ninguna estadistica. */
-.badge-no_volo {
-  background: #8c2f26;
-  color: #fff;
-  font-weight: 700;
-}
 
 .badge-dhl {
   background: #ffcc00;
@@ -298,6 +233,13 @@ tr:hover td {
   border-radius: var(--radius);
   margin-bottom: 1rem;
 }
+
+.alert-cerrar {
+  float: right; margin: -0.25rem -0.4rem 0 0.75rem; padding: 0 0.35rem;
+  background: none; border: 0; font-size: 1.25rem; line-height: 1; cursor: pointer;
+  color: inherit; opacity: 0.6;
+}
+.alert-cerrar:hover { opacity: 1; }
 
 .alert-error {
   background: #fef2f2;
@@ -444,14 +386,6 @@ tr:hover td {
   opacity: 1;
 }
 
-.sidebar-section {
-  padding: 0.35rem 1rem 0.1rem;
-  font-size: 0.65rem;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  color: #475569;
-  margin-top: 0.5rem;
-}
 
 .page-content {
   flex: 1;
@@ -481,14 +415,6 @@ tr:hover td {
 .page-body {
   padding: 1.25rem 1.5rem 2rem;
   flex: 1;
-}
-
-/* ── Dashboard metric cards ──────────────────────────── */
-.metrics-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-  gap: 1rem;
-  margin-bottom: 1.25rem;
 }
 
 .metric-card {
@@ -533,42 +459,11 @@ tr:hover td {
   color: var(--color-danger);
 }
 
-/* ── Dashboard two-column section ─────────────────────  */
-.dashboard-cols {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  margin-bottom: 1.25rem;
-}
-
-@media (max-width: 900px) {
-  .dashboard-cols {
-    grid-template-columns: 1fr;
-  }
-}
-
 /* ── Period selector ─────────────────────────────────── */
 .period-selector {
   display: flex;
   align-items: center;
   gap: 0.25rem;
-}
-
-.period-btn {
-  padding: 0.35rem 0.85rem;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  background: var(--color-surface);
-  font: inherit;
-  font-size: 0.85rem;
-  cursor: pointer;
-  color: var(--color-muted);
-}
-
-.period-btn.active {
-  background: var(--color-primary);
-  color: #fff;
-  border-color: var(--color-primary);
 }
 
 .period-select {
@@ -583,33 +478,15 @@ tr:hover td {
   cursor: pointer;
 }
 
-.periodo-label {
-  font-size: 0.85rem;
-  font-weight: 400;
-  color: var(--color-muted);
-}
-
-/* ── Cliente profile ─────────────────────────────────── */
-.profile-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  margin-bottom: 1.25rem;
-}
 
 @media (max-width: 700px) {
-  .profile-grid {
-    grid-template-columns: 1fr;
-  }
-
   .sidebar {
     width: 54px;
   }
 
   .sidebar-title,
   .sidebar-subtitle,
-  .nav-item span:last-child,
-  .sidebar-section {
+  .nav-item span:last-child {
     display: none;
   }
 

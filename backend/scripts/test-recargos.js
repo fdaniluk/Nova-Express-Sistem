@@ -23,7 +23,9 @@ const cerca = (a, b, tol = 0.005) => Math.abs(a - b) <= tol;
 // ── 1. Surge fee ────────────────────────────────────────────────────────────
 console.log('\n1. Surge fee UPS (USD por kg de peso facturable)\n');
 
-const surge = (pais, tipo) => core.getSurge(pais, tipo, 1);
+// Importación: la tabla cambió el 27-sep-2026 (SURGE_IMPORT_NUEVO_DESDE). Estos chequeos
+// son de la tabla VIEJA, así que se pasa una fecha anterior; la nueva se prueba más abajo.
+const surge = (pais, tipo) => core.getSurge(pais, tipo, 1, '2026-09-01');
 
 check('export ISMEA (Egipto) = 2.95', cerca(surge('Egipto', 'export'), 2.95), surge('Egipto', 'export'));
 check('export Israel = 3.30', cerca(surge('Israel', 'export'), 3.30), surge('Israel', 'export'));
@@ -43,6 +45,16 @@ check('import resto del mundo = 0.50', cerca(surge('Brasil', 'import'), 0.50));
 // UPS eliminó el surge de las importaciones desde Israel el 24-may-2026
 check('import Israel = 0.50 (UPS lo eliminó en mayo 2026)',
   cerca(surge('Israel', 'import'), 0.50), surge('Israel', 'import'));
+
+// Tabla de importación vigente desde el 27-sep-2026 (SURGE-Y-AREAS-UPS-SEP-2026.md)
+const surgeN = (pais) => core.getSurge(pais, 'import', 1, '2026-09-27');
+check('import NUEVA China = 2.00', cerca(surgeN('China'), 2.00), surgeN('China'));
+check('import NUEVA India = 1.70', cerca(surgeN('India'), 1.70), surgeN('India'));
+check('import NUEVA E.A.U. = 1.06 (va con ISMEA)', cerca(surgeN('Emiratos Árabes Unidos'), 1.06), surgeN('Emiratos Árabes Unidos'));
+check('import NUEVA Israel = 1.06', cerca(surgeN('Israel'), 1.06), surgeN('Israel'));
+check('import NUEVA Estados Unidos = 0.70', cerca(surgeN('Estados Unidos'), 0.70), surgeN('Estados Unidos'));
+check('import NUEVA Canadá = 0.50', cerca(surgeN('Canadá'), 0.50), surgeN('Canadá'));
+check('el 26-sep todavía usa la vieja (China 0.70)', cerca(core.getSurge('China', 'import', 1, '2026-09-26'), 0.70));
 
 // ISMEA es taxativo: los 14 del comunicado, ni uno más
 const ISMEA_OFICIAL = ['Afganistán', 'Arabia Saudita', 'Bahréin', 'Bangladesh', 'Egipto',

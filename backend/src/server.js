@@ -8,13 +8,15 @@ const { initDb, getDb } = require('./db');
 const { migrarColumnas: migrarColumnasliquidacion } = require('./models/liquidacion.model');
 const { hacerBackup } = require('./services/backup.service');
 const { borrarSesionesExpiradas } = require('./models/auth.model');
+const { requireAuth } = require('./middleware/auth');
 
 const app = express();
 
 app.set('trust proxy', 1);
 
 app.use(cors({ origin: config.corsOrigin }));
-app.use(express.json({ limit: '2mb' }));
+// rawBody: el webhook de WhatsApp firma el cuerpo crudo (HMAC), hace falta tenerlo tal cual.
+app.use(express.json({ limit: '2mb', verify: (req, _res, buf) => { req.rawBody = buf; } }));
 app.use(cookieParser());
 
 app.use('/api', routes);
@@ -26,7 +28,9 @@ app.get('/cotizar/:codigo', (req, res) => {
   res.sendFile(path.join(frontendPath, 'pages', 'cotizar-cliente.html'));
 });
 app.use(express.static(frontendPath));
-app.use('/shared', express.static(path.join(__dirname, '../../shared')));
+// /shared lleva el motor de precios con las tablas de COSTO de DHL y UPS adentro: solo con
+// sesión (29/09/2026). La página pública de cotización no lo carga (cotiza en el servidor).
+app.use('/shared', requireAuth, express.static(path.join(__dirname, '../../shared')));
 
 app.use((err, req, res, next) => {
   console.error(err);

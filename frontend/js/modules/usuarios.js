@@ -163,18 +163,37 @@
       btn.addEventListener('click', async function () {
         var id = btn.dataset.id;
         var usuario = btn.dataset.usuario;
-        var nueva = prompt('Nueva contraseña para "' + usuario + '" (mínimo 6 caracteres):');
-        if (nueva === null) return;
-        if (nueva.length < 6) {
-          NovaUtils.showAlert(alertBox, 'La contraseña debe tener al menos 6 caracteres.');
-          return;
-        }
-        try {
-          await NovaAPI.post('/usuarios/' + id + '/reset-password', { password: nueva });
-          NovaUtils.showAlert(alertBox, 'Contraseña reseteada correctamente.', 'success');
-        } catch (err) {
-          NovaUtils.showAlert(alertBox, err.message);
-        }
+        // Campo de contraseña en la misma fila (29/09/2026): con prompt() la contraseña
+        // quedaba escrita a la vista en el cuadro del navegador.
+        if (btn.nextElementSibling && btn.nextElementSibling.classList.contains('pwd-inline')) return;
+        var caja = document.createElement('span');
+        caja.className = 'pwd-inline';
+        caja.innerHTML = '<input type="password" autocomplete="new-password" placeholder="Nueva contraseña (mín. 6)">'
+          + '<button type="button" class="btn btn-sm btn-primary">Guardar</button>'
+          + '<button type="button" class="btn btn-sm btn-secondary">Cancelar</button>';
+        btn.after(caja);
+        btn.style.display = 'none';
+        var input = caja.querySelector('input');
+        var cerrar = function () { caja.remove(); btn.style.display = ''; };
+        input.focus();
+        caja.querySelectorAll('button')[1].addEventListener('click', cerrar);
+        var guardar = async function () {
+          var nueva = input.value;
+          if (nueva.length < 6) {
+            NovaUtils.showAlert(alertBox, 'La contraseña de "' + usuario + '" debe tener al menos 6 caracteres.');
+            input.focus();
+            return;
+          }
+          try {
+            await NovaAPI.post('/usuarios/' + id + '/reset-password', { password: nueva });
+            NovaUtils.showAlert(alertBox, 'Contraseña de "' + usuario + '" cambiada.', 'success');
+            cerrar();
+          } catch (err) {
+            NovaUtils.showAlert(alertBox, err.message);
+          }
+        };
+        caja.querySelectorAll('button')[0].addEventListener('click', guardar);
+        input.addEventListener('keydown', function (ev) { if (ev.key === 'Enter') guardar(); if (ev.key === 'Escape') cerrar(); });
       });
     });
   }

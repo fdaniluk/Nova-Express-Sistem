@@ -166,9 +166,9 @@ async function main() {
 
     const pend = await page.textContent('#count-pend');
     check('el "sin confirmar" cuenta SOLO el pickup normal (1, no 3)',
-      /● 1 sin confirmar/.test(pend), pend);
+      /\b1 sin confirmar/.test(pend), pend);
     const gris = await page.textContent('#count-gris');
-    check('los cliente/courier tienen su propia cuenta gris', /◼ 2 cliente\/courier/.test(gris), gris);
+    check('los cliente/courier tienen su propia cuenta gris', /\b2 cliente\/courier/.test(gris), gris);
     check('que está visible', await page.$eval('#count-gris', (e) => e.style.display !== 'none'));
 
     const tiras = await page.$$eval('.pickup-rec-stripe', (els) => els.map((x) => x.textContent.trim()));

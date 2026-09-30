@@ -2,7 +2,7 @@ const { Router } = require('express');
 const { getDb } = require('../db');
 const { buildPesos, calcularDesgloseAlCosto, calcularSeguroVenta } = require('../models/envio.model');
 const { pesoVolumetricoBulto } = require('../services/calculos.service');
-const { deriveProfit, profitDoble } = require('../utils/profit');
+const { deriveProfit, profitDoble, SUBQUERY_LIQUIDACION } = require('../utils/profit');
 const { descomponerVenta } = require('../utils/desgloseVenta');
 const configuracionModel = require('../models/configuracion.model');
 const cierreService = require('../services/cierre.service');
@@ -121,15 +121,7 @@ async function listarSalidas({ desde, hasta } = {}) {
     -- total_cobrado. Pre-agregado por envío para no duplicar filas. SOLO lectura.
     -- Los impuestos DDP que entraron en el ítem se restan: UPS los factura aparte del
     -- flete (no están en costo_facturado), así que no son venta a comparar con el costo.
-    LEFT JOIN (
-      SELECT li.envio_id,
-             SUM(li.total_usd) - COALESCE((SELECT SUM(ec.monto) FROM envio_cargos ec
-                                           WHERE ec.envio_id = li.envio_id AND ec.origen = 'impuestos_ddp'
-                                             AND ec.anulado_at IS NULL AND ec.liquidacion_id = li.liquidacion_id), 0) AS venta_liq
-      FROM liquidacion_items li
-      WHERE li.liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
-      GROUP BY li.envio_id
-    ) li ON li.envio_id = e.id
+    LEFT JOIN (${SUBQUERY_LIQUIDACION}) li ON li.envio_id = e.id
     WHERE 1=1`;
 
   const params = [];
@@ -402,6 +394,7 @@ router.get('/', async (req, res, next) => {
 // Extracargos que se agregan DESPUÉS de cargado el envío (manejo, sobrepeso, área remota,
 // DDP…). Van al costo y se le cobran al cliente en la liquidación del envío o, si ya está
 // liquidado, en la próxima del cliente (ver models/envio-cargos.model.js).
+// Lo usan los tests y scripts (la pantalla tiene la lista de tipos en salidas.js).
 router.get('/cargos/tipos', (req, res) => res.json(cargosModel.TIPOS));
 
 router.get('/:id/cargos', async (req, res, next) => {
@@ -608,6 +601,12 @@ router.post('/:id/recalcular', async (req, res, next) => {
       tipo_paquete: body.tipo_paquete != null ? body.tipo_paquete : envio.tipo_paquete,
       // Fuel% congelado del envío: el recálculo respeta el guardado (no el de config actual).
       fuel_pct: envio.fuel_pct,
+      // Con porcentaje congelado se usa ese tal cual ('manual' = número fijo). Un envío muy
+      // viejo sin fuel_pct sigue la cadena de siempre en vez de quedar en 0.
+      fuel_origen: envio.fuel_pct != null ? 'manual' : undefined,
+      // Fecha del envío: el surge (UPS impo desde el 27-sep, DHL por calendario) va con la
+      // tarifa de SU fecha, igual que en el alta (29/09/2026).
+      fecha: envio.fecha,
       // Peso y medidas: del modal si el campo vino en el body, del envío si no. `undefined`
       // es "no lo mandaron" y `null` es "lo borraron a propósito", y son cosas distintas:
       // borrar el peso tiene que dejar el envío sin pesar, pero no mandarlo no puede
@@ -686,14 +685,7 @@ const SALIDAS_EDITABLE = [
   'tarifa_50',
 ];
 
-// Fecha en formato ISO estricto YYYY-MM-DD y que sea un día de calendario real.
-function esFechaValida(v) {
-  if (typeof v !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(v)) return false;
-  const [y, m, d] = v.split('-').map(Number);
-  if (m < 1 || m > 12 || d < 1 || d > 31) return false;
-  const dt = new Date(Date.UTC(y, m - 1, d));
-  return dt.getUTCFullYear() === y && dt.getUTCMonth() === m - 1 && dt.getUTCDate() === d;
-}
+const { esFechaValida } = require('../utils/fecha');
 
 router.patch('/:id', async (req, res, next) => {
   try {
@@ -862,7 +854,9 @@ router.patch('/:id', async (req, res, next) => {
         // La tarifa +50 es de DHL y de nadie más: si el envío queda en UPS, la marca se
         // borra en el MISMO guardado (regla siete: un guardado de dos pasos se olvida).
         // Caso de administración del 07/09: fila UPS con chip +50 y sin poder recalcular.
-        picked.tarifa_50 = 0;
+        // Solo cuando el guardado toca courier/servicio o la fila todavía tiene la marca:
+        // editar las observaciones de un UPS no escribe columnas de plata (29/09/2026).
+        if (tocaServicio || existing.tarifa_50) picked.tarifa_50 = 0;
       }
     }
     // Valor declarado: número >= 0. null se acepta y se guarda 0 (envío sin valor declarado).
@@ -958,7 +952,7 @@ router.patch('/:id', async (req, res, next) => {
         && String(picked.pais_destino).trim() !== String(existing.pais_destino ?? '').trim()) {
       const desgloseZona = await calcularDesgloseAlCosto({
         courier: picked.courier ?? existing.courier,
-        servicio_ups: existing.servicio_ups,
+        servicio_ups: picked.servicio_ups !== undefined ? picked.servicio_ups : existing.servicio_ups,
         tipo_envio: existing.tipo_envio,
         pais_destino: picked.pais_destino,
         fob: existing.fob,

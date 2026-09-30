@@ -700,7 +700,9 @@ function cotizarServicio(servicio, params) {
   if(manejoCount>0)  extras.push([`Manejo adicional (${manejoCount} bulto${manejoCount>1?'s':''})`,manejoCount*27.65]);
   if(contornoExtra>0)extras.push(['Paquete mayor tamaño — contorno >300 cm',contornoExtra]);
   if(seguroObj.monto>0)extras.push(['Seguro',seguroObj.monto]);
-  const zeUPS=calcZonaEntrega('UPS',zonaEntrega,pf,pais);
+  // Peso redondeado a 0,5 (y con el mínimo de mayor tamaño), el mismo que usa el flete: es
+  // el peso facturable que UPS usa para el recargo por kilo (29/09/2026).
+  const zeUPS=calcZonaEntrega('UPS',zonaEntrega,pfRound,pais);
   if(zeUPS)          extras.push([zeUPS.label,zeUPS.monto]);
   // Entrega residencial: 6.00. Verificado contra las facturas REALES de julio 2026
   // (auditoría del 28/08): UPS facturó "Residential 6.00" en las 50 apariciones, sin
