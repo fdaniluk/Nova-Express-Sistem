@@ -1881,7 +1881,7 @@
         return `<li>
             <div class="txt">
               <div class="code" title="${esc(url)}">${esc(url)}</div>
-              <small>${estado} · ${esc(l.couriers)}${l.nombrar ? '' : ' · sin nombrar el servicio'} · ${l.consultas} consulta${l.consultas === 1 ? '' : 's'}</small>
+              <small>${estado} · ${esc(l.couriers)}${l.sentido === 'export' ? ' · solo expo' : l.sentido === 'import' ? ' · solo impo' : ''}${l.nombrar ? '' : ' · sin nombrar el servicio'} · ${l.consultas} consulta${l.consultas === 1 ? '' : 's'}</small>
             </div>
             <div style="display:flex;gap:6px;flex-shrink:0">
               <button class="btn btn-outline btn-sm" data-copiar="${esc(url)}">Copiar</button>
@@ -1913,6 +1913,7 @@
         await NovaAPI.cotizadorLinks.crear({
           cliente_id: Number(clienteId),
           couriers: document.getElementById('link-couriers').value,
+          sentido: document.getElementById('link-sentido').value,
           dias: Number(document.getElementById('link-dias').value) || 30,
           nombrar: document.getElementById('link-nombrar').checked,
         });

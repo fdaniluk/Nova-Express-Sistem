@@ -13,6 +13,8 @@ const crypto = require('crypto');
 const { getDb } = require('../db');
 
 const COURIERS = ['ambos', 'dhl', 'ups', 'ups_exp', 'ups_sav'];
+// Sentido que ofrece el link: los dos, solo exportación o solo importación (30/09/2026).
+const SENTIDOS = ['ambos', 'export', 'import'];
 
 /* Tope de consultas por día por link. 100 cotizaciones en un día es muchísimo para una
    persona y nada para un scraper: si un cliente de verdad lo alcanza, que llame. */
@@ -35,7 +37,7 @@ function serviciosDe(couriers) {
   }
 }
 
-async function crear({ cliente_id, nombre, couriers, profit_pct, dias, nombrar }, usuario) {
+async function crear({ cliente_id, nombre, couriers, profit_pct, dias, nombrar, sentido }, usuario) {
   const db = getDb();
   const codigo = crypto.randomBytes(16).toString('hex');
   const d = new Date();
@@ -45,8 +47,8 @@ async function crear({ cliente_id, nombre, couriers, profit_pct, dias, nombrar }
   const res = await db
     .prepare(
       `INSERT INTO cotizador_links
-         (codigo, cliente_id, nombre, couriers, nombrar, profit_pct, vence_en, usuario_id, usuario)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         (codigo, cliente_id, nombre, couriers, nombrar, sentido, profit_pct, vence_en, usuario_id, usuario)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       codigo,
@@ -54,6 +56,7 @@ async function crear({ cliente_id, nombre, couriers, profit_pct, dias, nombrar }
       nombre ?? null,
       COURIERS.includes(couriers) ? couriers : 'ambos',
       nombrar === false || nombrar === 0 ? 0 : 1,
+      SENTIDOS.includes(sentido) ? sentido : 'ambos',
       profit_pct ?? null,
       vence,
       (usuario && usuario.id) || null,
@@ -114,6 +117,7 @@ async function registrarConsulta(id) {
 }
 
 module.exports = {
+  SENTIDOS,
   COURIERS, TOPE_DIARIO, serviciosDe,
   crear, obtener, listarDeCliente, darDeBaja, validarParaUso, registrarConsulta,
 };

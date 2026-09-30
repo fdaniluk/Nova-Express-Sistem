@@ -338,6 +338,12 @@
                     <option value="ups_exp">Solo UPS Expedited</option>
                     <option value="ups_sav">Solo UPS Saver</option>
                   </select></div>
+                <div><label for="link-sentido">Envíos</label>
+                  <select id="link-sentido" title="Un cliente de importación no tiene por qué ver los precios de exportación">
+                    <option value="ambos">Expo e impo</option>
+                    <option value="export">Solo exportación</option>
+                    <option value="import">Solo importación</option>
+                  </select></div>
                 <div><label for="link-dias">Validez (días)</label>
                   <input type="number" id="link-dias" min="1" max="365" step="1" value="30" style="width:80px"></div>
                 <label class="lbl-check" title="Sin la tilde, el link ofrece la tarifa 'a secas': las tarjetas dicen Opción 1 / Opción 2 en vez del nombre del servicio">
@@ -489,6 +495,6 @@
 <script src="../js/main.js?v=20260929a"></script>
 <script src="../js/vendor/chart.umd.js?v=20260915a"></script>
 <script src="../js/cotizacion-imagen.js?v=20260929b"></script>
-<script src="../js/modules/clientes-perfil.js?v=20260929c"></script>
+<script src="../js/modules/clientes-perfil.js?v=20260930a"></script>
 </body>
 </html>

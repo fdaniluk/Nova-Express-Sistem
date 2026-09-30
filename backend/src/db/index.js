@@ -1202,6 +1202,11 @@ async function migrateCotizadorLinks() {
   if (!colsLinks.includes('nombrar')) {
     await dbApi.exec('ALTER TABLE cotizador_links ADD COLUMN nombrar INTEGER NOT NULL DEFAULT 1');
   }
+  // Sentido del link (30/09/2026): 'ambos' | 'export' | 'import'. Un cliente de importación
+  // no tiene por qué ver los precios de exportación.
+  if (!colsLinks.includes('sentido')) {
+    await dbApi.exec("ALTER TABLE cotizador_links ADD COLUMN sentido TEXT NOT NULL DEFAULT 'ambos'");
+  }
 }
 
 // Comisiones (24/09/2026): las tablas las crea schema.sql; acá solo se siembran los

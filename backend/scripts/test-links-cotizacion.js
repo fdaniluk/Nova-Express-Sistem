@@ -319,6 +319,23 @@ async function main() {
   // Linux la carrera casi siempre sale bien y por eso no se veia. Esperar el callback del
   // close es la sincronizacion que faltaba.
   await new Promise((res) => db.close(() => res()));
+  console.log('\n6. El sentido del link: solo importación (30/09/2026)\n');
+
+  r = await post(ADM, { nombre: 'Impo', couriers: 'ambos', profit_pct: 60, dias: 15, sentido: 'import' });
+  j = await r.json();
+  check('se arma un link solo de importación', r.status === 201 && j.sentido === 'import', `${r.status} ${JSON.stringify(j).slice(0, 120)}`);
+  const IMPO = j;
+  r = await fetch(PUB(IMPO.codigo)); j = await r.json();
+  check('al abrirlo, la página se entera del sentido', r.ok && j.sentido === 'import', JSON.stringify(j).slice(0, 120));
+  r = await post(PUB(IMPO.codigo) + '/cotizar', { pais: 'Brasil', tipo: 'export', bultos: CAJAS }, false);
+  j = await r.json();
+  check('si la página pide "export" igual, el servidor cotiza IMPORTACIÓN', r.ok && j.tipo === 'import', JSON.stringify(j).slice(0, 120));
+  r = await post(ADM, { nombre: 'Malo', profit_pct: 60, sentido: 'los dos' });
+  check('un sentido inventado da 400', r.status === 400, String(r.status));
+  r = await post(ADM, { nombre: 'Default', profit_pct: 60 });
+  j = await r.json();
+  check('sin indicar sentido queda "ambos" (como los links viejos)', r.status === 201 && j.sentido === 'ambos', JSON.stringify(j).slice(0, 80));
+
   console.log('\n' + '─'.repeat(60));
   console.log(`${ok} pasaron · ${fail} fallaron`);
   await cerrar(fail === 0 ? 0 : 1);

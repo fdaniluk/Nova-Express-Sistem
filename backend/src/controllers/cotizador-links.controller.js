@@ -13,7 +13,7 @@ async function listarDeCliente(req, res, next) {
 
 async function crear(req, res, next) {
   try {
-    const { cliente_id, nombre, couriers, profit_pct, dias, nombrar } = req.body || {};
+    const { cliente_id, nombre, couriers, profit_pct, dias, nombrar, sentido } = req.body || {};
     if (cliente_id) {
       const c = await getDb().prepare('SELECT id FROM clientes WHERE id = ?').get(cliente_id);
       if (!c) return res.status(400).json({ error: 'El cliente indicado no existe' });
@@ -28,7 +28,10 @@ async function crear(req, res, next) {
     if (couriers && !modelo.COURIERS.includes(couriers)) {
       return res.status(400).json({ error: `couriers tiene que ser uno de: ${modelo.COURIERS.join(', ')}` });
     }
-    const link = await modelo.crear({ cliente_id, nombre, couriers, profit_pct, dias, nombrar }, req.usuario);
+    if (sentido && !modelo.SENTIDOS.includes(sentido)) {
+      return res.status(400).json({ error: `sentido tiene que ser uno de: ${modelo.SENTIDOS.join(', ')}` });
+    }
+    const link = await modelo.crear({ cliente_id, nombre, couriers, profit_pct, dias, nombrar, sentido }, req.usuario);
     res.status(201).json(link);
   } catch (e) { next(e); }
 }

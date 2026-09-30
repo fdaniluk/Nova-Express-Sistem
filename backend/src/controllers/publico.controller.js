@@ -94,6 +94,8 @@ async function abrir(req, res, next) {
       // no sabe.
       servicios: link.nombrar ? servicios.map((sv) => NOMBRE_CORTO[sv]) : [],
       cuantos: servicios.length,
+      // 'ambos' | 'export' | 'import': la página fija el tipo de envío cuando no es 'ambos'.
+      sentido: link.sentido || 'ambos',
       fuel: Math.round((fuelHoy.fuelPct || 0) * 100) / 100,
       paises,
     });
@@ -109,7 +111,10 @@ async function cotizar(req, res, next) {
 
     const b = req.body || {};
     const pais = String(b.pais || '').slice(0, 60);
-    const tipo = b.tipo === 'import' ? 'import' : 'export';
+    // El sentido del link manda: un link "solo importación" no cotiza exportaciones aunque
+    // el body lo pida (el servidor no confía en la página).
+    const sentido = link.sentido || 'ambos';
+    const tipo = sentido !== 'ambos' ? sentido : (b.tipo === 'import' ? 'import' : 'export');
     const valor = Math.max(0, Number(b.valor) || 0);
     // El fuel que cargó el cliente en el cuadrito (precargado con el de hoy). Se acota a
     // [0, 100]: es un porcentaje de combustible, no un campo libre.

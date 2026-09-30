@@ -124,6 +124,19 @@ async function main() {
   await pagePub.goto(`${BASE}/cotizar/${LINK.codigo}`, { waitUntil: 'networkidle' });
   await esperar(600);
 
+  // Link solo de importación (30/09/2026): la página fija el tipo y esconde el selector.
+  {
+    const ri = await fetch(`${BASE}/api/cotizador-links`, { method: 'POST', headers: H(), body: JSON.stringify({ cliente_id: cliPct.id, couriers: 'ambos', dias: 30, sentido: 'import' }) });
+    const IMPO = await ri.json();
+    const pImpo = await (await browser.newContext({ viewport: { width: 900, height: 1100 } })).newPage();
+    await pImpo.goto(`${BASE}/cotizar/${IMPO.codigo}`, { waitUntil: 'networkidle' }); await esperar(600);
+    check('link solo impo: el tipo queda fijo en Importación y sin desplegable',
+      (await pImpo.$eval('#tipo', (e) => e.value)) === 'import' && !(await pImpo.$eval('#tipo', (e) => e.offsetParent !== null)) && /Importación/.test(await pImpo.$eval('.fijo', (e) => e.textContent)),
+      await pImpo.$eval('#tipo', (e) => e.value + ' ' + (e.offsetParent !== null)));
+    if (process.env.SHOTS_DIR) await pImpo.screenshot({ path: require('path').join(process.env.SHOTS_DIR, 'link-impo.png') });
+    await pImpo.context().close();
+  }
+
   check('la página abre por la URL linda /cotizar/CODIGO',
     (await pagePub.$eval('h1', (e) => e.textContent)).includes('Cotizá'), 'no cargó');
   check('🔴 NO carga el motor (cotizador-core.js, que lleva los costos adentro)',
