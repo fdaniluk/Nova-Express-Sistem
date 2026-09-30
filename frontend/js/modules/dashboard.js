@@ -87,7 +87,7 @@
       return;
     }
     const p = datos.periodo, c = datos.comparacion;
-    hint.textContent = `${fmtDia(p.desde)} → ${fmtDia(p.hasta)} · comparado con ${fmtDia(c.desde)} → ${fmtDia(c.hasta)} · NO VOLÓ excluidos`;
+    hint.textContent = `${fmtDia(p.desde)} → ${fmtDia(p.hasta)} · comparado con ${fmtDia(c.desde)} → ${fmtDia(c.hasta)}${c.misma_altura ? ' (a la misma altura: hasta el mismo día)' : ''} · NO VOLÓ excluidos`;
     $('dash-excel').href = NovaAPI.dashboard.analiticaExcelUrl(query());
     pintarKpis();
     pintarMes();
@@ -98,6 +98,53 @@
     pintarMargen();
     pintarPlata();
     pintarRitmo();
+    pintarProyeccion();
+  }
+
+  // ── Proyección del mes en curso ─────────────────────────────────────────────
+  // Ritmo por día hábil (feriados y puentes descontados): lo que va del mes / hábiles
+  // pasados × hábiles del mes. La precisión NO es un número fijo: el servidor hace la misma
+  // cuenta, a la misma altura, sobre los meses cerrados y dice cuánto erró (se recalcula
+  // sola con cada mes que se cierra). Jul–sep 2026: la primera semana no anticipó el mes.
+  const MESES_LARGO = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+  const mesNombre = (ym) => MESES_LARGO[Number(String(ym).slice(5, 7)) - 1] || ym;
+  const pctSigno = (x) => { const r = Math.round(x); return `${r > 0 ? '+' : r < 0 ? '−' : ''}${fmtN(Math.abs(r), 0)} %`; };
+  function pintarProyeccion() {
+    const card = $('dash-proy');
+    const pr = datos.proyeccion;
+    if (!pr) { card.classList.add('hidden'); return; }
+    card.classList.remove('hidden');
+    const conf = { baja: ['Estimación temprana', 'baja'], media: ['Estimación orientativa', 'media'], alta: ['Estimación firme', 'alta'], cerrado: ['Mes completo', 'alta'] }[pr.confianza] || ['', ''];
+    $('dash-proy-tit').textContent = `Proyección de ${mesNombre(pr.mes)}`;
+    $('dash-proy-sub').textContent = `${pr.habiles_pasados} de ${pr.habiles_mes} días hábiles (${fmtN(pr.avance_pct, 0)} % del mes)`;
+    const ce = $('dash-proy-conf'); ce.textContent = conf[0]; ce.className = 'dash-proy-conf ' + conf[1];
+    const ant = pr.mes_anterior || {}, vs = pr.vs_mes_anterior || {}, act = pr.actual || {}, rg = pr.rango || {};
+    const mesAnt = pr.mes ? mesNombre(`${pr.mes.slice(0, 4)}-${String(((Number(pr.mes.slice(5, 7)) + 10) % 12) + 1).padStart(2, '0')}`) : 'el mes pasado';
+    const item = (key, label, val, fmt, nota) => {
+      const d = vs[key];
+      const cls = d == null ? '' : d > 0 ? 'up' : d < 0 ? 'dn' : '';
+      const r = rg[key];
+      return `<div class="dash-proy-item" data-proy="${key}"><div class="k">${label}</div><div class="v">${fmt(val)}</div>
+        <div class="r">lleva ${fmt(act[key] || 0)}${r ? ` · entre ${fmt(r.min)} y ${fmt(r.max)}` : ''}${nota ? ` · ${nota}` : ''}</div>
+        <div class="d ${cls}">${d == null ? 'sin mes anterior para comparar' : `${d > 0 ? '▲' : d < 0 ? '▼' : '='} ${fmtN(Math.abs(d), 1)}% <span>vs. ${fmt(ant[key])} de ${mesAnt} entero</span>`}</div></div>`;
+    };
+    const sv = pr.sin_venta || 0;   // los del MES en curso, no los de todo el período
+    $('dash-proy-grid').innerHTML =
+      item('kg_fact', 'Kg facturables', pr.kg_fact, (v) => `${fmtN(v, 0)} kg`)
+      + item('envios', 'Envíos', pr.envios, (v) => fmtN(v, 0))
+      + item('venta', 'Venta', pr.venta, (v) => `USD ${fmtCorto(v)}`, sv ? 'solo con precio cargado' : '')
+      + item('profit', 'Profit', pr.profit, (v) => `USD ${fmtCorto(v)}`, sv ? 'ídem' : '');
+    const p = pr.precision;
+    let txt = 'Al ritmo por día hábil de lo que va del mes (feriados descontados). ';
+    if (pr.confianza === 'cerrado') txt += 'El mes ya no tiene días hábiles por delante.';
+    else if (p && p.kg_fact) {
+      const meses = p.meses.map(mesNombre).join(', ').replace(/, ([^,]*)$/, ' y $1');
+      txt += `En ${meses}, a esta altura del mes la proyección de kilos erró entre ${pctSigno(p.kg_fact.min)} y ${pctSigno(p.kg_fact.max)}`
+        + (p.envios ? ` y la de envíos entre ${pctSigno(p.envios.min)} y ${pctSigno(p.envios.max)}` : '')
+        + '; de ahí sale el "entre". Con cada mes que se cierra, el cálculo suma un mes más.';
+    } else txt += 'Todavía no hay meses cerrados para medir cuánto erra a esta altura.';
+    if (sv) txt += ` Venta y profit no cuentan los ${sv} envíos sin precio.`;
+    $('dash-proy-hint').textContent = txt;
   }
 
   // ── KPIs ───────────────────────────────────────────────────────────────────
@@ -108,7 +155,12 @@
   }
   function pintarKpis() {
     const k = datos.kpis, v = datos.variaciones;
-    const comp = datos.comparacion.modo === 'anio' ? 'vs. año pasado' : 'vs. anterior';
+    // A la misma altura el texto dice el tramo exacto ("vs. 1–29 ago"): es corto y no deja
+    // dudas de contra qué se compara.
+    const c0 = datos.comparacion;
+    const tramo = () => { const [, m, d1] = c0.desde.split('-'); const d2 = c0.hasta.slice(8, 10); const y = c0.hasta.slice(2, 4);
+      return c0.desde.slice(0, 7) === c0.hasta.slice(0, 7) ? `vs. ${Number(d1)}–${Number(d2)} ${MESES[Number(m) - 1].toLowerCase()}${c0.modo === 'anio' ? ' ' + y : ''}` : `vs. ${fmtDia(c0.desde)} → ${fmtDia(c0.hasta)}`; };
+    const comp = c0.misma_altura ? tramo() : (c0.modo === 'anio' ? 'vs. año pasado' : 'vs. anterior');
     const set = (key, valor, delta, clase, serie, color) => {
       const el = document.querySelector(`.dash-kpi[data-kpi="${key}"]`);
       if (!el) return;
@@ -133,7 +185,11 @@
     set('venta', `USD ${fmtCorto(k.venta)}`, deltaHtml(v.venta, comp), signo(v.venta), s.venta, COL.p);
     // La compra que sube más que la venta es mala noticia: se pinta al revés.
     const compraMal = v.compra != null && v.venta != null && v.compra > v.venta;
-    set('compra', `USD ${fmtCorto(k.compra)}`, deltaHtml(v.compra, compraMal ? 'subió más que la venta' : comp), compraMal ? 'dn' : (v.compra != null && v.compra < 0 ? 'up' : ''), s.compra, COL.ups);
+    // Envíos sin precio de venta: su compra queda afuera de los tres números (si no, la
+    // compra supera a la venta con un profit positivo) y se avisa acá.
+    const sv = k.sin_venta || { n: 0, compra: 0 };
+    const avisoSinVenta = sv.n ? ` <span class="sin-venta" title="${fmtN(sv.n)} envíos cargados sin precio de venta, con USD ${fmtCorto(sv.compra)} de compra: no entran en Venta, Compra ni Profit hasta que se les cargue el precio.">· ${fmtN(sv.n)} sin precio afuera</span>` : '';
+    set('compra', `USD ${fmtCorto(k.compra)}`, deltaHtml(v.compra, compraMal ? 'subió más que la venta' : comp) + avisoSinVenta, compraMal ? 'dn' : (v.compra != null && v.compra < 0 ? 'up' : ''), s.compra, COL.ups);
     const margen = k.margen_pct != null ? ` <small>· ${fmtN(k.margen_pct, 0)}%</small>` : '';
     set('profit', `USD ${fmtCorto(k.profit)}${margen}`, deltaHtml(v.profit, v.margen_pts != null ? `margen ${v.margen_pts > 0 ? '+' : ''}${fmtN(v.margen_pts, 1)} pts` : comp), signo(v.profit), s.profit, COL.ok);
     document.querySelector('.dash-kpi[data-kpi="profit"] .v').classList.toggle('neg', k.profit < 0);
@@ -148,24 +204,39 @@
     venta: { serie: 'venta', ant: 'venta_ant', unidad: 'USD', sub: 'venta en USD' },
     profit: { serie: 'profit', ant: 'profit_ant', unidad: 'USD', sub: 'profit en USD' },
   };
+  // Clave de la proyección para cada métrica del gráfico por mes.
+  const PROY_KEY = { kg: 'kg_fact', envios: 'envios', venta: 'venta', profit: 'profit' };
   function pintarMes() {
     const m = METRICA[vista.mes];
     const s = datos.series;
     const compLabel = datos.comparacion.modo === 'anio' ? 'Mismo mes del año pasado' : 'Período anterior';
-    $('dash-mes-sub').textContent = `${m.sub} · barra clara = ${compLabel.toLowerCase()}`;
+    const pr = datos.proyeccion;
+    // El mes en curso lleva encima, en rayado claro, lo que falta para llegar a la
+    // proyección (29/09/2026).
+    const iMes = pr && pr.confianza !== 'cerrado' ? s.meses.indexOf(pr.mes) : -1;
+    const falta = s.meses.map((_, i) => (i === iMes ? Math.max(0, (pr[PROY_KEY[vista.mes]] || 0) - (s[m.serie][i] || 0)) : null));
+    $('dash-mes-sub').textContent = `${m.sub} · barra clara = ${compLabel.toLowerCase()}${datos.comparacion.misma_altura ? ' (el mes en curso, a la misma altura)' : ''}${iMes >= 0 ? ' · rayado = proyección al cierre' : ''}`;
+    const rayado = (() => {
+      const c = document.createElement('canvas'); c.width = 8; c.height = 8;
+      const x = c.getContext('2d'); x.fillStyle = '#eef2fb'; x.fillRect(0, 0, 8, 8);
+      x.strokeStyle = '#9aa9d6'; x.lineWidth = 1.5; x.beginPath(); x.moveTo(0, 8); x.lineTo(8, 0); x.stroke();
+      return x.createPattern(c, 'repeat');
+    })();
+    const datasets = [
+      { label: compLabel, data: s.meses.map((_, i) => (s[m.ant][i] === undefined ? null : s[m.ant][i])), backgroundColor: COL.pl, borderRadius: 4, stack: 'ant' },
+      { label: 'Este período', data: s[m.serie], backgroundColor: vista.mes === 'profit' ? COL.ok : COL.p, borderRadius: 4, stack: 'act' },
+    ];
+    if (iMes >= 0) datasets.push({ label: 'Proyección al cierre', data: falta, backgroundColor: rayado, borderColor: '#9aa9d6', borderWidth: 1, borderRadius: 4, stack: 'act' });
+    const fmtVal = (v) => (m.unidad === 'USD' ? fmtUSD(v) : fmtN(v, m.unidad ? 1 : 0) + (m.unidad ? ' ' + m.unidad : ''));
     chart('c-mes', {
       type: 'bar',
-      data: {
-        labels: s.meses.map(mesCorto),
-        datasets: [
-          { label: compLabel, data: s.meses.map((_, i) => (s[m.ant][i] === undefined ? null : s[m.ant][i])), backgroundColor: COL.pl, borderRadius: 4 },
-          { label: 'Este período', data: s[m.serie], backgroundColor: vista.mes === 'profit' ? COL.ok : COL.p, borderRadius: 4 },
-        ],
-      },
+      data: { labels: s.meses.map(mesCorto), datasets },
       options: {
         responsive: true, maintainAspectRatio: false,
-        plugins: { legend, tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${m.unidad === 'USD' ? fmtUSD(c.raw) : fmtN(c.raw, m.unidad ? 1 : 0) + (m.unidad ? ' ' + m.unidad : '')}` } } },
-        scales: { x: { grid: { display: false } }, y: { grid: { color: COL.grid }, ticks: { callback: (v) => (m.unidad === 'USD' ? fmtCorto(v) : fmtN(v) + (m.unidad ? ' ' + m.unidad : '')) } } },
+        plugins: { legend, tooltip: { callbacks: { label: (c) => (c.dataset.stack === 'act' && c.datasetIndex === 2
+          ? `Proyección al cierre: ${fmtVal((s[m.serie][c.dataIndex] || 0) + (c.raw || 0))}`
+          : `${c.dataset.label}: ${fmtVal(c.raw)}`) } } },
+        scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, grid: { color: COL.grid }, ticks: { callback: (v) => (m.unidad === 'USD' ? fmtCorto(v) : fmtN(v) + (m.unidad ? ' ' + m.unidad : '')) } } },
       },
     });
   }

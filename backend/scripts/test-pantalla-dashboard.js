@@ -45,7 +45,9 @@ async function main() {
   await sql('UPDATE usuarios SET ver_dashboard = 1 WHERE id = ?', [uid]);
   await sql('INSERT INTO configuracion_nova (id, fuel_pct, margen_objetivo_pct) VALUES (1, 36, 50) ON CONFLICT(id) DO UPDATE SET fuel_pct = 36, margen_objetivo_pct = 50');
 
-  const hoy = new Date().toISOString().slice(0, 10);
+  // Fecha LOCAL (toISOString es UTC: de 21 a 24 hs daba mañana, y desde que el período en
+  // curso se compara "a la misma altura" un envío de mañana no entra en el dashboard).
+  const hoy = require('../src/utils/fecha').hoyLocal();
   const cli = await (await fetch(`${BASE}/api/clientes`, { method: 'POST', headers: H, body: JSON.stringify({ nombre: 'DASH CLIENTE', tarifa_pct: 80 }) })).json();
   const cli2 = await (await fetch(`${BASE}/api/clientes`, { method: 'POST', headers: H, body: JSON.stringify({ nombre: 'OTRO CLIENTE', tarifa_pct: 80 }) })).json();
   const nuevo = (b) => fetch(`${BASE}/api/envios`, { method: 'POST', headers: H, body: JSON.stringify({ fecha: hoy, courier: 'UPS', tipo_envio: 'exportacion', pais_destino: 'Estados Unidos', peso_real: 5, largo: 30, ancho: 20, alto: 20, ...b }) }).then((r) => r.json());

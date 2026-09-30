@@ -103,11 +103,15 @@ async function main() {
   check('bultos 7 (uno de 2)', d.kpis.bultos === 7, d.kpis.bultos);
   check('kg facturables 70 (sin los 99 del NO VOLÓ)', cerca(d.kpis.kg_fact, 70), d.kpis.kg_fact);
   check('venta 1700', cerca(d.kpis.venta, 1700), d.kpis.venta);
-  // compra oficial: 136 + 250(real aprobada) + 68 + 204 + 80 + 163.2 = 901.2
-  check('compra 901.20 (el aprobado usa el costo real 250, el a_revisar sigue estimado)', cerca(d.kpis.compra, 901.2), d.kpis.compra);
-  // profit oficial: 164 + 250 + 82 + 196 + 0 + 186.8 = 878.8
-  check('profit 878.80 (sin venta → 0, no negativo)', cerca(d.kpis.profit, 878.8), d.kpis.profit);
-  check('margen 97.5% (profit/compra)', cerca(d.kpis.margen_pct, 97.5, 0.06), d.kpis.margen_pct);
+  // compra oficial: 136 + 250(real aprobada) + 68 + 204 + 163.2 = 821.2. El envío SIN precio
+  // (Brasil, compra 80) queda afuera de Venta/Compra/Profit y se informa aparte (29/09/2026):
+  // antes sumaba a la compra y no a la venta, y el dashboard mostraba compra > venta con
+  // profit positivo.
+  check('compra 821.20 (el aprobado usa el costo real 250, el a_revisar sigue estimado, el sin precio queda afuera)', cerca(d.kpis.compra, 821.2), d.kpis.compra);
+  check('el envío sin precio se informa aparte: 1 envío, USD 80 de compra', d.kpis.sin_venta && d.kpis.sin_venta.n === 1 && cerca(d.kpis.sin_venta.compra, 80), JSON.stringify(d.kpis.sin_venta));
+  // profit oficial: 164 + 250 + 82 + 196 + 186.8 = 878.8
+  check('profit 878.80 (sin venta → afuera, no negativo)', cerca(d.kpis.profit, 878.8), d.kpis.profit);
+  check('margen 107.0% (profit/compra, sobre los envíos con precio)', cerca(d.kpis.margen_pct, 107.0, 0.06), d.kpis.margen_pct);
   check('sin liquidar: 5 envíos (uno está liquidado)', d.kpis.sin_liquidar.n === 5, JSON.stringify(d.kpis.sin_liquidar));
   check('comparación "previo": mismo largo justo antes, con 2 envíos y venta 400', d.comparacion.modo === 'previo' && d.kpis_ant.envios === 2 && cerca(d.kpis_ant.venta, 400), JSON.stringify({ c: d.comparacion, ant: d.kpis_ant }));
   check('variación de venta = +325% (1700 vs 400)', cerca(d.variaciones.venta, 325, 0.06), d.variaciones.venta);
@@ -122,7 +126,54 @@ async function main() {
   const dI = await j(await get(`/api/dashboard/analitica?${qBase}&tipo=importacion`));
   check('tipo=importacion → 1 envío (el de Brasil)', dI.kpis.envios === 1 && dI.paises[0].pais === 'Brasil', JSON.stringify(dI.paises));
   const dM = await j(await get('/api/dashboard/analitica?periodo=mes'));
-  check('periodo=mes → solo este mes: 3 envíos', dM.kpis.envios === 3 && dM.periodo.meses.length === 1, `${dM.kpis.envios} ${JSON.stringify(dM.periodo.meses)}`);
+  // "Este mes" a la misma altura (29/09/2026): los KPIs llegan hasta HOY y se comparan con
+  // el 1..hoy del mes anterior, no con el mes anterior entero. Los envíos de prueba de M0
+  // son los días 02, 05 y 08: cuentan los que ya pasaron.
+  const diaHoy = new Date().getDate();
+  const esperadosM0 = [2, 5, 8].filter((d) => d <= diaHoy).length;
+  check(`periodo=mes → solo este mes hasta hoy: ${esperadosM0} envío(s)`, dM.kpis.envios === esperadosM0 && dM.periodo.meses.length === 1, `${dM.kpis.envios} ${JSON.stringify(dM.periodo.meses)}`);
+  check('   y compara a la misma altura del mes anterior (1..hoy)', dM.comparacion.misma_altura === true && dM.comparacion.desde === `${M1}-01` && Number(dM.comparacion.hasta.slice(8, 10)) <= diaHoy, JSON.stringify(dM.comparacion));
+  check('   con una proyección del mes por ritmo de día hábil', dM.proyeccion && dM.proyeccion.metodo === 'ritmo_habil' && dM.proyeccion.habiles_mes >= 20 && dM.proyeccion.mes_anterior && ['baja', 'media', 'alta', 'cerrado'].includes(dM.proyeccion.confianza), JSON.stringify(dM.proyeccion));
+  {
+    // Unitario, con fechas fijas: 15 de septiembre 2026 (martes; 11 hábiles pasados de 22).
+    const A = require('../src/services/analitica.service');
+    const c = A.compararMismaAltura('2026-09-01', '2026-10-01', 'previo', '2026-09-15');
+    check('   15/09 → compara con 01/08..15/08', c.desde === '2026-08-01' && c.hasta === '2026-08-16' && c.hasta_periodo === '2026-09-16', JSON.stringify(c));
+    const c31 = A.compararMismaAltura('2026-03-01', '2026-04-01', 'previo', '2026-03-30');
+    check('   30/03 → febrero no tiene 30: compara con febrero entero', c31.hasta === '2026-03-01', JSON.stringify(c31));
+    check('   un mes cerrado no se recorta', A.compararMismaAltura('2026-08-01', '2026-09-01', 'previo', '2026-09-15') === null);
+    check('   días hábiles de septiembre 2026 = 22, hasta el 15 = 11', A.diasHabiles('2026-09-01', '2026-10-01') === 22 && A.diasHabiles('2026-09-01', '2026-09-16') === 11);
+    const fake = (fecha, kg, venta) => ({ fecha, peso_facturable: kg, total: venta, cantidad_bultos: 1, flete: 10, fuel: 0 });
+    const pr = A.proyectarMes([fake('2026-09-02', 100, 500), fake('2026-09-10', 120, 600)], '2026-09-01', '2026-10-01', '2026-09-15', [fake('2026-08-05', 300, 1000)]);
+    check('   proyección: 220 kg en 11 hábiles → 440 kg en 22; confianza alta; +46,7 % vs 300 del mes anterior', pr.kg_fact === 440 && pr.envios === 4 && pr.confianza === 'alta' && pr.vs_mes_anterior.kg_fact === 46.7 && pr.avance_pct === 50, JSON.stringify(pr));
+    // Feriados y puentes (utils/habiles.js): julio 2026 pierde el 9 y el 10, agosto el 17.
+    check('   feriados: julio 2026 = 21 hábiles (9 y 10), agosto = 20 (17)', A.diasHabiles('2026-07-01', '2026-08-01') === 21 && A.diasHabiles('2026-08-01', '2026-09-01') === 20);
+    // Misma altura también en "Este año" y "12 meses" (el mes en curso del período anterior
+    // se corta el mismo día).
+    const cA = A.compararMismaAltura('2026-01-01', '2026-10-01', 'anio', '2026-09-15');
+    check('   Este año vs año pasado al 15/09 → 01/01/2025..15/09/2025', cA.desde === '2025-01-01' && cA.hasta === '2025-09-16', JSON.stringify(cA));
+    const c12 = A.compararMismaAltura('2025-10-01', '2026-10-01', 'previo', '2026-09-15');
+    check('   12 meses al 15/09 → 01/10/2024..15/09/2025', c12.desde === '2024-10-01' && c12.hasta === '2025-09-16', JSON.stringify(c12));
+    // Precisión histórica: se hace la misma cuenta, a la misma altura, sobre los meses
+    // cerrados. Mes A: todo parejo (la proyección acierta); mes B: la mitad del mes con 1
+    // envío por día y la otra mitad con 3 (a mitad de mes la proyección erra −50 %).
+    const mesDe = (ym, porDia) => {
+      const out = [];
+      for (let d = 1; d <= 31; d++) {
+        const f = `${ym}-${String(d).padStart(2, '0')}`;
+        if (new Date(f + 'T12:00:00').getMonth() + 1 !== Number(ym.slice(5))) break;
+        for (let i = 0; i < porDia(d); i++) out.push(fake(f, 10, 0));
+      }
+      return out;
+    };
+    const hA = { mes: '2026-06', envios: mesDe('2026-06', () => 2) };
+    const hB = { mes: '2026-05', envios: mesDe('2026-05', (d) => (d <= 15 ? 1 : 3)) };
+    const hChico = { mes: '2026-04', envios: [fake('2026-04-10', 5, 0)] };
+    const prec = A.precisionHistorica([hChico, hB, hA], 11, 22);
+    check('   precisión: ignora meses de menos de 30 envíos y mide el error de cada mes cerrado', prec && prec.meses.join() === '2026-05,2026-06' && Math.abs(prec.envios.max) <= 5 && prec.envios.min < -30 && prec.envios.min > -50, JSON.stringify(prec));
+    const pr2 = A.proyectarMes([fake('2026-09-02', 100, 500), fake('2026-09-10', 120, 600)], '2026-09-01', '2026-10-01', '2026-09-15', [fake('2026-08-05', 300, 1000)], [hB, hA]);
+    check('   con esa historia la confianza baja y el rango incluye la proyección (440 kg)', pr2.confianza === 'baja' && pr2.rango.kg_fact && pr2.rango.kg_fact.min <= 440 && pr2.rango.kg_fact.max > 600, JSON.stringify({ c: pr2.confianza, r: pr2.rango, p: pr2.precision && pr2.precision.kg_fact }));
+  }
   const d12 = await j(await get('/api/dashboard/analitica'));
   check('sin parámetros → últimos 12 meses (12 meses en la serie, los 8 envíos)', d12.periodo.meses.length === 12 && d12.kpis.envios === 8, `${d12.periodo.meses.length} / ${d12.kpis.envios}`);
 

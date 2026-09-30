@@ -45,6 +45,7 @@
 .dash-kpi .d { font-size: 11.5px; margin-top: 3px; font-weight: 600; color: var(--color-muted); min-height: 15px; }
 .dash-kpi .d.up { color: var(--color-success); }
 .dash-kpi .d.dn { color: var(--color-danger); }
+.dash-kpi .d .sin-venta { color: #b45309; font-weight: 500; }
 .dash-kpi .d span { color: #94a3b8; font-weight: 400; }
 .dash-kpi.pro .v { color: var(--color-success); }
 .dash-kpi.pro .v.neg { color: var(--color-danger); }
@@ -92,3 +93,18 @@
 .dash-vacio { font-size: 12.5px; color: var(--color-muted); padding: 18px; text-align: center; }
 .dash-footer { display: flex; gap: 16px; font-size: 11px; color: #94a3b8; flex-wrap: wrap; }
 .hidden { display: none !important; }
+
+/* Proyección del mes (29/09/2026) */
+.dash-proy-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-top: 6px; }
+@media (max-width: 900px) { .dash-proy-grid { grid-template-columns: repeat(2, 1fr); } }
+.dash-proy-item { background: #f7f8fb; border-radius: 8px; padding: 10px 12px; }
+.dash-proy-item .k { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--color-muted); font-weight: 700; }
+.dash-proy-item .v { font-size: 20px; font-weight: 800; color: var(--color-primary); margin: 2px 0; }
+.dash-proy-item .r { font-size: 11.5px; color: var(--color-muted); margin-bottom: 3px; }
+.dash-proy-item .d { font-size: 11.5px; font-weight: 600; color: var(--color-muted); }
+.dash-proy-item .d.up { color: var(--color-success); } .dash-proy-item .d.dn { color: var(--color-danger); }
+.dash-proy-item .d span { font-weight: 400; }
+.dash-proy-conf { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; }
+.dash-proy-conf.baja { background: #fef3c7; color: #92400e; }
+.dash-proy-conf.media { background: #e0e7ff; color: #3730a3; }
+.dash-proy-conf.alta { background: #dcfce7; color: #166534; }

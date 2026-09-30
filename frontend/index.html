@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Dashboard — Nova Express</title>
+  <title>Dashboard – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
-  <link rel="stylesheet" href="css/main.css?v=20260915a">
-  <link rel="stylesheet" href="css/modules/dashboard.css?v=20260915a">
+  <link rel="stylesheet" href="css/main.css?v=20260929a">
+  <link rel="stylesheet" href="css/modules/dashboard.css?v=20260929c">
 </head>
 <body>
 <div class="app-layout">
@@ -154,6 +154,13 @@
         <div class="dash-kpi" data-kpi="sin_liquidar"><div class="k">Sin liquidar</div><div class="v">—</div><div class="d"></div></div>
       </div>
 
+      <!-- Proyección del mes en curso (29/09/2026): con los períodos que incluyen el mes de hoy. -->
+      <div class="card dash-card dash-proy hidden" id="dash-proy">
+        <h2><span id="dash-proy-tit">Proyección del mes</span> <span class="sub" id="dash-proy-sub"></span><span class="der"><span class="dash-proy-conf" id="dash-proy-conf"></span></span></h2>
+        <div class="dash-proy-grid" id="dash-proy-grid"></div>
+        <div class="dash-hint" id="dash-proy-hint"></div>
+      </div>
+
       <div class="dash-grid2">
         <div class="card dash-card">
           <h2>Por mes <span class="sub" id="dash-mes-sub">facturables · barra clara = período de comparación</span>
@@ -223,9 +230,9 @@
 </div>
 
 <script src="/js/auth-guard.js?v=20260924b"></script>
-<script src="js/api.js?v=20260924f"></script>
-<script src="js/main.js?v=20260915a"></script>
+<script src="js/api.js?v=20260929b"></script>
+<script src="js/main.js?v=20260929a"></script>
 <script src="js/vendor/chart.umd.js?v=20260915a"></script>
-<script src="js/modules/dashboard.js?v=20260915a"></script>
+<script src="js/modules/dashboard.js?v=20260929d"></script>
 </body>
 </html>
