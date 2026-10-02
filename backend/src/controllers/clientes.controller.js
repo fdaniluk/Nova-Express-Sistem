@@ -1,6 +1,6 @@
 const clienteModel = require('../models/cliente.model');
 const { getDb } = require('../db');
-const { deriveProfit, utilidadEnvio, SUBQUERY_LIQUIDACION } = require('../utils/profit');
+const { deriveProfit, utilidadEnvio, SUBQUERY_LIQUIDACION, SUBQUERY_CARGOS } = require('../utils/profit');
 
 async function listar(req, res, next) {
   try {
@@ -109,9 +109,12 @@ async function perfil(req, res, next) {
            e.profit, e.porcentaje,
            e.estado_revision, e.costo_facturado,
            li.utilidad_usd AS utilidad_liq,
-           li.venta_liq    AS venta_liq
+           li.venta_liq    AS venta_liq,
+           cp.cargos_post  AS cargos_post,
+           cp.cargos_ddp   AS cargos_ddp
          FROM envios e
          LEFT JOIN (${SUBQUERY_LIQUIDACION}) li ON li.envio_id = e.id
+         LEFT JOIN (${SUBQUERY_CARGOS}) cp ON cp.envio_id = e.id
          WHERE e.cliente_id = ?
          ORDER BY e.fecha DESC, e.id DESC`
       )

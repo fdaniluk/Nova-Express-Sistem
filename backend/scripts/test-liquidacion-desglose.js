@@ -54,7 +54,8 @@ async function main() {
   await abrirSesion(DB, TOKEN);
   const H = { 'Content-Type': 'application/json', Cookie: `nova_session=${TOKEN}` };
   const j = async (r) => { const t = await r.text(); try { return JSON.parse(t); } catch { return t; } };
-  const hoy = new Date().toISOString().slice(0, 10);
+  // Fecha fija anterior al surge DHL del 27/09/2026: el test mide el desglose, no el surge.
+  const hoy = '2026-09-20';
 
   console.log('\n1. Un cliente SEMANAL con un envío UPS (surge + manejo) y uno DHL (GoGreen)\n');
   const cli = await j(await fetch(BASE + '/api/clientes', {

@@ -60,8 +60,9 @@ async function main() {
   });
   // Mismo mes que los nuevos, así los tres se ven en la solapa activa de Salidas.
   const viejo = (await alta('1Z000CARGO00000001', dia(hoy.getDate() > 12 ? 10 : 0), 236.4, { ddp: 1 })).body;
-  const nuevo1 = (await alta('1Z000CARGO00000002', dia(3), 118.2)).body;
-  const nuevo2 = (await alta('1Z000CARGO00000003', dia(1), 402.7)).body;
+  // A principio de mes "hace 3 días" cae en el mes anterior (otra solapa): se acortan.
+  const nuevo1 = (await alta('1Z000CARGO00000002', dia(Math.min(3, hoy.getDate() - 1)), 118.2)).body;
+  const nuevo2 = (await alta('1Z000CARGO00000003', dia(Math.min(1, hoy.getDate() - 1)), 402.7)).body;
   // El viejo se liquida y confirma → después le llegan los impuestos DDP.
   const liq0 = await J('POST', '/api/liquidaciones', { cliente_id: a.id, periodo_desde: dia(60), periodo_hasta: dia(30), envio_ids: [viejo.id], cargos: [], cotizaciones: [], confirmar: true });
   check('fixture: liquidación del envío viejo confirmada', liq0.status === 201 && liq0.body.estado === 'confirmada', JSON.stringify(liq0.body).slice(0, 120));
@@ -89,7 +90,7 @@ async function main() {
   await esperar(3000);
   // El envío viejo es de hace 40 días: puede estar en otra solapa de mes. Buscamos por guía.
   const chipViejo = await page.$(`#salidas-body tr[data-envio-id="${viejo.id}"] .chip-cargo`);
-  check('el envío viejo muestra el chip "cargo" (pendiente)', !!chipViejo);
+  check('el envío viejo (liquidado) muestra el chip "próx. liq."', !!chipViejo && /próx/.test(await chipViejo.textContent()));
   if (chipViejo) check('el chip dice el importe', /33[.,]40/.test(await chipViejo.textContent()), await chipViejo.textContent());
 
   await page.click('text=1Z000CARGO00000002');
@@ -105,8 +106,11 @@ async function main() {
   await page.click('#saled-cargo-form button[type=submit]');
   await esperar(900);
   const bloque = await page.textContent('#saled-cargos-block');
-  check('el cargo queda listado como pendiente', /Sobrepeso/.test(bloque) && /pendiente/.test(bloque), bloque.slice(0, 120));
-  check('el chip aparece en la grilla sin refrescar', !!(await page.$(`#salidas-body tr[data-envio-id="${nuevo1.id}"] .chip-cargo`)));
+  check('el cargo queda listado (sin cartel "pendiente": el envío no está liquidado)', /Sobrepeso/.test(bloque) && !/pendiente/.test(bloque), bloque.slice(0, 120));
+  check('sin chip en la grilla: el cargo ya está sumado en Venta Total', !(await page.$(`#salidas-body tr[data-envio-id="${nuevo1.id}"] .chip-cargo`)));
+  const filaNuevo = await J('GET', `/api/salidas?desde=${dia(10)}&hasta=${dia(0)}`);
+  const fn = (filaNuevo.body || []).find((r) => r.id === nuevo1.id);
+  check('la fila suma el cargo a la venta (118,20 + 12,50) y a la compra, profit igual', fn && Math.abs(fn.venta_total - 130.7) < 0.011 && fn.cargos_total === 12.5 && Math.abs(fn.venta_total - fn.compra_estimada - fn.profit_estimado) < 0.011, fn && JSON.stringify({ v: fn.venta_total, c: fn.compra_estimada, p: fn.profit_estimado }));
   await page.click('#saled-cargo-btn');
   await page.selectOption('#saled-cargo-tipo', 'otro');
   check('con "otro" aparece el campo del nombre', !!(await page.$('#saled-cargo-label:not(.hidden)')));

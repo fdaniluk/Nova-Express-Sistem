@@ -66,6 +66,9 @@ async function main() {
   // Fechas: este mes (M0) y el anterior (M-1) son el "período"; M-2 y M-3 el previo.
   const hoy = new Date();
   const M0 = ym(hoy, 0), M1 = ym(hoy, -1), M2 = ym(hoy, -2), M3 = ym(hoy, -3);
+  // Los envíos de este mes caen hasta el día 8: a principio de mes serían fechas futuras
+  // (fuera de "últimos 12 meses" y de "este mes hasta hoy"), así que el día se recorta a hoy.
+  const d0 = (d) => `${M0}-${String(Math.min(d, hoy.getDate())).padStart(2, '0')}`;
   // Se insertan directo con el desglose de compra fijo, para que los números sean míos.
   let n = 0;
   const envio = async (o) => {
@@ -78,13 +81,13 @@ async function main() {
       o.venta, o.flete, o.fuel || 0, o.liquidado ? 1 : 0, o.no_volo ? 1 : 0, o.revision || null, o.costo_real ?? null, o.peso_real_ups ?? null, o.fecha_liq || null]);
   };
   // Período (M0 + M1): 6 envíos válidos + 1 NO VOLÓ
-  await envio({ cliente: cA.id, fecha: `${M0}-05`, pais: 'Estados Unidos', kg: 10, venta: 300, flete: 100, fuel: 36 });                          // compra 136 profit 164
-  await envio({ cliente: cA.id, fecha: `${M0}-08`, pais: 'estados unidos', kg: 20, venta: 500, flete: 200, fuel: 72, revision: 'revisado_ok', costo_real: 250, peso_real_ups: 21 }); // compra real 250, profit real 250 (est 228)
+  await envio({ cliente: cA.id, fecha: d0(5), pais: 'Estados Unidos', kg: 10, venta: 300, flete: 100, fuel: 36 });                          // compra 136 profit 164
+  await envio({ cliente: cA.id, fecha: d0(8), pais: 'estados unidos', kg: 20, venta: 500, flete: 200, fuel: 72, revision: 'revisado_ok', costo_real: 250, peso_real_ups: 21 }); // compra real 250, profit real 250 (est 228)
   await envio({ cliente: cB.id, fecha: `${M1}-10`, pais: 'Chile', kg: 5, venta: 150, flete: 50, fuel: 18, courier: 'DHL', liquidado: 1, fecha_liq: `${M1}-20` });   // compra 68 profit 82
   await envio({ cliente: cB.id, fecha: `${M1}-12`, pais: 'ESTADOS UNIDOS', kg: 15, venta: 400, flete: 150, fuel: 54, revision: 'a_revisar', costo_real: 230, peso_real_ups: 16 }); // est compra 204 profit 196; a_revisar → oficial estimado
   await envio({ cliente: cA.id, fecha: `${M1}-15`, pais: 'Brasil', kg: 8, venta: 0, flete: 80, fuel: 0, tipo: 'importacion' });                  // sin venta: profit 0 (fallback null→0)
-  await envio({ cliente: cB.id, fecha: `${M0}-02`, pais: 'Chile', kg: 12, venta: 350, flete: 120, fuel: 43.2, courier: 'DHL', bultos: 2 });     // compra 163.2 profit 186.8
-  await envio({ cliente: cA.id, fecha: `${M0}-03`, pais: 'Estados Unidos', kg: 99, venta: 9999, flete: 100, no_volo: 1 });                       // NO VOLÓ: afuera
+  await envio({ cliente: cB.id, fecha: d0(2), pais: 'Chile', kg: 12, venta: 350, flete: 120, fuel: 43.2, courier: 'DHL', bultos: 2 });     // compra 163.2 profit 186.8
+  await envio({ cliente: cA.id, fecha: d0(3), pais: 'Estados Unidos', kg: 99, venta: 9999, flete: 100, no_volo: 1 });                       // NO VOLÓ: afuera
   // Período previo (M2 + M3): 2 envíos
   await envio({ cliente: cA.id, fecha: `${M2}-05`, pais: 'Estados Unidos', kg: 10, venta: 200, flete: 100, fuel: 36 });
   await envio({ cliente: cB.id, fecha: `${M3}-05`, pais: 'Chile', kg: 10, venta: 200, flete: 100, fuel: 36, courier: 'DHL' });
@@ -128,9 +131,9 @@ async function main() {
   const dM = await j(await get('/api/dashboard/analitica?periodo=mes'));
   // "Este mes" a la misma altura (29/09/2026): los KPIs llegan hasta HOY y se comparan con
   // el 1..hoy del mes anterior, no con el mes anterior entero. Los envíos de prueba de M0
-  // son los días 02, 05 y 08: cuentan los que ya pasaron.
-  const diaHoy = new Date().getDate();
-  const esperadosM0 = [2, 5, 8].filter((d) => d <= diaHoy).length;
+  // son los días 02, 05 y 08, recortados a hoy (d0): a principio de mes caen todos en hoy.
+  const diaHoy = hoy.getDate();
+  const esperadosM0 = 3;
   check(`periodo=mes → solo este mes hasta hoy: ${esperadosM0} envío(s)`, dM.kpis.envios === esperadosM0 && dM.periodo.meses.length === 1, `${dM.kpis.envios} ${JSON.stringify(dM.periodo.meses)}`);
   check('   y compara a la misma altura del mes anterior (1..hoy)', dM.comparacion.misma_altura === true && dM.comparacion.desde === `${M1}-01` && Number(dM.comparacion.hasta.slice(8, 10)) <= diaHoy, JSON.stringify(dM.comparacion));
   check('   con una proyección del mes por ritmo de día hábil', dM.proyeccion && dM.proyeccion.metodo === 'ritmo_habil' && dM.proyeccion.habiles_mes >= 20 && dM.proyeccion.mes_anterior && ['baja', 'media', 'alta', 'cerrado'].includes(dM.proyeccion.confianza), JSON.stringify(dM.proyeccion));

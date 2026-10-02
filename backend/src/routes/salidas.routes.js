@@ -2,7 +2,7 @@ const { Router } = require('express');
 const { getDb } = require('../db');
 const { buildPesos, calcularDesgloseAlCosto, calcularSeguroVenta } = require('../models/envio.model');
 const { pesoVolumetricoBulto } = require('../services/calculos.service');
-const { deriveProfit, profitDoble, SUBQUERY_LIQUIDACION } = require('../utils/profit');
+const { deriveProfit, profitDoble, cargosPost, SUBQUERY_LIQUIDACION, SUBQUERY_CARGOS } = require('../utils/profit');
 const { descomponerVenta } = require('../utils/desgloseVenta');
 const configuracionModel = require('../models/configuracion.model');
 const cierreService = require('../services/cierre.service');
@@ -112,7 +112,9 @@ async function listarSalidas({ desde, hasta } = {}) {
       c.id                  AS cliente_id,
       COALESCE(NULLIF(c.nombre_nova,''), c.nombre) AS cliente_nombre,
       c.tipo_cobro,
-      li.venta_liq          AS venta_liq
+      li.venta_liq          AS venta_liq,
+      cp.cargos_post        AS cargos_post,
+      cp.cargos_ddp         AS cargos_ddp
     FROM envios e
     JOIN clientes c ON c.id = e.cliente_id
     -- Venta congelada de la liquidación confirmada (total_usd = total_cobrado + adicional
@@ -122,6 +124,7 @@ async function listarSalidas({ desde, hasta } = {}) {
     -- Los impuestos DDP que entraron en el ítem se restan: UPS los factura aparte del
     -- flete (no están en costo_facturado), así que no son venta a comparar con el costo.
     LEFT JOIN (${SUBQUERY_LIQUIDACION}) li ON li.envio_id = e.id
+    LEFT JOIN (${SUBQUERY_CARGOS}) cp ON cp.envio_id = e.id
     WHERE 1=1`;
 
   const params = [];
@@ -270,7 +273,7 @@ async function listarSalidas({ desde, hasta } = {}) {
   // envío (no por bulto). total_cobrado falsy (0/null) → sin venta cargada → null.
   const ventaDesgloseDe = (row) => {
     if (!row.total) return null;
-    return descomponerVenta({
+    const vd = descomponerVenta({
       total_cobrado: row.total,
       // Cliente con seguro propio: la línea "Seguro" de la venta es el monto negociado
       // congelado al alta (seguro_venta), no la escala de lista (seguro = COSTO).
@@ -283,7 +286,12 @@ async function listarSalidas({ desde, hasta } = {}) {
       // del cliente reparten igual (el fuel del surge en Adicional, el flete en kg × precio).
       extras: row.extras_json,
     });
+    // Cargos posteriores (01/10): al Adicional y al Total de la venta, como en la liquidación.
+    const cargos = cargosPost(row);
+    if (cargos) { vd.adicional = r2(vd.adicional + cargos); vd.total = r2(vd.total + cargos); }
+    return vd;
   };
+  const r2 = (n) => Math.round(n * 100) / 100;
 
   // Profit/porcentaje/compra_total derivados AL VUELO por deriveProfit (utils/profit.js),
   // la MISMA función que agrega el Dashboard, para que coincidan al centavo.
@@ -340,6 +348,10 @@ async function listarSalidas({ desde, hasta } = {}) {
     otros: row.otros,
     extras: parseExtras(row.extras_json),
     total: row.total,
+    // Venta COMPLETA (01/10): total_cobrado + cargos posteriores vigentes del envío. Es la
+    // columna Venta Total de la grilla; `total` sigue siendo lo congelado al alta.
+    cargos_total: cargosPost(row),
+    venta_total: r2((Number(row.total) || 0) + cargosPost(row)),
     venta_desglose: ventaDesgloseDe(row),
     ...deriveProfit(row),
     // La doble vista de la oficina (31/08): el estimado SIEMPRE y el real cuando hay
@@ -364,6 +376,8 @@ async function listarSalidas({ desde, hasta } = {}) {
     fecha_liquidacion: row.fecha_liquidacion,
     liquidacion_id: row.liquidacion_id ?? null,
     cargos: cargosPorEnvio.get(row.id) || [],
+    // Lo que todavía no entró en ninguna liquidación. Si el envío NO está liquidado va en
+    // la suya (ya está sumado en venta_total); si está liquidado, va en la próxima del cliente.
     cargos_pendientes: (cargosPorEnvio.get(row.id) || []).filter((c) => c.estado === 'pendiente').reduce((s, c) => s + c.monto, 0),
     bultos: bultosDe(row),
   }));

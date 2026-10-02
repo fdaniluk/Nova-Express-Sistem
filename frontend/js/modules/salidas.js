@@ -661,9 +661,11 @@
   // detalle que Adic. Sin venta → solo el monto (como una celda normal, sin ▸).
   function ventaTotalCellHtml(e, isFirst) {
     if (!isFirst) return '';
-    if (!e.venta_desglose) return fmtCell(e.total);
+    // Venta Total = lo cobrado + cargos posteriores del envío (01/10): venta_total.
+    const venta = e.venta_total ?? e.total;
+    if (!e.venta_desglose) return fmtCell(venta);
     const open = expandedExtras.has(e.id) ? ' open' : '';
-    return `${fmtCell(e.total)}<button class="extras-toggle${open}" data-envio-id="${e.id}" `
+    return `${fmtCell(venta)}<button class="extras-toggle${open}" data-envio-id="${e.id}" `
       + `title="Ver desglose de venta" aria-label="Ver desglose de venta">▸</button>`;
   }
 
@@ -750,15 +752,19 @@
       </div>` : '';
 
     const extras = e.extras || [];
+    // Los cargos posteriores (01/10) van como un extracargo más, con su nombre; si el envío
+    // ya está liquidado se marca que se cobra en la próxima liquidación del cliente.
+    const posteriores = (e.cargos || []).filter((c) => c.estado !== 'anulado');
     const chips = extras
       .map((x) => `<span class="extra-chip">${esc(x.label)} <b>${fmtUSD(x.monto)}</b></span>`)
+      .concat(posteriores.map((c) => `<span class="extra-chip extra-chip-post" title="Cargo posterior · ${NovaUtils.formatDate(c.fecha)}${c.estado === 'pendiente' && e.liquidado ? ' · se cobra en la próxima liquidación del cliente' : ''}${c.estado === 'liquidado' ? ' · liq. #' + c.liquidacion_id : ''}">${esc(c.label)} <b>${fmtUSD(c.monto)}</b>${c.estado === 'pendiente' && e.liquidado ? ' <i>próx. liq.</i>' : ''}</span>`))
       .join('');
-    const extrasBlock = extras.length ? `
+    const extrasBlock = (extras.length || posteriores.length) ? `
       <div class="detail-block detail-extras">
         <span class="detail-block-title">Extracargos compra</span>
         <div class="extras-breakdown">
           ${chips}
-          <span class="extra-chip extra-chip-total">Σ <b>${fmtUSD(e.adicionales)}</b></span>
+          <span class="extra-chip extra-chip-total">Σ <b>${fmtUSD((parseNum(e.adicionales) || 0) + (parseNum(e.cargos_total) || 0))}</b></span>
         </div>
       </div>` : '';
 
@@ -2112,12 +2118,15 @@
   // Cargos posteriores (25/09/2026): extracargos agregados desde Salidas después de cargar
   // el envío, o los impuestos DDP de la factura. Naranja mientras están pendientes de
   // cobrar; se apaga cuando entran en una liquidación.
+  // Desde el 01/10 el chip aparece SOLO si el envío ya está liquidado: ahí el cargo se
+  // cobra en la próxima liquidación del cliente y conviene verlo. Si el envío todavía no
+  // se liquidó, el cargo ya está sumado en Venta Total y en el Adicional, y entra solo.
   function cargoChip(e) {
     const pend = Number(e.cargos_pendientes) || 0;
-    if (!(pend > 0)) return '';
+    if (!(pend > 0) || !e.liquidado) return '';
     const n = (e.cargos || []).filter((c) => c.estado === 'pendiente');
     const det = n.map((c) => `${c.label} USD ${Number(c.monto).toFixed(2)}`).join(' · ');
-    return ` <span class="chip-cargo" title="Cargo pendiente de cobrar al cliente: ${escAttr(det)}. ${e.liquidado ? 'El envío ya está liquidado: va en la próxima liquidación del cliente como cargo de envío anterior.' : 'Entra en la liquidación de este envío.'}">cargo ${fmtUSD(pend)}</span>`;
+    return ` <span class="chip-cargo" title="El envío ya está liquidado (#${e.liquidacion_id || '?'}): este cargo se cobra en la próxima liquidación del cliente, como cargo de envío anterior. ${escAttr(det)}">próx. liq. ${fmtUSD(pend)}</span>`;
   }
 
   function cobroBadge(c) {
@@ -2943,7 +2952,9 @@
     if (c.estado === 'liquidado') {
       return `<span class="saled-cargo-est liq" title="Ya está en la liquidación #${c.liquidacion_id}${c.liquidacion_estado === 'borrador' ? ' (borrador)' : ''}">liq. #${c.liquidacion_id}${c.liquidacion_estado === 'borrador' ? ' (borrador)' : ''}</span>`;
     }
-    return '<span class="saled-cargo-est pend" title="Todavía no se le cobró al cliente: entra en la próxima liquidación">pendiente</span>';
+    // Sin liquidar: entra solo en la liquidación del envío, no hace falta cartel.
+    if (!editEnvio || !editEnvio.liquidado) return '';
+    return '<span class="saled-cargo-est pend" title="El envío ya está liquidado: este cargo se cobra en la próxima liquidación del cliente, como cargo de envío anterior">próxima liquidación</span>';
   }
 
   function renderCargosBlock() {
@@ -2955,14 +2966,14 @@
         <span class="saled-extra-label">${esc(c.label)}<span class="saled-cargo-meta"> · ${NovaUtils.formatDate(c.fecha)}${c.origen === 'impuestos_ddp' ? ' · factura UPS' : (c.creado_por ? ' · ' + esc(c.creado_por) : '')}</span> ${cargoEstadoHtml(c)}</span>
         <span class="saled-extra-monto">${fmtUSD(c.monto)}${c.estado === 'pendiente' ? ` <button type="button" class="saled-cargo-del" data-cargo-id="${c.id}" title="Anular este cargo (todavía no se cobró)">×</button>` : ''}</span>
       </div>`).join('');
-    const pend = cargos.filter((c) => c.estado === 'pendiente').reduce((s, c) => s + parseNum(c.monto), 0);
+    const pend = editEnvio.liquidado ? cargos.filter((c) => c.estado === 'pendiente').reduce((s, c) => s + parseNum(c.monto), 0) : 0;
     const destino = editEnvio.liquidado
-      ? 'El envío ya está liquidado: lo pendiente va en la próxima liquidación del cliente como "cargo de envío anterior".'
-      : 'Entra en la liquidación de este envío, como una línea más del Adicional.';
+      ? 'El envío ya está liquidado: lo que falte cobrar va en la próxima liquidación del cliente como "cargo de envío anterior".'
+      : 'Se suman a la venta y a la compra del envío y entran en su liquidación como una línea más del Adicional.';
     block.innerHTML = `
       <div class="saled-extras-title">Cargos posteriores <span class="saled-cargos-help" title="Extracargos que aparecen después de cargado el envío (manejo, sobrepeso, área remota, impuestos DDP…). Van al costo, sin profit, y se le cobran al cliente. ${escAttr(destino)}">?</span></div>
       ${cargos.length ? `<div class="saled-extras-list">${rows}${pend > 0 ? `
-        <div class="saled-extra-row saled-extra-total"><span class="saled-extra-label">Pendiente de cobrar</span><span class="saled-extra-monto">${fmtUSD(pend)}</span></div>` : ''}
+        <div class="saled-extra-row saled-extra-total"><span class="saled-extra-label">Se cobra en la próxima liquidación</span><span class="saled-extra-monto">${fmtUSD(pend)}</span></div>` : ''}
       </div>` : '<div class="saled-extras-empty">Sin cargos posteriores</div>'}
       <div class="saled-cargo-add">
         <button type="button" class="btn btn-secondary btn-sm btn-dashed" id="saled-cargo-btn">+ Agregar cargo</button>
@@ -3032,6 +3043,20 @@
     if (d) {
       d.cargos = editEnvio.cargos;
       d.cargos_pendientes = (d.cargos || []).filter((c) => c.estado === 'pendiente').reduce((s, c) => s + parseNum(c.monto), 0);
+      // Los cargos son plata del envío (01/10): venta y compra suben lo mismo, el profit no.
+      const antes = parseNum(d.cargos_total) || 0;
+      const ahora = (d.cargos || []).filter((c) => c.estado !== 'anulado').reduce((s, c) => s + parseNum(c.monto), 0);
+      const dif = Math.round((ahora - antes) * 100) / 100;
+      if (dif) {
+        d.cargos_total = ahora;
+        d.venta_total = Math.round(((parseNum(d.venta_total) ?? parseNum(d.total) ?? 0) + dif) * 100) / 100;
+        if (d.compra_total != null) d.compra_total = Math.round((d.compra_total + dif) * 100) / 100;
+        if (d.compra_estimada != null) d.compra_estimada = Math.round((d.compra_estimada + dif) * 100) / 100;
+        if (d.venta_desglose) {
+          d.venta_desglose.adicional = Math.round((d.venta_desglose.adicional + dif) * 100) / 100;
+          d.venta_desglose.total = Math.round((d.venta_desglose.total + dif) * 100) / 100;
+        }
+      }
     }
     editEnvio.cargos_pendientes = (editEnvio.cargos || []).filter((c) => c.estado === 'pendiente').reduce((s, c) => s + parseNum(c.monto), 0);
     renderPage();
@@ -3618,6 +3643,7 @@
         // `total`) y refresco de bultos.
         d.peso = payload.peso_real;
         d.total = payload.total_cobrado;
+        d.venta_total = Math.round(((parseNum(payload.total_cobrado) || 0) + (parseNum(d.cargos_total) || 0)) * 100) / 100;
         d.asegurado = Boolean(payload.asegurado);
         // Alias de identidad que usa la tabla: el país se muestra como `destino`,
         // num_sal_cero se consume como booleano, y el nombre del cliente se refresca desde
@@ -3628,7 +3654,8 @@
         const cliSel = clientes.find((c) => c.id === payload.cliente_id);
         if (cliSel) d.cliente_nombre = cliSel.nombre_nova || cliSel.nombre;
         d.compra_total = (payload.flete || 0) - (payload.descuento || 0) + (payload.seguro || 0)
-          + (payload.fuel || 0) + (payload.derechos || 0) + (payload.adicionales || 0) + (payload.otros || 0);
+          + (payload.fuel || 0) + (payload.derechos || 0) + (payload.adicionales || 0) + (payload.otros || 0)
+          + (parseNum(d.cargos_total) || 0);
         // La doble vista se refresca igual que la simple, o quedaría mostrando la
         // estimación vieja hasta el próximo GET (los campos *_estimado son los que pinta
         // la tabla desde el 31/08).

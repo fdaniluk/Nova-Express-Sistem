@@ -15,7 +15,7 @@
 //   · La venta es la de la liquidación confirmada si existe (venta_liq), si no
 //     total_cobrado.
 const { getDb } = require('../db');
-const { deriveProfit, profitDoble, costoEstimado, utilidadEnvio, SUBQUERY_LIQUIDACION } = require('../utils/profit');
+const { deriveProfit, profitDoble, costoEstimado, utilidadEnvio, ventaEnvio, compraEnvio, cargosDdp, SUBQUERY_LIQUIDACION, SUBQUERY_CARGOS } = require('../utils/profit');
 const { hoyLocal } = require('../utils/fecha');
 const { esHabil, habilesEntre } = require('../utils/habiles');
 const configuracionModel = require('../models/configuracion.model');
@@ -233,10 +233,11 @@ const SQL_ENVIOS = `
     e.profit, e.porcentaje,
     e.estado_revision, e.costo_facturado, e.fecha_facturado,
     e.liquidado, e.fecha_liquidacion, e.created_at,
-    li.utilidad_usd AS utilidad_liq, li.venta_liq AS venta_liq
+    li.utilidad_usd AS utilidad_liq, li.venta_liq AS venta_liq, cp.cargos_post AS cargos_post, cp.cargos_ddp AS cargos_ddp
   FROM envios e
   JOIN clientes c ON c.id = e.cliente_id
   LEFT JOIN (${SUBQUERY_LIQUIDACION}) li ON li.envio_id = e.id
+  LEFT JOIN (${SUBQUERY_CARGOS}) cp ON cp.envio_id = e.id
   WHERE e.fecha >= ? AND e.fecha < ? AND e.no_volo = 0`;
 
 async function leerEnvios(db, desde, hasta, filtros) {
@@ -248,7 +249,9 @@ async function leerEnvios(db, desde, hasta, filtros) {
 }
 
 // ── Agregación ─────────────────────────────────────────────────────────────────
-function ventaDe(e) { return e.venta_liq != null ? Number(e.venta_liq) : (Number(e.total) || 0); }
+// Venta completa del envío (lo cobrado + cargos posteriores): utils/profit.js, la misma de
+// Salidas y del Dashboard viejo.
+function ventaDe(e) { return ventaEnvio(e); }
 
 // Profit "oficial" de un envío (misma precedencia que el dashboard viejo).
 // La misma de Dashboard, Comisiones y el perfil del cliente (utils/profit.js).
@@ -256,10 +259,7 @@ function profitOficial(e) {
   return Number(utilidadEnvio(e)) || 0;
 }
 // Compra "oficial": la real aprobada si existe, si no la estimada.
-function compraOficial(e) {
-  if (e.estado_revision === 'revisado_ok' && e.costo_facturado != null) return Number(e.costo_facturado);
-  return costoEstimado(e);
-}
+function compraOficial(e) { return compraEnvio(e); }
 
 function acumulador() { return { envios: 0, bultos: 0, kg_fact: 0, kg_real: 0, venta: 0, compra: 0, profit: 0, sin_venta_n: 0, sin_venta_compra: 0 }; }
 // Un envío SIN precio de venta cargado (total 0) cuenta en envíos y kilos, pero su compra
@@ -471,8 +471,8 @@ async function analitica(q = {}) {
   const sinFactura = todos.filter((e) => e.costo_facturado == null && e.courier === 'UPS' && e.fecha >= corte && diasEntre(e.fecha, hoy) > 45);
   const plata = {
     sin_liquidar: { n: sinLiqTodos.length, usd: r2(sinLiqTodos.reduce((s, e) => s + ventaDe(e), 0)) },
-    desvios_sin_revisar: { n: desvios.length, usd: r2(desvios.reduce((s, e) => s + (Number(e.costo_facturado) - costoEstimado(e)), 0)) },
-    disputa: { n: disputa.length, usd: r2(disputa.reduce((s, e) => s + (Number(e.costo_facturado) - costoEstimado(e)), 0)) },
+    desvios_sin_revisar: { n: desvios.length, usd: r2(desvios.reduce((s, e) => s + (Number(e.costo_facturado) + cargosDdp(e) - costoEstimado(e)), 0)) },
+    disputa: { n: disputa.length, usd: r2(disputa.reduce((s, e) => s + (Number(e.costo_facturado) + cargosDdp(e) - costoEstimado(e)), 0)) },
     sin_factura: { n: sinFactura.length, usd: r2(sinFactura.reduce((s, e) => s + costoEstimado(e), 0)) },
   };
 

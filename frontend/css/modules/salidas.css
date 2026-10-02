@@ -661,6 +661,7 @@ td.detail-expandable { cursor: pointer; }
   white-space: nowrap;
 }
 .extra-chip b { font-weight: 700; }
+.extra-chip-post i { font-style: normal; font-size: 0.72em; color: #B4492F; margin-left: 2px; }
 .extra-chip-total {
   background: #e0e7ff;
   color: #1e3a8a;

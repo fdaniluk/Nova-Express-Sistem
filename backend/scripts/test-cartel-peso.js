@@ -189,8 +189,14 @@ async function main() {
   // Con ganancia 0 y fuel 35.25. Subió de 4373.99 a 4462.90 al pasar a redondeo por bulto
   // (323,4 → 330 kg facturables): son los 6,6 kg que el courier nos factura de más y que
   // antes salían de nuestro margen.
-  check('el total da 4462.90 con el redondeo por bulto',
-    total && Math.abs(Number(total) - 4462.90) < 0.02, total);
+  // Desde el 01/10/2026 (hasta el 05/02/2027) DHL suma el extracargo por demanda (China →
+  // Argentina 2,25 USD/kg con fuel): el esperado sale del motor con la fecha de hoy, así el
+  // test no depende de la ventana del surge. Sin surge sigue siendo 4462,90.
+  const core = require('../../shared/cotizador/cotizador-core.js');
+  const esperadoMotor = core.cotizarServicio('DHL', { pais: 'China', tipo: 'import', pf: 330, fob: 100, fuelPct: 35.25, profitPct: 0,
+    bultosProc: Array.from({ length: 22 }, () => ({ dims: [60, 35, 35], pr: 6.2, pf: 15 })), contenido: 'paquete' }).total;
+  check(`el total da ${esperadoMotor.toFixed(2)} con el redondeo por bulto (4462,90 sin el surge por demanda)`,
+    total && Math.abs(Number(total) - esperadoMotor) < 0.02, total);
 
   console.log('\n3. Sin errores de JavaScript\n');
   const rel = errores.filter((x) => !/favicon|net::ERR/i.test(x));

@@ -30,7 +30,34 @@
 // arriesgar que quede desalineada con la utilidad. Fuente única de la estimación.
 function costoEstimado(row) {
   return (row.flete || 0) - (row.descuento || 0) + (row.seguro || 0)
-    + (row.fuel || 0) + (row.derechos || 0) + (row.adicionales || 0) + (row.otros || 0);
+    + (row.fuel || 0) + (row.derechos || 0) + (row.adicionales || 0) + (row.otros || 0)
+    + cargosPost(row);
+}
+
+// ── Cargos posteriores (01/10/2026) ────────────────────────────────────────────────
+// Los extracargos que aparecen DESPUÉS de cargado el envío (manejo, sobrepeso, impuestos
+// DDP…, tabla envio_cargos) son plata del envío al que pertenecen, se cobren en su propia
+// liquidación o en la siguiente del cliente. Van al costo, sin profit: suman lo mismo a la
+// venta y a la compra del envío, y la utilidad no cambia. Antes (25/09) solo existían en la
+// liquidación y el envío no los reflejaba en Salidas ni en el Dashboard.
+// Espera row.cargos_post (SUM de los no anulados) y row.cargos_ddp (los de origen
+// impuestos_ddp), que salen de SUBQUERY_CARGOS.
+function cargosPost(row) { return Number(row.cargos_post) || 0; }
+function cargosDdp(row) { return Number(row.cargos_ddp) || 0; }
+
+// Venta COMPLETA del envío: lo cobrado (congelado en la liquidación si la hay) + cargos
+// posteriores. Es la que muestran Salidas (Venta Total) y el Dashboard (Venta).
+function ventaEnvio(row) {
+  const base = row.venta_liq != null ? Number(row.venta_liq) : (Number(row.total) || 0);
+  return Math.round((base + cargosPost(row)) * 100) / 100;
+}
+// Compra COMPLETA del envío: la real aprobada (factura del courier + los impuestos DDP,
+// que UPS factura aparte) o la estimada (que ya incluye los cargos).
+function compraEnvio(row) {
+  if (row.estado_revision === 'revisado_ok' && row.costo_facturado != null) {
+    return Math.round((Number(row.costo_facturado) + cargosDdp(row)) * 100) / 100;
+  }
+  return costoEstimado(row);
 }
 
 function deriveProfit(row) {
@@ -42,7 +69,10 @@ function deriveProfit(row) {
     // y esa venta completa quedó congelada en liquidacion_items.total_usd (row.venta_liq).
     // Sin liquidación (o sin ese dato) se usa total_cobrado. Solo se LEE la liquidación:
     // no se toca ningún monto.
-    const venta = row.venta_liq != null ? row.venta_liq : row.total;
+    // + los cargos posteriores que el courier factura con el flete (todos menos los
+    // impuestos DDP, que vienen en otra factura y no están en costo_facturado).
+    const ventaBase = row.venta_liq != null ? row.venta_liq : row.total;
+    const venta = ventaBase != null ? ventaBase + cargosPost(row) - cargosDdp(row) : null;
     if (venta != null) {
       const costoReal = row.costo_facturado;
       const profit = Math.round((venta - costoReal) * 100) / 100;
@@ -58,7 +88,9 @@ function deriveProfit(row) {
   if (costo === 0 || row.total == null || row.total === 0) {
     return { compra_total: costo, profit: row.profit ?? null, porcentaje: row.porcentaje ?? null, profit_real: false };
   }
-  const profit = Math.round((row.total - costo) * 100) / 100;
+  // La venta estimada también lleva los cargos posteriores (al costo: se anulan con los
+  // que ya están dentro de `costo` y la utilidad queda igual que sin ellos).
+  const profit = Math.round((row.total + cargosPost(row) - costo) * 100) / 100;
   const porcentaje = Math.round((profit / costo) * 10000) / 100;
   return { compra_total: costo, profit, porcentaje, profit_real: false };
 }
@@ -89,7 +121,8 @@ function profitDoble(row) {
     porcentaje_real: null,
   };
   if (row.costo_facturado != null) {
-    const venta = row.venta_liq != null ? row.venta_liq : row.total;
+    const ventaBase = row.venta_liq != null ? row.venta_liq : row.total;
+    const venta = ventaBase != null ? ventaBase + cargosPost(row) - cargosDdp(row) : null;
     if (venta != null) {
       out.profit_real_monto = Math.round((venta - row.costo_facturado) * 100) / 100;
       out.porcentaje_real = row.costo_facturado !== 0
@@ -114,20 +147,35 @@ function utilidadEnvio(row) {
 
 // Venta y utilidad de la LIQUIDACIÓN CONFIRMADA de cada envío, como subconsulta lista para
 // un LEFT JOIN (alias de columnas: envio_id, utilidad_usd, venta_liq). Fuente única desde
-// el 29/09/2026: antes Salidas restaba los impuestos DDP y Dashboard, Comisiones,
-// Analítica y el perfil del cliente no, así que la utilidad real de un envío DDP liquidado
-// salía inflada por el monto de los impuestos en esas pantallas. Los impuestos DDP que
-// entraron en el ítem del envío se restan porque UPS los factura aparte del flete (no están
-// en costo_facturado): no son venta a comparar contra ese costo.
+// el 29/09/2026 para Salidas, Dashboard, Comisiones, Analítica y el perfil del cliente.
+// venta_liq es la venta PROPIA del envío: total_usd del ítem MENOS los cargos posteriores
+// que entraron en ese ítem (01/10: todos, no solo los impuestos DDP), porque los cargos se
+// suman aparte con SUBQUERY_CARGOS, estén en esta liquidación o en la siguiente del cliente.
 const SUBQUERY_LIQUIDACION = `
   SELECT li.envio_id,
          SUM(li.utilidad_usd) AS utilidad_usd,
          SUM(li.total_usd) - COALESCE(SUM((SELECT SUM(ec.monto) FROM envio_cargos ec
-                                           WHERE ec.envio_id = li.envio_id AND ec.origen = 'impuestos_ddp'
+                                           WHERE ec.envio_id = li.envio_id
                                              AND ec.anulado_at IS NULL AND ec.liquidacion_id = li.liquidacion_id)), 0) AS venta_liq
   FROM liquidacion_items li
   WHERE li.liquidacion_id IN (SELECT id FROM liquidaciones WHERE estado = 'confirmada')
   GROUP BY li.envio_id`;
 
+// Cargos posteriores vigentes (no anulados) por envío, para el mismo LEFT JOIN (alias:
+// envio_id, cargos_post, cargos_ddp). Se suman a la venta y a la compra del envío.
+const SUBQUERY_CARGOS = `
+  SELECT ec.envio_id,
+         SUM(ec.monto) AS cargos_post,
+         SUM(CASE WHEN ec.origen = 'impuestos_ddp' THEN ec.monto ELSE 0 END) AS cargos_ddp
+  FROM envio_cargos ec
+  WHERE ec.anulado_at IS NULL
+  GROUP BY ec.envio_id`;
+// Los dos JOIN juntos y las columnas que aportan, para no repetirlos en cada consulta.
+const JOIN_LIQ_Y_CARGOS = `
+  LEFT JOIN (${SUBQUERY_LIQUIDACION}) li ON li.envio_id = e.id
+  LEFT JOIN (${SUBQUERY_CARGOS}) cp ON cp.envio_id = e.id`;
+const COLS_LIQ_Y_CARGOS = `li.utilidad_usd AS utilidad_liq, li.venta_liq AS venta_liq, cp.cargos_post AS cargos_post, cp.cargos_ddp AS cargos_ddp`;
+
 module.exports = {
-  SUBQUERY_LIQUIDACION, deriveProfit, costoEstimado, profitDoble, utilidadEnvio };
+  SUBQUERY_LIQUIDACION, SUBQUERY_CARGOS, JOIN_LIQ_Y_CARGOS, COLS_LIQ_Y_CARGOS,
+  deriveProfit, costoEstimado, profitDoble, utilidadEnvio, ventaEnvio, compraEnvio, cargosPost, cargosDdp };

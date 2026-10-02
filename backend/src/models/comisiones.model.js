@@ -5,7 +5,7 @@
 //   · % por vendedor, con excepción opcional por cliente (clientes_vendedores.comision_pct).
 // "Nova Express" es la casa (es_casa = 1): sus clientes no generan comisión.
 const { getDb } = require('../db');
-const { utilidadEnvio, SUBQUERY_LIQUIDACION } = require('../utils/profit');
+const { utilidadEnvio, SUBQUERY_LIQUIDACION, SUBQUERY_CARGOS } = require('../utils/profit');
 
 const DESDE_SIEMPRE = '2000-01-01';
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -139,9 +139,10 @@ async function enviosDelPeriodo(desde, hasta) {
             e.total_cobrado AS total, e.flete, e.descuento, e.seguro, e.fuel, e.derechos, e.adicionales, e.otros,
             e.profit, e.porcentaje, e.estado_revision, e.costo_facturado, e.liquidado,
             c.id AS cliente_id, COALESCE(NULLIF(c.nombre_nova,''), c.nombre) AS cliente,
-            li.utilidad_usd AS utilidad_liq, li.venta_liq
+            li.utilidad_usd AS utilidad_liq, li.venta_liq, cp.cargos_post, cp.cargos_ddp
      FROM envios e JOIN clientes c ON c.id = e.cliente_id
      LEFT JOIN (${SUBQUERY_LIQUIDACION}) li ON li.envio_id = e.id
+     LEFT JOIN (${SUBQUERY_CARGOS}) cp ON cp.envio_id = e.id
      WHERE e.fecha >= ? AND e.fecha < ? AND e.no_volo = 0
      ORDER BY e.fecha, e.id`
   ).all(desde, hasta);
