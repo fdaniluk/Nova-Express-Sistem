@@ -582,9 +582,17 @@ function cotizarServicio(servicio, params) {
     // Fecha del envío (YYYY-MM-DD) para las tarifas que cambian en el tiempo (surge de
     // importación desde el 27-sep-2026). Sin fecha = hoy.
     fecha=null,
+    // Descuento especial sobre el FLETE DE VENTA (02/10/2026), en %. Para el cliente que ya
+    // tiene su tarifa cargada y al que se le hace un precio puntual: se aplica después del
+    // margen (o del precio por kilo) y antes del fuel, que sigue al flete. Seguro, surge,
+    // DDP y demás recargos no se descuentan. Viaja en la cotización guardada y en el envío
+    // (envios.descuento_venta_pct) para que una recotización lo conserve.
+    descuentoPct=0,
   } = params;
   const fuel   = fuelPct   / 100;
   const profit = profitPct / 100;
+  const descuento = Math.min(100, Math.max(0, Number(descuentoPct) || 0)) / 100;
+  const conDescuento = (lista) => parseFloat((lista * (1 - descuento)).toFixed(2));
   const zonaEntrega = normalizarEntrega(entrega, remota);
   const kgVenta = Number(precioKgVenta);
   const usaPorKg = Number.isFinite(kgVenta) && kgVenta > 0;
@@ -637,7 +645,9 @@ function cotizarServicio(servicio, params) {
     // criterio de Felipe del 29/07, la ganancia se calcula solo sobre el flete de tabla.
     if(proteccionDoc)       extras.push(['Protección de documentos (DHL)',DHL_PROTECCION_DOC]);
     // Tarifa por kilo: el flete de venta es precio × peso facturable, no flete + margen.
-    const conGan          =usaPorKg?parseFloat((kgVenta*pf).toFixed(2)):fleteBase*(1+profit);
+    const conGanLista     =usaPorKg?parseFloat((kgVenta*pf).toFixed(2)):fleteBase*(1+profit);
+    const conGan          =descuento>0?conDescuento(conGanLista):conGanLista;
+    const descuentoMonto  =parseFloat((conGanLista-conGan).toFixed(2));
     // Extracargo por demanda DHL (temporada alta, por fecha): a costo, sin ganancia, con fuel.
     const surgeDHL        =getSurgeDHL(pais,tipo,pf,fecha);
     const subtotalConSurge=conGan+surgeDHL;
@@ -647,7 +657,7 @@ function cotizarServicio(servicio, params) {
     return{
       servicio:'DHL Express Worldwide',zona,pf,
       fleteBase,feeUSA:0,surge:surgeDHL,surgeAmt:surgeDHL,flete:fleteBase,
-      conGan,subtotalConSurge,fuelMonto,extras,extrasTotal,total,
+      conGan,conGanLista,descuentoPct:descuento*100,descuentoMonto,subtotalConSurge,fuelMonto,extras,extrasTotal,total,
       goGreen,sobrepesoTotal,excesoTotal,noConvencionalTotal,seguro:seguroObj.monto,
       manejoCount:0,contornoExtra:0,contornoWarn:false,manejo:0,
       minPesoAplicado:false,avisosTope:topesDHL,
@@ -714,7 +724,9 @@ function cotizarServicio(servicio, params) {
   // Tarifa por kilo: el flete de venta es precio × peso facturable. Se usa pfRound, que es
   // el peso que UPS efectivamente factura (redondeo a 0,5 kg y mínimo de 40 kg del Paquete
   // de Mayor Tamaño), para que el cliente pague por los mismos kilos que paga el courier.
-  const conGan          =usaPorKg?parseFloat((kgVenta*pfRound).toFixed(2)):flete*(1+profit);
+  const conGanLista     =usaPorKg?parseFloat((kgVenta*pfRound).toFixed(2)):flete*(1+profit);
+  const conGan          =descuento>0?conDescuento(conGanLista):conGanLista;
+  const descuentoMonto  =parseFloat((conGanLista-conGan).toFixed(2));
   const subtotalConSurge=conGan+surge;
   const fuelMonto       =subtotalConSurge*fuel;
   const extrasTotal     =extras.reduce((s,r)=>s+r[1],0);
@@ -722,7 +734,7 @@ function cotizarServicio(servicio, params) {
   return{
     servicio:servicioLabel,zona,pf:pfRound,
     fleteBase,feeUSA,surge,surgeAmt:surge,flete,
-    conGan,subtotalConSurge,fuelMonto,extras,extrasTotal,total,
+    conGan,conGanLista,descuentoPct:descuento*100,descuentoMonto,subtotalConSurge,fuelMonto,extras,extrasTotal,total,
     manejoCount,contornoExtra,contornoWarn,manejo,
     seguro:seguroObj.monto,goGreen:0,dhlDimExtra:0,
     minPesoAplicado,minPesoExtra,avisosTope:topesUPS,

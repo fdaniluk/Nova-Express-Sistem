@@ -187,7 +187,7 @@ function contenidoDe(tipoPaquete) {
   return String(tipoPaquete ?? '').toLowerCase() === 'd' ? 'documento' : 'paquete';
 }
 
-function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zonaOverride, bultos = [], residencial = false, remota = false, entrega, ddp = false, proteccionDoc = false, contenido = 'paquete', precioKgVenta = null, seguroPropio = null, fecha = null }) {
+function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zonaOverride, bultos = [], residencial = false, remota = false, entrega, ddp = false, proteccionDoc = false, contenido = 'paquete', precioKgVenta = null, seguroPropio = null, fecha = null, descuentoPct = 0 }) {
   const pf     = Number(pesoFacturable) || 0;
   const fuel   = (Number(fuelPct)   || 0) / 100;
   const profit = (Number(profitPct) || 0) / 100;
@@ -216,6 +216,8 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
     // Seguro negociado del cliente ({pct, min}) o null. Lo resuelve profit.service; acá
     // solo se pasa. Reemplaza la escala de seguro del courier en DHL y en UPS.
     seguroPropio,
+    // Descuento especial sobre el flete de venta (02/10/2026), en %.
+    descuentoPct: Number(descuentoPct) || 0,
   });
   if (!r) return null;
 
@@ -225,8 +227,11 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
   // se le vende al cliente (precio × kilo) y el flete que cuesta el courier. Si el precio
   // por kilo quedara por debajo del costo, esa diferencia da NEGATIVA — y así tiene que
   // verse, para que se note que ese cliente está dando pérdida.
+  // Con descuento, el flete de venta (conGan) ya viene rebajado: la utilidad es siempre
+  // lo que se vende de flete menos lo que cuesta, con su fuel (es la misma cuenta que
+  // fleteBase × profit × (1 + fuel) cuando no hay descuento).
   const profitMontoRaw =
-    r.modoVenta === 'por_kg'
+    r.modoVenta === 'por_kg' || (Number(r.descuentoPct) || 0) > 0
       ? (r.conGan - r.fleteBase) * (1 + fuel)
       : r.fleteBase * profit * (1 + fuel);
   // precioBase = total sin profit = (flete+surge)*(1+fuel) + manejo + seguro [+ extras]
@@ -247,6 +252,8 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
       modo_venta: r.modoVenta,
       precio_kg: r.precioKgVenta,
       kg_venta: r.pfVenta,
+      descuento_pct: r.descuentoPct || 0,
+      descuento_monto: redondear2(r.descuentoMonto || 0),
     };
   }
 
@@ -264,6 +271,8 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
     modo_venta: r.modoVenta,
     precio_kg: r.precioKgVenta,
     kg_venta: r.pfVenta,
+    descuento_pct: r.descuentoPct || 0,
+    descuento_monto: redondear2(r.descuentoMonto || 0),
   };
 }
 

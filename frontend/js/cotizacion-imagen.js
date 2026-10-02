@@ -71,7 +71,10 @@
      ve él. */
   function filasDe(op) {
     const f = [];
-    f.push(['Flete internacional', fmt(op.flete), 'normal']);
+    const desc = Number(op.descuento_pct) || 0;
+    f.push(['Flete internacional', fmt(desc > 0 && op.flete_lista != null ? op.flete_lista : op.flete), 'normal']);
+    // Descuento especial (02/10/2026): el flete se muestra de lista y la rebaja en su línea.
+    if (desc > 0) f.push([`Descuento especial (${desc}%)`, '− ' + fmt(op.descuento_monto || 0), 'normal']);
     if (op.surge > 0) f.push([/DHL/i.test(String(op.courier || op.servicio || '')) ? 'Extracargo por demanda DHL' : 'Surge fee UPS', fmt(op.surge), 'normal']);
     f.push([op.surge > 0 ? 'Subtotal (con surge)' : 'Subtotal', fmt(op.subtotal), 'subtotal']);
     f.push([`Fuel (${op.fuel_pct}%)`, '+ ' + fmt(op.fuel_monto), 'normal']);

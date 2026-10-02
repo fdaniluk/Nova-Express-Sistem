@@ -165,6 +165,7 @@ async function cotizar(req, res, next) {
       precioKgVenta: entrada.precioKgVenta,
       seguroPropio: entrada.seguroPropio,
       fecha: entrada.fecha,
+      descuentoPct: entrada.descuentoPct,
     });
 
     if (!resultado) {
@@ -182,6 +183,7 @@ async function cotizar(req, res, next) {
       fuel_origen: entrada.fuel_origen,
       seguro_propio: entrada.seguroPropio,
       zona_aplicada: entrada.zona,
+      descuento_aplicado: entrada.descuentoPct,
       advertencia: entrada.advertencia,
     });
   } catch (e) {

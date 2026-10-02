@@ -39,8 +39,14 @@ async function buscarArea({ pais, cp, ciudad }) {
   const cpN = normalizarCp(cp);
   let fila = null;
   if (cpN) {
-    const digitos = cpN.replace(/\D/g, '');
+    let digitos = cpN.replace(/\D/g, '');
     if (digitos) {
+      // La tabla de UPS guarda PREFIJOS en algunos países (Brasil: 5 de los 8 dígitos del
+      // CEP; EE.UU.: el ZIP de 5 sin el +4; Japón: 7). Si el CP tipeado es más largo que
+      // lo que usa la tabla para ese país, se compara solo el prefijo: antes "01310-100"
+      // se convertía en 1310100 y no caía en ningún rango (02/10/2026).
+      const largo = await largoCpPais(db, iso);
+      if (largo && digitos.length > largo) digitos = digitos.slice(0, largo);
       const n = Number(digitos);
       fila = await db.prepare(
         `SELECT * FROM ups_areas WHERE iso = ? AND numerico = 1 AND cp_desde_num <= ? AND cp_hasta_num >= ?
@@ -57,6 +63,9 @@ async function buscarArea({ pais, cp, ciudad }) {
     }
     if (fila) out.match = 'cp';
   }
+  // Países que UPS lista por CIUDAD (Chile, Colombia, Perú, Venezuela, Jamaica…): si el
+  // CP no matchea y lo tipeado tiene letras, se prueba como ciudad (02/10/2026).
+  if (!fila && !ciudad && cpN && /[A-Z]/.test(cpN)) ciudad = cp;
   if (!fila && ciudad) {
     const c = sinAcentos(ciudad);
     const filas = await db.prepare("SELECT * FROM ups_areas WHERE iso = ? AND ciudad <> ''").all(iso);
@@ -67,12 +76,30 @@ async function buscarArea({ pais, cp, ciudad }) {
   out.recargo = fila.recargo_destino;
   out.recargo_origen = fila.recargo_origen || null;
   out.zona = ZONA_POR_RECARGO[fila.recargo_destino] || 'normal';
-  // EE.UU.: las cinco categorías (Delivery Area, Extended, Remote…) son el cargo por
-  // envío que el cotizador ya tiene como 'remota' (5,86). Mapearlas a 'extendida' les
-  // cobraría 42,15 a Manhattan. Pendiente verificar contra una factura de UPS.
-  if (iso === 'US' && out.zona !== 'normal') out.zona = 'remota';
   out.etiqueta = ETIQUETA[fila.recargo_destino] || fila.recargo_destino;
+  // EE.UU. (02/10/2026): la lista de UPS marca 25.778 ZIP, incluidos Manhattan, el Loop de
+  // Chicago o Brickell, como "Área de entrega". Pero en 102 facturas de UPS a EE.UU.
+  // (jun–sep 2026) NO apareció ni un recargo de área, mientras que a España, Italia,
+  // Australia, Canadá, China y Sudáfrica sí vino el "Extended Area Surcharge Destination".
+  // Hasta que se vea una factura a EE.UU. con ese cargo, el sistema NO marca zona: solo
+  // informa lo que dice la lista (la oficina puede elegir la zona a mano si corresponde).
+  if (iso === 'US') {
+    out.zona = 'normal';
+    out.informativo = true;
+    out.etiqueta = `${out.etiqueta} (en la lista de UPS; a EE.UU. no se cobra: ninguna factura lo trajo)`;
+  }
   return out;
+}
+
+// Largo máximo del CP numérico que usa la tabla para un país (los ceros a la izquierda se
+// perdieron al cargar, así que el largo real es el máximo). Cacheado por proceso.
+const LARGO_CACHE = new Map();
+async function largoCpPais(db, iso) {
+  if (LARGO_CACHE.has(iso)) return LARGO_CACHE.get(iso);
+  const r = await db.prepare('SELECT MAX(length(cp_desde)) AS l FROM ups_areas WHERE iso = ? AND numerico = 1').get(iso);
+  const l = r && r.l ? Number(r.l) : 0;
+  LARGO_CACHE.set(iso, l);
+  return l;
 }
 
 async function resumen() {

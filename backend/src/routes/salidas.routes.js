@@ -79,6 +79,7 @@ async function listarSalidas({ desde, hasta } = {}) {
       e.descuento,
       e.seguro,
       e.seguro_venta,
+      e.descuento_venta_pct,
       e.fuel,
       e.fuel_pct,
       e.derechos,
@@ -334,6 +335,7 @@ async function listarSalidas({ desde, hasta } = {}) {
     remota: Boolean(row.remota),
     // Envío viejo (sin `entrega`): su flag `remota` equivalía a la tarifa de extendida.
     entrega: row.entrega || (row.remota ? 'extendida' : 'normal'),
+    descuento_venta_pct: row.descuento_venta_pct ?? null,
     ddp: Boolean(row.ddp),
     proteccion_doc: Boolean(row.proteccion_doc),
     zona: row.zona,
@@ -690,7 +692,7 @@ const SALIDAS_EDITABLE = [
   // fob (valor declarado): editable desde el 14/08 a pedido de administración. El seguro
   // sale de él, así que en envíos liquidados queda congelado (está en CAMPOS_PLATA).
   'fob',
-  'numero_guia', 'numero_salida', 'bulto', 'tipo_paquete', 'asegurado', 'remota', 'entrega', 'ddp', 'proteccion_doc', 'direccion',
+  'numero_guia', 'numero_salida', 'bulto', 'tipo_paquete', 'asegurado', 'remota', 'entrega', 'ddp', 'proteccion_doc', 'direccion', 'descuento_venta_pct',
   'peso_real', 'largo', 'ancho', 'alto', 'peso_facturable', 'peso_volumetrico',
   'flete', 'descuento', 'seguro', 'fuel', 'fuel_pct', 'derechos', 'adicionales', 'otros',
   'total_cobrado', 'profit', 'porcentaje', 'observaciones', 'extras_json',

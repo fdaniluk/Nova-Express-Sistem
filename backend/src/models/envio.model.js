@@ -264,6 +264,13 @@ async function calcularSeguroVenta(clienteId, courier, fob) {
   return calc(Number(fob) || 0, propio).monto;
 }
 
+// Descuento especial de venta (02/10/2026): 0..100 o NULL (sin descuento).
+function descuentoDe(v) {
+  if (v === undefined || v === null || v === '') return null;
+  const n = Math.min(100, Math.max(0, Number(v) || 0));
+  return n > 0 ? n : null;
+}
+
 async function crear(data) {
   const db = getDb();
   const { pesoVolumetrico, pesoFacturable } = buildPesos(data);
@@ -301,8 +308,8 @@ async function crear(data) {
           numero_salida, bulto, tipo_paquete, asegurado, ddp, proteccion_doc, remota, entrega,
           flete, descuento, seguro, fuel, fuel_pct, fuel_origen, derechos, adicionales, otros, profit, porcentaje,
           extras_json, servicio_ups, num_sal_cero, seguro_venta, tarifa_50,
-          destinatario_id, contenido, proforma_numero, guia_id, remitente_id, cp_destino
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          destinatario_id, contenido, proforma_numero, guia_id, remitente_id, cp_destino, descuento_venta_pct
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         data.cliente_id,
@@ -362,7 +369,8 @@ async function crear(data) {
         data.proforma_numero ? String(data.proforma_numero).trim() : null,
         guiaId,
         data.remitente_id || null,
-        data.cp_destino ? String(data.cp_destino).trim() : null
+        data.cp_destino ? String(data.cp_destino).trim() : null,
+        descuentoDe(data.descuento_venta_pct)
       );
     const envioId = result.lastInsertRowid;
     if (hasBultos) await saveBultos(envioId, data.bultos);
@@ -501,6 +509,7 @@ async function actualizar(id, data) {
         seguro_venta = ?,
         destinatario_id = ?, contenido = ?, proforma_numero = ?, remitente_id = ?,
         cp_destino = ?,
+        descuento_venta_pct = ?,
         ${costoSet},
         updated_at = datetime('now', 'localtime')
        WHERE id = ?`
@@ -540,6 +549,7 @@ async function actualizar(id, data) {
       data.proforma_numero !== undefined ? (String(data.proforma_numero ?? '').trim() || null) : actual.proforma_numero,
       data.remitente_id !== undefined ? (data.remitente_id || null) : actual.remitente_id,
       data.cp_destino !== undefined ? (String(data.cp_destino ?? '').trim() || null) : actual.cp_destino,
+      data.descuento_venta_pct !== undefined ? descuentoDe(data.descuento_venta_pct) : actual.descuento_venta_pct,
       // Los nueve de abajo son siempre los mismos parámetros; lo que cambia es el SQL de
       // arriba. Sin recálculo van todos NULL y el COALESCE deja la columna como estaba;
       // con el envío sin pesar, esos mismos NULL la vacían.

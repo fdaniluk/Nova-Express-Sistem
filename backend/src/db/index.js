@@ -293,6 +293,9 @@ async function migrateEnvios() {
     // Código postal de destino (21/09/2026): con él se consulta la tabla ups_areas y se
     // marca sola la zona de entrega (extendida / remota).
     ['cp_destino',       'TEXT'],
+    // Descuento especial sobre el flete de venta, en % (02/10/2026). Viene de la
+    // cotización guardada (o se tipea en Cargar envío) y se conserva al recotizar.
+    ['descuento_venta_pct', 'REAL'],
     ['flete',            'REAL'],
     ['descuento',        'REAL'],
     ['seguro',           'REAL'],

@@ -503,6 +503,8 @@
       setProfitOrigen('');
     });
     document.getElementById('cot-profit').addEventListener('input', debounce(updateCotizacion, 400));
+    // Descuento especial (02/10/2026): recotiza al cambiarlo.
+    document.getElementById('descuento_venta_pct').addEventListener('input', debounce(updateCotizacion, 400));
     document.getElementById('fuel_pct').addEventListener('input', debounce(updateCotizacion, 400));
     document.getElementById('fuel_origen').addEventListener('change', () => {
       setFuelPctDefault();
@@ -654,7 +656,8 @@
         if (hint) hint.textContent = 'UPS: ' + r.etiqueta;
       } else {
         sel.value = 'normal';
-        if (hint) hint.textContent = r.iso ? 'Sin recargo de área' : '';
+        // EE.UU.: la lista de UPS lo marca pero no se cobra (ver ups-areas.service): solo se informa.
+        if (hint) hint.textContent = r.informativo ? 'UPS: ' + r.etiqueta : (r.iso ? 'Sin recargo de área' : '');
       }
       updateCotizacion();
     } catch (e) {
@@ -668,6 +671,7 @@
     const tipo_envio = document.getElementById('tipo_envio').value;
     const fob = parseFloat(document.getElementById('fob').value) || 0;
     const profitPct = parseFloat(document.getElementById('cot-profit').value) || 0;
+    const descuentoPct = Math.min(100, Math.max(0, parseFloat(document.getElementById('descuento_venta_pct').value) || 0));
     const pesoFacturable = parseFloat(document.getElementById('peso-preview').dataset.facturable) || 0;
 
     const zona = parseInt(document.getElementById('zona')?.value, 10) || undefined;
@@ -712,6 +716,7 @@
         // Si el usuario pisó el profit a mano, el backend usa profitPct; si no, lo resuelve
         // por la matriz del cliente e ignora el número (retrocompatible en ambos sentidos).
         profitManual: profitTocado,
+        descuentoPct,
       });
 
       // El backend puede haber resuelto el profit por matriz: sincronizamos el input
@@ -746,6 +751,7 @@
             <span>Profit ${profitMostrar}%</span>
             <span>+ ${fmt(res.profitMonto)}</span>
           </div>
+          ${Number(res.descuento_pct) > 0 ? `<div class="cot-fila" style="color:#b45309"><span>Descuento especial ${res.descuento_pct}% sobre el flete</span><span>− ${fmt(res.descuento_monto)}</span></div>` : ''}
           <div class="cot-fila cot-total-row">
             <span>Precio sugerido</span>
             <span>${fmt(res.precioFinal)}</span>
@@ -830,6 +836,7 @@
         // lo leen, y los envíos viejos solo tienen ese flag.
         remota: document.getElementById('entrega').value !== 'normal' ? 1 : 0,
         total_cobrado: parseFloat(document.getElementById('total_cobrado').value) || 0,
+        descuento_venta_pct: parseFloat(document.getElementById('descuento_venta_pct').value) || null,
         observaciones: document.getElementById('observaciones').value.trim() || null,
         bultos: bultos.length ? bultos : undefined,
         servicio_ups: document.getElementById('courier').value === 'UPS'
@@ -943,6 +950,7 @@
     document.getElementById('entrega').value = envio.entrega || (envio.remota ? 'extendida' : 'normal');
     document.getElementById('cp_destino').value = envio.cp_destino || '';
     document.getElementById('total_cobrado').value = envio.total_cobrado;
+    document.getElementById('descuento_venta_pct').value = envio.descuento_venta_pct || '';
     document.getElementById('observaciones').value = envio.observaciones || '';
     renderBultos();
     if (envio.bultos?.length) {
@@ -1074,8 +1082,9 @@
         // puesto, para que nadie descubra despues que el precio salio de otro lado.
         const nota = document.getElementById('ctzr-sugerido');
         if (nota) {
+          const descCtz = ctx && ctx.cotizacion && ctx.cotizacion.datos ? Number(ctx.cotizacion.datos.descuento_pct) || 0 : 0;
           nota.textContent = ctx && ctx.cotizacion
-            ? `Precio y datos traídos de la CTZ-${ctx.cotizacion.numero} — son un sugerido, se puede cambiar todo.`
+            ? `Precio y datos traídos de la CTZ-${ctx.cotizacion.numero} — son un sugerido, se puede cambiar todo.${descCtz > 0 ? ` Esa cotización tenía ${descCtz}% de descuento: si el peso cambió, el cotizador automático lo vuelve a aplicar.` : ''}`
             : 'Precio traido de una cotizacion — es un sugerido, se puede cambiar.';
           nota.classList.remove('hidden');
         }
@@ -1144,6 +1153,10 @@
     setVal('entrega', d.entrega || 'normal');
     const prot = document.getElementById('proteccion_doc');
     if (prot) prot.checked = Boolean(d.proteccion_doc);
+    // Descuento especial (02/10/2026): si la cotización se hizo con descuento, el envío
+    // sale con el mismo % aunque el peso haya cambiado (el cotizador automático lo aplica).
+    const desc = Number(d.descuento_pct) || 0;
+    setVal('descuento_venta_pct', desc > 0 ? desc : '');
     aplicarVisibilidadProteccionDoc(false);
     aplicarBloqueoMultibulto();
     updatePesosYCotizacion();

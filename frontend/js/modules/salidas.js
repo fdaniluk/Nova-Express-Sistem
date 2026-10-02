@@ -2382,6 +2382,7 @@
                 </div>
               </div>
               <div class="sal-res-hint">Profit = venta − compra. Se recalcula solo al tocar un costo o la venta.</div>
+              <div class="sal-res-hint hidden" id="saled-descuento-venta" style="color:#b45309"></div>
               <!-- LAS COTIZACIONES DE ESTE CLIENTE. Arranca oculto y aparece SOLO cuando
                    alguien se para en "Venta total" (pedido de Felipe, 25/08: "que no
                    moleste, tal vez que solo aparezca en el caso que esten editando el
@@ -2575,6 +2576,13 @@
     // real vive en su propia columna y no se edita a mano.
     document.getElementById('saled-profit').value = envio.profit_estimado ?? envio.profit ?? '';
     document.getElementById('saled-porcentaje').value = envio.porcentaje_estimado ?? envio.porcentaje ?? '';
+    // Descuento especial de venta (02/10/2026): se muestra para que se entienda la venta.
+    const dv = document.getElementById('saled-descuento-venta');
+    if (dv) {
+      const d = Number(envio.descuento_venta_pct) || 0;
+      dv.textContent = d > 0 ? `Este envío tiene ${d}% de descuento especial sobre el flete de venta (viene de la cotización; "Calcular venta" lo respeta).` : '';
+      dv.classList.toggle('hidden', !(d > 0));
+    }
     const compraAbrir = envio.compra_estimada ?? envio.compra_total;
     document.getElementById('saled-compra-view').textContent = compraAbrir != null && compraAbrir !== '' ? Number(compraAbrir).toFixed(2) : '—';
     document.getElementById('saled-total').value = envio.total ?? '';

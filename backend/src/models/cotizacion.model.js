@@ -180,6 +180,9 @@ async function recientesDeCliente(clienteId, dias = 30) {
         entrega: e.entrega || (e.residencial ? 'extendida' : 'normal'),
         residencial: e.residencial ? 1 : 0,
         proteccion_doc: e.proteccion_doc ? 1 : 0,
+        // Descuento especial (02/10/2026): el % con el que se cotizó, para que al cargar
+        // el envío con otro peso se recotice con el mismo descuento.
+        descuento_pct: Number(e.descuento_pct) || 0,
       };
     } catch { bultos = []; }
     try {
@@ -195,7 +198,7 @@ async function recientesDeCliente(clienteId, dias = 30) {
       const conocenLaMarca = todas.some((o) => o && o.viaja !== undefined);
       precios = todas
         .filter((o) => o && (conocenLaMarca ? o.viaja : true))
-        .map((o) => ({ servicio: o.servicio, total: o.total, pf: o.pf, zona: o.zona }));
+        .map((o) => ({ servicio: o.servicio, total: o.total, pf: o.pf, zona: o.zona, descuento_pct: Number(o.descuento_pct) || 0 }));
     } catch { precios = []; }
     return { ...resto, bultos, datos, opciones_resumen: precios };
   })

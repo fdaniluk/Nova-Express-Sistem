@@ -93,7 +93,7 @@
             <span class="ctzr-fecha">${fecha(q.creado_en)}</span>
             ${chapaEstado(q.estado)}
           </div>
-          <div class="ctzr-destino">${esc(destino)}</div>
+          <div class="ctzr-destino">${esc(destino)}${(q.datos && Number(q.datos.descuento_pct) > 0) ? ` · <b style="color:#b45309">${Number(q.datos.descuento_pct)}% de descuento</b>` : ''}</div>
           <div class="ctzr-medidas">${esc(lineaBultos(q))}</div>
         </div>
         <div class="ctzr-precios">${opciones || '<span class="ctzr-vacio">sin opciones</span>'}</div>
