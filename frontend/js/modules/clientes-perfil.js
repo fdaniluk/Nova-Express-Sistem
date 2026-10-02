@@ -932,6 +932,7 @@
         data-serv="${serv}" data-tipo="${tipo}" placeholder="sin general">
       <button class="btn btn-primary btn-sm gen-guardar" data-serv="${serv}" data-tipo="${tipo}">Guardar</button>
       <button class="btn btn-secondary btn-sm gen-quitar ${g === null ? 'hidden' : ''}" data-serv="${serv}" data-tipo="${tipo}">Quitar</button>
+      <button class="btn btn-secondary btn-sm gen-vaciar" data-serv="${serv}" data-tipo="${tipo}" title="Borra TODAS las celdas, rangos, zonas y el general de esta tabla, para arrancar de cero. No toca las otras tablas ni la tarifa general del cliente.">Vaciar matriz</button>
     </span>`;
   }
 
@@ -1121,6 +1122,24 @@
     wrap.querySelectorAll('.gen-quitar').forEach((b) => {
       b.addEventListener('click', () => borrarGeneral(b.dataset.serv, b.dataset.tipo));
     });
+    wrap.querySelectorAll('.gen-vaciar').forEach((b) => {
+      b.addEventListener('click', () => vaciarMatriz(b.dataset.serv, b.dataset.tipo));
+    });
+  }
+
+  // Vaciar UNA tabla entera (02/10/2026): para rehacer una matriz que tiene todos los
+  // casilleros cargados a mano y no deja aplicar un general nuevo.
+  async function vaciarMatriz(serv, tipo) {
+    const que = editando === 'kg' ? 'precios por kilo' : 'porcentajes';
+    const nombre = `${serv === 'DHL' ? 'DHL' : serv === 'UPS_EXP' ? 'UPS Expedited' : 'UPS Saver'} ${tipo === 'import' ? 'importación' : 'exportación'}`;
+    if (!confirm(`¿Vaciar la tabla de ${que} de ${nombre}?\n\nSe borran TODAS sus celdas, rangos, zonas y el general de tabla. No se puede deshacer. Las otras tablas y la tarifa general del cliente quedan como están.`)) return;
+    try {
+      const r = await NovaAPI.clientes.profit.vaciar(clienteId, { servicio: serv, tipo, tabla: editando === 'kg' ? 'kg' : 'profit' });
+      await cargarMatriz();
+      NovaUtils.showAlert(alertBox, `Tabla vaciada: ${r.borradas} casillero(s) borrado(s)`, 'success');
+    } catch (err) {
+      NovaUtils.showAlert(alertBox, err.message);
+    }
   }
 
   async function guardarGeneral(serv, tipo) {

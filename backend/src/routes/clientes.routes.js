@@ -16,6 +16,7 @@ router.get('/:id/perfil', ctrl.perfil);
 router.get('/:id/profit-matrix', profitCtrl.getMatrix);
 router.put('/:id/profit-matrix/bulk', profitCtrl.putMatrizMasiva);
 router.put('/:id/profit-matrix', profitCtrl.putOverride);
+router.delete('/:id/profit-matrix/todo', profitCtrl.vaciarMatriz);
 router.delete('/:id/profit-matrix', profitCtrl.deleteOverride);
 router.get('/:id/profit-resolve', profitCtrl.resolve);
 

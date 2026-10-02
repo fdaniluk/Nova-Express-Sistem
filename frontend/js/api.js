@@ -215,6 +215,8 @@ api.clientes.profit = {
   guardar: (id, body) => api.put(`/clientes/${id}/profit-matrix`, body),
   // api.delete no acepta body; se usa request() directo para enviar las coordenadas.
   borrar: (id, body) => request(`/clientes/${id}/profit-matrix`, { method: 'DELETE', body }),
+  // Vacía la matriz entera de un servicio/tipo ({ servicio, tipo, tabla: 'profit'|'kg' }).
+  vaciar: (id, body) => request(`/clientes/${id}/profit-matrix/todo`, { method: 'DELETE', body }),
   // Resuelve la tarifa de VENTA del cliente. Devuelve { modo, profitPct, precioKg,
   // origen, advertencia, fuelPctPropio }: el backend decide solo si ese cliente cobra
   // por porcentaje o por precio por kilo.

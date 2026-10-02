@@ -55,6 +55,22 @@ async function deleteOverride(req, res, next) {
   }
 }
 
+// DELETE /api/clientes/:id/profit-matrix/todo  { servicio, tipo, tabla? }
+// Vacía la matriz entera de ese servicio/tipo (ver profit.service.vaciarMatriz).
+async function vaciarMatriz(req, res, next) {
+  try {
+    const { id } = req.params;
+    if (!(await profitService.clienteExiste(id))) {
+      return res.status(404).json({ error: 'Cliente no encontrado' });
+    }
+    const r = await profitService.vaciarMatriz(id, req.body || {});
+    res.json(r);
+  } catch (e) {
+    if (e.status === 400) return res.status(400).json({ error: e.message });
+    next(e);
+  }
+}
+
 // GET /api/clientes/:id/profit-resolve?servicio=X&tipo=Y&zona=Z&pf=N
 async function resolve(req, res, next) {
   try {
@@ -226,6 +242,7 @@ module.exports = {
   getMatrix,
   putOverride,
   deleteOverride,
+  vaciarMatriz,
   resolve,
   getMatrixKg,
   putOverrideKg,

@@ -851,6 +851,19 @@ async function upsertOverrideKg(clienteId, body) {
 }
 
 /** Borra una tarifa por kilo puntual. @returns {Promise<boolean>} true si borró. */
+// Vaciar UNA matriz entera (02/10/2026): todas las celdas, bandas, zonas y el general de
+// tabla de ese servicio/tipo. Pedido de Felipe: una matriz con todos los casilleros
+// cargados a mano no deja aplicar un general nuevo (las celdas pesan más, y está bien);
+// hacía falta poder arrancar de cero sin borrar casillero por casillero.
+// No toca clientes.tarifa_pct ni las otras matrices. `tabla` = 'profit' | 'kg'.
+async function vaciarMatriz(clienteId, { servicio, tipo, tabla = 'profit' } = {}) {
+  if (!SERVICIOS.includes(servicio)) { const e = new Error(`servicio inválido: ${servicio}`); e.status = 400; throw e; }
+  if (!TIPOS.includes(tipo)) { const e = new Error(`tipo inválido: ${tipo}`); e.status = 400; throw e; }
+  const t = tabla === 'kg' ? 'tarifa_kg_overrides' : 'profit_overrides';
+  const r = await getDb().prepare(`DELETE FROM ${t} WHERE cliente_id = ? AND servicio = ? AND tipo = ?`).run(clienteId, servicio, tipo);
+  return { borradas: r.changes };
+}
+
 async function eliminarOverrideKg(clienteId, body) {
   const { servicio, tipo, zona, peso_min } = validarCoordenadasKg(
     body,
@@ -1084,6 +1097,7 @@ module.exports = {
   pasoDe,
   cambiarPasoTramos,
   cargarMatrizMasiva,
+  vaciarMatriz,
   SERVICIOS,
   TIPOS,
   ZONAS,

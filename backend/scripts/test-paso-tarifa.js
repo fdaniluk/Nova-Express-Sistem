@@ -69,6 +69,18 @@ const check = (n, c, d = '') => { if (c) { ok++; console.log('  ✓ ' + n); } el
   const kg = await db.prepare(`SELECT COUNT(*) n, MIN(precio_kg) mn, MAX(precio_kg) mx FROM tarifa_kg_overrides WHERE cliente_id = ? AND zona = 3`).get(cli);
   check('10 tramos de 0,5 entre 10 y 15 con 9,9 USD/kg', kg.n === 10 && kg.mn === 9.9 && kg.mx === 9.9 && c4.celdas_kg === 10, JSON.stringify(kg));
 
+  console.log('\n7. Vaciar una matriz entera (02/10/2026)\n');
+  await P.upsertOverride(cli, { servicio: 'DHL', tipo: 'export', zona: 1, peso_min: 0, peso_max: 0.5, profit_pct: 33 });
+  const antesExp = (await db.prepare(`SELECT COUNT(*) n FROM profit_overrides WHERE cliente_id = ? AND servicio = 'UPS_EXP' AND tipo = 'export'`).get(cli)).n;
+  const v = await P.vaciarMatriz(cli, { servicio: 'UPS_EXP', tipo: 'export' });
+  check('borra todas las celdas de UPS Expedited exportación', v.borradas === antesExp && antesExp > 0 && (await db.prepare(`SELECT COUNT(*) n FROM profit_overrides WHERE cliente_id = ? AND servicio = 'UPS_EXP' AND tipo = 'export'`).get(cli)).n === 0, JSON.stringify(v));
+  check('no toca DHL ni los precios por kilo ni la tarifa general del cliente', (await db.prepare(`SELECT COUNT(*) n FROM profit_overrides WHERE cliente_id = ? AND servicio = 'DHL'`).get(cli)).n === 1 && (await db.prepare(`SELECT COUNT(*) n FROM tarifa_kg_overrides WHERE cliente_id = ?`).get(cli)).n === 10 && (await db.prepare('SELECT tarifa_pct FROM clientes WHERE id = ?').get(cli)).tarifa_pct === 50);
+  check('después el cliente cae a su tarifa general (50 %)', (await resolver(37, 1)).profitPct === 50 && (await resolver(37, 1)).origen === 'cliente', JSON.stringify(await resolver(37, 1)));
+  const vk = await P.vaciarMatriz(cli, { servicio: 'UPS_EXP', tipo: 'export', tabla: 'kg' });
+  check('tabla "kg" vacía los precios por kilo de esa matriz', vk.borradas === 10 && (await db.prepare(`SELECT COUNT(*) n FROM tarifa_kg_overrides WHERE cliente_id = ?`).get(cli)).n === 0);
+  let err = null; try { await P.vaciarMatriz(cli, { servicio: 'FEDEX', tipo: 'export' }); } catch (e) { err = e; }
+  check('servicio inválido → 400', err && err.status === 400);
+
   console.log(`\n${ok} pasaron · ${process.exitCode ? 'con fallas' : '0 fallaron'}`);
   process.exit(process.exitCode || 0);
 })().catch((e) => { console.error('FALLÓ:', e); process.exit(1); });
