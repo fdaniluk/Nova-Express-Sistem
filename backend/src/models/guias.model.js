@@ -37,6 +37,9 @@ function mapGuia(row) {
     items: datos.items || [],
     pais_destino: datos.pais_destino || row.destinatario_pais || null,
     peso_real: (datos.bultos || []).reduce((s, b) => s + (Number(b.peso_real) || 0), 0),
+    // Seguro UPS (02/10): las guías anteriores a esa fecha salieron sin valor declarado.
+    asegurada: datos.asegurar === undefined ? false : Boolean(datos.asegurar),
+    valor_declarado_ups: Number(datos.valor_declarado_ups) || 0,
   };
 }
 
@@ -133,9 +136,12 @@ async function emitir(input, usuario) {
   if (input.destinatario_id && cliente && !destinatario) faltan.push('El destinatario no es de ese cliente');
   if (faltan.length) return { errores: faltan, tipo: 'datos' };
 
+  // Seguro de UPS (02/10): por defecto la guía sale asegurada por el FOB (valor declarado por
+  // bulto). Solo se saca si la pantalla lo destilda explícitamente (asegurar = 0).
+  const asegurar = input.asegurar === undefined || input.asegurar === null || input.asegurar === '' ? true : Boolean(Number(input.asegurar));
   const pedido = ups.armarPedido({
     remitente, destinatario, bultos, servicio, ddp: Boolean(input.ddp), contenido, fob,
-    referencia: `nova cli ${cliente.id}`,
+    referencia: `nova cli ${cliente.id}`, asegurar,
   });
   const r = await ups.pedirGuia(pedido);
   if (!r.ok) return { errores: r.errores, tipo: 'ups', status: r.status, respuesta: r.data };
@@ -154,6 +160,9 @@ async function emitir(input, usuario) {
     // Título de la proforma (10/09/2026): no siempre es "Commercial Invoice".
     proforma_titulo: limpiarTitulo(input.proforma_titulo),
     observaciones: String(input.observaciones ?? '').trim() || null,
+    // Seguro UPS: si fue asegurada y por cuánto (la suma de los valores declarados por bulto).
+    asegurar,
+    valor_declarado_ups: asegurar ? Math.round((Number(fob) || 0) * 100) / 100 : 0,
     trackings: resumen.trackings,
     alertas: resumen.alertas,
     moneda: resumen.moneda,

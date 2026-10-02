@@ -145,7 +145,27 @@ function validar({ cliente, remitente, destinatario, bultos, servicio, contenido
   return faltan;
 }
 
-function armarPedido({ remitente, destinatario, bultos, servicio, ddp, contenido, fob, referencia }) {
+// Valor declarado para el SEGURO de UPS (02/10/2026). El seguro que Nova le cobra al cliente
+// es el de UPS, así que la guía tiene que salir asegurada: si no, el envío viaja sin
+// cobertura aunque el cliente la pagó. UPS lo toma por bulto (PackageServiceOptions.
+// DeclaredValue), igual que el casillero "valor declarado" de su página: el FOB se reparte
+// entre los bultos en proporción al peso (en partes iguales si no hay pesos) y el último
+// absorbe el redondeo para que la suma sea exactamente el FOB.
+function repartirValorDeclarado(fob, bultos) {
+  const total = Math.round((Number(fob) || 0) * 100) / 100;
+  const n = bultos.length;
+  if (!(total > 0) || !n) return bultos.map(() => 0);
+  const pesos = bultos.map((b) => Math.max(0, Number(b.peso_real) || 0));
+  const sumaPesos = pesos.reduce((a, b) => a + b, 0);
+  const partes = pesos.map((p) => (sumaPesos > 0 ? total * (p / sumaPesos) : total / n));
+  const out = partes.map((v) => Math.round(v * 100) / 100);
+  const acum = out.slice(0, -1).reduce((a, b) => a + b, 0);
+  out[n - 1] = Math.round((total - acum) * 100) / 100;
+  return out;
+}
+
+function armarPedido({ remitente, destinatario, bultos, servicio, ddp, contenido, fob, referencia, asegurar = true }) {
+  const valoresDeclarados = asegurar ? repartirValorDeclarado(fob, bultos) : bultos.map(() => 0);
   const nova = shipperNova();
   const cuenta = cuentaExpo();
   const iso = isoDePais(destinatario.pais);
@@ -224,6 +244,9 @@ function armarPedido({ remitente, destinatario, bultos, servicio, ddp, contenido
               Width: String(Math.ceil(Number(b.ancho))),
               Height: String(Math.ceil(Number(b.alto))),
             };
+          }
+          if (valoresDeclarados[i] > 0) {
+            pkg.PackageServiceOptions = { DeclaredValue: { CurrencyCode: 'USD', MonetaryValue: valoresDeclarados[i].toFixed(2) } };
           }
           return pkg;
         }),
@@ -324,6 +347,7 @@ async function anularGuia(numeroGuia) {
 }
 
 module.exports = {
+  repartirValorDeclarado,
   taxIdParaUps,
   SERVICIO_CODIGO,
   SERVICIO_NOMBRE,

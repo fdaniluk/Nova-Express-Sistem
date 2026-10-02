@@ -509,6 +509,7 @@
       fecha: $('g-fecha').value,
       servicio: $('g-servicio').value,
       ddp: $('g-ddp').checked ? 1 : 0,
+      asegurar: $('g-seguro').checked ? 1 : 0,
       contenido: $('g-contenido').value.trim(),
       proforma_numero: $('g-proforma').value.trim() || null,
       proforma_titulo: tituloProforma(),
@@ -572,6 +573,7 @@
     mostrarProximaProforma();
     $('g-observaciones').value = '';
     $('g-ddp').checked = false;
+    $('g-seguro').checked = true;
     $('g-items').querySelector('tbody').innerHTML = '';
     $('g-bultos').querySelector('tbody').innerHTML = '';
     agregarItem();
@@ -594,6 +596,7 @@
       fecha: $('g-fecha').value,
       servicio: $('g-servicio').value,
       ddp: $('g-ddp').checked ? 1 : 0,
+      asegurar: $('g-seguro').checked ? 1 : 0,
       contenido: $('g-contenido').value.trim(),
       proforma_numero: $('g-proforma').value.trim() || null,
       proforma_titulo_sel: $('g-proforma-titulo') ? $('g-proforma-titulo').value : null,
@@ -612,6 +615,7 @@
     if (x.fecha) $('g-fecha').value = x.fecha;
     if (x.servicio) $('g-servicio').value = x.servicio;
     $('g-ddp').checked = !!x.ddp;
+    $('g-seguro').checked = x.asegurar === undefined ? true : !!x.asegurar;
     $('g-contenido').value = x.contenido || '';
     $('g-proforma').value = x.proforma_numero || '';
     if ($('g-proforma-titulo') && x.proforma_titulo_sel) { $('g-proforma-titulo').value = x.proforma_titulo_sel; $('g-proforma-titulo-otro').value = x.proforma_titulo_otro || ''; $('g-proforma-titulo-otro').classList.toggle('hidden', x.proforma_titulo_sel !== '__otro'); }
@@ -759,7 +763,7 @@
     set('remitente', r ? (r.principal ? 'La ficha del cliente' : r.nombre) : '');
     set('destino', d ? `${d.nombre} · ${[d.ciudad, d.pais].filter(Boolean).join(', ')}` : '');
     const serv = $('g-servicio');
-    set('servicio', (serv.options[serv.selectedIndex]?.text || '') + ($('g-ddp').checked ? ' · DDP' : ''));
+    set('servicio', (serv.options[serv.selectedIndex]?.text || '') + ($('g-ddp').checked ? ' · DDP' : '') + ($('g-seguro').checked ? ' · seguro UPS' : ' · SIN seguro'));
     const bultos = leerBultos();
     const kg = bultos.reduce((s2, b) => s2 + (b.peso_real || 0), 0);
     set('bultos', bultos.length ? `${bultos.length} × ${Math.round(kg * 100) / 100} kg` : '');
@@ -776,7 +780,7 @@
       <div class="datos">
         <div class="numero">${esc(g.numero_guia || '(sin número)')}</div>
         <div><b>${esc(g.cliente_nombre)}</b>${g.remitente_nombre ? ` (remitente: ${esc(g.remitente_nombre)})` : ''} → ${esc(g.destinatario_nombre)}, ${esc([g.destinatario_ciudad, g.destinatario_pais].filter(Boolean).join(', '))}</div>
-        <div>${esc(config?.servicios?.find((s) => s.codigo === g.servicio)?.nombre || g.servicio)} · ${g.bultos.length} bulto(s) · ${kg} kg · FOB US$ ${money(g.fob)}${g.ddp ? ' · DDP' : ''}</div>
+        <div>${esc(config?.servicios?.find((s) => s.codigo === g.servicio)?.nombre || g.servicio)} · ${g.bultos.length} bulto(s) · ${kg} kg · FOB US$ ${money(g.fob)}${g.ddp ? ' · DDP' : ''}${g.asegurada ? ` · seguro UPS (valor declarado US$ ${money(g.valor_declarado_ups)})` : ' · sin seguro UPS'}</div>
         ${g.cargo_ups != null ? `<div class="gui-hint">Cargo según UPS (tarifa de lista): ${esc(g.datos.moneda || 'USD')} ${money(g.cargo_ups)}</div>` : ''}
         <div class="gui-hint">Quedó como precarga: administración la confirma desde <a href="envios.html">Cargar envío</a>.</div>
       </div>
@@ -822,7 +826,7 @@
     tb.innerHTML = lista.map((g) => `
       <tr data-id="${g.id}">
         <td>${esc(NovaUtils.formatDate(g.fecha))}</td>
-        <td><span class="guia-num">${esc(g.numero_guia || '—')}</span>${g.entorno === 'test' ? '<span class="gui-test-chip">prueba</span>' : ''}<br><span class="gui-hint">${esc(g.servicio === 'UPS_SAV' ? 'Saver' : g.servicio === 'UPS_EXP' ? 'Expedited' : g.servicio)}${g.ddp ? ' · DDP' : ''}</span></td>
+        <td><span class="guia-num">${esc(g.numero_guia || '—')}</span>${g.entorno === 'test' ? '<span class="gui-test-chip">prueba</span>' : ''}<br><span class="gui-hint">${esc(g.servicio === 'UPS_SAV' ? 'Saver' : g.servicio === 'UPS_EXP' ? 'Expedited' : g.servicio)}${g.ddp ? ' · DDP' : ''}${g.asegurada ? '' : ' · <span title="Salió sin valor declarado: UPS no la asegura">sin seguro</span>'}</span></td>
         <td>${esc(g.cliente_nombre)}${g.remitente_nombre ? `<br><span class="gui-hint">rem. ${esc(g.remitente_nombre)}</span>` : ''}</td>
         <td>${esc(g.destinatario_nombre || '—')}<br><span class="gui-hint">${esc([g.destinatario_ciudad, g.destinatario_pais].filter(Boolean).join(', '))}</span></td>
         <td class="n">${g.bultos.length} × ${esc(g.peso_real)} kg</td>

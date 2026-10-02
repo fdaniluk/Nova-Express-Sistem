@@ -131,6 +131,15 @@ async function main() {
   check('  DDP → cargo 01 flete + cargo 02 impuestos, los dos a la cuenta de Nova', cargos.length === 2 && cargos[1].Type === '02' && cargos[1].BillShipper.AccountNumber === '327W09', JSON.stringify(cargos));
   check('  2 paquetes: uno con medidas en CM, el otro sin Dimensions', req.Shipment.Package.length === 2 && req.Shipment.Package[0].Dimensions?.UnitOfMeasurement.Code === 'CM' && !req.Shipment.Package[1].Dimensions, JSON.stringify(req.Shipment.Package));
   check('  InvoiceLineTotal 400 USD', req.Shipment.InvoiceLineTotal.MonetaryValue === '400' && req.Shipment.InvoiceLineTotal.CurrencyCode === 'USD');
+  // Seguro UPS (02/10): valor declarado por bulto, repartido por peso, suma = FOB.
+  const dv = req.Shipment.Package.map((p) => Number(p.PackageServiceOptions?.DeclaredValue?.MonetaryValue || 0));
+  check('  seguro UPS: DeclaredValue en cada bulto y la suma es el FOB (400)', dv.every((v) => v > 0) && Math.abs(dv.reduce((a, b) => a + b, 0) - 400) < 0.005 && req.Shipment.Package[0].PackageServiceOptions.DeclaredValue.CurrencyCode === 'USD', JSON.stringify(dv));
+  check('  la guía queda marcada como asegurada por 400', g.asegurada === true && g.valor_declarado_ups === 400, JSON.stringify({ a: g.asegurada, v: g.valor_declarado_ups }));
+  const upsSvc = require('../src/services/ups-shipping.service');
+  const pedSin = upsSvc.armarPedido({ remitente: { nombre: 'X', contacto: 'X', telefono: '1', direccion: 'd', ciudad: 'c', codigo_postal: '1' }, destinatario: { nombre: 'Y', contacto: 'Y', telefono: '1', direccion1: 'd', ciudad: 'c', codigo_postal: '1', pais: 'Estados Unidos' }, bultos: [{ peso_real: 2 }], servicio: 'UPS_SAV', ddp: false, contenido: 'Cueros', fob: 100, referencia: 't', asegurar: false });
+  check('  destildado (asegurar: false) → el pedido sale sin DeclaredValue', !pedSin.ShipmentRequest.Shipment.Package[0].PackageServiceOptions);
+  const { repartirValorDeclarado } = require('../src/services/ups-shipping.service');
+  check('  reparto por peso: 100 en bultos de 3 y 1 kg → 75 + 25; sin pesos → partes iguales; 10 en 3 bultos cierra en 10', JSON.stringify(repartirValorDeclarado(100, [{ peso_real: 3 }, { peso_real: 1 }])) === '[75,25]' && JSON.stringify(repartirValorDeclarado(100, [{}, {}])) === '[50,50]' && repartirValorDeclarado(10, [{ peso_real: 1 }, { peso_real: 1 }, { peso_real: 1 }]).reduce((a, b) => a + b, 0) === 10);
   check('  etiqueta GIF por bulto guardada', JSON.parse(fila.etiqueta_gif).length === 2);
 
   r = await get(`/api/guias/${g.id}/etiqueta.gif`);
