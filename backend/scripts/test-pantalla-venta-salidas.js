@@ -147,6 +147,13 @@ async function main() {
 
   console.log('\n4. No pisa una venta ya cargada sin confirmar\n');
 
+  // (05/10) Con el precio recién aplicado, volver a calcular da lo mismo: avisa "Sin cambios"
+  // y no abre el panel. Después se cambia el total a mano para probar el panel de reemplazo.
+  await page.click('#saled-calcular-venta');
+  await esperar(3500);
+  const st0 = await page.textContent('#saled-venta-status');
+  check('con el precio ya actualizado dice "Sin cambios" y no abre el panel', /Sin cambios/.test(st0) && !!(await page.$('#saled-venta-panel.hidden')), st0);
+  await page.fill('#saled-total', String((Number(total) - 20).toFixed(2)));
   await page.click('#saled-calcular-venta');
   await esperar(3500);
   const panel2 = await page.textContent('#saled-venta-panel');
@@ -157,7 +164,8 @@ async function main() {
   await page.click('#saled-venta-descartar');
   await esperar(500);
   check('"Dejar como está" no toca el total',
-    (await page.inputValue('#saled-total')) === total);
+    (await page.inputValue('#saled-total')) === (Number(total) - 20).toFixed(2));
+  await page.fill('#saled-total', total);
 
   console.log('\n5. Recalcular es el COSTO, no el precio\n');
 
@@ -167,6 +175,7 @@ async function main() {
     (await page.inputValue('#saled-total')) === total,
     `antes ${total} · después ${await page.inputValue('#saled-total')}`);
   check('pero sí repuebla el costo', Number(await page.inputValue('#saled-flete')) > 0);
+  check('y como el costo no cambió, avisa "Sin cambios"', /Sin cambios/.test(await page.textContent('#saled-recalc-status')), await page.textContent('#saled-recalc-status'));
 
   await page.click('#sal-modal-save');
   await esperar(2500);

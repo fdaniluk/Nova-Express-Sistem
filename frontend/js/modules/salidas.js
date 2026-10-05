@@ -3148,6 +3148,19 @@
 
     try {
       const r = await NovaAPI.salidas.recalcular(editEnvio.id, body);
+      // ¿Cambió algo? (05/10, pedido de Felipe): si el costo que devuelve el motor es el
+      // mismo que ya estaba cargado, decirlo. Así quien aprieta "por las dudas" sabe que no
+      // tocó nada. Se compara campo por campo contra lo que hay en el modal.
+      const cambios = [];
+      const cmp = (id, nuevo, nombre) => {
+        const viejo = parseNum(document.getElementById(id).value) || 0;
+        if (Math.abs((Number(nuevo) || 0) - viejo) >= 0.005) cambios.push(`${nombre} ${fmtUSDPlano(viejo)} → ${fmtUSDPlano(Number(nuevo) || 0)}`);
+      };
+      cmp('saled-flete', r.flete, 'flete');
+      cmp('saled-seguro', r.seguro, 'seguro');
+      cmp('saled-fuel', r.fuel, 'fuel');
+      cmp('saled-adicionales', r.adicionales, 'adicionales');
+      if (Math.abs((Number(r.peso_facturable) || 0) - (parseNum(document.getElementById('saled-peso-facturable').value) || 0)) >= 0.005) cambios.push('peso facturable');
       document.getElementById('saled-flete').value = r.flete ?? '';
       document.getElementById('saled-seguro').value = r.seguro ?? '';
       document.getElementById('saled-fuel').value = r.fuel ?? '';
@@ -3168,7 +3181,9 @@
       renderExtrasBlock();
       recalcProfit();
       status.className = 'saled-recalc-status saled-recalc-ok';
-      status.textContent = 'Desglose actualizado. Revisá y guardá para persistir.';
+      status.textContent = cambios.length
+        ? `Desglose actualizado (${cambios.join(' · ')}). Revisá y guardá para persistir.`
+        : 'Sin cambios: el costo guardado ya coincide con la tarifa de hoy.';
       // Recalcular toca el COSTO. Si el envio ya tenia un precio de venta, ese precio se
       // calculo con el peso VIEJO y ahora quedo desfasado, sin que nada avise. Asi se
       // facturaba mal: cambias el peso, guardas, y el precio viejo queda. Lo encontro la
@@ -3389,6 +3404,14 @@
 
     try {
       const r = await NovaAPI.liquidaciones.cotizar(body);
+      // Sin cambios (05/10): si lo cargado ya es el precio de la tarifa actual del cliente,
+      // se dice y listo; no hay nada que reemplazar.
+      const actual = parseNum(document.getElementById('saled-total').value) || 0;
+      if (actual > 0 && Math.abs((Number(r.precioFinal) || 0) - actual) < 0.01) {
+        status.className = 'saled-recalc-status saled-recalc-ok';
+        status.textContent = `Sin cambios: el precio cargado (${fmtUSDPlano(actual)}) coincide con la tarifa actual del cliente.`;
+        return;
+      }
       status.textContent = '';
       renderVentaPanel(r);
     } catch (err) {
