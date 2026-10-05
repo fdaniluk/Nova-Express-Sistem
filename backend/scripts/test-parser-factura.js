@@ -100,6 +100,8 @@ async function testPercepcion() {
 
   check('NO reparte la percepción', r.percepciones_repartidas === false);
   check('la percepción es 91.22 y queda en la cabecera', r.percepciones === 91.22, `dio ${r.percepciones}`);
+  const g0 = r.guias.find((g) => g.numero_guia === '1Z327W096790199567');
+  check('lee flete neto y fuel de las columnas (1292.50−1150.33 = 142.17 · 518.92−445.75 = 73.17)', g0 && g0.flete_neto === 142.17 && g0.fuel === 73.17 && Math.abs(g0.flete_neto + g0.fuel - g0.neto) < 0.011, JSON.stringify(g0 && { f: g0.flete_neto, fu: g0.fuel, n: g0.neto }));
   check('avisa que queda aparte', r.advertencias.some((a) => a.tipo === 'percepcion_aparte'));
   check('ya no avisa de descuadre', !r.advertencias.some((a) => a.tipo === 'total_no_cuadra'));
   check('la factura se da por cuadrada (guías = subtotal, diferencia = percepción)', r.cuadra === true);

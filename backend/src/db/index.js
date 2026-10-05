@@ -686,6 +686,10 @@ async function migrateFacturaGuias() {
   if (!cols.includes('percepcion')) {
     await dbApi.exec('ALTER TABLE factura_guias ADD COLUMN percepcion REAL');
   }
+  // Flete neto y fuel de la factura por guía (05/10/2026): las columnas del PDF que antes
+  // se descartaban. Sirven para el cruce "fuel cargado vs fuel facturado". NULL en lo viejo.
+  if (!cols.includes('flete_facturado')) await dbApi.exec('ALTER TABLE factura_guias ADD COLUMN flete_facturado REAL');
+  if (!cols.includes('fuel_facturado')) await dbApi.exec('ALTER TABLE factura_guias ADD COLUMN fuel_facturado REAL');
 
   // Totales de la cabecera de la factura. El parser ya los calcula (total declarado en
   // el pie del PDF, subtotal antes de percepciones, y la percepción que se repartió),

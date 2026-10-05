@@ -47,6 +47,18 @@ function check(nombre, cond, det) {
   check('peso facturado 9.5 vs cargado 8 → anomalía de peso +1.5', a.length === 1 && a[0].clase === 'peso' && a[0].dif === 1.5, JSON.stringify(a));
   a = detectarAnomalias(envio, { cargos: [], peso_facturado: 8.3 });
   check('0.3 kg de diferencia no avisa', a.length === 0);
+  a = detectarAnomalias(envio, { cargos: [], peso_facturado: 6 });
+  check('UPS cobró MENOS kilos (6 vs 8): a favor nuestro, no avisa', a.length === 0, JSON.stringify(a));
+
+  const envioFuel = { ...envio, fuel: 20 };
+  a = detectarAnomalias(envioFuel, { cargos: [], peso_facturado: 8, fuel_facturado: 26 });
+  check('fuel facturado 26 vs calculado 20 (+6, 30 %) → anomalía de fuel', a.length === 1 && a[0].tipo === 'fuel' && a[0].dif === 6 && /Fuel: facturado USD 26\.00, calculado USD 20\.00/.test(a[0].texto), JSON.stringify(a));
+  a = detectarAnomalias(envioFuel, { cargos: [], peso_facturado: 8, fuel_facturado: 21 });
+  check('fuel +1 no avisa', a.length === 0);
+  a = detectarAnomalias(envioFuel, { cargos: [], peso_facturado: 8, fuel_facturado: 15 });
+  check('fuel facturado menor: a favor nuestro, no avisa', a.length === 0);
+  a = detectarAnomalias(envioFuel, { cargos: [], peso_facturado: 8, fuel_facturado: null });
+  check('factura vieja sin fuel discriminado: no compara', a.length === 0);
 
   a = detectarAnomalias({ ...envio, entrega: 'extendida' }, { cargos: [{ nombre: 'Extended Area Surcharge Destination', monto: 32 }], peso_facturado: 8 });
   check('zona de entrega marcada "extendida" en el envío cubre el recargo aunque no tenga monto', a.length === 0, JSON.stringify(a));

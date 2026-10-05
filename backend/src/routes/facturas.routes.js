@@ -265,7 +265,7 @@ router.post('/cargar', subirPdf, async (req, res, next) => {
         try {
           // Igual que en /chequear: igualdad directa para que entre por el índice único.
           const envio = await db
-            .prepare('SELECT id, total_cobrado, costo_facturado, ddp, impuestos_facturados, extras_json, seguro, derechos, peso_facturable, entrega, remota, cliente_id FROM envios WHERE numero_guia = ?')
+            .prepare('SELECT id, total_cobrado, costo_facturado, ddp, impuestos_facturados, extras_json, seguro, derechos, fuel, peso_facturable, entrega, remota, cliente_id FROM envios WHERE numero_guia = ?')
             .get(normalizarGuia(guia.numero_guia));
 
           detalle.push({ guia, envio_id: envio ? envio.id : null, encontrada: envio ? 1 : 0 });
@@ -338,7 +338,7 @@ router.post('/cargar', subirPdf, async (req, res, next) => {
           }
           // Anomalías (05/10): un recargo no previsto o un peso distinto también manda la
           // guía a revisar, aunque el margen esté bien. Es lo que administración tiene que ver.
-          const anomalias = detectarAnomalias({ ...envio, cargos_posteriores: await cargosModel.listarDeEnvio(envio.id, db) }, { cargos: guia.cargos, peso_facturado: guia.peso });
+          const anomalias = detectarAnomalias({ ...envio, cargos_posteriores: await cargosModel.listarDeEnvio(envio.id, db) }, { cargos: guia.cargos, peso_facturado: guia.peso, fuel_facturado: guia.fuel });
           if (anomalias.length) {
             estado_revision = 'a_revisar';
             resumen.con_anomalias++;
@@ -407,8 +407,8 @@ router.post('/cargar', subirPdf, async (req, res, next) => {
         const g = d.guia;
         await db.prepare(`
           INSERT OR IGNORE INTO factura_guias
-            (factura_id, envio_id, numero_guia, pais, peso_facturado, neto, total_recargos, percepcion, costo_total, cargos_json, encontrada)
-          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            (factura_id, envio_id, numero_guia, pais, peso_facturado, neto, total_recargos, percepcion, costo_total, cargos_json, encontrada, flete_facturado, fuel_facturado)
+          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `).run(
           facturaId,
           d.envio_id,
@@ -420,7 +420,9 @@ router.post('/cargar', subirPdf, async (req, res, next) => {
           g.percepcion ?? null,
           g.costo_total ?? null,
           JSON.stringify(g.cargos ?? []),
-          d.encontrada
+          d.encontrada,
+          g.flete_neto ?? null,
+          g.fuel ?? null
         );
       }
     });
@@ -477,8 +479,9 @@ router.get('/guias', async (req, res, next) => {
         e.id, e.numero_guia, e.pais_destino, e.fecha,
         e.total_cobrado, e.costo_facturado, e.courier_facturado,
         e.fecha_facturado, e.estado_revision, e.servicio_ups,
-        e.extras_json, e.seguro, e.derechos, e.peso_facturable, e.peso_facturado, e.entrega, e.remota, e.ddp,
+        e.extras_json, e.seguro, e.derechos, e.fuel, e.peso_facturable, e.peso_facturado, e.entrega, e.remota, e.ddp,
         (SELECT fg.cargos_json FROM factura_guias fg WHERE fg.envio_id = e.id ORDER BY fg.id DESC LIMIT 1) AS cargos_json,
+        (SELECT fg.fuel_facturado FROM factura_guias fg WHERE fg.envio_id = e.id ORDER BY fg.id DESC LIMIT 1) AS fuel_facturado,
         c.nombre AS cliente
       FROM envios e
       JOIN clientes c ON c.id = e.cliente_id
@@ -524,7 +527,7 @@ router.get('/guias', async (req, res, next) => {
         servicio_ups: r.servicio_ups ?? null,
         // Anomalías (05/10): recargos no previstos / más caros / otro peso, contra la factura
         // más reciente cruzada a este envío.
-        anomalias: detectarAnomalias({ ...r, cargos_posteriores: cargosPorEnvio.get(r.id) || [] }, { cargos_json: r.cargos_json, peso_facturado: r.peso_facturado }),
+        anomalias: detectarAnomalias({ ...r, cargos_posteriores: cargosPorEnvio.get(r.id) || [] }, { cargos_json: r.cargos_json, peso_facturado: r.peso_facturado, fuel_facturado: r.fuel_facturado }),
       };
     });
 

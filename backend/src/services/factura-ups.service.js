@@ -231,7 +231,17 @@ function extraerFacturaUPSDesdeTexto(texto) {
       // la suma cuadre). Se acepta cualquier línea compuesta SOLO de importes (dos
       // o más); el neto sigue viniendo solo, en la línea siguiente.
       const col = line.match(/^-?[\d.,]+(\s+-?[\d.,]+)+$/);
-      if (col) state = 'neto';
+      if (col) {
+        // Columnas (05/10): flete bruto, descuento, fuel bruto, descuento del fuel. Con
+        // cuatro, flete neto = c1+c2 y fuel = c3+c4 (se usan para el cruce de fuel
+        // cargado vs facturado). Con dos, es todo flete y no hay fuel discriminado.
+        const nums = line.trim().split(/\s+/).map(parseImporte);
+        if (nums.length >= 4 && nums.every((n) => n != null)) {
+          current.flete_neto = r2(nums[0] + nums[1]);
+          current.fuel = r2(nums[2] + nums[3]);
+        }
+        state = 'neto';
+      }
       continue;
     }
 
@@ -327,6 +337,8 @@ function extraerFacturaUPSDesdeTexto(texto) {
       pais: g.pais,
       peso: g.peso,
       neto: g.neto,
+      flete_neto: g.flete_neto ?? null,
+      fuel: g.fuel ?? null,
       total_recargos,
       costo_total,
       // Desglose de recargos por tipo (Additional Handling, Large Package, etc.).

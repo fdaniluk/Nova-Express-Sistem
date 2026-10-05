@@ -132,12 +132,24 @@ function detectarAnomalias(envio, factura) {
     }
   }
 
-  // Peso: lo que facturó el courier contra lo que se cargó.
+  // Peso: lo que facturó el courier contra lo que se cargó. Solo cuando UPS cobró MÁS
+  // kilos (pedido de Felipe 05/10: si cobró menos es a favor nuestro, no es alerta).
   const pfac = Number(factura.peso_facturado);
   const pf = Number(envio.peso_facturable);
-  if (pfac > 0 && pf > 0 && Math.abs(pfac - pf) >= PESO_MIN_KG && !(pfac > pf && cubiertoPorCargo('peso') > 0)) {
+  if (pfac > 0 && pf > 0 && pfac - pf >= PESO_MIN_KG && cubiertoPorCargo('peso') <= 0) {
     const dif = r2(pfac - pf);
-    out.push({ tipo: 'peso', label: 'Peso', facturado: pfac, previsto: pf, dif, clase: 'peso', texto: `Peso: facturado ${pfac} kg, cargado ${pf} kg (${dif > 0 ? '+' : ''}${dif} kg)` });
+    out.push({ tipo: 'peso', label: 'Peso', facturado: pfac, previsto: pf, dif, clase: 'peso', texto: `Peso: facturado ${pfac} kg, cargado ${pf} kg (+${dif} kg)` });
+  }
+
+  // Fuel: el que cobró UPS (columna de la factura) contra el que el sistema calculó al
+  // costo (envios.fuel). Solo cuando vino más caro, mismo umbral que los recargos.
+  const ffac = Number(factura.fuel_facturado);
+  const fsys = Number(envio.fuel);
+  if (ffac > 0 && fsys > 0) {
+    const dif = r2(ffac - fsys);
+    if (dif >= DIF_MIN_USD && (dif / fsys) * 100 >= DIF_MIN_PCT) {
+      out.push({ tipo: 'fuel', label: 'Fuel', facturado: ffac, previsto: fsys, dif, clase: 'mas_caro', texto: `Fuel: facturado USD ${ffac.toFixed(2)}, calculado USD ${fsys.toFixed(2)} (+${dif.toFixed(2)})` });
+    }
   }
 
   return out;

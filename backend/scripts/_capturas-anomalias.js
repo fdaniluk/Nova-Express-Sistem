@@ -1,0 +1,60 @@
+// Capturas de las anomalías de factura en Salidas (para mostrarle a Felipe).
+const { chromium } = require('playwright');
+const fs = require('fs'); const path = require('path');
+const { spawn } = require('child_process');
+const { prepararDb, abrirSesion, esperarServidor } = require('./_base-test');
+const PORT = 3968; const BASE = `http://localhost:${PORT}`;
+const DB = '/tmp/test_capturas_anom.db'; const TOKEN = 'token-cap-anom';
+const OUT = process.env.OUT_DIR || '/mnt/user-data/outputs/capturas';
+const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
+(async () => {
+  fs.mkdirSync(OUT, { recursive: true });
+  prepararDb(DB);
+  const sqlite3 = require('sqlite3');
+  const raw = new sqlite3.Database(DB);
+  const run = (sql, p = []) => new Promise((res, rej) => raw.run(sql, p, function (e) { e ? rej(e) : res(this); }));
+  const cli = await run("INSERT INTO clientes (nombre, tipo_cobro, tarifa_pct, activo) VALUES ('CASABLANCA (prueba)', 'CC', 50, 1)");
+  const mk = async (guia, pais, pf, pfac, costo, extras, cargos, estado) => {
+    const e = await run(`INSERT INTO envios (cliente_id, fecha, courier, servicio_ups, tipo_envio, numero_guia, pais_destino, peso_real, peso_facturable, fob, total_cobrado, flete, seguro, fuel, adicionales, extras_json, costo_facturado, peso_facturado, courier_facturado, fecha_facturado, estado_revision, entrega, cantidad_bultos)
+      VALUES (?, '2026-09-21', 'UPS', 'UPS_EXP', 'exportacion', ?, ?, ?, ?, 300, 320, 150, 15, 55, 20, ?, ?, ?, 'UPS', '2026-09-30', ?, 'normal', 1)`, [cli.lastID, guia, pais, pf, pf, JSON.stringify(extras), costo, pfac, estado]);
+    const f = await run(`INSERT INTO facturas_cargadas (numero_factura, fecha_factura, fecha_carga, courier, total_declarado, subtotal_factura, percepciones, tipo) VALUES (?, '2026-09-30', '2026-10-01', 'UPS', ?, ?, 0, 'flete')`, ['F-' + guia.slice(-4), costo, costo]);
+    await run(`INSERT INTO factura_guias (factura_id, envio_id, numero_guia, pais, peso_facturado, neto, total_recargos, costo_total, cargos_json, encontrada) VALUES (?, ?, ?, ?, ?, 150, 0, ?, ?, 1)`, [f.lastID, e.lastID, guia, pais, pfac, costo, JSON.stringify(cargos)]);
+    return e.lastID;
+  };
+  await mk('1Z327W096795198442', 'Reino Unido', 29.5, 32, 260.00, [{ tipo: 'surge', monto: 14.75 }], [{ nombre: 'SURGE FEE - COM', monto: 16 }, { nombre: 'Extended Area Surcharge Destination', monto: 32 }, { nombre: 'Residential', monto: 6 }, { nombre: 'PAPER COMMERCIAL INVOICE SURCHARGE', monto: 4 }, { nombre: 'PAPER COMMERCIAL INVOICE SURCHARGE', monto: -4 }], 'a_revisar');
+  await mk('1Z327W096796499679', 'Estados Unidos', 41, 44, 318.45, [{ tipo: 'surge', monto: 20.5 }, { tipo: 'ipf', monto: 2.5 }], [{ nombre: 'SURGE FEE - COM', monto: 22 }, { nombre: 'INTERNATIONAL PROCESSING FEE', monto: 2.5 }, { nombre: 'Additional Handling', monto: 27.65 }], 'pendiente');
+  await mk('1Z327W096792853579', 'Australia', 7.5, 7.5, 142.15, [{ tipo: 'surge', monto: 3.75 }], [{ nombre: 'SURGE FEE - COM', monto: 3.25 }, { nombre: 'Declared Value', monto: 6 }], 'pendiente');
+  await new Promise((r) => raw.close(r));
+
+  const srv = spawn('node', [path.join(__dirname, '..', 'src', 'server.js')], { env: { ...process.env, DB_PATH: DB, PORT: String(PORT), NODE_ENV: 'production' }, stdio: ['ignore', 'pipe', 'pipe'] });
+  let lo = '', le = ''; srv.stdout.on('data', (d) => { lo += d; }); srv.stderr.on('data', (d) => { le += d; });
+  process.on('exit', () => { try { srv.kill(); } catch {} });
+  await esperarServidor(srv, BASE, () => le, () => lo);
+  await abrirSesion(DB, TOKEN);
+  const exe = ['/opt/pw-browsers/chromium/chrome-linux/chrome', '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'].find((p) => fs.existsSync(p));
+  const browser = await chromium.launch(exe ? { executablePath: exe } : {});
+  const ctx = await browser.newContext({ viewport: { width: 1600, height: 900 }, deviceScaleFactor: 1.5 });
+  await ctx.addCookies([{ name: 'nova_session', value: TOKEN, url: BASE }]);
+  const page = await ctx.newPage();
+  await page.goto(`${BASE}/pages/salidas.html?desde=2026-09-21&hasta=2026-09-21`);
+  await esperar(2500);
+  const chip = await page.$('.chip-anom');
+  await chip.hover();
+  await esperar(400);
+  await page.screenshot({ path: path.join(OUT, '1-salidas-grilla.png'), fullPage: false });
+  await page.click('text=1Z327W096795198442');
+  await esperar(1200);
+  const block = await page.$('#saled-factura-block');
+  await block.scrollIntoViewIfNeeded();
+  await esperar(300);
+  const cargosBlock = await page.$('#saled-cargos-block');
+  const b1 = await cargosBlock.boundingBox(); const b2 = await block.boundingBox();
+  await page.screenshot({ path: path.join(OUT, '2-modal-factura.png'), clip: { x: Math.max(0, b1.x - 10), y: b1.y - 10, width: b2.width + 20, height: (b2.y + b2.height) - b1.y + 20 } });
+  await (await page.$$('.saled-anom-cobrar'))[0].click();
+  await esperar(400);
+  const b3 = await cargosBlock.boundingBox(); const b4 = await block.boundingBox();
+  await page.screenshot({ path: path.join(OUT, '3-cobrar-al-cliente.png'), clip: { x: Math.max(0, b3.x - 10), y: b3.y - 10, width: b4.width + 20, height: (b4.y + b4.height) - b3.y + 20 } });
+  await browser.close(); srv.kill();
+  console.log('ok', OUT);
+  setTimeout(() => process.exit(0), 500).unref();
+})().catch((e) => { console.error(e); process.exit(1); });
