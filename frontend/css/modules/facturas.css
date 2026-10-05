@@ -363,3 +363,16 @@
 .fac-corte-nota { font-size: 12.5px; color: var(--text-secondary, #6b6860); margin: 8px 0 10px; }
 .fac-corte-nota:empty { display: none; }
 .fac-corte-nota a { color: var(--color-primary, #2A3661); cursor: pointer; text-decoration: underline; }
+
+/* Ingresos Brutos (05/10/2026) */
+.fac-iibb-meses { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .8rem; }
+.fac-iibb-mes { border: 1px solid var(--border, #e5e2db); border-radius: 8px; padding: .4rem .7rem; display: flex; gap: .6rem; align-items: baseline; font-size: 13px; }
+.fac-iibb-mes b { color: var(--color-primary); }
+
+/* Cargos no previstos (05/10/2026) */
+.fac-anom-nota { font-size: 12.5px; color: var(--text-secondary, #6b6860); margin: .2rem 0 .6rem; }
+.fac-chip-anom { display: inline-block; font-size: 11.5px; padding: .1rem .45rem; border-radius: 999px; background: #FFF4EF; color: #B4492F; border: 1px solid #F6C3B4; margin: .1rem .15rem .1rem 0; white-space: nowrap; }
+.fac-chip-anom.fac-anom-mc { background: #FFF8E6; color: #8A5A00; border-color: #F3D48A; }
+.fac-chip-anom.fac-anom-peso { background: #EEF3FF; color: #2F4A9E; border-color: #C3CFF6; }
+.fac-anom-fila { margin-top: .2rem; display: flex; flex-wrap: wrap; gap: .15rem; }
+.fac-anom-fila .fac-chip-anom { white-space: normal; }

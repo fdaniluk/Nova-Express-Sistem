@@ -5,6 +5,7 @@ const { extraerFacturaUPS } = require('../services/factura-ups.service');
 const { hoyLocal, aISO } = require('../utils/fecha');
 const configuracionModel = require('../models/configuracion.model');
 const cargosModel = require('../models/envio-cargos.model');
+const { detectarAnomalias } = require('../utils/anomalias-factura');
 
 const router = Router();
 const upload = multer({
@@ -217,6 +218,10 @@ router.post('/cargar', subirPdf, async (req, res, next) => {
       // Solo impuestos: envíos que recibieron factura de impuestos sin estar marcados DDP.
       no_ddp: 0,
       no_ddp_lista: [],
+      // Anomalías (05/10): guías con recargos que el envío no tenía previstos, más caros de
+      // lo previsto, o con otro peso. Van a la bandeja de revisión y se listan en el resumen.
+      con_anomalias: 0,
+      anomalias_lista: [],
     };
     // Solo impuestos: ids de envíos a los que hay que pegarles el id de la factura, que
     // recién existe después de insertar la cabecera (más abajo).
@@ -260,7 +265,7 @@ router.post('/cargar', subirPdf, async (req, res, next) => {
         try {
           // Igual que en /chequear: igualdad directa para que entre por el índice único.
           const envio = await db
-            .prepare('SELECT id, total_cobrado, costo_facturado, ddp, impuestos_facturados FROM envios WHERE numero_guia = ?')
+            .prepare('SELECT id, total_cobrado, costo_facturado, ddp, impuestos_facturados, extras_json, seguro, derechos, peso_facturable, entrega, remota, cliente_id FROM envios WHERE numero_guia = ?')
             .get(normalizarGuia(guia.numero_guia));
 
           detalle.push({ guia, envio_id: envio ? envio.id : null, encontrada: envio ? 1 : 0 });
@@ -330,6 +335,14 @@ router.post('/cargar', subirPdf, async (req, res, next) => {
           if (costo_facturado > 0) {
             const ganancia_pct = (total_cobrado - costo_facturado) / costo_facturado * 100;
             if (ganancia_pct < umbral) estado_revision = 'a_revisar';
+          }
+          // Anomalías (05/10): un recargo no previsto o un peso distinto también manda la
+          // guía a revisar, aunque el margen esté bien. Es lo que administración tiene que ver.
+          const anomalias = detectarAnomalias({ ...envio, cargos_posteriores: await cargosModel.listarDeEnvio(envio.id, db) }, { cargos: guia.cargos, peso_facturado: guia.peso });
+          if (anomalias.length) {
+            estado_revision = 'a_revisar';
+            resumen.con_anomalias++;
+            resumen.anomalias_lista.push({ numero_guia: guia.numero_guia, envio_id: envio.id, pais: guia.pais, anomalias });
           }
 
           await db.prepare(`
@@ -464,6 +477,8 @@ router.get('/guias', async (req, res, next) => {
         e.id, e.numero_guia, e.pais_destino, e.fecha,
         e.total_cobrado, e.costo_facturado, e.courier_facturado,
         e.fecha_facturado, e.estado_revision, e.servicio_ups,
+        e.extras_json, e.seguro, e.derechos, e.peso_facturable, e.peso_facturado, e.entrega, e.remota, e.ddp,
+        (SELECT fg.cargos_json FROM factura_guias fg WHERE fg.envio_id = e.id ORDER BY fg.id DESC LIMIT 1) AS cargos_json,
         c.nombre AS cliente
       FROM envios e
       JOIN clientes c ON c.id = e.cliente_id
@@ -485,6 +500,7 @@ router.get('/guias', async (req, res, next) => {
         AND e.estado_revision IN ('a_revisar', 'reclamar')
         AND e.fecha < ?`).get(corte)).n;
 
+    const cargosPorEnvio = await cargosModel.porEnvios(rows.map((r) => r.id), db);
     const result = rows.map((r) => {
       const ganancia_usd = r.total_cobrado != null
         ? Math.round((r.total_cobrado - r.costo_facturado) * 100) / 100
@@ -506,6 +522,9 @@ router.get('/guias', async (req, res, next) => {
         ganancia_pct,
         estado_revision: r.estado_revision,
         servicio_ups: r.servicio_ups ?? null,
+        // Anomalías (05/10): recargos no previstos / más caros / otro peso, contra la factura
+        // más reciente cruzada a este envío.
+        anomalias: detectarAnomalias({ ...r, cargos_posteriores: cargosPorEnvio.get(r.id) || [] }, { cargos_json: r.cargos_json, peso_facturado: r.peso_facturado }),
       };
     });
 
@@ -524,6 +543,38 @@ router.get('/guias', async (req, res, next) => {
 // El backend ya las venía guardando (`factura_guias.encontrada = 0`), pero la única
 // pantalla que las mostraba era el resumen del momento de cargar la factura: al salir
 // de ahí no se volvían a ver nunca. Esto las consulta de todas las facturas cargadas.
+
+// ── Percepción de Ingresos Brutos por factura (05/10/2026) ───────────────────
+// Desde el 05/10 la percepción NO se reparte entre los envíos: es un costo de la empresa
+// y vive en la cabecera de cada factura. Este listado es el "apartado" donde se la ve,
+// factura por factura y por mes (base para el futuro módulo de costos de la empresa).
+// GET /api/facturas/percepciones?desde=YYYY-MM-DD&hasta=YYYY-MM-DD
+router.get('/percepciones', async (req, res, next) => {
+  try {
+    const db = getDb();
+    const desde = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.desde || '')) ? req.query.desde : null;
+    const hasta = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.hasta || '')) ? req.query.hasta : null;
+    const rows = await db.prepare(`
+      SELECT f.id, f.numero_factura, f.fecha_factura, f.fecha_carga, f.courier, f.tipo,
+             f.total_declarado, f.subtotal_factura, f.percepciones,
+             (SELECT COUNT(*) FROM factura_guias fg WHERE fg.factura_id = f.id) AS guias
+      FROM facturas_cargadas f
+      WHERE COALESCE(f.percepciones, 0) <> 0
+        AND (? IS NULL OR f.fecha_factura >= ?) AND (? IS NULL OR f.fecha_factura <= ?)
+      ORDER BY f.fecha_factura DESC, f.id DESC
+    `).all(desde, desde, hasta, hasta);
+    const porMes = {};
+    let total = 0;
+    for (const r of rows) {
+      const mes = String(r.fecha_factura || '').slice(0, 7) || 'sin fecha';
+      porMes[mes] = Math.round(((porMes[mes] || 0) + r.percepciones) * 100) / 100;
+      total += r.percepciones;
+    }
+    res.json({ facturas: rows, por_mes: porMes, total: Math.round(total * 100) / 100 });
+  } catch (err) {
+    next(err);
+  }
+});
 
 // GET /api/facturas/sin-envio
 router.get('/sin-envio', async (req, res, next) => {

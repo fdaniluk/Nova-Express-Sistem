@@ -679,7 +679,12 @@
   function costoUpsCellHtml(e, isFirst) {
     if (!isFirst) return '';
     if (e.costo_facturado == null) return '<span class="em">—</span>';
-    return fmtCell(e.costo_facturado);
+    // Anomalías de la factura (05/10): recargos no previstos / más caros / otro peso.
+    const an = e.anomalias_factura || [];
+    const chip = an.length
+      ? ` <span class="chip-anom" title="${escAttr('La factura trae algo no previsto:\n' + an.map((a) => '• ' + a.texto).join('\n') + '\nAbrí el envío para ver el detalle.')}">⚠ ${an.length}</span>`
+      : '';
+    return fmtCell(e.costo_facturado) + chip;
   }
 
   // Celda "Peso UPS": el peso que facturó el courier (e.peso_facturado).
@@ -2356,6 +2361,10 @@
                  al cliente en la liquidación del envío o, si ya está liquidado, en la
                  próxima del cliente. -->
             <div id="saled-cargos-block" class="saled-cargos"></div>
+            <!-- Factura del courier (05/10/2026): qué facturó UPS por esta guía, recargo por
+                 recargo, marcando lo que el envío NO tenía previsto. Desde acá se puede pasar
+                 cada diferencia a un cargo posterior para cobrársela al cliente. -->
+            <div id="saled-factura-block" class="saled-cargos"></div>
           </div>
           <div class="form-group">
             <label>Observaciones</label>
@@ -2604,6 +2613,7 @@
     pintarAvisoTarifa50();
     renderExtrasBlock();
     renderCargosBlock();
+    renderFacturaBlock();
 
     // Peso y medidas. Multi-bulto = más de un bulto: las medidas salen de cada bulto y el
     // peso balanza es la suma (no editable arriba). Bulto único = campos sueltos editables.
@@ -2965,6 +2975,63 @@
     return '<span class="saled-cargo-est pend" title="El envío ya está liquidado: este cargo se cobra en la próxima liquidación del cliente, como cargo de envío anterior">próxima liquidación</span>';
   }
 
+  // ── Factura del courier (05/10/2026) ──────────────────────────────────────────
+  // Lo que UPS facturó por esta guía, recargo por recargo, con las anomalías marcadas
+  // (lo que el envío no tenía previsto, lo que vino más caro, el peso distinto). Cada
+  // anomalía cobrable tiene "Cobrar al cliente": abre el formulario de cargo posterior ya
+  // completo con el tipo y el importe.
+  const ANOM_A_CARGO = { manejo: 'manejo', contorno: 'mayor_tamano', remota: 'remota', residencial: 'residencial', ddp: 'ddp', seguro: 'otro', papel: 'otro', direccion: 'otro', derechos: 'otro', otro: 'otro', surge: 'otro' };
+  function renderFacturaBlock() {
+    const block = document.getElementById('saled-factura-block');
+    if (!block || !editEnvio) return;
+    if (editEnvio.costo_facturado == null) { block.innerHTML = ''; return; }
+    const rec = editEnvio.recargos_facturados || [];
+    const an = editEnvio.anomalias_factura || [];
+    const clase = { no_previsto: 'np', mas_caro: 'mc', peso: 'peso' };
+    const filasRec = rec.filter((r) => Number(r.monto) !== 0).map((r) => `
+      <div class="saled-extra-row"><span class="saled-extra-label">${esc(r.nombre || r.label || 'Recargo')}</span><span class="saled-extra-monto">${fmtUSD(r.monto)}</span></div>`).join('');
+    const filasAn = an.map((a, i) => `
+      <div class="saled-anom-row ${clase[a.clase] || ''}">
+        <span class="saled-anom-texto">⚠ ${esc(a.texto)}</span>
+        ${a.clase !== 'peso' && a.dif > 0 ? `<button type="button" class="btn btn-secondary btn-sm saled-anom-cobrar" data-anom="${i}" title="Pasarlo a un cargo posterior para cobrárselo al cliente (al costo)">Cobrar al cliente</button>` : ''}
+      </div>`).join('');
+    block.innerHTML = `
+      <div class="saled-extras-title">Factura del courier <span class="saled-cargos-help" title="Lo que UPS facturó por esta guía (factura más reciente). Las líneas con ⚠ son cosas que el envío no tenía previstas, que vinieron más caras, o un peso distinto al cargado.">?</span>
+        <span class="saled-cargo-meta"> · costo ${fmtUSD(editEnvio.costo_facturado)}${editEnvio.peso_facturado != null ? ` · ${editEnvio.peso_facturado} kg facturados` : ''}${editEnvio.fecha_facturado ? ' · ' + NovaUtils.formatDate(editEnvio.fecha_facturado) : ''}</span>
+      </div>
+      ${an.length ? `<div class="saled-anom-list">${filasAn}</div>` : '<div class="saled-extras-empty">Sin diferencias contra lo previsto.</div>'}
+      ${filasRec ? `<details class="saled-factura-det"><summary>Recargos facturados (${rec.filter((r) => Number(r.monto) !== 0).length})</summary><div class="saled-extras-list">${filasRec}</div></details>` : ''}`;
+    block.querySelectorAll('.saled-anom-cobrar').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const a = an[Number(btn.dataset.anom)];
+        if (!a) return;
+        anomEnCurso = Number(btn.dataset.anom);
+        abrirFormCargo({ tipo: ANOM_A_CARGO[a.tipo] || 'otro', label: a.label, monto: a.dif });
+        document.getElementById('saled-cargos-block').scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
+    });
+  }
+
+  // Índice de la anomalía que se está pasando a cargo (null si el cargo se agrega a mano).
+  let anomEnCurso = null;
+
+  // Abre el formulario de cargo posterior con valores precargados (desde una anomalía de factura).
+  function abrirFormCargo({ tipo, label, monto }) {
+    renderCargosBlock();
+    const form = document.getElementById('saled-cargo-form');
+    const btn = document.getElementById('saled-cargo-btn');
+    if (!form || !btn) return;
+    form.classList.remove('hidden');
+    btn.classList.add('hidden');
+    const tipoSel = document.getElementById('saled-cargo-tipo');
+    const labelIn = document.getElementById('saled-cargo-label');
+    tipoSel.value = tipo;
+    labelIn.classList.toggle('hidden', tipo !== 'otro');
+    if (tipo === 'otro') labelIn.value = label || '';
+    document.getElementById('saled-cargo-monto').value = Number(monto).toFixed(2);
+    document.getElementById('saled-cargo-monto').focus();
+  }
+
   function renderCargosBlock() {
     const block = document.getElementById('saled-cargos-block');
     if (!block || !editEnvio) return;
@@ -3003,7 +3070,7 @@
       document.getElementById('saled-cargo-btn').classList.add('hidden');
       document.getElementById('saled-cargo-monto').focus();
     });
-    document.getElementById('saled-cargo-cancel').addEventListener('click', () => renderCargosBlock());
+    document.getElementById('saled-cargo-cancel').addEventListener('click', () => { anomEnCurso = null; renderCargosBlock(); });
     tipoSel.addEventListener('change', () => {
       labelIn.classList.toggle('hidden', tipoSel.value !== 'otro');
       if (tipoSel.value === 'otro') labelIn.focus();
@@ -3021,6 +3088,12 @@
       try {
         const cargo = await NovaAPI.salidas.agregarCargo(editEnvio.id, { tipo, label, monto });
         editEnvio.cargos = (editEnvio.cargos || []).concat([cargo]);
+        // Si el cargo salió de una anomalía de la factura, esa anomalía queda cubierta.
+        if (anomEnCurso != null && Array.isArray(editEnvio.anomalias_factura)) {
+          editEnvio.anomalias_factura.splice(anomEnCurso, 1);
+          anomEnCurso = null;
+          renderFacturaBlock();
+        }
         actualizarCargosEnGrilla();
         renderCargosBlock();
       } catch (err) {
@@ -3050,6 +3123,7 @@
     const d = allData.find((x) => x.id === editEnvio.id);
     if (d) {
       d.cargos = editEnvio.cargos;
+      d.anomalias_factura = editEnvio.anomalias_factura;
       d.cargos_pendientes = (d.cargos || []).filter((c) => c.estado === 'pendiente').reduce((s, c) => s + parseNum(c.monto), 0);
       // Los cargos son plata del envío (01/10): venta y compra suben lo mismo, el profit no.
       const antes = parseNum(d.cargos_total) || 0;

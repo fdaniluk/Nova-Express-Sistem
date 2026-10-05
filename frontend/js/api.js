@@ -337,6 +337,8 @@ api.facturas = {
   guias: (todo = false) => api.get(`/facturas/guias${todo ? '?todo=1' : ''}`),
   // Guías que el courier facturó y que no tienen envío en el sistema.
   sinEnvio: (todo = false) => api.get(`/facturas/sin-envio${todo ? '?todo=1' : ''}`),
+  // Percepción de Ingresos Brutos por factura (costo de la empresa, fuera de los envíos).
+  percepciones: (desde, hasta) => api.get(`/facturas/percepciones?desde=${desde || ''}&hasta=${hasta || ''}`),
   actualizarEstado: (id, estado_revision) =>
     request(`/facturas/guias/${id}/estado`, { method: 'PATCH', body: { estado_revision } }),
 };

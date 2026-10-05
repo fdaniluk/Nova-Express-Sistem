@@ -4,6 +4,7 @@
   let pdfFiles = [];              // archivos seleccionados (varios a la vez)
   let revisarLoaded = false;      // si la pestaña Revisar ya cargó datos
   let sinEnvioLoaded = false;     // idem para la pestaña Sin envío
+  let iibbLoaded = false;         // idem para Ingresos Brutos (05/10)
   let revisarData = [];           // guías cargadas para Revisar
   // Candado del envío en curso. El 28/08 casi todas las facturas quedaron cargadas
   // DOS veces con segundos de diferencia: "Sobreescribir" y "Omitir" seguían vivos
@@ -37,9 +38,11 @@
         document.getElementById('tab-cargar').classList.toggle('hidden', tab !== 'cargar');
         document.getElementById('tab-revisar').classList.toggle('hidden', tab !== 'revisar');
         document.getElementById('tab-sinenvio').classList.toggle('hidden', tab !== 'sinenvio');
+        document.getElementById('tab-iibb').classList.toggle('hidden', tab !== 'iibb');
 
         if (tab === 'revisar' && !revisarLoaded) loadRevisar();
         if (tab === 'sinenvio' && !sinEnvioLoaded) loadSinEnvio();
+        if (tab === 'iibb' && !iibbLoaded) loadIibb();
       });
     });
   }
@@ -91,12 +94,14 @@
       revisarLoaded = false;
       loadRevisar();
     });
+    document.getElementById('btn-iibb-reload').addEventListener('click', () => { iibbLoaded = false; loadIibb(); });
   }
 
   function resetCargarUI() {
     hide('fac-confirm');
     hide('fac-resumen');
     hide('fac-no-enc');
+    hide('fac-anom');
     hide('fac-reconc');
     hide('fac-advert');
     hide('fac-lote');
@@ -304,10 +309,32 @@
           <td>${num(r.total_guias)}</td>
           <td>${num(r.guardadas)}</td>
           <td>${num(r.no_encontradas)}</td>
+          <td>${r.con_anomalias ? `<span class="fac-chip-anom">⚠ ${r.con_anomalias}</span>` : (r.con_anomalias === 0 ? '0' : '—')}</td>
           <td>${esc(LOTE_ESTADOS[f.estado] || f.estado)}${f.motivo ? ': ' + esc(f.motivo) : ''}</td>
         </tr>`;
     }).join('');
     show('fac-lote');
+    if (final) {
+      const todas = [];
+      for (const f of loteFilas) for (const a of ((f.res && f.res.anomalias_lista) || [])) todas.push({ ...a, factura: f.res.numero_factura });
+      renderAnomalias(todas);
+    }
+  }
+
+  // Cargos no previstos (05/10): una fila por guía, con la lista de lo que la factura trae
+  // de más respecto de lo que el envío tenía calculado.
+  function renderAnomalias(lista) {
+    if (!Array.isArray(lista) || !lista.length) { hide('fac-anom'); return; }
+    const clase = { no_previsto: 'fac-anom-np', mas_caro: 'fac-anom-mc', peso: 'fac-anom-peso' };
+    document.getElementById('fac-anom-titulo').textContent = `${lista.length} guía${lista.length > 1 ? 's' : ''} con cargos no previstos — revisar`;
+    document.getElementById('fac-anom-body').innerHTML = lista.map((g) => `
+      <tr>
+        <td class="mono">${esc(g.numero_guia)}</td>
+        <td class="mono">${esc(g.factura || '')}</td>
+        <td>${esc(g.pais || '')}</td>
+        <td>${(g.anomalias || []).map((a) => `<span class="fac-chip-anom ${clase[a.clase] || ''}">${esc(a.texto)}</span>`).join(' ')}</td>
+      </tr>`).join('');
+    show('fac-anom');
   }
 
   // Factura de IMPUESTOS DDP (03/09/2026): UPS factura aparte los impuestos de destino de
@@ -351,8 +378,10 @@
       ${contadorExtra(res.sin_costo, 'Sin costo')}
       ${contadorExtra(res.errores, 'Con error')}
       ${contadorExtra(res.no_ddp, 'Sin tilde DDP')}
+      ${contadorExtra(res.con_anomalias, 'Con cargos no previstos')}
     `;
     show('fac-resumen');
+    renderAnomalias((res.anomalias_lista || []).map((a) => ({ ...a, factura: res.numero_factura })));
 
     // El backend ya devolvía estos datos; la pantalla no los mostraba.
     renderReconciliacion(res.reconciliacion);
@@ -398,14 +427,19 @@
       </div>
       <div class="fac-reconc-nums">
         <span>Suma de las guías: <b>$${Number(rec.suma_guias).toFixed(2)}</b></span>
+        ${rec.percepciones ? `<span>Percepción IIBB: <b>$${Number(rec.percepciones).toFixed(2)}</b></span>` : ''}
         <span>Total de la factura: <b>$${Number(rec.total_declarado).toFixed(2)}</b></span>
-        <span>Diferencia: <b>$${Number(rec.diferencia).toFixed(2)}</b></span>
+        ${rec.percepciones && cuadra ? '' : `<span>Diferencia: <b>$${Number(rec.diferencia).toFixed(2)}</b></span>`}
       </div>
-      ${cuadra ? '' : `
+      ${rec.percepciones ? `
         <div class="fac-reconc-nota">
-          La diferencia suele ser la percepción de Ingresos Brutos del pie de la factura,
-          que no está repartida por guía. Los costos guardados NO la incluyen.
-        </div>`}
+          La percepción de Ingresos Brutos <b>no se reparte entre los envíos</b>: queda registrada en la
+          factura como costo de la empresa (pestaña "Ingresos Brutos"). El costo de cada guía es el del detalle.
+        </div>` : (cuadra ? '' : `
+        <div class="fac-reconc-nota">
+          La suma de las guías no da el total de la factura y no se pudo identificar la diferencia
+          como percepción de Ingresos Brutos. Revisá la factura: puede haber una guía que no se leyó.
+        </div>`)}
     `;
     show('fac-reconc');
   }
@@ -495,6 +529,37 @@
     }
   }
 
+  // ── Pestaña INGRESOS BRUTOS (05/10/2026) ───────────────────────────────────
+  // La percepción de IIBB de cada factura, fuera de los envíos. Por mes y por factura.
+  async function loadIibb() {
+    const tbody = document.getElementById('fac-iibb-body');
+    const counter = document.getElementById('fac-iibb-counter');
+    const meses = document.getElementById('fac-iibb-meses');
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">Cargando…</td></tr>';
+    try {
+      const res = await NovaAPI.facturas.percepciones();
+      iibbLoaded = true;
+      const lista = res.facturas || [];
+      counter.textContent = lista.length ? `${lista.length} factura${lista.length > 1 ? 's' : ''} · ${fmtUSD(res.total)} en total` : '';
+      const pm = Object.entries(res.por_mes || {}).sort((a, b) => b[0].localeCompare(a[0]));
+      meses.innerHTML = pm.map(([m, v]) => `<div class="fac-iibb-mes"><span>${esc(m)}</span><b>${fmtUSD(v)}</b></div>`).join('');
+      if (!lista.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">Ninguna factura cargada tiene percepción de Ingresos Brutos.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = lista.map((f) => `<tr>
+        <td class="mono">${esc(f.numero_factura || '')}${f.tipo === 'impuestos' ? ' <span class="fac-chip-imp">impuestos DDP</span>' : ''}</td>
+        <td>${f.fecha_factura ? NovaUtils.formatDate(f.fecha_factura) : '<span class="em">—</span>'}</td>
+        <td class="num">${f.guias}</td>
+        <td class="num">${f.subtotal_factura != null ? fmtUSD(f.subtotal_factura) : '<span class="em">—</span>'}</td>
+        <td class="num"><b>${fmtUSD(f.percepciones)}</b></td>
+        <td class="num">${f.total_declarado != null ? fmtUSD(f.total_declarado) : '<span class="em">—</span>'}</td>
+      </tr>`).join('');
+    } catch (e) {
+      tbody.innerHTML = `<tr><td colspan="6" class="empty">No se pudo cargar: ${esc(e.message || e)}</td></tr>`;
+    }
+  }
+
   async function loadRevisar() {
     const tbody = document.getElementById('fac-table-body');
     const counter = document.getElementById('fac-revisar-counter');
@@ -541,8 +606,12 @@
     if (estado === 'a_revisar') tr.classList.add('row-a-revisar');
     else if (estado === 'reclamar') tr.classList.add('row-reclamar');
 
+    const clase = { no_previsto: 'fac-anom-np', mas_caro: 'fac-anom-mc', peso: 'fac-anom-peso' };
+    const anom = (g.anomalias || []).length
+      ? `<div class="fac-anom-fila">${g.anomalias.map((a) => `<span class="fac-chip-anom ${clase[a.clase] || ''}">${esc(a.texto)}</span>`).join(' ')}</div>`
+      : '';
     tr.innerHTML = `
-      <td class="mono">${esc(g.numero_guia)}</td>
+      <td class="mono">${esc(g.numero_guia)}${anom}</td>
       <td>${esc(g.cliente)}</td>
       <td>${esc(g.pais_destino)}</td>
       <td>${servicioUPSLabel(g.servicio_ups)}</td>

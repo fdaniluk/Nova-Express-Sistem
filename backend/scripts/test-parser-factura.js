@@ -94,33 +94,21 @@ async function testFacturaReal() {
 // repartirla ensuciaría el costo de TODOS los envíos de la factura.
 
 async function testPercepcion() {
-  console.log('\n2-bis. Percepción de Ingresos Brutos repartida entre las guías\n');
+  console.log('\n2-bis. Percepción de Ingresos Brutos: aparte, NO repartida (05/10/2026)\n');
   const r = await extraerFacturaUPS(fs.readFileSync(PDF));
   const conCosto = r.guias.filter((g) => g.costo_total != null);
 
-  check('reparte la percepción', r.percepciones_repartidas === true);
-  check('la percepción es 91.22', r.percepciones === 91.22, `dio ${r.percepciones}`);
-  check('avisa que la repartió', r.advertencias.some((a) => a.tipo === 'percepcion_repartida'));
+  check('NO reparte la percepción', r.percepciones_repartidas === false);
+  check('la percepción es 91.22 y queda en la cabecera', r.percepciones === 91.22, `dio ${r.percepciones}`);
+  check('avisa que queda aparte', r.advertencias.some((a) => a.tipo === 'percepcion_aparte'));
   check('ya no avisa de descuadre', !r.advertencias.some((a) => a.tipo === 'total_no_cuadra'));
+  check('la factura se da por cuadrada (guías = subtotal, diferencia = percepción)', r.cuadra === true);
+  check('ninguna guía tiene percepción adentro', conCosto.every((g) => g.percepcion == null));
+  check('la suma de las guías es el subtotal del pie, no el total',
+    Math.abs(r.suma_guias_final - r.subtotal_factura) < 0.005 && Math.abs(r.suma_guias_final + r.percepciones - r.total_declarado) < 0.005,
+    `${r.suma_guias_final} + ${r.percepciones} vs ${r.total_declarado}`);
 
-  check('todas las guías tienen su parte de percepción',
-    conCosto.every((g) => typeof g.percepcion === 'number'));
-
-  // el reparto tiene que dar EXACTO, sin centavos perdidos
-  const sumaPerc = Math.round(conCosto.reduce((s, g) => s + g.percepcion, 0) * 100) / 100;
-  check('las partes suman exactamente la percepción', sumaPerc === 91.22, `sumaron ${sumaPerc}`);
-
-  check('la suma final de las guías da el total de la factura',
-    Math.abs(r.suma_guias_final - r.total_declarado) < 0.005,
-    `${r.suma_guias_final} vs ${r.total_declarado}`);
-
-  // proporcionalidad: la guía más cara se lleva la parte más grande
-  const orden = [...conCosto].sort((a, b) => b.costo_total - a.costo_total);
-  check('la guía más cara se lleva la mayor parte de la percepción',
-    orden[0].percepcion >= orden[orden.length - 1].percepcion,
-    `${orden[0].percepcion} vs ${orden[orden.length - 1].percepcion}`);
-
-  console.log(`\n   ${conCosto.length} guías · percepción ${r.percepciones} · suma final ${r.suma_guias_final}`);
+  console.log(`\n   ${conCosto.length} guías · percepción ${r.percepciones} · suma guías ${r.suma_guias_final}`);
 
   // ── el caso peligroso ─────────────────────────────────────────────────────
   console.log('\n   Si falta una guía, NO se reparte nada:\n');
@@ -139,8 +127,8 @@ async function testPercepcion() {
   cache.exports = orig;
   delete require.cache[require.resolve('../src/services/factura-ups.service.js')];
 
-  check('con una guía ilegible NO reparte percepción', roto.percepciones_repartidas === false,
-    `repartidas=${roto.percepciones_repartidas}`);
+  check('con una guía ilegible la percepción NO se reconoce (la diferencia puede ser esa guía)', roto.percepciones == null && roto.cuadra === false,
+    `percepciones=${roto.percepciones} cuadra=${roto.cuadra}`);
   check('y avisa del descuadre en vez de ensuciar los costos',
     roto.advertencias.some((a) => a.tipo === 'total_no_cuadra'));
 }
@@ -187,9 +175,9 @@ async function testColumnasDeDos() {
     `${r.guias.length} vs ${base.guias.length}`);
   check('la suma de guías no cambia', r.suma_guias === base.suma_guias,
     `${r.suma_guias} vs ${base.suma_guias}`);
-  check('las percepciones se siguen repartiendo',
-    r.percepciones_repartidas === base.percepciones_repartidas,
-    `repartidas=${r.percepciones_repartidas}`);
+  check('la percepción sigue aparte',
+    r.percepciones === base.percepciones && r.percepciones_repartidas === false,
+    `percepciones=${r.percepciones}`);
   check('sin advertencia sin_neto', !r.advertencias.some((a) => a.tipo === 'sin_neto'));
 }
 

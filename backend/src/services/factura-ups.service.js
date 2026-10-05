@@ -354,15 +354,15 @@ function extraerFacturaUPSDesdeTexto(texto) {
 
   let diferencia = null;
   let cuadra = null;
-  // Percepción de Ingresos Brutos: decisión de negocio tomada el 29/07 (Felipe lo
-  // consultó con su jefe) → ES COSTO del envío. Se reparte entre las guías,
-  // proporcional a lo que costó cada una.
-  //
-  // El reparto SOLO se hace si la suma de las guías cuadra con el subtotal del pie.
-  // Si no cuadra, la diferencia no es percepción sino una guía que no se leyó, y
-  // repartirla ensuciaría el costo de todos los envíos de la factura.
+  // Percepción de Ingresos Brutos. Hasta el 05/10/2026 se repartía entre las guías
+  // proporcional al costo (decisión del 29/07). Felipe lo revirtió el 05/10: confundía a
+  // administración ("el costo del envío no es lo que dice la factura por guía"). Ahora
+  // NO se reparte: queda registrada en la cabecera de la factura (facturas_cargadas.
+  // percepciones) como costo de la empresa, fuera de los envíos. Si la suma de las guías
+  // cuadra con el subtotal del pie, la factura se da por cuadrada y la diferencia es la
+  // percepción.
   let percepciones = null;
-  let percepciones_repartidas = false;
+  const percepciones_repartidas = false;
 
   if (total_declarado != null) {
     diferencia = r2(total_declarado - suma_guias);
@@ -373,18 +373,12 @@ function extraerFacturaUPSDesdeTexto(texto) {
 
     if (!cuadra && subtotalCuadra) {
       percepciones = r2(total_declarado - subtotal_factura);
-      const partes = repartirProporcional(percepciones, conCosto);
-      conCosto.forEach((g, i) => {
-        g.percepcion = partes[i];
-        g.costo_total = r2(g.costo_total + partes[i]);
-      });
-      percepciones_repartidas = true;
+      cuadra = true;
       advertencias.push({
-        tipo: 'percepcion_repartida',
+        tipo: 'percepcion_aparte',
         detalle:
-          `Se repartieron USD ${percepciones.toFixed(2)} de percepción de Ingresos Brutos `
-          + `entre las ${conCosto.length} guías, proporcional al costo de cada una. `
-          + 'El costo de cada envío la incluye.',
+          `La factura incluye USD ${percepciones.toFixed(2)} de percepción de Ingresos Brutos. `
+          + 'No se reparte entre los envíos: queda registrada en la factura como costo de la empresa.',
       });
     } else if (!cuadra) {
       advertencias.push({

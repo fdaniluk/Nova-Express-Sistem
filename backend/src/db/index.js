@@ -695,6 +695,31 @@ async function migrateFacturaGuias() {
   // de la factura — que es justo el agujero por donde se colaron los USD 91,22 de
   // percepción de Ingresos Brutos de la factura de ejemplo. El panel de salud usa
   // estas tres columnas para el chequeo "facturas que no cuadran".
+  // 05/10/2026 — la percepción de Ingresos Brutos deja de repartirse entre los envíos
+  // (pedido de Felipe: confundía a administración). Las facturas cargadas antes tenían la
+  // parte de cada guía sumada adentro de costo_total y copiada a envios.costo_facturado.
+  // Una sola vez se la saca de los dos lados; la columna `percepcion` queda como registro
+  // de lo que se había repartido. El total de la percepción sigue en la cabecera
+  // (facturas_cargadas.percepciones), que es donde vive desde ahora.
+  await dbApi.exec(`CREATE TABLE IF NOT EXISTS migraciones_una_vez (clave TEXT PRIMARY KEY, hecho_at TEXT NOT NULL DEFAULT (datetime('now','localtime')))`);
+  const hechoIibb = await dbApi.prepare("SELECT 1 FROM migraciones_una_vez WHERE clave = 'iibb_fuera_de_envios'").get();
+  if (!hechoIibb) {
+    const filas = await dbApi.prepare('SELECT id, envio_id, percepcion, costo_total FROM factura_guias WHERE percepcion IS NOT NULL AND percepcion <> 0 AND costo_total IS NOT NULL').all();
+    for (const f of filas) {
+      const nuevo = Math.round((f.costo_total - f.percepcion) * 100) / 100;
+      await dbApi.prepare('UPDATE factura_guias SET costo_total = ? WHERE id = ?').run(nuevo, f.id);
+      // Solo si el envío todavía tiene ESE costo (si se recargó otra factura después, no se toca).
+      if (f.envio_id) {
+        await dbApi.prepare(
+          `UPDATE envios SET costo_facturado = ?, updated_at = datetime('now','localtime')
+           WHERE id = ? AND costo_facturado IS NOT NULL AND ABS(costo_facturado - ?) < 0.011`
+        ).run(nuevo, f.envio_id, f.costo_total);
+      }
+    }
+    await dbApi.prepare("INSERT INTO migraciones_una_vez (clave) VALUES ('iibb_fuera_de_envios')").run();
+    if (filas.length) console.log(`[db] IIBB fuera de los envíos: ${filas.length} guía(s) de factura corregidas`);
+  }
+
   const colsF = (await dbApi.prepare('PRAGMA table_info(facturas_cargadas)').all()).map((c) => c.name);
   for (const [col, def] of [
     ['total_declarado', 'REAL'],

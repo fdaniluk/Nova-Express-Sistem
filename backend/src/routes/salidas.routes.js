@@ -9,6 +9,7 @@ const cierreService = require('../services/cierre.service');
 const { hoyLocal } = require('../utils/fecha');
 const { requireCierre } = require('../middleware/auth');
 const cargosModel = require('../models/envio-cargos.model');
+const { detectarAnomalias } = require('../utils/anomalias-factura');
 
 const router = Router();
 
@@ -369,6 +370,11 @@ async function listarSalidas({ desde, hasta } = {}) {
     courier_facturado: row.courier_facturado ?? null,
     fecha_facturado: row.fecha_facturado ?? null,
     recargos_facturados: recargosPorEnvio.get(row.id) ?? [],
+    // Anomalías de la factura (05/10): recargos que el envío no tenía previstos, más caros
+    // de lo previsto, u otro peso. [] sin factura. Chip ⚠ en Costo UPS + bloque del modal.
+    anomalias_factura: row.costo_facturado != null
+      ? detectarAnomalias({ ...row, cargos_posteriores: cargosPorEnvio.get(row.id) || [] }, { cargos: recargosPorEnvio.get(row.id) ?? [], peso_facturado: row.peso_facturado })
+      : [],
     num_sal_cero: Boolean(row.num_sal_cero),
     // NO VOLO: el envio sigue en la lista y con su numero, pero no cuenta en ningun total.
     no_volo: Boolean(row.no_volo),

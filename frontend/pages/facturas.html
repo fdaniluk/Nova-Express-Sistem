@@ -6,7 +6,7 @@
   <title>Control de facturas – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260929a">
-  <link rel="stylesheet" href="../css/modules/facturas.css?v=20260915a">
+  <link rel="stylesheet" href="../css/modules/facturas.css?v=20261005a">
 </head>
 <body>
 <div class="app-layout">
@@ -110,6 +110,7 @@
         <button class="tab active" data-tab="cargar">Cargar factura</button>
         <button class="tab" data-tab="revisar">Revisar guías</button>
         <button class="tab" data-tab="sinenvio">Sin envío <span id="sinenvio-badge" class="tab-badge hidden">0</span></button>
+        <button class="tab" data-tab="iibb">Ingresos Brutos</button>
       </div>
 
       <!-- ── PESTAÑA: CARGAR ─────────────────────────────── -->
@@ -144,7 +145,7 @@
           <div class="fac-no-enc hidden" id="fac-lote">
             <div class="fac-no-enc-title" id="fac-lote-titulo"></div>
             <table class="fac-no-enc-table">
-              <thead><tr><th>Archivo</th><th>Factura</th><th>Guías</th><th>Cruzadas</th><th>Sin envío</th><th>Resultado</th></tr></thead>
+              <thead><tr><th>Archivo</th><th>Factura</th><th>Guías</th><th>Cruzadas</th><th>Sin envío</th><th>No previstos</th><th>Resultado</th></tr></thead>
               <tbody id="fac-lote-body"></tbody>
             </table>
           </div>
@@ -164,6 +165,18 @@
                no pudo resolver: guías sin importe legible, guías re-facturadas,
                descuadres. Antes esto se degradaba a 0 o se descartaba en silencio. -->
           <div class="fac-advert hidden" id="fac-advert"></div>
+
+          <!-- Cargos no previstos (05/10/2026): guías cuya factura trae recargos que el
+               envío no tenía contemplados, más caros de lo previsto, o con otro peso.
+               Las mismas guías quedan "a revisar" en la pestaña Revisar guías. -->
+          <div class="fac-no-enc fac-anom hidden" id="fac-anom">
+            <div class="fac-no-enc-title" id="fac-anom-titulo">Guías con cargos no previstos — revisar</div>
+            <p class="fac-anom-nota">UPS facturó algo que el envío no tenía previsto (área remota, manejo, residencial, otro peso…). Quedan marcadas <b>a revisar</b>; en Salidas se ven con el chip ⚠ en la columna Costo UPS.</p>
+            <table class="fac-no-enc-table">
+              <thead><tr><th>Guía</th><th>Factura</th><th>País</th><th>Qué pasó</th></tr></thead>
+              <tbody id="fac-anom-body"></tbody>
+            </table>
+          </div>
 
           <!-- Lista de no encontradas (oculto inicialmente) -->
           <div class="fac-no-enc hidden" id="fac-no-enc">
@@ -216,6 +229,41 @@
         </div>
       </div>
 
+      <div id="tab-iibb" class="hidden">
+        <div class="card">
+          <div class="fac-revisar-header">
+            <h2 style="margin:0">Percepción de Ingresos Brutos</h2>
+            <div style="display:flex;gap:0.5rem;align-items:center">
+              <span class="fac-revisar-counter" id="fac-iibb-counter"></span>
+              <button class="btn btn-sm btn-secondary" id="btn-iibb-reload">↺ Actualizar</button>
+            </div>
+          </div>
+          <p style="font-size:13px;color:var(--text-secondary,#6b6860);margin:0 0 12px">
+            Lo que UPS percibe de Ingresos Brutos al pie de cada factura. Desde el 05/10/2026
+            <b>no se reparte entre los envíos</b>: es un costo de la empresa y queda acá, factura por factura.
+            El costo de cada guía es el que figura en el detalle de la factura, sin este agregado.
+          </p>
+          <div id="fac-iibb-meses" class="fac-iibb-meses"></div>
+          <div class="fac-table-wrap">
+            <table class="fac-table" id="fac-iibb-table">
+              <thead>
+                <tr>
+                  <th>Factura</th>
+                  <th>Fecha</th>
+                  <th class="num">Guías</th>
+                  <th class="num">Subtotal guías</th>
+                  <th class="num">Percepción IIBB</th>
+                  <th class="num">Total factura</th>
+                </tr>
+              </thead>
+              <tbody id="fac-iibb-body">
+                <tr><td colspan="6" class="empty">Cargando…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
       <div id="tab-revisar" class="hidden">
         <div class="card">
           <div class="fac-revisar-header">
@@ -256,8 +304,8 @@
 </div>
 
 <script src="/js/auth-guard.js?v=20260924b"></script>
-<script src="../js/api.js?v=20261002a"></script>
+<script src="../js/api.js?v=20261005a"></script>
 <script src="../js/main.js?v=20260929a"></script>
-<script src="../js/modules/facturas.js?v=20260928a"></script>
+<script src="../js/modules/facturas.js?v=20261005a"></script>
 </body>
 </html>

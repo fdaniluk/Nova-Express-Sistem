@@ -210,6 +210,7 @@ async function chequeoFacturasQueNoCuadran(db, corte) {
   const todas = await db.prepare(`
     SELECT
       f.id, f.numero_factura, f.fecha_factura, f.total_declarado,
+      COALESCE(f.percepciones, 0)      AS percepciones,
       COALESCE(SUM(fg.costo_total), 0) AS suma_guias,
       COALESCE(SUM(fg.percepcion), 0)  AS suma_percepcion,
       COUNT(fg.id)                     AS guias,
@@ -226,10 +227,9 @@ async function chequeoFacturasQueNoCuadran(db, corte) {
   const sinTotal = filas.filter((f) => f.total_declarado == null);
   const descuadradas = filas
     .filter((f) => f.total_declarado != null)
-    // OJO (28/09): `costo_total` de cada guía YA incluye la percepción repartida (el parser
-    // la suma adentro y además la guarda aparte en `percepcion`). Sumarla de nuevo hacía
-    // que TODAS las facturas con percepción "no cuadraran" por exactamente ese importe.
-    .map((f) => ({ ...f, dif: r2(f.total_declarado - f.suma_guias) }))
+    // 05/10: la percepción de IIBB vive en la cabecera (f.percepciones) y NO está dentro de
+    // las guías (ni en las viejas: la migración la sacó). Total = guías + percepción.
+    .map((f) => ({ ...f, dif: r2(f.total_declarado - f.suma_guias - f.percepciones) }))
     .filter((f) => Math.abs(f.dif) >= 0.05);
 
   const conAgujeros = filas.filter((f) => f.sin_costo > 0);
