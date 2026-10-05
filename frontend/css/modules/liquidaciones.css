@@ -231,3 +231,11 @@ th.liq-interno { color: #166534; font-size: .7rem; }
 .liq-tabla-ant tfoot td { font-weight: 600; }
 .liq-tabla-ant tfoot .liq-total-general td { font-weight: 700; color: var(--color-primary); border-top: 1px solid var(--color-border); }
 .liq-chip.cargo-ant { background: #FFF4EF; color: #B4492F; border: 1px solid #F6C3B4; cursor: help; }
+
+/* Cargos de envíos anteriores en Pendientes y en Crear (05/10/2026) */
+.liq-pend-cargos { margin-top: .5rem; border-top: 1px dashed #F6C3B4; padding-top: .5rem; }
+.liq-pend-cargos-titulo { font-size: .8rem; color: #B4492F; font-weight: 600; margin-bottom: .3rem; }
+.liq-pend-cargos table { width: 100%; }
+.liq-muted { color: var(--color-text-muted, #777); font-weight: 400; }
+#liq-cargos-pend-crear { margin-top: .6rem; }
+#liq-cargos-pend-crear[hidden] { display: none; }

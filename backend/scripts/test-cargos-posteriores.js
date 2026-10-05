@@ -56,8 +56,8 @@ const u = { id: 4, usuario: 'leandro' };
   assert.equal(it0.total_usd, r2(it0base.total_usd + 19.5), 'cargo posterior suma al total del ítem');
   assert.equal(it0.adicional, r2(it0base.adicional + 19.5));
   assert.equal(it0.utilidad_usd, it0base.utilidad_usd, 'al costo: la utilidad no cambia');
-  assert(it0.adicional_detalle.some((d) => d.label === 'Sobrepeso' && d.monto === 12.5));
-  assert(it0.adicional_detalle.some((d) => d.label === 'Reempaque' && d.monto === 7));
+  assert(it0.adicional_detalle.some((d) => /^Sobrepeso · informado el \d\d\/\d\d\/\d{4}$/.test(d.label) && d.monto === 12.5), JSON.stringify(it0.adicional_detalle));
+  assert(it0.adicional_detalle.some((d) => /^Reempaque · informado el/.test(d.label) && d.monto === 7));
   assert.equal(it1.total_usd, r2(p0.items.find((i) => i.envio_id === pend[1].id).total_usd + 5), 'el adicional manual de la fila sigue funcionando');
   assert.equal(p1.cargos_anteriores.length, 1);
   assert.equal(p1.cargos_anteriores[0].numero_guia, viejo.numero_guia);
@@ -73,7 +73,7 @@ const u = { id: 4, usuario: 'leandro' };
   assert.equal((await C.obtener(c1.id)).liquidacion_id, b.id);
   assert.equal((await C.obtener(ri.cargo_id)).liquidacion_id, b.id);
   const bi0 = b.items.find((i) => i.envio_id === pend[0].id);
-  assert(bi0.adicional_detalle.some((d) => d.label === 'Sobrepeso'), 'buscarPorId rotula el cargo');
+  assert(bi0.adicional_detalle.some((d) => /^Sobrepeso · informado el/.test(d.label)), 'buscarPorId rotula el cargo');
   assert(!(await db.prepare("SELECT 1 FROM cargos_adicionales WHERE liquidacion_id = ? AND envio_id = ? AND descripcion = 'Cargo adicional'").get(b.id, pend[0].id)), 'sin fila espejo cuando el adicional es un cargo posterior');
   await assert.rejects(C.anular(c1.id, u), /borrador/);
   // Excel con la sección
@@ -82,7 +82,7 @@ const u = { id: 4, usuario: 'leandro' };
   const ws = wb.getWorksheet('Liquidacion'); const textos = [];
   ws.eachRow((row) => row.eachCell((c) => { if (typeof c.value === 'string') textos.push(c.value); }));
   assert(textos.includes('CARGOS DE ENVÍOS ANTERIORES')); assert(textos.includes('TOTAL LIQUIDACIÓN')); assert(textos.includes('TOTAL ENVÍOS'));
-  assert(textos.includes('Impuestos de destino (DDP)'));
+  assert(textos.some((x) => /^Impuestos de destino \(DDP\) · informado el 21\/09\/2026 · envío a .*, cobrado en la liquidación #\d+$/.test(x)), textos.filter((x) => /DDP/.test(x)).join(' | '));
   fs.writeFileSync(path.join(tmp, 'liq.xlsx'), buf);
   console.log('excel ok →', path.join(tmp, 'liq.xlsx'));
 

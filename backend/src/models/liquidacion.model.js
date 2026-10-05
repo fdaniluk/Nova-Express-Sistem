@@ -178,15 +178,19 @@ async function borradoresConEnvios(envio_ids) {
   return [...porBorrador.values()];
 }
 
-async function preview({ cliente_id, envio_ids, cargos = [], cotizaciones = [] }) {
+async function preview({ cliente_id, envio_ids = [], cargos = [], cotizaciones = [] }) {
   const db = getDb();
+  envio_ids = Array.isArray(envio_ids) ? envio_ids : [];
+  // Sin envíos (05/10/2026, pedido de Felipe): se puede armar una liquidación SOLO con los
+  // cargos de envíos anteriores del cliente (el envío fue en julio, el extracargo llegó en
+  // agosto y en agosto el cliente no tuvo envíos). Si tampoco hay cargos, se corta abajo.
   const placeholders = envio_ids.map(() => '?').join(',');
-  const envios = await db
+  const envios = envio_ids.length ? await db
     .prepare(
       `SELECT * FROM envios
        WHERE id IN (${placeholders}) AND cliente_id = ? AND liquidado = 0 AND no_volo = 0`
     )
-    .all(...envio_ids, cliente_id);
+    .all(...envio_ids, cliente_id) : [];
 
   if (envios.length !== envio_ids.length) {
     const err = new Error('Algunos envíos no existen, no pertenecen al cliente, ya están liquidados o están marcados como "no voló"');
@@ -209,12 +213,17 @@ async function preview({ cliente_id, envio_ids, cargos = [], cotizaciones = [] }
   for (const [envioId, lista] of Object.entries(pendPorEnvio)) {
     for (const c of lista) {
       cargoMap[envioId] = (cargoMap[envioId] || 0) + c.monto;
-      (cargosPorEnvio[envioId] = cargosPorEnvio[envioId] || []).push({ envio_id: Number(envioId), monto: c.monto, descripcion: c.label, tipo: 'cargo', cargo_id: c.id });
+      (cargosPorEnvio[envioId] = cargosPorEnvio[envioId] || []).push({ envio_id: Number(envioId), monto: c.monto, descripcion: cargosModel.rotulo(c), tipo: 'cargo', cargo_id: c.id });
       cargosEnviosIds.push(c.id);
     }
   }
   const cargos_anteriores = await cargosModel.pendientesAnterioresDeCliente(cliente_id, db);
   const total_cargos_anteriores = redondear2(cargos_anteriores.reduce((s, c) => s + c.monto, 0));
+  if (!envios.length && !cargos_anteriores.length) {
+    const err = new Error('No hay nada para liquidar: ni envíos seleccionados ni cargos pendientes de envíos anteriores de este cliente.');
+    err.status = 400;
+    throw err;
+  }
 
   // `cotizaciones` se sigue aceptando para no romper la API y el botón manual "Cotizar"
   // por fila, pero la liquidación YA NO recotiza: el desglose se arma leyendo lo guardado
@@ -407,12 +416,12 @@ async function confirmar(id, envioIdsEsperados = null, usuario = null) {
   // pero la liquidación entera se confirmaba igual, con sus ítems, y el cliente recibía
   // la misma guía cobrada dos veces. Reproducido el 07/08: dos confirmadas de USD 500
   // con los mismos envíos. Acá se vuelve a chequear ANTES de confirmar.
-  const yaLiquidados = await db
+  const yaLiquidados = envioIds.length ? await db
     .prepare(
       `SELECT e.id, e.numero_guia, e.liquidacion_id FROM envios e
        WHERE e.id IN (${envioIds.map(() => '?').join(',')}) AND e.liquidado = 1`
     )
-    .all(...envioIds);
+    .all(...envioIds) : [];
   if (yaLiquidados.length > 0) {
     const guias = yaLiquidados.map((e) => `${e.numero_guia} (liquidación #${e.liquidacion_id})`).join(', ');
     const err = new Error(
@@ -425,6 +434,12 @@ async function confirmar(id, envioIdsEsperados = null, usuario = null) {
 
   // Defecto 3: confirmar un borrador con ítems en cero también se frena acá.
   validarSinCeros(liq.items);
+  // Liquidación solo de cargos (05/10): sin envíos tiene que tener al menos un cargo.
+  if (!liq.items.length && !(liq.cargos_anteriores || []).length) {
+    const err = new Error('No se puede confirmar: la liquidación no tiene envíos ni cargos.');
+    err.status = 409;
+    throw err;
+  }
 
   // Cargos posteriores (25/09): si después de armar el borrador entró un cargo (un
   // extracargo desde Salidas o los impuestos DDP de una factura), no se confirma sin
@@ -486,7 +501,7 @@ async function buscarPorId(id) {
   // Cargos posteriores de esta liquidación: los de sus envíos se suman a `cargos` (rotulan
   // el desglose del ítem, igual que los manuales); los de envíos anteriores van aparte.
   const posteriores = await cargosModel.deLiquidacion(id, db);
-  for (const c of posteriores.enItems) cargos.push({ envio_id: c.envio_id, descripcion: c.label, monto: c.monto, tipo: 'cargo', cargo_id: c.id });
+  for (const c of posteriores.enItems) cargos.push({ envio_id: c.envio_id, descripcion: cargosModel.rotulo(c), monto: c.monto, tipo: 'cargo', cargo_id: c.id });
 
   // Detalle del Adicional de cada ítem (07/09): se deriva del envío con el MISMO helper que
   // usó el cálculo (read-only, no toca lo confirmado). Los envíos liquidados tienen la plata
@@ -531,7 +546,9 @@ async function listar(filtros = {}) {
   const db = getDb();
   let sql = `
     SELECT l.*, COALESCE(NULLIF(c.nombre_nova,''), c.nombre) AS cliente_nombre, c.tipo_cobro,
-           (SELECT COUNT(*) FROM liquidacion_items WHERE liquidacion_id = l.id) AS cantidad_envios
+           (SELECT COUNT(*) FROM liquidacion_items WHERE liquidacion_id = l.id) AS cantidad_envios,
+           (SELECT COUNT(*) FROM envio_cargos x JOIN envios e ON e.id = x.envio_id
+             WHERE x.liquidacion_id = l.id AND x.anulado_at IS NULL AND e.liquidacion_id IS NOT NULL AND e.liquidacion_id <> l.id) AS cantidad_cargos_anteriores
     FROM liquidaciones l
     JOIN clientes c ON c.id = l.cliente_id
     WHERE 1=1`;

@@ -430,6 +430,15 @@ function autoFitColumns(worksheet, fromRow, toRow) {
   }
 }
 
+// "Sobrepeso · informado el 15/08/2026 · envío a Reino Unido, cobrado en la liquidación #45"
+function conceptoCargoAnterior(c) {
+  const f = (x) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(x || '')); return m ? `${m[3]}/${m[2]}/${m[1]}` : ''; };
+  let t = c.label || 'Cargo';
+  if (c.fecha) t += ` · informado el ${f(c.fecha)}`;
+  const envio = [c.pais_destino ? `envío a ${c.pais_destino}` : 'envío', c.liquidacion_original_id ? `cobrado en la liquidación #${c.liquidacion_original_id}` : ''].filter(Boolean).join(', ');
+  return `${t} · ${envio}`;
+}
+
 async function exportarLiquidacion(liquidacion) {
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Nova Express';
@@ -558,6 +567,16 @@ async function exportarLiquidacion(liquidacion) {
     dataRowNum++;
   }
 
+  if (!liquidacion.items.length) {
+    // Liquidación solo de cargos (05/10): la tabla de envíos queda con una línea que lo diga.
+    ws.mergeCells(dataRowNum, 1, dataRowNum, COL_COUNT);
+    ws.getCell(dataRowNum, 1).value = 'Sin envíos en este período · ver "Cargos de envíos anteriores" más abajo.';
+    setCellStyle(ws.getCell(dataRowNum, 1), { fill: STYLES.rowWhite, font: { ...STYLES.rowFont, italic: true } });
+    ws.getCell(dataRowNum, 1).alignment = { horizontal: 'center', vertical: 'middle' };
+    for (let c = 1; c <= COL_COUNT; c++) ws.getCell(dataRowNum, c).border = BORDES;
+    ws.getRow(dataRowNum).height = 17;
+    dataRowNum++;
+  }
   const totalRow = ws.getRow(dataRowNum);
   ws.mergeCells(dataRowNum, 1, dataRowNum, 5);
   totalRow.getCell(1).value = 'TOTAL';
@@ -599,7 +618,9 @@ async function exportarLiquidacion(liquidacion) {
     ws.getRow(ra).height = 18;
     ra++;
     ws.mergeCells(ra, 1, ra, COL_COUNT);
-    ws.getCell(ra, 1).value = 'Cargos que el courier informó después de liquidado el envío (impuestos de destino, sobrepeso, área remota, etc.).';
+    ws.getCell(ra, 1).value = liquidacion.items.length
+      ? 'Cargos que el courier informó después de liquidado el envío (impuestos de destino, sobrepeso, área remota, etc.).'
+      : 'Esta liquidación no incluye envíos: son únicamente cargos que el courier informó después de liquidado cada envío (impuestos de destino, sobrepeso, área remota, etc.).';
     ws.getCell(ra, 1).font = STYLES.noteFont;
     ra++;
     const subA = [['FECHA ENVÍO', 1, 1], ['Nº ENVIO', 2, 4], ['CONCEPTO', 5, 11], ['USD', 12, 13]];
@@ -622,7 +643,9 @@ async function exportarLiquidacion(liquidacion) {
       ws.getCell(ra, 1).value = parseFechaExcel(c.envio_fecha);
       ws.getCell(ra, 1).numFmt = FMT_DATE;
       ws.getCell(ra, 2).value = c.numero_guia || '';
-      ws.getCell(ra, 5).value = c.label;
+      // Concepto completo (05/10): qué cargo, cuándo lo informó el courier y en qué
+      // liquidación se había cobrado el envío. La guía y la fecha del envío van en sus columnas.
+      ws.getCell(ra, 5).value = conceptoCargoAnterior(c);
       ws.getCell(ra, 12).value = Number(c.monto) || 0;
       ws.getCell(ra, 12).numFmt = FMT_MONEY;
       for (let col = 1; col <= COL_COUNT; col++) {

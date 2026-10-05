@@ -2,6 +2,20 @@
   const alertBox = document.getElementById('alert-box');
   let clientes = [];
   let enviosPendientesCliente = [];
+  // Cargos de envíos ya liquidados del cliente elegido en Crear (05/10): se muestran debajo
+  // de la tabla de envíos y permiten liquidar aunque no haya ningún envío.
+  let cargosAnterioresCliente = [];
+
+  function pintarCargosPendientesCrear(lista) {
+    let box = document.getElementById('liq-cargos-pend-crear');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'liq-cargos-pend-crear';
+      document.getElementById('liq-envios-wrap').appendChild(box);
+    }
+    box.innerHTML = tablaCargosAnterioresHtml(lista);
+    box.hidden = !lista.length;
+  }
   let lastLiquidacionId = null;
   let lastPreview = null;
 
@@ -163,14 +177,14 @@
           <strong>${g.cliente_nombre}</strong>
           <span class="cliente-grupo-meta">
             <span class="liq-chip cobro">${NovaUtils.tipoCobroLabel(g.tipo_cobro)}</span>
-            <span>${g.envios.length} envío(s)</span>
-            ${g.cargos_anteriores_n ? `<span class="liq-chip cargo-ant" title="Extracargos o impuestos DDP de envíos ya liquidados: entran solos en la próxima liquidación de este cliente.">+ ${g.cargos_anteriores_n} cargo${g.cargos_anteriores_n === 1 ? '' : 's'} de envíos anteriores · ${NovaUtils.formatMoney(g.cargos_anteriores_total)}</span>` : ''}
-            <span class="cliente-grupo-total">${NovaUtils.formatMoney(g.total_cobrado)}</span>
+            <span>${g.envios.length ? `${g.envios.length} envío(s)` : 'Sin envíos pendientes'}</span>
+            ${g.cargos_anteriores_n ? `<span class="liq-chip cargo-ant" title="Extracargos o impuestos DDP de envíos ya liquidados: entran solos en la próxima liquidación de este cliente. Si no tiene envíos, se puede liquidar solo con estos cargos.">+ ${g.cargos_anteriores_n} cargo${g.cargos_anteriores_n === 1 ? '' : 's'} de envíos anteriores · ${NovaUtils.formatMoney(g.cargos_anteriores_total)}</span>` : ''}
+            <span class="cliente-grupo-total">${NovaUtils.formatMoney((g.total_cobrado || 0) + (g.cargos_anteriores_total || 0))}</span>
           </span>
-          <button type="button" class="btn btn-sm btn-primary" data-liq-cliente="${g.cliente_id}">Liquidar</button>
+          <button type="button" class="btn btn-sm btn-primary" data-liq-cliente="${g.cliente_id}">${g.envios.length ? 'Liquidar' : 'Liquidar solo los cargos'}</button>
         </div>
         <div class="cliente-grupo-body">
-          <table>
+          ${g.envios.length ? `<table>
             <thead><tr><th>Fecha</th><th>Guía</th><th>Courier</th><th>País</th><th class="n">Total</th></tr></thead>
             <tbody>
               ${g.envios.map((e) => `<tr>
@@ -181,7 +195,8 @@
                 <td class="n">${NovaUtils.formatMoney(e.total_cobrado)}</td>
               </tr>`).join('')}
             </tbody>
-          </table>
+          </table>` : ''}
+          ${tablaCargosAnterioresHtml(g.cargos_anteriores)}
         </div>
       </div>`
       )
@@ -200,6 +215,11 @@
           const fechas = grupo.envios.map((e) => e.fecha).filter(Boolean).sort();
           document.getElementById('liq-desde').value = fechas[0];
           document.getElementById('liq-hasta').value = NovaUtils.hoyLocal(new Date());
+        } else if (grupo) {
+          // Solo cargos: el período es el mes en curso (no hay envíos que lo definan).
+          const hoy = NovaUtils.hoyLocal(new Date());
+          document.getElementById('liq-desde').value = hoy.slice(0, 8) + '01';
+          document.getElementById('liq-hasta').value = hoy;
         }
         document.querySelector('.tab[data-tab="crear"]').click();
         document.getElementById('liq-cliente').value = btn.dataset.liqCliente;
@@ -270,12 +290,20 @@
     try {
       const grupos = await NovaAPI.liquidaciones.pendientes(params);
       enviosPendientesCliente = grupos[0]?.envios || [];
-
+      cargosAnterioresCliente = grupos[0]?.cargos_anteriores || [];
+      pintarCargosPendientesCrear(cargosAnterioresCliente);
 
       const tbody = document.getElementById('liq-envios-body');
       if (!enviosPendientesCliente.length) {
         document.getElementById('liq-envios-wrap').classList.remove('hidden');
-        tbody.innerHTML = '<tr><td colspan="7" class="empty">Sin envíos en el período</td></tr>';
+        tbody.innerHTML = cargosAnterioresCliente.length
+          ? '<tr><td colspan="7" class="empty">Sin envíos en el período. Este cliente tiene cargos de envíos anteriores pendientes (abajo): apretá <strong>Calcular</strong> para armar la liquidación solo con esos cargos.</td></tr>'
+          : '<tr><td colspan="7" class="empty">Sin envíos en el período</td></tr>';
+        document.getElementById('liq-preview').classList.add('hidden');
+        lastLiquidacionId = null;
+        lastPreview = null;
+        document.getElementById('btn-confirmar-liq').disabled = true;
+        document.getElementById('btn-export-borrador').disabled = true;
         actualizarResumen();
         return;
       }
@@ -314,6 +342,36 @@
     } catch (err) {
       NovaUtils.showAlert(alertBox, err.message, 'error');
     }
+  }
+
+  // Concepto de un cargo posterior de cara a la oficina y al cliente (05/10): qué es, cuándo
+  // lo informó el courier y, si corresponde, en qué liquidación se había cobrado el envío.
+  function conceptoCargo(c) {
+    const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+    let t = esc(c.label);
+    if (c.fecha) t += ` <small class="liq-muted">· informado el ${NovaUtils.formatDate(c.fecha)}</small>`;
+    if (c.origen === 'impuestos_ddp') t += ' <span class="liq-chip">factura UPS</span>';
+    return t;
+  }
+
+  // Tabla de cargos de envíos anteriores para la lista de Pendientes (05/10): guía, fecha
+  // y país del envío, concepto e importe. Es lo mismo que va a entrar en la liquidación.
+  function tablaCargosAnterioresHtml(lista) {
+    if (!Array.isArray(lista) || !lista.length) return '';
+    const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+    return `<div class="liq-pend-cargos">
+      <div class="liq-pend-cargos-titulo">Cargos de envíos anteriores (ya liquidados) · entran en la próxima liquidación</div>
+      <table>
+        <thead><tr><th>Fecha envío</th><th>Guía</th><th>País</th><th>Concepto</th><th class="n">USD</th></tr></thead>
+        <tbody>${lista.map((c) => `<tr>
+          <td>${NovaUtils.formatDate(c.envio_fecha)}</td>
+          <td><span class="guia-num">${esc(c.numero_guia)}</span>${c.liquidacion_original_id ? ` <span class="liq-num-id" title="El envío se cobró en la liquidación #${c.liquidacion_original_id}">liq. #${c.liquidacion_original_id}</span>` : ''}</td>
+          <td>${esc(c.pais_destino)}</td>
+          <td>${conceptoCargo(c)}</td>
+          <td class="n">${NovaUtils.formatMoney(c.monto)}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>`;
   }
 
   // Pendiente 52 (12/09): el envío que ya está en un borrador se marca en las dos listas.
@@ -390,8 +448,10 @@
   async function calcularPreview() {
     const cliente_id = parseInt(document.getElementById('liq-cliente').value, 10);
     const { envio_ids, cargos } = getSelectedEnvios();
-    if (!envio_ids.length) {
-      NovaUtils.showAlert(alertBox, 'Seleccione al menos un envío', 'error');
+    // Sin envíos marcados se puede igual si el cliente tiene cargos de envíos anteriores
+    // (liquidación solo de cargos, 05/10). Si no hay nada, el backend lo dice.
+    if (!envio_ids.length && !cargosAnterioresCliente.length) {
+      NovaUtils.showAlert(alertBox, 'Seleccione al menos un envío (este cliente no tiene cargos pendientes de envíos anteriores).', 'error');
       return;
     }
     // La liquidación NO recotiza: el backend arma el desglose con los valores
@@ -412,7 +472,7 @@
       // Profit por envío (07/09, pedido de Felipe): "solo para que vea la oficina". Va en una
       // columna propia, marcada como interna, y NO viaja al Excel (exportarLiquidacion no lo lee).
       // El desglose del Adicional (surge con fuel, GoGreen, manejo…) va debajo del número.
-      tbody.innerHTML = preview.items.map((i) => `
+      tbody.innerHTML = (preview.items.length ? preview.items : []).map((i) => `
         <tr>
           <td><span class="guia-num">${i.envio?.numero_guia || i.envio_id}</span></td>
           <td class="n">${NovaUtils.formatMoney(i.flete)}</td>
@@ -421,7 +481,7 @@
           <td class="n">${NovaUtils.formatMoney(i.adicional)}${adicDetalleHtml(i.adicional_detalle)}</td>
           <td class="n">${NovaUtils.formatMoney(i.total_usd)}</td>
           <td class="liq-interno">${profitInternoHtml(i)}</td>
-        </tr>`).join('');
+        </tr>`).join('') || '<tr><td colspan="7" class="empty">Sin envíos: esta liquidación es solo de cargos de envíos anteriores (abajo).</td></tr>';
 
       // Con cargos de envíos anteriores, el pie de la tabla es "Total envíos" y el total
       // general lo cierra la sección de abajo (igual que el Excel).
@@ -551,7 +611,7 @@
           <td>${NovaUtils.formatDate(l.fecha)}</td>
           <td><strong>${l.cliente_nombre}</strong></td>
           <td>${NovaUtils.formatDate(l.periodo_desde)} – ${NovaUtils.formatDate(l.periodo_hasta)}</td>
-          <td class="n">${l.cantidad_envios}</td>
+          <td class="n">${l.cantidad_envios}${l.cantidad_cargos_anteriores ? ` <span class="liq-chip cargo-ant" title="Cargos de envíos anteriores incluidos en esta liquidación">+${l.cantidad_cargos_anteriores} cargo${l.cantidad_cargos_anteriores === 1 ? '' : 's'}</span>` : ''}</td>
           <td class="n"><strong>${NovaUtils.formatMoney(l.total)}</strong></td>
           <td><span class="liq-chip ${l.estado === 'confirmada' ? 'confirmada' : 'borrador'}">${l.estado}</span> <span class="liq-num-id">#${l.id}</span></td>
           <td class="acciones">
@@ -644,7 +704,7 @@
     if (pie && !pie.classList.contains('ok')) {
       pie.textContent = preview
         ? 'Listo para confirmar o exportar. Si cambiás la selección, hay que recalcular.'
-        : (filas.length ? 'Apretá Calcular para ver el desglose y el total.' : 'Elegí el cliente y el período, y cargá sus envíos.');
+        : (filas.length || cargosAnterioresCliente.length ? 'Apretá Calcular para ver el desglose y el total.' : 'Elegí el cliente y el período, y cargá sus envíos.');
     }
   }
 
@@ -677,21 +737,22 @@
     box.innerHTML = `
       <div class="liq-cargos-ant-head">
         <strong>Cargos de envíos anteriores</strong>
-        <span class="liq-hint">Extracargos o impuestos DDP que llegaron con el envío ya liquidado. Se cobran en esta liquidación, en su propia sección del Excel.</span>
+        <span class="liq-hint">Extracargos o impuestos DDP que el courier informó con el envío ya liquidado. Se cobran en esta liquidación, en su propia sección del Excel, con la guía, la fecha del envío y el concepto.</span>
       </div>
       <table class="liq-tabla liq-tabla-ant">
-        <thead><tr><th>Fecha envío</th><th>Guía</th><th>Concepto</th><th class="n">USD</th></tr></thead>
+        <thead><tr><th>Fecha envío</th><th>Guía</th><th>País</th><th>Concepto</th><th class="n">USD</th></tr></thead>
         <tbody>${lista.map((c) => `
           <tr>
             <td>${NovaUtils.formatDate(c.envio_fecha)}</td>
-            <td><span class="guia-num">${esc(c.numero_guia)}</span>${c.liquidacion_original_id ? ` <span class="liq-num-id" title="El envío se liquidó en la #${c.liquidacion_original_id}">liq. #${c.liquidacion_original_id}</span>` : ''}</td>
-            <td>${esc(c.label)}${c.origen === 'impuestos_ddp' ? ' <span class="liq-chip">factura UPS</span>' : ''}</td>
+            <td><span class="guia-num">${esc(c.numero_guia)}</span>${c.liquidacion_original_id ? ` <span class="liq-num-id" title="El envío se cobró en la liquidación #${c.liquidacion_original_id}">liq. #${c.liquidacion_original_id}</span>` : ''}</td>
+            <td>${esc(c.pais_destino)}</td>
+            <td>${conceptoCargo(c)}</td>
             <td class="n">${NovaUtils.formatMoney(c.monto)}</td>
           </tr>`).join('')}
         </tbody>
         <tfoot>
-          <tr><td colspan="3">Total cargos de envíos anteriores</td><td class="n">${NovaUtils.formatMoney(preview.total_cargos_anteriores)}</td></tr>
-          <tr class="liq-total-general"><td colspan="3">Total liquidación</td><td class="n"><strong>${NovaUtils.formatMoney(preview.total)}</strong></td></tr>
+          <tr><td colspan="4">Total cargos de envíos anteriores</td><td class="n">${NovaUtils.formatMoney(preview.total_cargos_anteriores)}</td></tr>
+          <tr class="liq-total-general"><td colspan="4">Total liquidación</td><td class="n"><strong>${NovaUtils.formatMoney(preview.total)}</strong></td></tr>
         </tfoot>
       </table>`;
   }

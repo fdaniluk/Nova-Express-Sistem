@@ -15,7 +15,8 @@ async function pendientes(req, res, next) {
 async function preview(req, res, next) {
   try {
     const { cliente_id, envio_ids, cargos, cotizaciones } = req.body;
-    if (!cliente_id || !envio_ids?.length) {
+    // envio_ids puede venir vacío: liquidación solo de cargos de envíos anteriores (05/10).
+    if (!cliente_id || !Array.isArray(envio_ids)) {
       return res.status(400).json({ error: 'cliente_id y envio_ids son obligatorios' });
     }
     res.json(await liquidacionModel.preview({
@@ -36,7 +37,7 @@ async function crear(req, res, next) {
       cliente_id, periodo_desde, periodo_hasta, envio_ids, cargos, cotizaciones, confirmar,
       reemplazar_borradores, permitir_duplicado,
     } = req.body;
-    if (!cliente_id || !periodo_desde || !periodo_hasta || !envio_ids?.length) {
+    if (!cliente_id || !periodo_desde || !periodo_hasta || !Array.isArray(envio_ids)) {
       return res
         .status(400)
         .json({ error: 'cliente_id, periodo_desde, periodo_hasta y envio_ids son obligatorios' });

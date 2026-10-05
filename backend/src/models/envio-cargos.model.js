@@ -32,6 +32,23 @@ const TIPOS = {
 };
 const LABEL_IMPUESTOS = 'Impuestos de destino (DDP)';
 
+// dd/mm/aaaa para los rótulos de cara al cliente.
+function fechaCorta(f) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(f || ''));
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : String(f || '');
+}
+
+// Rótulo completo del cargo (05/10/2026, pedido de Felipe): en la liquidación y en el
+// Excel tiene que quedar claro QUÉ cargo es, de QUÉ envío y de CUÁNDO, tanto si entra en
+// el detalle de un envío de la misma liquidación como si va en "Cargos de envíos
+// anteriores". Ej.: "Sobrepeso · informado el 15/08/2026 · envío 1Z… del 12/07/2026".
+function rotulo(c, { conEnvio = false } = {}) {
+  let t = c.label || 'Cargo';
+  if (c.fecha) t += ` · informado el ${fechaCorta(c.fecha)}`;
+  if (conEnvio && c.numero_guia) t += ` · envío ${c.numero_guia}${c.envio_fecha ? ' del ' + fechaCorta(c.envio_fecha) : ''}`;
+  return t;
+}
+
 async function migrar(db = getDb()) {
   await db.exec(`
     CREATE TABLE IF NOT EXISTS envio_cargos (
@@ -116,19 +133,19 @@ async function pendientesDeEnvios(envioIds, db = getDb()) {
 // envíos anteriores" de la próxima liquidación. Con la guía y la fecha del envío.
 async function pendientesAnterioresDeCliente(clienteId, db = getDb()) {
   const rows = await db.prepare(
-    `SELECT c.*, e.numero_guia, e.fecha AS envio_fecha, e.liquidacion_id AS liquidacion_original_id
+    `SELECT c.*, e.numero_guia, e.fecha AS envio_fecha, e.pais_destino, e.liquidacion_id AS liquidacion_original_id
      FROM envio_cargos c JOIN envios e ON e.id = c.envio_id
      WHERE e.cliente_id = ? AND e.liquidado = 1 AND c.liquidacion_id IS NULL AND c.anulado_at IS NULL
      ORDER BY e.fecha, e.numero_guia, c.id`
   ).all(clienteId);
-  return rows.map((r) => ({ ...mapCargo(r), numero_guia: r.numero_guia, envio_fecha: r.envio_fecha, liquidacion_original_id: r.liquidacion_original_id }));
+  return rows.map((r) => ({ ...mapCargo(r), numero_guia: r.numero_guia, envio_fecha: r.envio_fecha, pais_destino: r.pais_destino, liquidacion_original_id: r.liquidacion_original_id }));
 }
 
 // Los ya incluidos en una liquidación, separados: los de sus propios envíos (van dentro
 // del ítem) y los de envíos anteriores (sección aparte).
 async function deLiquidacion(liquidacionId, db = getDb()) {
   const rows = await db.prepare(
-    `SELECT c.*, e.numero_guia, e.fecha AS envio_fecha, e.liquidacion_id AS envio_liquidacion_id
+    `SELECT c.*, e.numero_guia, e.fecha AS envio_fecha, e.pais_destino, e.liquidacion_id AS envio_liquidacion_id
      FROM envio_cargos c JOIN envios e ON e.id = c.envio_id
      WHERE c.liquidacion_id = ? AND c.anulado_at IS NULL
      ORDER BY e.fecha, e.numero_guia, c.id`
@@ -136,7 +153,7 @@ async function deLiquidacion(liquidacionId, db = getDb()) {
   const enItems = [];
   const anteriores = [];
   for (const r of rows) {
-    const c = { ...mapCargo(r), numero_guia: r.numero_guia, envio_fecha: r.envio_fecha };
+    const c = { ...mapCargo(r), numero_guia: r.numero_guia, envio_fecha: r.envio_fecha, pais_destino: r.pais_destino };
     // Si el envío pertenece a ESTA liquidación (o todavía a ninguna: borrador), el cargo
     // es de sus ítems. Si el envío quedó liquidado en OTRA, es de "envíos anteriores".
     if (r.envio_liquidacion_id && Number(r.envio_liquidacion_id) !== Number(liquidacionId)) {
@@ -233,6 +250,6 @@ async function registrarImpuestos(db, envioId, monto, fecha) {
 }
 
 module.exports = {
-  TIPOS, LABEL_IMPUESTOS, migrar, listarDeEnvio, porEnvios, pendientesDeEnvios, pendientesAnterioresDeCliente,
+  TIPOS, LABEL_IMPUESTOS, rotulo, fechaCorta, migrar, listarDeEnvio, porEnvios, pendientesDeEnvios, pendientesAnterioresDeCliente,
   deLiquidacion, asignarLiquidacion, liberarDeLiquidacion, pendientesFueraDe, agregar, anular, obtener, registrarImpuestos,
 };

@@ -644,18 +644,47 @@ async function listarPendientesPorCliente(filtros = {}) {
     g.total_cobrado += row.total_cobrado || 0;
   }
   // Cargos posteriores pendientes de envíos YA liquidados (25/09): se avisan en el grupo
-  // del cliente porque van a entrar solos en su próxima liquidación.
-  if (grupos.size) {
-    const ids = [...grupos.keys()];
-    const filas = await db.prepare(
-      `SELECT e.cliente_id, COUNT(*) AS n, SUM(c.monto) AS total
-       FROM envio_cargos c JOIN envios e ON e.id = c.envio_id
-       WHERE e.liquidado = 1 AND c.liquidacion_id IS NULL AND c.anulado_at IS NULL AND e.cliente_id IN (${ids.map(() => '?').join(',')})
-       GROUP BY e.cliente_id`
-    ).all(...ids);
+  // del cliente porque van a entrar solos en su próxima liquidación. Desde el 05/10 el
+  // cliente que SOLO tiene cargos (sin envíos pendientes) también aparece, con su grupo
+  // vacío de envíos: así se le puede armar una liquidación únicamente con esos cargos.
+  // La lista viene con guía, fecha del envío y concepto para que se vea qué es cada uno.
+  {
+    let sqlC = `SELECT c.id, c.envio_id, c.tipo, c.label, c.monto, c.fecha, c.origen,
+                       e.cliente_id, e.numero_guia, e.fecha AS envio_fecha, e.pais_destino,
+                       e.liquidacion_id AS liquidacion_original_id,
+                       cl.tipo_cobro, COALESCE(NULLIF(cl.nombre_nova,''), cl.nombre) AS cliente_nombre
+                FROM envio_cargos c
+                JOIN envios e ON e.id = c.envio_id
+                JOIN clientes cl ON cl.id = e.cliente_id
+                WHERE e.liquidado = 1 AND c.liquidacion_id IS NULL AND c.anulado_at IS NULL`;
+    const pc = [];
+    if (filtros.cliente_id) { sqlC += ' AND e.cliente_id = ?'; pc.push(filtros.cliente_id); }
+    if (filtros.courier) { sqlC += ' AND e.courier = ?'; pc.push(filtros.courier); }
+    if (filtros.tipo_cobro) { sqlC += ' AND cl.tipo_cobro = ?'; pc.push(filtros.tipo_cobro); }
+    sqlC += ' ORDER BY cliente_nombre COLLATE NOCASE, e.fecha, e.numero_guia, c.id';
+    const filas = await db.prepare(sqlC).all(...pc);
     for (const f of filas) {
+      if (!grupos.has(f.cliente_id)) {
+        grupos.set(f.cliente_id, {
+          cliente_id: f.cliente_id, cliente_nombre: f.cliente_nombre, tipo_cobro: f.tipo_cobro,
+          envios: [], total_cobrado: 0, solo_cargos: true,
+        });
+      }
       const g = grupos.get(f.cliente_id);
-      if (g) { g.cargos_anteriores_n = f.n; g.cargos_anteriores_total = Math.round(f.total * 100) / 100; }
+      g.cargos_anteriores = g.cargos_anteriores || [];
+      g.cargos_anteriores.push({
+        id: f.id, envio_id: f.envio_id, tipo: f.tipo, label: f.label, monto: Math.round(f.monto * 100) / 100,
+        fecha: f.fecha, origen: f.origen, numero_guia: f.numero_guia, envio_fecha: f.envio_fecha,
+        pais_destino: f.pais_destino, liquidacion_original_id: f.liquidacion_original_id,
+      });
+      g.cargos_anteriores_n = g.cargos_anteriores.length;
+      g.cargos_anteriores_total = Math.round(g.cargos_anteriores.reduce((s, c) => s + c.monto, 0) * 100) / 100;
+    }
+    // Los grupos solo-cargos se agregaron al final: se reordena por nombre como el resto.
+    if (filas.some((f) => grupos.get(f.cliente_id).solo_cargos)) {
+      const orden = [...grupos.values()].sort((a, b) => String(a.cliente_nombre).localeCompare(String(b.cliente_nombre), 'es', { sensitivity: 'base' }));
+      grupos.clear();
+      for (const g of orden) grupos.set(g.cliente_id, g);
     }
   }
   return [...grupos.values()];
