@@ -72,6 +72,13 @@ async function main() {
   check('el Fuel Nova se puede guardar', guardadoNova.status === 200,
     JSON.stringify(guardadoNova.body));
 
+  // 05/10/2026: cualquier decimal, con coma o con punto (antes el input rechazaba 31,75).
+  const conComa = await J('PUT', '/api/configuracion/fuel/UPS', { fuel_pct: '31,75' });
+  check('el fuel acepta "31,75" (con coma) y lo guarda como 31.75', conComa.status === 200 && Number(conComa.body.fuel_pct) === 31.75, JSON.stringify(conComa.body));
+  const tresDec = await J('PUT', '/api/configuracion/fuel/UPS', { fuel_pct: 39.333 });
+  check('redondea a dos decimales (39.333 → 39.33)', tresDec.status === 200 && Number(tresDec.body.fuel_pct) === 39.33, JSON.stringify(tresDec.body));
+  await J('PUT', '/api/configuracion/fuel/UPS', { fuel_pct: 39.5 });
+
   const lista = (await J('GET', '/api/configuracion/fuel')).body;
   const de = (c) => (lista.find((x) => x.courier === c) || {}).fuel_pct;
   check('la pantalla recibe los TRES', lista.length === 3, JSON.stringify(lista.map((x) => x.courier)));

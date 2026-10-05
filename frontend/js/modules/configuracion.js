@@ -37,7 +37,9 @@
         <p class="hint">Actualizado: ${c.fecha_actualizacion ? NovaUtils.formatDate(c.fecha_actualizacion.slice(0, 10)) : 'nunca'}</p>
         <div class="form-group" style="margin-top:0.75rem">
           <label>Nuevo % fuel</label>
-          <input type="number" class="fuel-input" step="0.1" min="0" value="${c.fuel_pct}">
+          <!-- Texto, no number (05/10/2026): con step="0.1" el navegador rechazaba 31,75 y con
+               la coma devolvía vacío. Se acepta cualquier número, con coma o con punto. -->
+          <input type="text" inputmode="decimal" class="fuel-input" value="${c.fuel_pct}" placeholder="ej. 31,75">
         </div>
         <button type="button" class="btn btn-primary btn-sm btn-save-fuel" style="margin-top:0.5rem">Guardar</button>
       </div>`;
@@ -47,7 +49,12 @@
       btn.addEventListener('click', async () => {
         const card = btn.closest('.fuel-card');
         const courier = card.dataset.courier;
-        const fuel_pct = parseFloat(card.querySelector('.fuel-input').value);
+        const crudo = String(card.querySelector('.fuel-input').value).trim().replace(',', '.');
+        const fuel_pct = Math.round(parseFloat(crudo) * 100) / 100;
+        if (crudo === '' || !Number.isFinite(fuel_pct)) {
+          NovaUtils.showAlert(alertBox, 'Escribí un número para el fuel (por ejemplo 31,75).', 'error');
+          return;
+        }
         try {
           await NovaAPI.configuracion.actualizarFuel(courier, fuel_pct);
           NovaUtils.showAlert(alertBox,

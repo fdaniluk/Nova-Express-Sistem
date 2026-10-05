@@ -17,13 +17,14 @@ async function actualizarFuel(req, res, next) {
     if (!['DHL', 'UPS', 'NOVA'].includes(courier)) {
       return res.status(400).json({ error: 'Courier debe ser DHL, UPS o NOVA' });
     }
-    const { fuel_pct } = req.body;
-    if (fuel_pct === undefined || Number.isNaN(Number(fuel_pct))) {
+    // Acepta "31,75" además de 31.75 (05/10/2026) y guarda con dos decimales.
+    const fuel_pct = typeof req.body.fuel_pct === 'string' ? req.body.fuel_pct.trim().replace(',', '.') : req.body.fuel_pct;
+    if (fuel_pct === undefined || fuel_pct === '' || Number.isNaN(Number(fuel_pct))) {
       return res.status(400).json({ error: 'fuel_pct es obligatorio y numérico' });
     }
     // Un fuel negativo no existe, y uno de 500% es un dedazo. Se rechazan los dos: este
     // numero multiplica el flete de TODOS los envios nuevos, no es lugar para adivinar.
-    const pct = Number(fuel_pct);
+    const pct = Math.round(Number(fuel_pct) * 100) / 100;
     if (pct < 0 || pct > 200) {
       return res.status(400).json({ error: 'El fuel debe estar entre 0 y 200%.' });
     }

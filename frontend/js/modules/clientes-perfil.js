@@ -1333,9 +1333,10 @@
       }
     }
     document.getElementById('btn-guardar-fuel').addEventListener('click', () => {
-      const val = inputFuel.value.trim();
+      // Cualquier decimal, con coma o con punto (05/10/2026): antes el step de 0,5 rechazaba 31,75.
+      const val = inputFuel.value.trim().replace(',', '.');
       if (val === '') return guardarFuel(null);
-      const n = parseFloat(val);
+      const n = Math.round(parseFloat(val) * 100) / 100;
       if (!Number.isFinite(n) || n < 0) {
         NovaUtils.showAlert(alertBox, 'El fuel propio tiene que ser un numero mayor o igual a 0');
         return;
