@@ -86,7 +86,33 @@ function detectarAnomalias(envio, factura) {
   const CARGO_A_FAMILIA = { manejo: 'manejo', mayor_tamano: 'contorno', remota: 'remota', residencial: 'residencial', ddp: 'ddp', sobrepeso: 'peso' };
   const cargosPost = parseLista(envio.cargos_posteriores != null ? envio.cargos_posteriores : envio.cargos)
     .filter((c) => c && c.estado !== 'anulado' && !c.anulado_at);
-  const cubiertoPorCargo = (tipo) => r2(cargosPost.filter((c) => CARGO_A_FAMILIA[c.tipo] === tipo).reduce((s, c) => s + (Number(c.monto) || 0), 0));
+  // Un cargo "otro" cubre por NOMBRE (06/10: "Cobrar al cliente" crea el cargo con el
+  // rótulo de la familia, ej. "Corrección de dirección", "Recargo por demanda"; también si
+  // la oficina lo escribió parecido, ej. "area remota"). Sin esto, el aviso seguía después
+  // de cargar el cargo y la oficina lo cargaba dos veces.
+  const norm = (t) => String(t || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, ' ').trim();
+  const ALIAS = {
+    remota: ['area remota', 'area extendida', 'remota', 'extendida', 'extended area', 'remote area'],
+    residencial: ['residencial', 'residential'],
+    manejo: ['manejo', 'additional handling'],
+    contorno: ['mayor tamano', 'paquete grande', 'large package', 'oversize'],
+    surge: ['surge', 'demanda', 'incremento de volumen', 'peak'],
+    seguro: ['seguro', 'valor declarado', 'declared value'],
+    papel: ['papel', 'paper'],
+    ddp: ['ddp', 'impuestos de destino', 'duty'],
+    direccion: ['correccion de direccion', 'address correction', 'direccion'],
+    derechos: ['derechos de exportacion'],
+  };
+  const cubrePorNombre = (c, tipo, labelFamilia) => {
+    if (c.tipo !== 'otro') return false;
+    const l = norm(c.label);
+    if (!l) return false;
+    if (labelFamilia && (l === norm(labelFamilia) || l.includes(norm(labelFamilia)) || norm(labelFamilia).includes(l))) return true;
+    return (ALIAS[tipo] || []).some((a) => l.includes(a));
+  };
+  const cubiertoPorCargo = (tipo, labelFamilia = null) => r2(cargosPost
+    .filter((c) => CARGO_A_FAMILIA[c.tipo] === tipo || cubrePorNombre(c, tipo, labelFamilia))
+    .reduce((s, c) => s + (Number(c.monto) || 0), 0));
 
   // Lo previsto por el sistema, por familia (+ lo que la oficina ya cargó como cargo posterior).
   const previsto = (tipo) => {
@@ -97,7 +123,7 @@ function detectarAnomalias(envio, factura) {
       const tipos = CUBRE[tipo] || [];
       base = r2(extras.filter((x) => tipos.includes(String(x.tipo))).reduce((s, x) => s + (Number(x.monto) || 0), 0));
     }
-    return r2(base + cubiertoPorCargo(tipo));
+    return r2(base + cubiertoPorCargo(tipo, FAMILIAS.find((f) => f.tipo === tipo)?.label));
   };
   // Extras que el envío marcó aunque no tengan monto (ej. zona de entrega).
   const marcado = (tipo) => {
@@ -111,12 +137,13 @@ function detectarAnomalias(envio, factura) {
   for (const f of fact.values()) {
     if (f.monto <= 0) continue;                 // neteado o bonificado: nada que avisar
     if (f.tipo === 'fuel' || f.tipo === 'ipf') continue; // siempre está, no es anomalía
-    if (f.tipo === 'papel') {
-      out.push({ tipo: f.tipo, label: f.label, facturado: f.monto, previsto: 0, dif: f.monto, clase: 'no_previsto', texto: `${f.label}: USD ${f.monto.toFixed(2)} (no se bonificó)` });
-      continue;
-    }
-    if (f.tipo === 'otro' || f.tipo === 'direccion') {
-      out.push({ tipo: f.tipo, label: f.label, facturado: f.monto, previsto: 0, dif: f.monto, clase: 'no_previsto', texto: `${f.label}: USD ${f.monto.toFixed(2)} no previsto` });
+    if (f.tipo === 'papel' || f.tipo === 'otro' || f.tipo === 'direccion') {
+      // Nunca previstos por el sistema: la única cobertura posible es un cargo posterior
+      // con ese nombre (lo crea "Cobrar al cliente" o lo escribe la oficina).
+      const cub = cubiertoPorCargo(f.tipo, f.label);
+      const dif = r2(f.monto - cub);
+      if (dif < DIF_MIN_USD) continue;
+      out.push({ tipo: f.tipo, label: f.label, facturado: f.monto, previsto: cub, dif, clase: 'no_previsto', texto: `${f.label}: USD ${f.monto.toFixed(2)} ${f.tipo === 'papel' ? '(no se bonificó)' : 'no previsto'}${cub > 0 ? ` · ya cargado USD ${cub.toFixed(2)}` : ''}` });
       continue;
     }
     const p = previsto(f.tipo);

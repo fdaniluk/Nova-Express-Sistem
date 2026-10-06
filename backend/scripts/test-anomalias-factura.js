@@ -68,6 +68,16 @@ function check(nombre, cond, det) {
   a = detectarAnomalias({ ...envio, cargos_posteriores: [{ tipo: 'sobrepeso', monto: 10, estado: 'pendiente' }] }, { cargos: [], peso_facturado: 9.5 });
   check('un cargo "sobrepeso" cubre la diferencia de peso', a.length === 0);
 
+  // (06/10) Un cargo "otro" con el nombre de la familia cubre la anomalía — es lo que crea
+  // "Cobrar al cliente". Sin esto el aviso seguía y la oficina cargaba el cargo dos veces.
+  a = detectarAnomalias({ ...envio, cargos_posteriores: [{ tipo: 'otro', label: 'Corrección de dirección', monto: 22.1, estado: 'pendiente' }] }, { cargos: [{ nombre: 'Address Correction', monto: 22.1 }], peso_facturado: 8 });
+  check('cargo "otro: Corrección de dirección" cubre el Address Correction de la factura', a.length === 0, JSON.stringify(a));
+  a = detectarAnomalias({ ...envio, cargos_posteriores: [{ tipo: 'otro', label: 'area remota', monto: 42.15, estado: 'pendiente' }] }, { cargos: [{ nombre: 'Extended Area Surcharge Destination', monto: 42.15 }], peso_facturado: 8 });
+  check('cargo "otro: area remota" (escrito a mano) cubre el área extendida', a.length === 0, JSON.stringify(a));
+  a = detectarAnomalias({ ...envio, cargos_posteriores: [{ tipo: 'otro', label: 'Recargo por demanda', monto: 6.6, estado: 'pendiente' }] }, { cargos: [{ nombre: 'SURGE FEE - COM', monto: 26.6 }], peso_facturado: 8 });
+  check('cargo "otro: Recargo por demanda" cubre la diferencia de surge', a.length === 0, JSON.stringify(a));
+  a = detectarAnomalias({ ...envio, cargos_posteriores: [{ tipo: 'otro', label: 'Corrección de dirección', monto: 22.1, estado: 'anulado' }] }, { cargos: [{ nombre: 'Address Correction', monto: 22.1 }], peso_facturado: 8 });
+  check('un cargo anulado no cubre nada', a.length === 1);
   a = detectarAnomalias(envio, { cargos: [{ nombre: 'Address Correction', monto: 18 }, { nombre: 'Duty and Tax Forwarding Surcharge', monto: 12 }], peso_facturado: 8 });
   check('corrección de dirección y DDP forwarding sin DDP → no previstos', a.length === 2 && a.every((x) => x.clase === 'no_previsto'));
   a = detectarAnomalias({ ...envio, ddp: 1 }, { cargos: [{ nombre: 'Duty and Tax Forwarding Surcharge', monto: 12 }], peso_facturado: 8 });
