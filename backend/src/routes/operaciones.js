@@ -15,14 +15,14 @@ router.get('/', async (req, res, next) => {
     // ya entró y solo hay que llevarla al cliente. Viven en Pickups nada más.
     const pickups = await db
       .prepare(
-        `SELECT id, cliente_id, cliente_nombre, direccion, fecha, hora_inicio, hora_fin, estado, tipo_recoleccion, titulo,
+        `SELECT id, cliente_id, cliente_nombre, direccion, fecha, hora_inicio, hora_fin, horario_pendiente, hora2_inicio, hora2_fin, estado, tipo_recoleccion, titulo,
                 check_datos, check_guia, check_proforma, check_despachado,
                 confirmado_ricardo, visto_juanqui_at, confirmado_juanqui, en_deposito_at, recolector, mostrar_en_operaciones
          FROM pickups
          WHERE fecha = ?
            AND (mostrar_en_operaciones = 1 OR mostrar_en_operaciones IS NULL)
            AND COALESCE(entrega_impo, 0) = 0
-         ORDER BY hora_inicio ASC`
+         ORDER BY (hora_inicio IS NULL OR hora_inicio = '') ASC, hora_inicio ASC`
       )
       .all(fecha);
 
@@ -32,7 +32,7 @@ router.get('/', async (req, res, next) => {
     // Mismas columnas que la query de pickups del día → el frontend los renderiza igual.
     const rezagados = await db
       .prepare(
-        `SELECT id, cliente_id, cliente_nombre, direccion, fecha, hora_inicio, hora_fin, estado, tipo_recoleccion, titulo,
+        `SELECT id, cliente_id, cliente_nombre, direccion, fecha, hora_inicio, hora_fin, horario_pendiente, hora2_inicio, hora2_fin, estado, tipo_recoleccion, titulo,
                 check_datos, check_guia, check_proforma, check_despachado,
                 confirmado_ricardo, visto_juanqui_at, confirmado_juanqui, en_deposito_at, recolector, mostrar_en_operaciones
          FROM pickups

@@ -43,7 +43,8 @@ router.get('/', async (req, res, next) => {
         WHERE pickup_id IS NOT NULL
         GROUP BY pickup_id
       ) co ON co.pickup_id = p.id`;
-    const orderBy = ' ORDER BY p.fecha ASC, p.hora_inicio ASC';
+    // Los "a confirmar horario" (sin hora) van al final del día, no primeros por NULL.
+    const orderBy = " ORDER BY p.fecha ASC, (p.hora_inicio IS NULL OR p.hora_inicio = '') ASC, p.hora_inicio ASC";
 
     // Las tarjetas 'ninguna' (envíos sin recolección, cargados desde Operaciones) nunca
     // aparecen en esta pantalla: acá se organiza a los choferes, y estos envíos no los
@@ -61,17 +62,46 @@ router.get('/', async (req, res, next) => {
   }
 });
 
+// ── Horario (06/10/2026) ──────────────────────────────────────────────────────
+// Pedido de Felipe: poder dejar un pickup "a confirmar horario" (sin hora, marcado hasta
+// que el cliente confirme) y poder cargar DOS franjas (ej. 09:00-12:00 y 14:00-17:00).
+// Devuelve { ok, error, valores } con lo que hay que guardar. `actual` es la fila existente
+// (PUT) para completar lo que el body no manda.
+const HORA_RE = /^([01]\d|2[0-3]):[0-5]\d$/;
+function resolverHorario(body, actual = null) {
+  const pend = body.horario_pendiente !== undefined ? (body.horario_pendiente ? 1 : 0) : (actual ? (actual.horario_pendiente ? 1 : 0) : 0);
+  const v = (k) => (body[k] !== undefined ? (body[k] === '' ? null : body[k]) : (actual ? actual[k] : null));
+  let hi = v('hora_inicio'), hf = v('hora_fin'), h2i = v('hora2_inicio'), h2f = v('hora2_fin');
+  if (pend) {
+    // A confirmar: sin horas. Lo que hubiera cargado se descarta.
+    // hora_inicio/hora_fin son NOT NULL en la tabla: se guardan vacías ('').
+    return { ok: true, valores: { horario_pendiente: 1, hora_inicio: '', hora_fin: '', hora2_inicio: null, hora2_fin: null } };
+  }
+  if (!hi || !hf) return { ok: false, error: 'Cargá el horario (desde y hasta) o marcá "horario a confirmar".' };
+  for (const h of [hi, hf, h2i, h2f]) if (h && !HORA_RE.test(String(h))) return { ok: false, error: `Hora inválida: ${h} (formato HH:MM).` };
+  if (hf <= hi) return { ok: false, error: 'En la primera franja, "hasta" tiene que ser posterior a "desde".' };
+  if ((h2i && !h2f) || (!h2i && h2f)) return { ok: false, error: 'La segunda franja necesita desde y hasta.' };
+  if (h2i) {
+    if (h2f <= h2i) return { ok: false, error: 'En la segunda franja, "hasta" tiene que ser posterior a "desde".' };
+    if (h2i < hf) return { ok: false, error: 'La segunda franja tiene que empezar después de que termine la primera.' };
+  }
+  return { ok: true, valores: { horario_pendiente: 0, hora_inicio: hi, hora_fin: hf, hora2_inicio: h2i || null, hora2_fin: h2f || null } };
+}
+
 router.post('/', async (req, res, next) => {
   try {
     const db = getDb();
-    const { cliente_id, direccion, fecha, hora_inicio, hora_fin, notas, courier, recolector, tiene_cobro, tipo_recoleccion, llevar_plata, mostrar_en_operaciones } = req.body;
+    const { cliente_id, direccion, fecha, notas, courier, recolector, tiene_cobro, tipo_recoleccion, llevar_plata, mostrar_en_operaciones } = req.body;
     const entregaImpo = normalizarEntrega(req.body.entrega_impo) || 0;
 
-    if (!cliente_id || !direccion || !fecha || !hora_inicio || !hora_fin) {
+    if (!cliente_id || !direccion || !fecha) {
       return res
         .status(400)
-        .json({ error: 'cliente_id, direccion, fecha, hora_inicio y hora_fin son obligatorios' });
+        .json({ error: 'cliente_id, direccion y fecha son obligatorios' });
     }
+    const hor = resolverHorario(req.body);
+    if (!hor.ok) return res.status(400).json({ error: hor.error });
+    const { hora_inicio, hora_fin, hora2_inicio, hora2_fin, horario_pendiente } = hor.valores;
 
     if (recolector != null && !RECOLECTORES.includes(recolector)) {
       return res.status(400).json({ error: `Recolector inválido. Valores permitidos: ${RECOLECTORES.join(', ')}` });
@@ -101,8 +131,8 @@ router.post('/', async (req, res, next) => {
     const result = await db
       .prepare(
         `INSERT INTO pickups
-           (cliente_id, cliente_nombre, direccion, fecha, hora_inicio, hora_fin, notas, courier, recolector, tiene_cobro, tipo_recoleccion, estado, llevar_plata, mostrar_en_operaciones, entrega_impo)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+           (cliente_id, cliente_nombre, direccion, fecha, hora_inicio, hora_fin, notas, courier, recolector, tiene_cobro, tipo_recoleccion, estado, llevar_plata, mostrar_en_operaciones, entrega_impo, horario_pendiente, hora2_inicio, hora2_fin)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         cliente_id,
@@ -119,7 +149,10 @@ router.post('/', async (req, res, next) => {
         estadoInicial,
         llevar_plata ? 1 : 0,
         mostrarEnOperaciones,
-        entregaImpo
+        entregaImpo,
+        horario_pendiente,
+        hora2_inicio,
+        hora2_fin
       );
 
     const created = await db.prepare('SELECT * FROM pickups WHERE id = ?').get(result.lastInsertRowid);
@@ -138,7 +171,10 @@ router.put('/:id', async (req, res, next) => {
     if (!existing) return res.status(404).json({ error: 'Pickup no encontrado' });
 
     // `estado` no se acepta como campo libre: se deriva de los timestamps actuales
-    const { cliente_id, direccion, fecha, hora_inicio, hora_fin, notas, courier, recolector, tiene_cobro, tipo_recoleccion, llevar_plata, mostrar_en_operaciones } = req.body;
+    const { cliente_id, direccion, fecha, notas, courier, recolector, tiene_cobro, tipo_recoleccion, llevar_plata, mostrar_en_operaciones } = req.body;
+    const hor = resolverHorario(req.body, existing);
+    if (!hor.ok) return res.status(400).json({ error: hor.error });
+    const { hora_inicio, hora_fin, hora2_inicio, hora2_fin, horario_pendiente } = hor.valores;
 
     if (recolector != null && !RECOLECTORES.includes(recolector)) {
       return res.status(400).json({ error: `Recolector inválido. Valores permitidos: ${RECOLECTORES.join(', ')}` });
@@ -179,7 +215,8 @@ router.put('/:id', async (req, res, next) => {
         `UPDATE pickups
          SET cliente_id=?, cliente_nombre=?, direccion=?, fecha=?, hora_inicio=?, hora_fin=?,
              notas=?, estado=?, courier=?, recolector=?, tiene_cobro=?, tipo_recoleccion=?,
-             llevar_plata=?, mostrar_en_operaciones=?, entrega_impo=?
+             llevar_plata=?, mostrar_en_operaciones=?, entrega_impo=?,
+             horario_pendiente=?, hora2_inicio=?, hora2_fin=?
          WHERE id=?`
       )
       .run(
@@ -187,8 +224,8 @@ router.put('/:id', async (req, res, next) => {
         clienteNombre,
         direccion     != null      ? direccion     : existing.direccion,
         fecha         != null      ? fecha         : existing.fecha,
-        hora_inicio   != null      ? hora_inicio   : existing.hora_inicio,
-        hora_fin      != null      ? hora_fin      : existing.hora_fin,
+        hora_inicio,
+        hora_fin,
         notas         !== undefined ? notas         : existing.notas,
         estado,
         courier       !== undefined ? courier       : existing.courier,
@@ -198,6 +235,9 @@ router.put('/:id', async (req, res, next) => {
         llevar_plata           !== undefined ? (llevar_plata ? 1 : 0)           : existing.llevar_plata,
         newMostrar,
         newEntrega,
+        horario_pendiente,
+        hora2_inicio,
+        hora2_fin,
         id
       );
 

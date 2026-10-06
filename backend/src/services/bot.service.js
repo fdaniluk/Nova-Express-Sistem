@@ -402,7 +402,7 @@ const HERRAMIENTAS = {
           sin_confirmar: lista.filter((x) => !x.confirmado_ricardo && !x.confirmado_juanqui && !x.en_deposito_at).length,
           en_deposito: lista.filter((x) => !!x.en_deposito_at).length,
           lista: lista.slice(0, 15).map((x) => ({
-            id: x.id, cliente: x.cliente_nombre, direccion: x.direccion, horario: `${x.hora_inicio}-${x.hora_fin}`,
+            id: x.id, cliente: x.cliente_nombre, direccion: x.direccion, horario: x.horario_pendiente ? 'a confirmar' : `${x.hora_inicio}-${x.hora_fin}${x.hora2_inicio ? ' y ' + x.hora2_inicio + '-' + x.hora2_fin : ''}`,
             estado: x.estado, recolector: x.recolector || null, tipo: x.tipo_recoleccion,
           })),
         };
@@ -490,7 +490,7 @@ const HERRAMIENTAS = {
       const r = await api(ctx.cookie, 'POST', '/api/pickups', body);
       if (r && r.error) return r;
       await guardarPendiente(ctx.conversacion.id, null);
-      return { cargado: true, pickup_id: r.id, cliente: r.cliente_nombre, fecha: r.fecha, horario: `${r.hora_inicio}-${r.hora_fin}`, direccion: r.direccion, estado: r.estado };
+      return { cargado: true, pickup_id: r.id, cliente: r.cliente_nombre, fecha: r.fecha, horario: r.horario_pendiente ? 'a confirmar' : `${r.hora_inicio}-${r.hora_fin}`, direccion: r.direccion, estado: r.estado };
     },
   },
 

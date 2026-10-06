@@ -383,7 +383,7 @@
         <div class="pickup-card-v2-header">
           <div class="pickup-header-top">
             <div class="pickup-avatar ${sc}">${escHtml(getInitials(p.cliente_nombre))}</div>
-            <div class="pickup-hora">${escHtml(p.hora_inicio)} – ${escHtml(p.hora_fin)}</div>
+            <div class="pickup-hora">${horarioHtml(p)}</div>
             <div class="pickup-header-badges">
               ${entregaBadgeHtml}
               ${courierBadgeHtml(p.courier)}
@@ -445,7 +445,7 @@
               ${entregaChip}
               ${courierBadgeHtml(p.courier)}
               ${cobroChip}
-              <span class="semana-row-hora">${escHtml(p.hora_inicio)}</span>
+              <span class="semana-row-hora">${horarioHtml(p, true)}</span>
               ${recChipHtml(p.recolector, p.tipo_recoleccion)}
               <span class="semana-row-badge ${sc}">${badgeLabel}</span>
             </div>`;
@@ -517,7 +517,7 @@
     detallePickupId = id;
     document.getElementById('detalle-cliente').textContent = p.cliente_nombre;
     document.getElementById('detalle-fecha').textContent = NovaUtils.formatDate(p.fecha);
-    document.getElementById('detalle-hora').textContent = `${p.hora_inicio} – ${p.hora_fin}`;
+    document.getElementById('detalle-hora').innerHTML = horarioHtml(p);
     document.getElementById('detalle-dir').textContent = p.direccion;
     document.getElementById('detalle-notas').textContent = p.notas || '—';
     document.getElementById('detalle-courier').textContent = p.courier || '—';
@@ -634,6 +634,32 @@
     }
   }
 
+  // Horario de cara a la gente (06/10): "A confirmar" si está pendiente, una o dos franjas
+  // si no. `corto` = solo el inicio (vista semana).
+  function horarioTexto(p, corto = false) {
+    if (p.horario_pendiente) return 'A confirmar';
+    if (corto) return p.hora2_inicio ? `${p.hora_inicio} / ${p.hora2_inicio}` : (p.hora_inicio || '—');
+    let t = `${p.hora_inicio || '—'} – ${p.hora_fin || '—'}`;
+    if (p.hora2_inicio) t += ` · ${p.hora2_inicio} – ${p.hora2_fin}`;
+    return t;
+  }
+  function horarioHtml(p, corto = false) {
+    if (p.horario_pendiente) return `<span class="hora-pendiente" title="El cliente todavía no confirmó el horario">⏳ A confirmar</span>`;
+    return escHtml(horarioTexto(p, corto));
+  }
+
+  function aplicarHorarioPendienteEnModal() {
+    const pend = document.getElementById('m-horario-pendiente').checked;
+    document.getElementById('m-hora-row-1').classList.toggle('hora-row-off', pend);
+    document.getElementById('m-hora-row-2').classList.toggle('hora-row-off', pend);
+    ['m-hora-inicio', 'm-hora-fin', 'm-hora2-inicio', 'm-hora2-fin', 'm-hora2-add', 'm-hora2-del'].forEach((id) => { document.getElementById(id).disabled = pend; });
+  }
+  function mostrarFranja2(ver) {
+    document.getElementById('m-hora-row-2').classList.toggle('hidden', !ver);
+    document.getElementById('m-hora2-add').classList.toggle('hidden', ver);
+    if (!ver) { document.getElementById('m-hora2-inicio').value = ''; document.getElementById('m-hora2-fin').value = ''; }
+  }
+
   function abrirModal(fechaDefault) {
     pickupEditandoId = null;
     modalTitle.textContent = 'Nuevo pickup';
@@ -643,6 +669,9 @@
     document.getElementById('m-fecha').value = fecha;
     document.getElementById('m-hora-inicio').value = '09:00';
     document.getElementById('m-hora-fin').value = '11:00';
+    document.getElementById('m-horario-pendiente').checked = false;
+    mostrarFranja2(false);
+    aplicarHorarioPendienteEnModal();
     document.getElementById('m-courier').value = '';
     document.getElementById('m-tipo-recoleccion').value = 'normal';
     document.getElementById('m-tiene-cobro').checked = false;
@@ -666,8 +695,13 @@
     poblarSelectClientes();
     document.getElementById('m-cliente').value = p.cliente_id;
     document.getElementById('m-fecha').value = p.fecha;
-    document.getElementById('m-hora-inicio').value = p.hora_inicio;
-    document.getElementById('m-hora-fin').value = p.hora_fin;
+    document.getElementById('m-hora-inicio').value = p.hora_inicio || '';
+    document.getElementById('m-hora-fin').value = p.hora_fin || '';
+    document.getElementById('m-horario-pendiente').checked = !!p.horario_pendiente;
+    mostrarFranja2(!!p.hora2_inicio);
+    document.getElementById('m-hora2-inicio').value = p.hora2_inicio || '';
+    document.getElementById('m-hora2-fin').value = p.hora2_fin || '';
+    aplicarHorarioPendienteEnModal();
     document.getElementById('m-courier').value = p.courier || '';
     document.getElementById('m-tipo-recoleccion').value = p.tipo_recoleccion || 'normal';
     document.getElementById('m-tiene-cobro').checked = !!p.tiene_cobro;
@@ -717,8 +751,11 @@
     const cliente_id = document.getElementById('m-cliente').value;
     const direccion = getDireccionDelModal();
     const fecha = document.getElementById('m-fecha').value;
+    const horario_pendiente = document.getElementById('m-horario-pendiente').checked ? 1 : 0;
     const hora_inicio = document.getElementById('m-hora-inicio').value;
     const hora_fin = document.getElementById('m-hora-fin').value;
+    const hora2_inicio = document.getElementById('m-hora2-inicio').value || null;
+    const hora2_fin = document.getElementById('m-hora2-fin').value || null;
     const courierEl = document.getElementById('m-courier');
     const courier = courierEl ? (courierEl.value || null) : null;
     const tiene_cobro = document.getElementById('m-tiene-cobro').checked ? 1 : 0;
@@ -727,12 +764,16 @@
     const tipo_recoleccion = document.getElementById('m-tipo-recoleccion').value || 'normal';
     const entrega_impo = document.getElementById('m-entrega-impo').checked ? 1 : 0;
     const notas = document.getElementById('m-notas').value.trim() || null;
-    if (!cliente_id || !direccion || !fecha || !hora_inicio || !hora_fin) {
-      NovaUtils.showAlert(alertBox, 'Completá todos los campos obligatorios.');
+    if (!cliente_id || !direccion || !fecha || (!horario_pendiente && (!hora_inicio || !hora_fin))) {
+      NovaUtils.showAlert(alertBox, 'Completá todos los campos obligatorios (o marcá "horario a confirmar").');
+      return;
+    }
+    if (!horario_pendiente && ((hora2_inicio && !hora2_fin) || (!hora2_inicio && hora2_fin))) {
+      NovaUtils.showAlert(alertBox, 'La segunda franja necesita desde y hasta (o quitala).');
       return;
     }
     try {
-      const datos = { cliente_id, direccion, fecha, hora_inicio, hora_fin, courier, tiene_cobro, llevar_plata, mostrar_en_operaciones, tipo_recoleccion, entrega_impo, notas };
+      const datos = { cliente_id, direccion, fecha, hora_inicio, hora_fin, horario_pendiente, hora2_inicio, hora2_fin, courier, tiene_cobro, llevar_plata, mostrar_en_operaciones, tipo_recoleccion, entrega_impo, notas };
       if (pickupEditandoId) {
         await NovaAPI.pickups.editar(pickupEditandoId, datos);
       } else {
@@ -1021,6 +1062,9 @@
     modalOverlay.addEventListener('click', e => { if (e.target === modalOverlay) cerrarModal(); });
     document.getElementById('btn-modal-guardar').addEventListener('click', guardarPickup);
     btnEliminar.addEventListener('click', eliminarPickup);
+    document.getElementById('m-horario-pendiente').addEventListener('change', aplicarHorarioPendienteEnModal);
+    document.getElementById('m-hora2-add').addEventListener('click', () => { mostrarFranja2(true); document.getElementById('m-hora2-inicio').focus(); });
+    document.getElementById('m-hora2-del').addEventListener('click', () => mostrarFranja2(false));
 
     document.getElementById('modal-chofer-close').addEventListener('click', cerrarModalChofer);
     document.getElementById('btn-chofer-cancelar').addEventListener('click', cerrarModalChofer);

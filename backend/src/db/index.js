@@ -237,6 +237,11 @@ async function migratePickups() {
     // 04/09: entrega de una importación (la caja ya está en el depósito y se lleva al
     // cliente). Misma cadena de chofer, último paso 'entregado'; nunca va a Operaciones.
     ['entrega_impo',          'INTEGER NOT NULL DEFAULT 0'],
+    // 06/10: horario a confirmar (se carga el pickup sin hora y queda marcado hasta que el
+    // cliente confirme) y segunda franja horaria (ej. 9-12 y 14-17, con corte al mediodía).
+    ['horario_pendiente',     'INTEGER NOT NULL DEFAULT 0'],
+    ['hora2_inicio',          'TEXT'],
+    ['hora2_fin',             'TEXT'],
   ];
   for (const [col, def] of toAdd) {
     if (!cols.includes(col)) {

@@ -119,7 +119,7 @@
 
     const pickupsPendientes = pickupsDelDia
       .filter((p) => !pickupDespachado(p) && estadoPickup(p) !== 'dep')
-      .sort((a, b) => a.hora_inicio.localeCompare(b.hora_inicio));
+      .sort((a, b) => String(a.hora_inicio || '99').localeCompare(String(b.hora_inicio || '99')));
 
     const pickupsDeposito = pickupsDelDia
       .filter((p) => !pickupDespachado(p) && estadoPickup(p) === 'dep')
@@ -243,7 +243,8 @@
     } else if (sc === 'cam') {
       est = 'En camioneta'; estClase = 'cam';
     } else {
-      est = `Pickup pendiente · ${escHtml(pickup.hora_inicio)}–${escHtml(pickup.hora_fin)}`; estClase = 'pend';
+      const hor = pickup.horario_pendiente ? '⏳ horario a confirmar' : `${escHtml(pickup.hora_inicio)}–${escHtml(pickup.hora_fin)}${pickup.hora2_inicio ? ' · ' + escHtml(pickup.hora2_inicio) + '–' + escHtml(pickup.hora2_fin) : ''}`;
+      est = `Pickup pendiente · ${hor}`; estClase = 'pend';
     }
 
     const badgeRezagado = esRezagado

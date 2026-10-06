@@ -1152,3 +1152,11 @@
 
   .btn-confirmar, .btn-detalle { font-size: 0.85rem; }
 }
+
+/* Horario a confirmar / segunda franja (06/10/2026) */
+.hora-pendiente { display: inline-block; background: #FFF4E5; color: #9A5B00; border: 1px solid #F3D48A; border-radius: 999px; padding: 0 .5rem; font-weight: 600; font-size: .85em; white-space: nowrap; }
+.hora-pendiente-label { display: flex; align-items: center; gap: .4rem; margin: .2rem 0 .4rem; font-size: .9rem; }
+.hora-pendiente-label small { color: var(--color-text-muted, #777); }
+.hora-row { align-items: flex-end; }
+.hora-row-off { opacity: .45; pointer-events: none; }
+#m-hora2-add, #m-hora2-del { margin-bottom: .35rem; white-space: nowrap; }

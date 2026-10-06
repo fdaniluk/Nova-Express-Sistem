@@ -6,7 +6,7 @@
   <title>Pickups – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260929a">
-  <link rel="stylesheet" href="../css/modules/pickups.css?v=20260924a">
+  <link rel="stylesheet" href="../css/modules/pickups.css?v=20261006a">
 </head>
 <body>
 <div class="app-layout">
@@ -177,7 +177,13 @@
         <label for="m-fecha">Fecha</label>
         <input type="date" id="m-fecha">
       </div>
-      <div class="hora-row">
+      <!-- Horario (06/10/2026): "a confirmar" deja el pickup sin hora y marcado hasta que el
+           cliente confirme; la segunda franja es para los que reciben en dos turnos (9-12 y 14-17). -->
+      <label class="checkbox-label hora-pendiente-label">
+        <input type="checkbox" id="m-horario-pendiente">
+        <span>Horario a confirmar <small>(el cliente todavía no confirmó la hora)</small></span>
+      </label>
+      <div class="hora-row" id="m-hora-row-1">
         <div class="form-group">
           <label for="m-hora-inicio">Desde</label>
           <input type="time" id="m-hora-inicio">
@@ -186,6 +192,18 @@
           <label for="m-hora-fin">Hasta</label>
           <input type="time" id="m-hora-fin">
         </div>
+        <button type="button" class="btn btn-sm btn-secondary btn-dashed" id="m-hora2-add" title="Agregar una segunda franja horaria (ej. de 14:00 a 17:00)">+ franja</button>
+      </div>
+      <div class="hora-row hidden" id="m-hora-row-2">
+        <div class="form-group">
+          <label for="m-hora2-inicio">2ª franja desde</label>
+          <input type="time" id="m-hora2-inicio">
+        </div>
+        <div class="form-group">
+          <label for="m-hora2-fin">Hasta</label>
+          <input type="time" id="m-hora2-fin">
+        </div>
+        <button type="button" class="btn btn-sm btn-secondary" id="m-hora2-del" title="Quitar la segunda franja">×</button>
       </div>
       <div class="form-group">
         <label for="m-courier">Courier</label>
@@ -354,6 +372,6 @@
 <script src="/js/auth-guard.js?v=20260924b"></script>
 <script src="../js/api.js?v=20261005a"></script>
 <script src="../js/main.js?v=20260929a"></script>
-<script src="../js/modules/pickups.js?v=20260924a"></script>
+<script src="../js/modules/pickups.js?v=20261006a"></script>
 </body>
 </html>
