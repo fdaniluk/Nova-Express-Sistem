@@ -106,6 +106,9 @@ async function main() {
   await page.click('#saled-cargo-form button[type=submit]');
   await esperar(900);
   const bloque = await page.textContent('#saled-cargos-block');
+  // (06/10) La tarjeta Resultado del modal muestra el cargo y la venta completa.
+  const resTxt = await page.textContent('.sal-cardp-resultado');
+  check('la tarjeta Resultado muestra "+ Cargos posteriores 12.50" y la "Venta completa"', /Cargos posteriores\s*12\.50/.test(resTxt) && /Venta completa/.test(resTxt) && !(await page.$('#saled-cargos-row.hidden')), resTxt.replace(/\s+/g, ' ').slice(0, 200));
   check('el cargo queda listado (sin cartel "pendiente": el envío no está liquidado)', /Sobrepeso/.test(bloque) && !/pendiente/.test(bloque), bloque.slice(0, 120));
   check('sin chip en la grilla: el cargo ya está sumado en Venta Total', !(await page.$(`#salidas-body tr[data-envio-id="${nuevo1.id}"] .chip-cargo`)));
   const filaNuevo = await J('GET', `/api/salidas?desde=${dia(10)}&hasta=${dia(0)}`);

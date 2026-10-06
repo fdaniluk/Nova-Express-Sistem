@@ -2398,6 +2398,17 @@
                 <label for="saled-total">Venta total</label>
                 <input type="number" id="saled-total" step="0.01" class="sal-res-input sal-res-venta">
               </div>
+              <!-- Cargos posteriores (06/10): la venta del input es el precio base; el cargo
+                   va aparte y se suma a venta y compra. Acá se muestra para que no parezca
+                   que "no se aplicó" (la grilla ya lo sumaba, el modal no lo decía). -->
+              <div class="sal-res-row sal-res-ro sal-res-cargos hidden" id="saled-cargos-row">
+                <span>+ Cargos posteriores</span>
+                <span id="saled-cargos-view" class="sal-res-val">—</span>
+              </div>
+              <div class="sal-res-row sal-res-ro sal-res-cargos hidden" id="saled-venta-completa-row">
+                <span><b>Venta completa</b></span>
+                <span id="saled-venta-completa-view" class="sal-res-val"><b>—</b></span>
+              </div>
               <div class="sal-res-row sal-res-ro">
                 <span>Compra total</span>
                 <span id="saled-compra-view" class="sal-res-val">—</span>
@@ -2634,6 +2645,8 @@
     renderExtrasBlock();
     renderCargosBlock();
     renderFacturaBlock();
+    // Filas "+ cargos posteriores" / "venta completa" de la tarjeta Resultado (06/10).
+    recalcProfit();
 
     // Peso y medidas. Multi-bulto = más de un bulto: las medidas salen de cada bulto y el
     // peso balanza es la suma (no editable arriba). Bulto único = campos sueltos editables.
@@ -2929,8 +2942,21 @@
       + num('saled-fuel') + num('saled-derechos') + num('saled-adicionales') + num('saled-otros');
     // La tarjeta Resultado muestra la compra total (suma de los costos) siempre, aunque no
     // haya venta: es el número contra el que se compara la factura del courier.
+    // Cargos posteriores vigentes: suman lo mismo a la venta y a la compra (al costo).
+    const cargos = editEnvio ? (editEnvio.cargos || []).filter((c) => c.estado !== 'anulado').reduce((a, c) => a + parseNum(c.monto), 0) : 0;
     const compraView = document.getElementById('saled-compra-view');
-    if (compraView) compraView.textContent = costo ? costo.toFixed(2) : '—';
+    if (compraView) compraView.textContent = (costo || cargos) ? (costo + cargos).toFixed(2) : '—';
+    const rowC = document.getElementById('saled-cargos-row');
+    const rowV = document.getElementById('saled-venta-completa-row');
+    if (rowC && rowV) {
+      const hay = cargos > 0;
+      rowC.classList.toggle('hidden', !hay);
+      rowV.classList.toggle('hidden', !hay);
+      if (hay) {
+        document.getElementById('saled-cargos-view').textContent = cargos.toFixed(2);
+        document.getElementById('saled-venta-completa-view').innerHTML = `<b>${((total || 0) + cargos).toFixed(2)}</b>`;
+      }
+    }
     if (total == null || total === 0) return;
 
     const profit = Math.round((total - costo) * 100) / 100;
@@ -3116,6 +3142,7 @@
         }
         actualizarCargosEnGrilla();
         renderCargosBlock();
+        recalcProfit();
       } catch (err) {
         status.textContent = err.message || 'No se pudo guardar el cargo.';
       }
@@ -3130,6 +3157,7 @@
           editEnvio.cargos = (editEnvio.cargos || []).map((x) => (x.id === id ? upd : x));
           actualizarCargosEnGrilla();
           renderCargosBlock();
+          recalcProfit();
         } catch (err) {
           alert(err.message || 'No se pudo anular el cargo.');
         }
