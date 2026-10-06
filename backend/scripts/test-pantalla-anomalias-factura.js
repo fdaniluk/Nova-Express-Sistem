@@ -20,12 +20,13 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
   const sqlite3 = require('sqlite3');
   const raw = new sqlite3.Database(DB);
   const run = (sql, p = []) => new Promise((res, rej) => raw.run(sql, p, function (e) { e ? rej(e) : res(this); }));
+  for (const col of ['flete_facturado', 'fuel_facturado']) await run(`ALTER TABLE factura_guias ADD COLUMN ${col} REAL`).catch(() => {});
   const cli = await run("INSERT INTO clientes (nombre, tipo_cobro, tarifa_pct, activo) VALUES ('ANOM PANTALLA', 'CC', 50, 1)");
   const env1 = await run(`INSERT INTO envios (cliente_id, fecha, courier, servicio_ups, tipo_envio, numero_guia, pais_destino, peso_real, peso_facturable, fob, total_cobrado, flete, seguro, fuel, adicionales, extras_json, costo_facturado, peso_facturado, courier_facturado, fecha_facturado, estado_revision, entrega)
     VALUES (?, '2026-09-12', 'UPS', 'UPS_EXP', 'exportacion', '1Z000ANOMPANT0001', 'Reino Unido', 8, 8, 100, 200, 60, 15, 20, 5, '[{"tipo":"surge","monto":5}]', 138.00, 8, 'UPS', '2026-09-20', 'a_revisar', 'normal')`, [cli.lastID]);
   const fac = await run(`INSERT INTO facturas_cargadas (numero_factura, fecha_factura, fecha_carga, courier, total_declarado, subtotal_factura, percepciones, tipo) VALUES ('F-PANT-1', '2026-09-20', '2026-09-21', 'UPS', 142.00, 138.00, 4.00, 'flete')`);
-  await run(`INSERT INTO factura_guias (factura_id, envio_id, numero_guia, pais, peso_facturado, neto, total_recargos, costo_total, cargos_json, encontrada)
-    VALUES (?, ?, '1Z000ANOMPANT0001', 'Reino Unido', 8, 100, 38, 138.00, '[{"nombre":"Extended Area Surcharge Destination","monto":32},{"nombre":"Residential","monto":6}]', 1)`, [fac.lastID, env1.lastID]);
+  await run(`INSERT INTO factura_guias (factura_id, envio_id, numero_guia, pais, peso_facturado, neto, total_recargos, costo_total, cargos_json, encontrada, flete_facturado, fuel_facturado)
+    VALUES (?, ?, '1Z000ANOMPANT0001', 'Reino Unido', 8, 100, 38, 138.00, '[{"nombre":"Extended Area Surcharge Destination","monto":32},{"nombre":"Residential","monto":6}]', 1, 62.5, 21)`, [fac.lastID, env1.lastID]);
   await new Promise((r) => raw.close(r));
 
   const srv = spawn('node', [path.join(__dirname, '..', 'src', 'server.js')], { env: { ...process.env, DB_PATH: DB, PORT: String(PORT), NODE_ENV: 'production' }, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -65,6 +66,15 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
   await esperar(2500);
   const chip = await page.$('.chip-anom');
   check('la fila tiene el chip ⚠ 2 en Costo UPS', !!chip && /2/.test(await chip.textContent()));
+  // Flete+Fuel (06/10): nuestra suma (60 + 20 = 80) y la de UPS (62.5 + 21 = 83.5), pintada
+  // porque UPS cobró USD 3.50 de más.
+  const ff = await page.$eval('tr[data-envio-id] td[data-col="flete_fuel"]', (td) => td.textContent.trim());
+  const ffu = await page.$eval('tr[data-envio-id] td[data-col="flete_fuel_ups"]', (td) => ({ t: td.textContent.trim(), rojo: td.classList.contains('cell-desvio-rojo'), title: td.title }));
+  check('columna Flete+Fuel = 80.00 (60 + 20)', /80[.,]00/.test(ff), ff);
+  check('columna Flete+Fuel UPS = 83.50, en rojo, con el tooltip de la diferencia', /83[.,]50/.test(ffu.t) && ffu.rojo && /\+3\.50/.test(ffu.title), JSON.stringify(ffu));
+  const bandas = await page.$$eval('.salidas-table thead tr.th-groups th', (ths) => ths.reduce((s, th) => s + (th.colSpan || 1), 0));
+  const cols = await page.$$eval('.salidas-table thead tr.th-cols th', (ths) => ths.length);
+  check('la banda de grupos sigue cubriendo todas las columnas (40)', bandas === cols && cols === 40, `${bandas} vs ${cols}`);
   const title = chip ? await chip.getAttribute('title') : '';
   check('el tooltip explica qué', /no previsto/.test(title), title);
   await page.click('text=1Z000ANOMPANT0001');

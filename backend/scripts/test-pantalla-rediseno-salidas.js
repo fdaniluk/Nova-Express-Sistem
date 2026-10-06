@@ -9,7 +9,7 @@
  *     el Cierre vive en la barra del buscador;
  *   · los importes de la grilla van sin "$" y el cero en gris (.em), pero el número sigue
  *     siendo legible con punto decimal (lo que leen los otros tests y el copiado);
- *   · la banda de grupos arriba de los rótulos cubre EXACTAMENTE las 38 columnas y se
+ *   · la banda de grupos arriba de los rótulos cubre EXACTAMENTE las 40 columnas y se
  *     pliega junto con el bloque UPS;
  *   · tildar filas hace que "Copiar guías" muestre (n) envíos — por ENVÍO, aunque se tilde
  *     la sub-fila de un bulto — y "Seleccionar todo" / destildar lo actualizan;
@@ -154,7 +154,7 @@ async function main() {
   check('Descuento 0 va en gris (.em) y no como "$0.00"', /class="em">0</.test(celdas.descuento) && !/\$/.test(celdas.descuento), celdas.descuento);
   check('Profit sin "$"', !/\$/.test(celdas.profit) && cerca(num(celdas.total) - num(celdas.compra), num(celdas.profit)), `${celdas.total} − ${celdas.compra} = ${celdas.profit}`);
 
-  console.log('\n3. La banda de grupos cubre las 38 columnas y se pliega con el bloque UPS\n');
+  console.log('\n3. La banda de grupos cubre las 40 columnas y se pliega con el bloque UPS\n');
   const banda = await page.evaluate(() => {
     const ths = [...document.querySelectorAll('.salidas-table thead tr.th-groups th')];
     const cols = document.querySelectorAll('.salidas-table thead tr.th-cols th').length;
@@ -170,7 +170,7 @@ async function main() {
     };
   });
   check('hay 8 grupos', banda.grupos === 8, String(banda.grupos));
-  check('la suma de colspans es igual a las columnas de abajo (38)', banda.colspanTotal === banda.cols && banda.cols === 38, `${banda.colspanTotal} vs ${banda.cols}`);
+  check('la suma de colspans es igual a las columnas de abajo (40)', banda.colspanTotal === banda.cols && banda.cols === 40, `${banda.colspanTotal} vs ${banda.cols}`);
   check('los grupos son Identificación · Bulto · Medidas · Venta · Costos · Resultado · Factura UPS · Estado',
     /Identificaci/.test(banda.textos[0]) && /Bulto/.test(banda.textos[1]) && /Medidas/.test(banda.textos[2]) && /Venta/.test(banda.textos[3])
       && /Costos/.test(banda.textos[4]) && /Resultado/.test(banda.textos[5]) && /UPS/.test(banda.textos[6]) && /Estado/.test(banda.textos[7]), banda.textos.join(' | '));

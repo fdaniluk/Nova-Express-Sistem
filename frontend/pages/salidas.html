@@ -174,7 +174,7 @@
           <table class="salidas-table" id="salidas-table">
             <thead>
               <!-- Banda de grupos (09/09/2026): una fila arriba de los rótulos que agrupa las
-                   columnas por lo que son. Los colspans SUMAN 38 = las columnas de abajo; si se
+                   columnas por lo que son. Los colspans SUMAN 40 = las columnas de abajo; si se
                    agrega o saca una columna hay que tocar el grupo que corresponde. El grupo
                    "Factura UPS" lleva .ups-col para plegarse con las columnas UPS. -->
               <tr class="th-groups">
@@ -182,9 +182,9 @@
                 <th class="thg thg-bulto" colspan="3">Bulto</th>
                 <th class="thg thg-medidas" colspan="6">Medidas y pesos</th>
                 <th class="thg thg-venta" colspan="3">Venta</th>
-                <th class="thg thg-costos" colspan="8">Costos (USD)</th>
+                <th class="thg thg-costos" colspan="9">Costos (USD)</th>
                 <th class="thg thg-resultado" colspan="2">Resultado</th>
-                <th class="thg thg-ups ups-col" colspan="6">Factura UPS</th>
+                <th class="thg thg-ups ups-col" colspan="7">Factura UPS</th>
                 <th class="thg thg-estado" colspan="2">Estado</th>
               </tr>
               <tr class="th-cols">
@@ -212,6 +212,7 @@
                 <th data-col="descuento" class="num" style="width:65px"><div class="th-inner">Dscto<span class="sort-icon"></span></div></th>
                 <th data-col="seguro" class="num" style="width:65px"><div class="th-inner">Seguro<span class="sort-icon"></span></div></th>
                 <th data-col="fuel" class="num" style="width:65px"><div class="th-inner">Fuel<span class="sort-icon"></span></div></th>
+                <th data-col="flete_fuel" class="num" style="width:78px" title="Flete + Fuel: es el renglón que UPS factura junto por cada guía"><div class="th-inner">Flete+Fuel<span class="sort-icon"></span></div></th>
                 <th data-col="derechos" class="num" style="width:65px"><div class="th-inner">Derechos<span class="sort-icon"></span></div></th>
                 <th data-col="adicionales" class="num" style="width:65px"><div class="th-inner">Adic<span class="sort-icon"></span></div></th>
                 <th data-col="otros" class="num" style="width:60px"><div class="th-inner">Otros<span class="sort-icon"></span></div></th>
@@ -219,6 +220,7 @@
                 <th data-col="profit" class="num" style="width:70px"><div class="th-inner">Profit<span class="sort-icon"></span></div></th>
                 <th data-col="porcentaje" class="num" style="width:52px"><div class="th-inner">%<span class="sort-icon"></span></div></th>
                 <th data-col="costo_facturado" class="num ups-col" style="width:78px"><div class="th-inner">Costo UPS<span class="sort-icon"></span></div></th>
+                <th data-col="flete_fuel_ups" class="num ups-col" style="width:88px" title="Flete + fuel que facturó UPS por la guía (sin recargos). Rojo si difiere de nuestro Flete+Fuel en más de USD 2"><div class="th-inner">Flete+Fuel UPS<span class="sort-icon"></span></div></th>
                 <th data-col="porcentaje_real" class="num ups-col" style="width:58px"><div class="th-inner">% Real<span class="sort-icon"></span></div></th>
                 <!-- La doble vista (31/08): el profit contra la factura REAL del courier, al lado
                      del estimado de siempre. Ninguno pisa al otro. -->
@@ -231,7 +233,7 @@
               </tr>
             </thead>
             <tbody id="salidas-body">
-              <tr><td colspan="38" class="salidas-empty">Cargando…</td></tr>
+              <tr><td colspan="40" class="salidas-empty">Cargando…</td></tr>
             </tbody>
           </table>
         </div>
@@ -265,6 +267,6 @@
 <script src="/shared/guias/validar-guia.js?v=20260915a"></script>
 <script src="../js/cotizaciones-recientes.js?v=20261002a"></script>
 <script src="../js/finde.js?v=20260922b"></script>
-<script src="../js/modules/salidas.js?v=20261005b"></script>
+<script src="../js/modules/salidas.js?v=20261006a"></script>
 </body>
 </html>

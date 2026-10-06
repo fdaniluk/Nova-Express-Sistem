@@ -78,16 +78,16 @@
   // El re-render destruye los td, por eso se guardan índices y se vuelve a resolver el td.
   // La columna 0 es el checkbox de selección: NO se navega con flechas (índices 1..36).
   const GRID_MIN_COL = 1;    // columna 0 = checkbox "copiar guías", no navegable
-  const GRID_MAX_COL = 37;   // 38 columnas fijas → índices 0..37; navegables 1..37
+  const GRID_MAX_COL = 39;   // 40 columnas fijas → índices 0..39; navegables 1..39 (06/10: + Flete+Fuel y Flete+Fuel UPS)
   let activeCell = null;
 
   // ── Bloque desplegable de columnas UPS (Costo UPS, % Real, Profit Real, Peso UPS, Dif Peso, Revisión)
   // Cinco columnas contiguas (índices 30..34) que solo importan al cruzar facturas. Se ocultan
   // con la clase .ups-collapsed en la tabla (CSS: .ups-col{display:none}). Frontend puro: la
   // exportación a Excel las incluye SIEMPRE, este el bloque plegado o no.
-  const UPS_COL_START = 30;  // Costo UPS
-  const UPS_COL_END = 35;    // Revisión (el bloque sumó Profit Real el 31/08)
-  const UPS_BLOCK_COLS = UPS_COL_END - UPS_COL_START + 1;   // 6 columnas ocultables
+  const UPS_COL_START = 31;  // Costo UPS (06/10: corrió uno por la columna Flete+Fuel de Costos)
+  const UPS_COL_END = 37;    // Revisión (el bloque sumó Profit Real el 31/08 y Flete+Fuel UPS el 06/10)
+  const UPS_BLOCK_COLS = UPS_COL_END - UPS_COL_START + 1;   // 7 columnas ocultables
 
   // Override manual del bloque, guardado en sessionStorage (dura la sesión y después vuelve al
   // comportamiento automático). null = auto (según haya pendientes); true/false = forzado.
@@ -454,12 +454,12 @@
   // Colspan de la celda de CONTENIDO de la sub-fila de detalle (arranca en Venta Total, col 19,
   // y llega hasta Observaciones, col 36). Plegado → restar las 5 columnas del bloque.
   function detailContentColspan() {
-    return upsVisible ? 19 : 19 - UPS_BLOCK_COLS;
+    return upsVisible ? 21 : 21 - UPS_BLOCK_COLS;
   }
 
   // Colspan de las filas de estado vacío / cargando / error (abarcan toda la tabla).
   function emptyColspan() {
-    return upsVisible ? 38 : 38 - UPS_BLOCK_COLS;
+    return upsVisible ? 40 : 40 - UPS_BLOCK_COLS;
   }
 
   // Aplica la visibilidad efectiva al "chrome": clase de la tabla (CSS oculta .ups-col) y
@@ -587,6 +587,7 @@
     // se pinta rojo solo si va en contra nuestra (positivo) y supera la tolerancia del courier.
     const difCosto = difEval(e, isFirst, e.costo_facturado, e.compra_estimada ?? e.compra_total, 'costo');
     const difPeso = difEval(e, isFirst, e.peso_facturado, e.peso_facturable, 'peso');
+    const difFF = difFleteFuel(e, isFirst);
 
     tr.innerHTML = `
       <td class="chk-cell">${chkCell}</td>
@@ -613,6 +614,7 @@
       <td class="num" data-col="descuento">${env(fmtCell(e.descuento))}</td>
       <td class="num" data-col="seguro">${env(fmtCell(e.seguro))}</td>
       <td class="num" data-col="fuel">${env(fmtCell(e.fuel))}</td>
+      <td class="num${difFF.rojo ? ' cell-desvio-rojo' : ''}" data-col="flete_fuel"${difFF.title ? ` title="${escAttr(difFF.title)}"` : ''}>${env(fmtCell(e.flete_fuel))}</td>
       <td class="num" data-col="derechos">${env(fmtCell(e.derechos))}</td>
       <td class="num adic-cell${adicExp ? ' adic-expandable detail-expandable' : ''}"${adicExp ? ` data-detail-envio="${e.id}"` : ''}>${adicCellHtml(e, isFirst)}</td>
       <td class="num" data-col="otros">${env(fmtCell(e.otros))}</td>
@@ -620,6 +622,7 @@
       <td class="num" data-col="profit">${env(profitCell(e))}</td>
       <td class="num" data-col="porcentaje">${env(pctCell(e))}</td>
       <td class="num ups-col${difCosto.rojo ? ' cell-desvio-rojo' : ''}" data-col="costo_ups"${difCosto.title ? ` title="${escAttr(difCosto.title)}"` : ''}>${costoUpsCellHtml(e, isFirst)}</td>
+      <td class="num ups-col${difFF.rojo ? ' cell-desvio-rojo' : ''}" data-col="flete_fuel_ups"${difFF.title ? ` title="${escAttr(difFF.title)}"` : ''}>${fleteFuelUpsCellHtml(e, isFirst)}</td>
       <td class="num ups-col" data-col="porcentaje_real">${pctRealCellHtml(e, isFirst)}</td>
       <td class="num ups-col" data-col="profit_real">${profitRealCellHtml(e, isFirst)}</td>
       <td class="num ups-col" data-col="peso_ups">${pesoUpsCellHtml(e, isFirst)}</td>
@@ -674,6 +677,23 @@
   // venta ni peso propios (ya están en la fila). "Sin factura" = costo_facturado null → las
   // cuatro celdas van con un guión, sin semáforo ni cuentas. En sub-filas de bulto van en
   // blanco (dato de envío, no de bulto), igual que el resto de columnas del envío.
+
+  // Flete + Fuel nuestro vs el que facturó UPS (06/10): el renglón de la guía en la factura.
+  // Rojo cuando UPS cobró más de USD 2 por encima de lo calculado. Sin dato de factura
+  // (cargada antes del 05/10) no se compara.
+  function difFleteFuel(e, isFirst) {
+    if (!isFirst || e.flete_fuel_ups == null || e.flete_fuel == null) return { rojo: false, title: '' };
+    const dif = Math.round((Number(e.flete_fuel_ups) - Number(e.flete_fuel)) * 100) / 100;
+    const sign = dif > 0 ? '+' : '';
+    const title = `Flete+Fuel facturado por UPS ${Number(e.flete_fuel_ups).toFixed(2)} vs calculado ${Number(e.flete_fuel).toFixed(2)} (${sign}${dif.toFixed(2)} USD)`;
+    return { rojo: dif >= 2, title };
+  }
+  function fleteFuelUpsCellHtml(e, isFirst) {
+    if (!isFirst) return '';
+    if (e.costo_facturado == null) return '<span class="em">—</span>';
+    if (e.flete_fuel_ups == null) return '<span class="em" title="La factura se cargó antes de que el sistema guardara flete y fuel por guía. Se completa al recargarla.">s/d</span>';
+    return fmtCell(e.flete_fuel_ups);
+  }
 
   // Celda "Costo UPS": lo que facturó el courier (e.costo_facturado).
   function costoUpsCellHtml(e, isFirst) {
