@@ -224,12 +224,13 @@ async function listarSalidas({ desde, hasta } = {}) {
   const recargosPorEnvio = new Map();
   const fuelFacturadoPorEnvio = new Map();
   const fleteFacturadoPorEnvio = new Map();
+  const netoPorEnvio = new Map();
   if (envioIds.length > 0) {
     const placeholders = envioIds.map(() => '?').join(', ');
     // ORDER BY id ASC: al iterar, la fila de mayor id (más reciente) sobrescribe y gana.
     const guiaRows = await db
       .prepare(`
-        SELECT envio_id, cargos_json, fuel_facturado, flete_facturado
+        SELECT envio_id, cargos_json, fuel_facturado, flete_facturado, neto
         FROM factura_guias
         WHERE envio_id IN (${placeholders})
         ORDER BY id ASC`)
@@ -238,6 +239,7 @@ async function listarSalidas({ desde, hasta } = {}) {
       recargosPorEnvio.set(g.envio_id, parseExtras(g.cargos_json));
       fuelFacturadoPorEnvio.set(g.envio_id, g.fuel_facturado);
       fleteFacturadoPorEnvio.set(g.envio_id, g.flete_facturado);
+      netoPorEnvio.set(g.envio_id, g.neto);
     }
   }
 
@@ -375,11 +377,11 @@ async function listarSalidas({ desde, hasta } = {}) {
     fecha_facturado: row.fecha_facturado ?? null,
     recargos_facturados: recargosPorEnvio.get(row.id) ?? [],
     // Flete + fuel (06/10, pedido de administración): UPS los factura juntos en el renglón de
-    // la guía, así que para controlar rápido se muestra la suma nuestra y la facturada, sin
-    // dejar de ver cada uno por separado. NULL si la factura es anterior a que se guardara.
+    // la guía (el "neto" de la factura, guardado desde siempre en factura_guias.neto), así que
+    // para controlar rápido se muestra la suma nuestra y la facturada, sin dejar de ver cada
+    // uno por separado. Vale para todas las facturas, viejas y nuevas; no hay que recargar nada.
     flete_fuel: r2((Number(row.flete) || 0) + (Number(row.fuel) || 0)),
-    flete_fuel_ups: (fleteFacturadoPorEnvio.get(row.id) != null && fuelFacturadoPorEnvio.get(row.id) != null)
-      ? r2(Number(fleteFacturadoPorEnvio.get(row.id)) + Number(fuelFacturadoPorEnvio.get(row.id))) : null,
+    flete_fuel_ups: netoPorEnvio.get(row.id) != null ? r2(Number(netoPorEnvio.get(row.id))) : null,
     // Anomalías de la factura (05/10): recargos que el envío no tenía previstos, más caros
     // de lo previsto, u otro peso. [] sin factura. Chip ⚠ en Costo UPS + bloque del modal.
     anomalias_factura: row.costo_facturado != null

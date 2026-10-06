@@ -26,7 +26,7 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
     VALUES (?, '2026-09-12', 'UPS', 'UPS_EXP', 'exportacion', '1Z000ANOMPANT0001', 'Reino Unido', 8, 8, 100, 200, 60, 15, 20, 5, '[{"tipo":"surge","monto":5}]', 138.00, 8, 'UPS', '2026-09-20', 'a_revisar', 'normal')`, [cli.lastID]);
   const fac = await run(`INSERT INTO facturas_cargadas (numero_factura, fecha_factura, fecha_carga, courier, total_declarado, subtotal_factura, percepciones, tipo) VALUES ('F-PANT-1', '2026-09-20', '2026-09-21', 'UPS', 142.00, 138.00, 4.00, 'flete')`);
   await run(`INSERT INTO factura_guias (factura_id, envio_id, numero_guia, pais, peso_facturado, neto, total_recargos, costo_total, cargos_json, encontrada, flete_facturado, fuel_facturado)
-    VALUES (?, ?, '1Z000ANOMPANT0001', 'Reino Unido', 8, 100, 38, 138.00, '[{"nombre":"Extended Area Surcharge Destination","monto":32},{"nombre":"Residential","monto":6}]', 1, 62.5, 21)`, [fac.lastID, env1.lastID]);
+    VALUES (?, ?, '1Z000ANOMPANT0001', 'Reino Unido', 8, 83.5, 38, 121.50, '[{"nombre":"Extended Area Surcharge Destination","monto":32},{"nombre":"Residential","monto":6}]', 1, 62.5, 21)`, [fac.lastID, env1.lastID]);
   await new Promise((r) => raw.close(r));
 
   const srv = spawn('node', [path.join(__dirname, '..', 'src', 'server.js')], { env: { ...process.env, DB_PATH: DB, PORT: String(PORT), NODE_ENV: 'production' }, stdio: ['ignore', 'pipe', 'pipe'] });
@@ -66,8 +66,8 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
   await esperar(2500);
   const chip = await page.$('.chip-anom');
   check('la fila tiene el chip ⚠ 2 en Costo UPS', !!chip && /2/.test(await chip.textContent()));
-  // Flete+Fuel (06/10): nuestra suma (60 + 20 = 80) y la de UPS (62.5 + 21 = 83.5), pintada
-  // porque UPS cobró USD 3.50 de más.
+  // Flete+Fuel (06/10): nuestra suma (60 + 20 = 80) y el neto de la factura (83.5), pintada
+  // porque UPS cobró USD 3.50 de más. Sale del neto, así vale para facturas viejas.
   const ff = await page.$eval('tr[data-envio-id] td[data-col="flete_fuel"]', (td) => td.textContent.trim());
   const ffu = await page.$eval('tr[data-envio-id] td[data-col="flete_fuel_ups"]', (td) => ({ t: td.textContent.trim(), rojo: td.classList.contains('cell-desvio-rojo'), title: td.title }));
   check('columna Flete+Fuel = 80.00 (60 + 20)', /80[.,]00/.test(ff), ff);

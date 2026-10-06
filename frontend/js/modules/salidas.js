@@ -691,7 +691,7 @@
   function fleteFuelUpsCellHtml(e, isFirst) {
     if (!isFirst) return '';
     if (e.costo_facturado == null) return '<span class="em">—</span>';
-    if (e.flete_fuel_ups == null) return '<span class="em" title="La factura se cargó antes de que el sistema guardara flete y fuel por guía. Se completa al recargarla.">s/d</span>';
+    if (e.flete_fuel_ups == null) return '<span class="em" title="La factura no trajo el renglón de flete+fuel de esta guía.">s/d</span>';
     return fmtCell(e.flete_fuel_ups);
   }
 
