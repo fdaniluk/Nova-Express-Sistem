@@ -265,7 +265,7 @@ router.post('/cargar', subirPdf, async (req, res, next) => {
         try {
           // Igual que en /chequear: igualdad directa para que entre por el índice único.
           const envio = await db
-            .prepare('SELECT id, total_cobrado, costo_facturado, ddp, impuestos_facturados, extras_json, seguro, derechos, fuel, peso_facturable, entrega, remota, cliente_id FROM envios WHERE numero_guia = ?')
+            .prepare('SELECT id, total_cobrado, costo_facturado, estado_revision, ddp, impuestos_facturados, extras_json, seguro, derechos, fuel, peso_facturable, entrega, remota, cliente_id, asegurado FROM envios WHERE numero_guia = ?')
             .get(normalizarGuia(guia.numero_guia));
 
           detalle.push({ guia, envio_id: envio ? envio.id : null, encontrada: envio ? 1 : 0 });
@@ -343,6 +343,17 @@ router.post('/cargar', subirPdf, async (req, res, next) => {
             estado_revision = 'a_revisar';
             resumen.con_anomalias++;
             resumen.anomalias_lista.push({ numero_guia: guia.numero_guia, envio_id: envio.id, pais: guia.pais, anomalias });
+          }
+          // Sobreescribir NO pisa el trabajo de revisión (auditoría 07/10): si la guía ya
+          // estaba aprobada o en reclamo y la factura trae el MISMO costo, se conserva ese
+          // estado. Antes una recarga de la factura devolvía todo a 'pendiente'/'a_revisar' y
+          // la oficina tenía que volver a aprobar guía por guía. Si el costo cambió, sí se
+          // vuelve a revisar: es otro número.
+          if (sobreescribir && envio.costo_facturado != null
+              && (envio.estado_revision === 'revisado_ok' || envio.estado_revision === 'reclamar')
+              && Math.abs(Number(envio.costo_facturado) - Number(costo_facturado)) < 0.01) {
+            estado_revision = envio.estado_revision;
+            resumen.revision_conservada = (resumen.revision_conservada || 0) + 1;
           }
 
           await db.prepare(`

@@ -3165,6 +3165,21 @@
     });
   }
 
+  // Profit real de una fila, con la misma fórmula del backend (utils/profit.js, profitDoble):
+  // venta = total + cargos posteriores vigentes − los de impuestos DDP (esos UPS los factura
+  // aparte y no están en costo_facturado). Antes la pantalla usaba total − costo_facturado a
+  // secas y, en un envío con cargos, el profit real quedaba más bajo que el del GET.
+  function refrescarProfitReal(d) {
+    if (d.costo_facturado == null || d.total == null) return;
+    const vig = (d.cargos || []).filter((c) => c.estado !== 'anulado');
+    const cargos = vig.reduce((s, c) => s + parseNum(c.monto), 0);
+    const ddp = vig.filter((c) => c.origen === 'impuestos_ddp').reduce((s, c) => s + parseNum(c.monto), 0);
+    const venta = parseNum(d.total) + cargos - ddp;
+    d.profit_real_monto = Math.round((venta - d.costo_facturado) * 100) / 100;
+    d.porcentaje_real = d.costo_facturado !== 0
+      ? Math.round((d.profit_real_monto / d.costo_facturado) * 10000) / 100 : null;
+  }
+
   // Refleja los cargos del envío en edición en la fila de la grilla (chip) sin refrescar.
   function actualizarCargosEnGrilla() {
     if (!editEnvio) return;
@@ -3186,6 +3201,9 @@
           d.venta_desglose.adicional = Math.round((d.venta_desglose.adicional + dif) * 100) / 100;
           d.venta_desglose.total = Math.round((d.venta_desglose.total + dif) * 100) / 100;
         }
+        // Profit real (07/10): un cargo nuevo sube la venta y la factura del courier ya lo
+        // tenía, así que el profit real sube lo mismo. Antes la celda quedaba vieja hasta refrescar.
+        refrescarProfitReal(d);
       }
     }
     editEnvio.cargos_pendientes = (editEnvio.cargos || []).filter((c) => c.estado === 'pendiente').reduce((s, c) => s + parseNum(c.monto), 0);
@@ -3815,11 +3833,7 @@
         d.compra_estimada = d.compra_total;
         d.profit_estimado = payload.profit ?? d.profit_estimado;
         d.porcentaje_estimado = payload.porcentaje ?? d.porcentaje_estimado;
-        if (d.costo_facturado != null && d.total != null) {
-          d.profit_real_monto = Math.round((d.total - d.costo_facturado) * 100) / 100;
-          d.porcentaje_real = d.costo_facturado !== 0
-            ? Math.round((d.profit_real_monto / d.costo_facturado) * 10000) / 100 : null;
-        }
+        refrescarProfitReal(d);
         if (editMulti && Array.isArray(d.bultos)) {
           for (const eb of bultosPayload) {
             const target = d.bultos.find((x) => x.id === eb.id);

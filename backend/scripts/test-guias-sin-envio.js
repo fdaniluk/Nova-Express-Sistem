@@ -156,7 +156,7 @@ async function main() {
   // ── La pantalla ────────────────────────────────────────────────────────────
   console.log('\n2. La pantalla las muestra DESPUÉS de cargar (que es lo que faltaba)\n');
 
-  const r = await fetch(BASE + '/api/facturas/sin-envio', { headers: H() });
+  const r = await fetch(BASE + '/api/facturas/sin-envio?todo=1', { headers: H() }) // la factura de ejemplo es anterior a la fecha de corte;
   const res = await r.json().catch(() => ({}));
   check('el endpoint responde', r.ok, `${r.status}`);
   check('devuelve las guías sin envío', (res.guias || []).length >= 8,
@@ -212,9 +212,18 @@ async function main() {
   check('recargar la misma factura sin sobreescribir es un 409', sinPermiso.status === 409,
     `${sinPermiso.status}`);
 
+  // (07/10) Antes de recargar, la oficina aprobó la guía bien cargada: la recarga con el
+  // mismo costo NO le tiene que pisar el estado (antes volvía a 'pendiente'/'a_revisar').
+  const aprob = await fetch(`${BASE}/api/facturas/guias/${a1.json.id}/estado`, { method: 'PATCH', headers: H(), body: JSON.stringify({ estado_revision: 'revisado_ok' }) });
+  check('fixture: la guía bien cargada se aprueba', aprob.ok, `${aprob.status}`);
+
   const conPermiso = await recargar('true');
   check('con sobreescribir la recarga entra', conPermiso.status === 200,
     `${conPermiso.status} ${JSON.stringify(conPermiso.json).slice(0, 120)}`);
+  const estadoTras = await q('SELECT estado_revision, costo_facturado FROM envios WHERE id = ?', [a1.json.id]);
+  check('la guía aprobada sigue "revisado_ok" después de recargar (mismo costo)',
+    estadoTras[0] && estadoTras[0].estado_revision === 'revisado_ok', JSON.stringify(estadoTras[0]));
+  check('y el resumen lo cuenta (revision_conservada = 1)', conPermiso.json.revision_conservada === 1, String(conPermiso.json.revision_conservada));
 
   const cabeceras = await q(
     'SELECT COUNT(*) n FROM facturas_cargadas WHERE numero_factura = ?', ['0020-00074402']);
@@ -228,7 +237,7 @@ async function main() {
     detalleFilas[0].n === (conPermiso.json.total_guias ?? 10),
     `${detalleFilas[0].n} filas para ${conPermiso.json.total_guias} guías`);
 
-  const r5 = await fetch(BASE + '/api/facturas/sin-envio', { headers: H() });
+  const r5 = await fetch(BASE + '/api/facturas/sin-envio?todo=1', { headers: H() }) // la factura de ejemplo es anterior a la fecha de corte;
   const res5 = await r5.json().catch(() => ({}));
   check('la pestaña Sin envío no muestra duplicados tras recargar',
     res5.total === res.total, `${res5.total} vs ${res.total}`);

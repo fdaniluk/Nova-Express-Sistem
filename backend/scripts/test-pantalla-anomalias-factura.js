@@ -96,6 +96,13 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
   check('al guardar, el cargo aparece en Cargos posteriores y la anomalía desaparece', /Área remota/.test(cargos) && !/Área remota \/ extendida: USD 32/.test(bloque2) && /residencial/i.test(bloque2), bloque2.replace(/\s+/g, ' ').slice(0, 200));
   const chip2 = await page.$('.chip-anom');
   check('el chip de la fila baja a 1', !!chip2 && /1/.test(await chip2.textContent()));
+  // (07/10) Profit real en la grilla sin refrescar: venta 200 + cargo 32 − costo 138 = 94.
+  const prCell = await page.$eval('tr[data-envio-id] td[data-col="profit_real"]', (td) => td.textContent.trim());
+  check('la celda Profit real de la fila ya suma el cargo (94.00)', /94[.,]00/.test(prCell), prCell);
+  await page.click('#sal-modal-close');
+  await esperar(300);
+  const prApi = (await fetch(`${BASE}/api/salidas?desde=2026-09-12&hasta=2026-09-12`, { headers: { Cookie: `nova_session=${TOKEN}` } }).then((r) => r.json())).find((r) => r.id === env1.lastID);
+  check('y coincide con lo que devuelve el GET', prApi && Math.abs(prApi.profit_real_monto - 94) < 0.011, JSON.stringify(prApi && prApi.profit_real_monto));
   check('ningún error en la pantalla', errores.length === 0, errores.slice(0, 3).join(' | '));
 
   console.log(`\n${ok} pasaron · ${fail} fallaron`);
