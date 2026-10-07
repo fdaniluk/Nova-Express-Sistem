@@ -2,6 +2,9 @@ const { Router } = require('express');
 const multer = require('multer');
 const { getDb } = require('../db');
 const { extraerFacturaUPS } = require('../services/factura-ups.service');
+// DHL (07/10/2026): el mismo endpoint lee facturas de los dos couriers; el lector se elige por
+// el texto del PDF (factura-dhl.service.js).
+const { extraerFacturaCourier } = require('../services/factura-dhl.service');
 const { hoyLocal, aISO } = require('../utils/fecha');
 const configuracionModel = require('../models/configuracion.model');
 const cargosModel = require('../models/envio-cargos.model');
@@ -26,7 +29,7 @@ async function extraerOFallar(file, res) {
   const esPdf = file.buffer && file.buffer.subarray(0, 5).toString('latin1') === '%PDF-';
   if (!esPdf) { res.status(422).json({ error: `"${file.originalname}" no es un PDF.` }); return null; }
   try {
-    return await extraerFacturaUPS(file.buffer);
+    return await extraerFacturaCourier(file.buffer, extraerFacturaUPS);
   } catch (e) {
     res.status(422).json({ error: `No se pudo leer "${file.originalname}": ${e.message}` });
     return null;
@@ -59,11 +62,12 @@ router.post('/chequear', subirPdf, async (req, res, next) => {
 
     // La reconciliación y las advertencias viajan SIEMPRE, también cuando no hay guías.
     // El punto de /chequear es que el operador vea los problemas ANTES de cargar.
-    const reconciliacion = { total_declarado, suma_guias, diferencia, cuadra };
+    const reconciliacion = { total_declarado, suma_guias, diferencia, cuadra, percepciones: extraido.percepciones ?? null, iva: extraido.iva ?? null, courier: extraido.courier || 'UPS' };
 
     if (guias.length === 0) {
       return res.json({
         tipo,
+        courier: extraido.courier || 'UPS',
         guias_total: 0,
         guias_ya_cargadas: [],
         conteo_ya_cargadas: 0,
@@ -96,6 +100,7 @@ router.post('/chequear', subirPdf, async (req, res, next) => {
       }
       return res.json({
         tipo,
+        courier: extraido.courier || 'UPS',
         guias_total: guias.length,
         conteo_ya_cargadas: guias_ya_cargadas.length,
         guias_ya_cargadas,
@@ -128,6 +133,7 @@ router.post('/chequear', subirPdf, async (req, res, next) => {
 
     res.json({
       tipo,
+      courier: extraido.courier || 'UPS',
       guias_total: guias.length,
       conteo_ya_cargadas: guias_ya_cargadas.length,
       guias_ya_cargadas,
@@ -162,6 +168,7 @@ router.post('/cargar', subirPdf, async (req, res, next) => {
     const fecha_factura = aISO(extraido.fecha_factura) || null;
     const tipo = extraido.tipo || 'flete';
     const esImpuestos = tipo === 'impuestos';
+    const courier = extraido.courier === 'DHL' ? 'DHL' : 'UPS';
 
     const db = getDb();
 
@@ -194,7 +201,7 @@ router.post('/cargar', subirPdf, async (req, res, next) => {
 
     const config = await db
       .prepare('SELECT ganancia_minima_pct FROM configuracion WHERE courier = ?')
-      .get('UPS');
+      .get(courier);
     const umbral = config?.ganancia_minima_pct ?? 20;
 
     // hoyLocal(): con toISOString() (UTC) una carga de facturas de noche dejaba
@@ -360,12 +367,12 @@ router.post('/cargar', subirPdf, async (req, res, next) => {
             UPDATE envios
             SET costo_facturado   = ?,
                 peso_facturado    = ?,
-                courier_facturado = 'UPS',
+                courier_facturado = ?,
                 fecha_facturado   = ?,
                 estado_revision   = ?,
                 updated_at        = datetime('now', 'localtime')
             WHERE id = ?
-          `).run(costo_facturado, guia.peso ?? null, fecha_factura || hoy, estado_revision, envio.id); // fecha de la FACTURA, como la rama de impuestos (29/09)
+          `).run(costo_facturado, guia.peso ?? null, courier, fecha_factura || hoy, estado_revision, envio.id); // fecha de la FACTURA, como la rama de impuestos (29/09)
 
           resumen.guardadas++;
           if (estado_revision === 'a_revisar') resumen.a_revisar++;
@@ -394,11 +401,14 @@ router.post('/cargar', subirPdf, async (req, res, next) => {
       const header = await db.prepare(`
         INSERT INTO facturas_cargadas
           (courier, numero_factura, fecha_factura, cantidad_guias, guias_cruzadas, guias_no_encontradas, usuario,
-           total_declarado, subtotal_factura, percepciones, tipo)
-        VALUES ('UPS', ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?)
+           total_declarado, subtotal_factura, percepciones, tipo, iva)
+        VALUES (?, ?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)
       `).run(
-        numero_factura, fecha_factura, guias.length, resumen.guardadas, resumen.no_encontradas,
-        total_declarado ?? null, subtotal_factura ?? null, percepciones ?? null, tipo
+        courier, numero_factura, fecha_factura, guias.length, resumen.guardadas, resumen.no_encontradas,
+        total_declarado ?? null, subtotal_factura ?? null, percepciones ?? null, tipo,
+        // IVA de la factura (DHL: 21 % sobre lo gravado, ej. el seguro). Es crédito fiscal, no
+        // costo de los envíos: queda en la cabecera, como la percepción.
+        extraido.iva ?? null
       );
 
       const facturaId = header.lastInsertRowid;
@@ -461,9 +471,11 @@ router.post('/cargar', subirPdf, async (req, res, next) => {
     res.json({
       ...resumen,
       tipo,
+      courier,
       // La pantalla de carga en lote muestra qué factura era cada PDF.
       numero_factura,
-      reconciliacion: { total_declarado, suma_guias, diferencia, cuadra },
+      // percepciones / iva / courier (07/10): la pantalla los muestra en el cuadre.
+      reconciliacion: { total_declarado, suma_guias, diferencia, cuadra, percepciones: percepciones ?? null, iva: extraido.iva ?? null, courier },
       advertencias,
     });
   } catch (err) {
@@ -570,21 +582,26 @@ router.get('/percepciones', async (req, res, next) => {
     const hasta = /^\d{4}-\d{2}-\d{2}$/.test(String(req.query.hasta || '')) ? req.query.hasta : null;
     const rows = await db.prepare(`
       SELECT f.id, f.numero_factura, f.fecha_factura, f.fecha_carga, f.courier, f.tipo,
-             f.total_declarado, f.subtotal_factura, f.percepciones,
+             f.total_declarado, f.subtotal_factura, f.percepciones, f.iva,
              (SELECT COUNT(*) FROM factura_guias fg WHERE fg.factura_id = f.id) AS guias
       FROM facturas_cargadas f
-      WHERE COALESCE(f.percepciones, 0) <> 0
+      WHERE (COALESCE(f.percepciones, 0) <> 0 OR COALESCE(f.iva, 0) <> 0)
         AND (? IS NULL OR f.fecha_factura >= ?) AND (? IS NULL OR f.fecha_factura <= ?)
       ORDER BY f.fecha_factura DESC, f.id DESC
     `).all(desde, desde, hasta, hasta);
     const porMes = {};
+    const ivaPorMes = {};
     let total = 0;
+    let totalIva = 0;
     for (const r of rows) {
       const mes = String(r.fecha_factura || '').slice(0, 7) || 'sin fecha';
-      porMes[mes] = Math.round(((porMes[mes] || 0) + r.percepciones) * 100) / 100;
-      total += r.percepciones;
+      porMes[mes] = Math.round(((porMes[mes] || 0) + (r.percepciones || 0)) * 100) / 100;
+      ivaPorMes[mes] = Math.round(((ivaPorMes[mes] || 0) + (r.iva || 0)) * 100) / 100;
+      total += r.percepciones || 0;
+      totalIva += r.iva || 0;
     }
-    res.json({ facturas: rows, por_mes: porMes, total: Math.round(total * 100) / 100 });
+    // iva / iva_por_mes (07/10): el IVA de las facturas de DHL, también fuera de los envíos.
+    res.json({ facturas: rows, por_mes: porMes, total: Math.round(total * 100) / 100, iva_por_mes: ivaPorMes, iva: Math.round(totalIva * 100) / 100 });
   } catch (err) {
     next(err);
   }

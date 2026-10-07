@@ -6,7 +6,7 @@
   <title>Control de facturas – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260929a">
-  <link rel="stylesheet" href="../css/modules/facturas.css?v=20261005a">
+  <link rel="stylesheet" href="../css/modules/facturas.css?v=20261007a">
 </head>
 <body>
 <div class="app-layout">
@@ -100,7 +100,7 @@
   <div class="page-content">
     <div class="page-header">
       <h1>Control de facturas</h1>
-      <span style="font-size:0.8rem;color:var(--color-muted)">UPS</span>
+      <span style="font-size:0.8rem;color:var(--color-muted)">UPS · DHL</span>
     </div>
 
     <div class="page-body">
@@ -116,7 +116,7 @@
       <!-- ── PESTAÑA: CARGAR ─────────────────────────────── -->
       <div id="tab-cargar">
         <div class="card">
-          <h2>Cargar PDF de factura UPS</h2>
+          <h2>Cargar PDF de factura (UPS o DHL)</h2>
 
           <div class="fac-upload-zone">
             <label class="fac-file-label" id="fac-file-label" for="fac-file-input">
@@ -171,7 +171,7 @@
                Las mismas guías quedan "a revisar" en la pestaña Revisar guías. -->
           <div class="fac-no-enc fac-anom hidden" id="fac-anom">
             <div class="fac-no-enc-title" id="fac-anom-titulo">Guías con cargos no previstos — revisar</div>
-            <p class="fac-anom-nota">UPS facturó algo que el envío no tenía previsto (área remota, manejo, residencial, otro peso…). Quedan marcadas <b>a revisar</b>; en Salidas se ven con el chip ⚠ en la columna Costo UPS.</p>
+            <p class="fac-anom-nota">El courier facturó algo que el envío no tenía previsto (área remota, manejo, residencial, otro peso…). Quedan marcadas <b>a revisar</b>; en Salidas se ven con el chip ⚠ en la columna Costo UPS.</p>
             <table class="fac-no-enc-table">
               <thead><tr><th>Guía</th><th>Factura</th><th>País</th><th>Qué pasó</th></tr></thead>
               <tbody id="fac-anom-body"></tbody>
@@ -239,7 +239,7 @@
             </div>
           </div>
           <p style="font-size:13px;color:var(--text-secondary,#6b6860);margin:0 0 12px">
-            Lo que UPS percibe de Ingresos Brutos al pie de cada factura. Desde el 05/10/2026
+            Lo que UPS y DHL perciben de Ingresos Brutos al pie de cada factura (y el IVA de las facturas de DHL, que es crédito fiscal). Desde el 05/10/2026
             <b>no se reparte entre los envíos</b>: es un costo de la empresa y queda acá, factura por factura.
             El costo de cada guía es el que figura en el detalle de la factura, sin este agregado.
           </p>
@@ -249,15 +249,17 @@
               <thead>
                 <tr>
                   <th>Factura</th>
+                  <th>Courier</th>
                   <th>Fecha</th>
                   <th class="num">Guías</th>
                   <th class="num">Subtotal guías</th>
+                  <th class="num">IVA</th>
                   <th class="num">Percepción IIBB</th>
                   <th class="num">Total factura</th>
                 </tr>
               </thead>
               <tbody id="fac-iibb-body">
-                <tr><td colspan="6" class="empty">Cargando…</td></tr>
+                <tr><td colspan="8" class="empty">Cargando…</td></tr>
               </tbody>
             </table>
           </div>
@@ -306,6 +308,6 @@
 <script src="/js/auth-guard.js?v=20260924b"></script>
 <script src="../js/api.js?v=20261005a"></script>
 <script src="../js/main.js?v=20260929a"></script>
-<script src="../js/modules/facturas.js?v=20261005a"></script>
+<script src="../js/modules/facturas.js?v=20261007a"></script>
 </body>
 </html>

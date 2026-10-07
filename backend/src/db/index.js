@@ -738,6 +738,8 @@ async function migrateFacturaGuias() {
     // de destino que UPS le factura a Nova aparte, 03/09/2026). Todo lo cargado antes
     // era de flete.
     ['tipo', "TEXT NOT NULL DEFAULT 'flete'"],
+    // IVA de la factura (07/10/2026, facturas DHL): crédito fiscal, fuera de los envíos.
+    ['iva', 'REAL'],
   ]) {
     if (!colsF.includes(col)) {
       await dbApi.exec(`ALTER TABLE facturas_cargadas ADD COLUMN ${col} ${def}`);

@@ -424,16 +424,18 @@
     box.innerHTML = `
       <div class="fac-reconc-title">
         ${cuadra ? '✓ La factura cuadra' : '⚠ La factura NO cuadra'}
+        ${rec.courier ? `<span class="fac-chip-courier fac-chip-${esc(String(rec.courier).toLowerCase())}">${esc(rec.courier)}</span>` : ''}
       </div>
       <div class="fac-reconc-nums">
         <span>Suma de las guías: <b>$${Number(rec.suma_guias).toFixed(2)}</b></span>
+        ${rec.iva ? `<span>IVA: <b>$${Number(rec.iva).toFixed(2)}</b></span>` : ''}
         ${rec.percepciones ? `<span>Percepción IIBB: <b>$${Number(rec.percepciones).toFixed(2)}</b></span>` : ''}
         <span>Total de la factura: <b>$${Number(rec.total_declarado).toFixed(2)}</b></span>
-        ${rec.percepciones && cuadra ? '' : `<span>Diferencia: <b>$${Number(rec.diferencia).toFixed(2)}</b></span>`}
+        ${(rec.percepciones || rec.iva) && cuadra ? '' : `<span>Diferencia: <b>$${Number(rec.diferencia).toFixed(2)}</b></span>`}
       </div>
-      ${rec.percepciones ? `
+      ${(rec.percepciones || rec.iva) ? `
         <div class="fac-reconc-nota">
-          La percepción de Ingresos Brutos <b>no se reparte entre los envíos</b>: queda registrada en la
+          ${rec.iva ? 'El IVA (crédito fiscal) y la percepción' : 'La percepción'} de Ingresos Brutos <b>no se reparten entre los envíos</b>: quedan registrados en la
           factura como costo de la empresa (pestaña "Ingresos Brutos"). El costo de cada guía es el del detalle.
         </div>` : (cuadra ? '' : `
         <div class="fac-reconc-nota">
@@ -535,28 +537,30 @@
     const tbody = document.getElementById('fac-iibb-body');
     const counter = document.getElementById('fac-iibb-counter');
     const meses = document.getElementById('fac-iibb-meses');
-    tbody.innerHTML = '<tr><td colspan="6" class="empty">Cargando…</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty">Cargando…</td></tr>';
     try {
       const res = await NovaAPI.facturas.percepciones();
       iibbLoaded = true;
       const lista = res.facturas || [];
-      counter.textContent = lista.length ? `${lista.length} factura${lista.length > 1 ? 's' : ''} · ${fmtUSD(res.total)} en total` : '';
+      counter.textContent = lista.length ? `${lista.length} factura${lista.length > 1 ? 's' : ''} · ${fmtUSD(res.total)} de percepción${res.iva ? ` · ${fmtUSD(res.iva)} de IVA` : ''}` : '';
       const pm = Object.entries(res.por_mes || {}).sort((a, b) => b[0].localeCompare(a[0]));
       meses.innerHTML = pm.map(([m, v]) => `<div class="fac-iibb-mes"><span>${esc(m)}</span><b>${fmtUSD(v)}</b></div>`).join('');
       if (!lista.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty">Ninguna factura cargada tiene percepción de Ingresos Brutos.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="empty">Ninguna factura cargada tiene percepción de Ingresos Brutos ni IVA.</td></tr>';
         return;
       }
       tbody.innerHTML = lista.map((f) => `<tr>
         <td class="mono">${esc(f.numero_factura || '')}${f.tipo === 'impuestos' ? ' <span class="fac-chip-imp">impuestos DDP</span>' : ''}</td>
+        <td><span class="fac-chip-courier fac-chip-${esc(String(f.courier || 'ups').toLowerCase())}">${esc(f.courier || 'UPS')}</span></td>
         <td>${f.fecha_factura ? NovaUtils.formatDate(f.fecha_factura) : '<span class="em">—</span>'}</td>
         <td class="num">${f.guias}</td>
         <td class="num">${f.subtotal_factura != null ? fmtUSD(f.subtotal_factura) : '<span class="em">—</span>'}</td>
-        <td class="num"><b>${fmtUSD(f.percepciones)}</b></td>
+        <td class="num">${f.iva ? fmtUSD(f.iva) : '<span class="em">—</span>'}</td>
+        <td class="num"><b>${f.percepciones != null ? fmtUSD(f.percepciones) : '—'}</b></td>
         <td class="num">${f.total_declarado != null ? fmtUSD(f.total_declarado) : '<span class="em">—</span>'}</td>
       </tr>`).join('');
     } catch (e) {
-      tbody.innerHTML = `<tr><td colspan="6" class="empty">No se pudo cargar: ${esc(e.message || e)}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="8" class="empty">No se pudo cargar: ${esc(e.message || e)}</td></tr>`;
     }
   }
 

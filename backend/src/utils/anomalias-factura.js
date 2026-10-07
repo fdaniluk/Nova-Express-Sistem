@@ -15,9 +15,12 @@ const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 // Familias: cómo se llama el recargo en la factura de UPS → qué tipo de extra del
 // sistema lo cubre. Un recargo que no cae en ninguna familia es "otro": siempre anomalía.
 const FAMILIAS = [
-  { tipo: 'seguro',      re: /DECLARED VALUE|VALOR DECLARADO/i,                              label: 'Seguro (valor declarado)' },
-  { tipo: 'manejo',      re: /ADDITIONAL HANDLING|MANEJO ADICIONAL/i,                        label: 'Manejo adicional' },
-  { tipo: 'contorno',    re: /LARGE PACKAGE|OVER ?SIZE|PAQUETE GRANDE|MAYOR TAMA/i,          label: 'Paquete de mayor tamaño' },
+  // Los nombres de DHL (07/10): VALUE PROTECTION = seguro; Non-conveyable (NCP) = manejo;
+  // Over Sized Piece (OSP) = mayor tamaño; GoGreen Plus siempre está (se ignora, como el fuel).
+  { tipo: 'seguro',      re: /DECLARED VALUE|VALOR DECLARADO|VALUE PROTECTION/i,             label: 'Seguro (valor declarado)' },
+  { tipo: 'manejo',      re: /ADDITIONAL HANDLING|MANEJO ADICIONAL|NON.?CONVEYABLE|\(NCP\)/i, label: 'Manejo adicional' },
+  { tipo: 'contorno',    re: /LARGE PACKAGE|OVER ?SIZE|PAQUETE GRANDE|MAYOR TAMA|\(OSP\)/i,  label: 'Paquete de mayor tamaño' },
+  { tipo: 'gogreen',     re: /GO ?GREEN/i,                                                   label: 'GoGreen' },
   { tipo: 'residencial', re: /RESIDENTIAL|RESIDENCIAL/i,                                     label: 'Entrega residencial' },
   { tipo: 'remota',      re: /EXTENDED AREA|REMOTE AREA|AREA EXTENDIDA|AREA REMOTA|ÁREA/i,   label: 'Área remota / extendida' },
   { tipo: 'surge',       re: /SURGE|INCREMENTO DE VOLUMEN|PEAK|DEMAND/i,                     label: 'Recargo por demanda' },
@@ -94,10 +97,10 @@ function detectarAnomalias(envio, factura) {
   const ALIAS = {
     remota: ['area remota', 'area extendida', 'remota', 'extendida', 'extended area', 'remote area'],
     residencial: ['residencial', 'residential'],
-    manejo: ['manejo', 'additional handling'],
-    contorno: ['mayor tamano', 'paquete grande', 'large package', 'oversize'],
+    manejo: ['manejo', 'additional handling', 'non conveyable', 'ncp'],
+    contorno: ['mayor tamano', 'paquete grande', 'large package', 'oversize', 'over sized', 'osp'],
     surge: ['surge', 'demanda', 'incremento de volumen', 'peak'],
-    seguro: ['seguro', 'valor declarado', 'declared value'],
+    seguro: ['seguro', 'valor declarado', 'declared value', 'value protection'],
     papel: ['papel', 'paper'],
     ddp: ['ddp', 'impuestos de destino', 'duty'],
     direccion: ['correccion de direccion', 'address correction', 'direccion'],
@@ -136,7 +139,7 @@ function detectarAnomalias(envio, factura) {
 
   for (const f of fact.values()) {
     if (f.monto <= 0) continue;                 // neteado o bonificado: nada que avisar
-    if (f.tipo === 'fuel' || f.tipo === 'ipf') continue; // siempre está, no es anomalía
+    if (f.tipo === 'fuel' || f.tipo === 'ipf' || f.tipo === 'gogreen') continue; // siempre está, no es anomalía
     if (f.tipo === 'papel' || f.tipo === 'otro' || f.tipo === 'direccion') {
       // Nunca previstos por el sistema: la única cobertura posible es un cargo posterior
       // con ese nombre (lo crea "Cobrar al cliente" o lo escribe la oficina).

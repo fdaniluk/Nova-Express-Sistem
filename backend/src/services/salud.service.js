@@ -211,6 +211,7 @@ async function chequeoFacturasQueNoCuadran(db, corte) {
     SELECT
       f.id, f.numero_factura, f.fecha_factura, f.total_declarado,
       COALESCE(f.percepciones, 0)      AS percepciones,
+      COALESCE(f.iva, 0)               AS iva,
       COALESCE(SUM(fg.costo_total), 0) AS suma_guias,
       COALESCE(SUM(fg.percepcion), 0)  AS suma_percepcion,
       COUNT(fg.id)                     AS guias,
@@ -229,7 +230,8 @@ async function chequeoFacturasQueNoCuadran(db, corte) {
     .filter((f) => f.total_declarado != null)
     // 05/10: la percepción de IIBB vive en la cabecera (f.percepciones) y NO está dentro de
     // las guías (ni en las viejas: la migración la sacó). Total = guías + percepción.
-    .map((f) => ({ ...f, dif: r2(f.total_declarado - f.suma_guias - f.percepciones) }))
+    // (07/10) y el IVA de las facturas de DHL, que tampoco es costo de los envíos.
+    .map((f) => ({ ...f, dif: r2(f.total_declarado - f.suma_guias - f.percepciones - f.iva) }))
     .filter((f) => Math.abs(f.dif) >= 0.05);
 
   const conAgujeros = filas.filter((f) => f.sin_costo > 0);
