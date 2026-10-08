@@ -192,6 +192,17 @@
       allData = await NovaAPI.salidas.listar();
       recomputeNumSalMes();
       ensureSelectedMonth();
+      // ?buscar=<guía> (08/10/2026): llegar desde Facturas directo al envío. Se carga en el
+      // buscador y se abre la solapa del mes donde está, si no es la actual.
+      const buscarUrl = new URLSearchParams(window.location.search).get('buscar');
+      if (buscarUrl) {
+        const inp = document.getElementById('buscador');
+        if (inp) { inp.value = buscarUrl; searchTerm = buscarUrl.trim().toLowerCase(); }
+        const cb = document.getElementById('btn-clear-search');
+        if (cb) cb.classList.add('visible');
+        const hit = allData.find((e) => String(e.numero_guia || '').toLowerCase() === searchTerm);
+        if (hit) selectedMonth = monthOf(hit);
+      }
       applyAll();
     } catch (err) {
       NovaUtils.showAlert(alertBox, 'Error al cargar salidas: ' + err.message, 'error');

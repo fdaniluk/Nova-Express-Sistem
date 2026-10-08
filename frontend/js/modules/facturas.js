@@ -81,6 +81,21 @@
 
     btnCargar.addEventListener('click', onCargarClick);
 
+    // Soltar el PDF sobre la zona (08/10/2026): mismo camino que elegirlo con el botón.
+    const drop = document.getElementById('fac-drop');
+    if (drop) {
+      ['dragenter', 'dragover'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.add('is-over'); }));
+      ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, (e) => { e.preventDefault(); drop.classList.remove('is-over'); }));
+      drop.addEventListener('drop', (e) => {
+        const archivos = [...(e.dataTransfer?.files || [])].filter((f) => /\.pdf$/i.test(f.name) || f.type === 'application/pdf');
+        if (!archivos.length) return;
+        const dt = new DataTransfer();
+        archivos.forEach((f) => dt.items.add(f));
+        fileInput.files = dt.files;
+        fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+      });
+    }
+
     // Los dos botones de la confirmación sirven a los DOS modos: en el modo de a
     // una relanzan la carga con/sin sobreescribir; en el modo lote deciden qué
     // hacer con las facturas que ya estaban cargadas.
@@ -95,6 +110,16 @@
       loadRevisar();
     });
     document.getElementById('btn-iibb-reload').addEventListener('click', () => { iibbLoaded = false; loadIibb(); });
+    // Filtros de Revisar guías (08/10).
+    const seg = document.getElementById('fac-revisar-estado');
+    if (seg) seg.addEventListener('click', (e) => {
+      const b = e.target.closest('button[data-estado]');
+      if (!b) return;
+      revisarEstado = b.dataset.estado;
+      renderRevisar();
+    });
+    const buscar = document.getElementById('fac-revisar-buscar');
+    if (buscar) buscar.addEventListener('input', () => { revisarTexto = buscar.value; renderRevisar(); });
   }
 
   function resetCargarUI() {
@@ -105,6 +130,9 @@
     hide('fac-reconc');
     hide('fac-advert');
     hide('fac-lote');
+    hide('fac-resultado');
+    const sub = document.getElementById('fac-resultado-sub');
+    if (sub) sub.textContent = '';
     loteConflictos = null;
   }
 
@@ -326,13 +354,14 @@
   function renderAnomalias(lista) {
     if (!Array.isArray(lista) || !lista.length) { hide('fac-anom'); return; }
     const clase = { no_previsto: 'fac-anom-np', mas_caro: 'fac-anom-mc', peso: 'fac-anom-peso' };
-    document.getElementById('fac-anom-titulo').textContent = `${lista.length} guía${lista.length > 1 ? 's' : ''} con cargos no previstos — revisar`;
+    document.getElementById('fac-anom-titulo').textContent = `${lista.length} guía${lista.length > 1 ? 's' : ''} con cargos no previstos`;
     document.getElementById('fac-anom-body').innerHTML = lista.map((g) => `
       <tr>
         <td class="mono">${esc(g.numero_guia)}</td>
         <td class="mono">${esc(g.factura || '')}</td>
         <td>${esc(g.pais || '')}</td>
         <td>${(g.anomalias || []).map((a) => `<span class="fac-chip-anom ${clase[a.clase] || ''}">${esc(a.texto)}</span>`).join(' ')}</td>
+        <td><a class="btn btn-sm btn-outline" href="salidas.html?buscar=${encodeURIComponent(g.numero_guia)}">Ver en Salidas</a></td>
       </tr>`).join('');
     show('fac-anom');
   }
@@ -357,11 +386,11 @@
     nums.innerHTML = bannerTipo(res) + `
       <div class="fac-resumen-item">
         <div class="fac-resumen-val">${res.total_guias}</div>
-        <div class="fac-resumen-lbl">Total guías</div>
+        <div class="fac-resumen-lbl">Guías en la factura</div>
       </div>
       <div class="fac-resumen-item">
-        <div class="fac-resumen-val">${res.guardadas}</div>
-        <div class="fac-resumen-lbl">Guardadas</div>
+        <div class="fac-resumen-val ok">${res.guardadas}</div>
+        <div class="fac-resumen-lbl">Cruzadas con envío</div>
       </div>
       <div class="fac-resumen-item">
         <div class="fac-resumen-val ${res.a_revisar > 0 ? 'warning' : ''}">${res.a_revisar}</div>
@@ -373,7 +402,7 @@
       </div>
       <div class="fac-resumen-item">
         <div class="fac-resumen-val ${res.no_encontradas > 0 ? 'danger' : ''}">${res.no_encontradas}</div>
-        <div class="fac-resumen-lbl">No encontradas</div>
+        <div class="fac-resumen-lbl">Sin envío</div>
       </div>
       ${contadorExtra(res.sin_costo, 'Sin costo')}
       ${contadorExtra(res.errores, 'Con error')}
@@ -381,6 +410,8 @@
       ${contadorExtra(res.con_anomalias, 'Con cargos no previstos')}
     `;
     show('fac-resumen');
+    const sub = document.getElementById('fac-resultado-sub');
+    if (sub) sub.textContent = [res.numero_factura ? `factura ${res.numero_factura}` : '', res.courier || '', res.fecha_factura ? NovaUtils.formatDate(res.fecha_factura) : ''].filter(Boolean).join(' · ');
     renderAnomalias((res.anomalias_lista || []).map((a) => ({ ...a, factura: res.numero_factura })));
 
     // El backend ya devolvía estos datos; la pantalla no los mostraba.
@@ -393,7 +424,7 @@
         <tr>
           <td class="mono">${esc(g.numero_guia)}</td>
           <td>${esc(g.pais)}</td>
-          <td>$${Number(g.costo_total).toFixed(2)}</td>
+          <td class="num">$${Number(g.costo_total).toFixed(2)}</td>
         </tr>
       `).join('');
       show('fac-no-enc');
@@ -420,23 +451,24 @@
     if (!rec || rec.total_declarado == null) return;
     const box = document.getElementById('fac-reconc');
     const cuadra = rec.cuadra === true;
+    const usd = (v) => `USD ${Number(v).toFixed(2)}`;
+    const hayExtras = Boolean(rec.percepciones || rec.iva);
     box.className = `fac-reconc ${cuadra ? 'ok' : 'warn'}`;
     box.innerHTML = `
       <div class="fac-reconc-title">
         ${cuadra ? '✓ La factura cuadra' : '⚠ La factura NO cuadra'}
         ${rec.courier ? `<span class="fac-chip-courier fac-chip-${esc(String(rec.courier).toLowerCase())}">${esc(rec.courier)}</span>` : ''}
       </div>
-      <div class="fac-reconc-nums">
-        <span>Suma de las guías: <b>$${Number(rec.suma_guias).toFixed(2)}</b></span>
-        ${rec.iva ? `<span>IVA: <b>$${Number(rec.iva).toFixed(2)}</b></span>` : ''}
-        ${rec.percepciones ? `<span>Percepción IIBB: <b>$${Number(rec.percepciones).toFixed(2)}</b></span>` : ''}
-        <span>Total de la factura: <b>$${Number(rec.total_declarado).toFixed(2)}</b></span>
-        ${(rec.percepciones || rec.iva) && cuadra ? '' : `<span>Diferencia: <b>$${Number(rec.diferencia).toFixed(2)}</b></span>`}
-      </div>
-      ${(rec.percepciones || rec.iva) ? `
+      <dl class="fac-reconc-nums">
+        <dt>Suma de las guías</dt><dd><b>${usd(rec.suma_guias)}</b></dd>
+        ${rec.iva ? `<dt>IVA (sobre lo gravado)</dt><dd>${usd(rec.iva)}</dd>` : ''}
+        ${rec.percepciones ? `<dt>Percepción IIBB</dt><dd>${usd(rec.percepciones)}</dd>` : ''}
+        <dt class="tot">Total de la factura</dt><dd class="tot">${usd(rec.total_declarado)}</dd>
+        ${hayExtras && cuadra ? '' : `<dt>Diferencia</dt><dd class="dif">${usd(rec.diferencia)}</dd>`}
+      </dl>
+      ${hayExtras ? `
         <div class="fac-reconc-nota">
-          ${rec.iva ? 'El IVA (crédito fiscal) y la percepción' : 'La percepción'} de Ingresos Brutos <b>no se reparten entre los envíos</b>: quedan registrados en la
-          factura como costo de la empresa (pestaña "Ingresos Brutos"). El costo de cada guía es el del detalle.
+          ${rec.iva ? 'El IVA (crédito fiscal) y la percepción' : 'La percepción'} de Ingresos Brutos <b>no se reparten entre los envíos</b>: quedan en la pestaña "Ingresos Brutos". El costo de cada guía es el del detalle.
         </div>` : (cuadra ? '' : `
         <div class="fac-reconc-nota">
           La suma de las guías no da el total de la factura y no se pudo identificar la diferencia
@@ -455,7 +487,7 @@
 
     const box = document.getElementById('fac-advert');
     box.innerHTML = `
-      <div class="fac-advert-title">Avisos del lector de la factura (${lista.length})</div>
+      <div class="fac-seccion-titulo"><h4>Avisos del lector</h4><span class="em">${lista.length}</span></div>
       <ul class="fac-advert-list">
         ${lista.map((a) => `
           <li>
@@ -497,7 +529,7 @@
     const tbody = document.getElementById('fac-sinenvio-body');
     const counter = document.getElementById('fac-sinenvio-counter');
     const badge = document.getElementById('sinenvio-badge');
-    tbody.innerHTML = '<tr><td colspan="5" class="empty">Cargando…</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="empty">Cargando…</td></tr>';
     try {
       const res = await NovaAPI.facturas.sinEnvio(sinEnvioTodo);
       sinEnvioLoaded = true;
@@ -514,20 +546,31 @@
         ? `${guias.length} guía${guias.length > 1 ? 's' : ''} · ${fmtUSD(res.costo_total)} facturados`
         : '';
 
+      // Tarjetas de totales (08/10): cuántas, cuánta plata y cuántas quedaron antes del corte.
+      const tiles = document.getElementById('fac-sinenvio-tiles');
+      if (tiles) {
+        tiles.innerHTML = `
+          <div class="fac-tile ${guias.length ? 'danger' : 'ok'}"><div class="fac-tile-v">${guias.length}</div><div class="fac-tile-l">Guías ${sinEnvioTodo ? 'en total' : 'desde el corte'}</div></div>
+          <div class="fac-tile ${guias.length ? 'danger' : 'ok'}"><div class="fac-tile-v">${fmtUSD(res.costo_total || 0)}</div><div class="fac-tile-l">Costo sin imputar</div></div>
+          ${!sinEnvioTodo && res.anteriores ? `<div class="fac-tile"><div class="fac-tile-v">${res.anteriores}</div><div class="fac-tile-l">Anteriores al corte (ocultas)</div></div>` : ''}`;
+        tiles.classList.remove('hidden');
+      }
+
       if (!guias.length) {
-        tbody.innerHTML = '<tr><td colspan="5" class="empty">Ninguna. Todas las guías facturadas tienen su envío cargado.</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="6" class="empty">Ninguna. Todas las guías facturadas tienen su envío cargado.</td></tr>';
         return;
       }
 
       tbody.innerHTML = guias.map((g) => `<tr>
         <td class="mono">${esc(g.numero_guia)}</td>
+        <td>${courierChip(g.courier)}</td>
         <td>${esc(g.factura || '')}${g.tipo === 'impuestos' ? ' <span class="fac-chip-imp">impuestos DDP</span>' : ''}<div class="em" style="font-size:11px">${g.fecha_factura ? NovaUtils.formatDate(g.fecha_factura) : ''}</div></td>
         <td>${esc(g.pais || '')}</td>
         <td class="num">${g.peso_facturado != null ? Number(g.peso_facturado).toFixed(1) + ' kg' : '<span class="em">—</span>'}</td>
         <td class="num">${fmtUSD(g.costo_total)}</td>
       </tr>`).join('');
     } catch (e) {
-      tbody.innerHTML = `<tr><td colspan="5" class="empty">No se pudo cargar: ${esc(e.message || e)}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="6" class="empty">No se pudo cargar: ${esc(e.message || e)}</td></tr>`;
     }
   }
 
@@ -544,7 +587,8 @@
       const lista = res.facturas || [];
       counter.textContent = lista.length ? `${lista.length} factura${lista.length > 1 ? 's' : ''} · ${fmtUSD(res.total)} de percepción${res.iva ? ` · ${fmtUSD(res.iva)} de IVA` : ''}` : '';
       const pm = Object.entries(res.por_mes || {}).sort((a, b) => b[0].localeCompare(a[0]));
-      meses.innerHTML = pm.map(([m, v]) => `<div class="fac-iibb-mes"><span>${esc(m)}</span><b>${fmtUSD(v)}</b></div>`).join('');
+      const ivaPm = res.iva_por_mes || {};
+      meses.innerHTML = pm.map(([m, v]) => `<div class="fac-iibb-mes"><span class="em">${esc(m)}</span><b>${fmtUSD(v)}</b><span class="em">percepción</span>${ivaPm[m] ? `<span class="em">· IVA ${fmtUSD(ivaPm[m])}</span>` : ''}</div>`).join('');
       if (!lista.length) {
         tbody.innerHTML = '<tr><td colspan="8" class="empty">Ninguna factura cargada tiene percepción de Ingresos Brutos ni IVA.</td></tr>';
         return;
@@ -579,27 +623,61 @@
       pintarNotaCorte(document.getElementById('fac-revisar-corte'),
         { fecha_corte: res.fecha_corte, anteriores: res.anteriores || 0, todo: revisarTodo },
         () => { revisarTodo = !revisarTodo; loadRevisar(); });
+      const pill = document.getElementById('fac-corte-pill');
+      if (pill && res.fecha_corte) { pill.textContent = `corte ${NovaUtils.formatDate(res.fecha_corte)}`; pill.classList.remove('hidden'); }
       renderRevisar();
     } catch (err) {
-      tbody.innerHTML = `<tr><td colspan="10" class="empty" style="color:var(--color-danger)">Error al cargar: ${esc(err.message)}</td></tr>`;
+      tbody.innerHTML = `<tr><td colspan="11" class="empty" style="color:var(--color-danger)">Error al cargar: ${esc(err.message)}</td></tr>`;
     }
   }
+
+  // Filtros de la bandeja (08/10/2026): estado (a revisar / en reclamo / todas) y texto
+  // (cliente o guía). Son de pantalla: la API trae las dos bandejas juntas.
+  let revisarEstado = 'a_revisar';
+  let revisarTexto = '';
 
   function renderRevisar() {
     const tbody = document.getElementById('fac-table-body');
     const counter = document.getElementById('fac-revisar-counter');
+    const badge = document.getElementById('revisar-badge');
+    if (badge) {
+      badge.textContent = revisarData.length;
+      badge.classList.toggle('hidden', revisarData.length === 0);
+    }
+    const seg = document.getElementById('fac-revisar-estado');
+    if (seg) {
+      const n = (e) => revisarData.filter((g) => (g.estado_revision || '') === e).length;
+      seg.querySelectorAll('button').forEach((b) => {
+        const e = b.dataset.estado;
+        b.classList.toggle('on', e === revisarEstado);
+        b.textContent = e === 'a_revisar' ? `A revisar · ${n('a_revisar')}` : e === 'reclamar' ? `En reclamo · ${n('reclamar')}` : `Todas · ${revisarData.length}`;
+      });
+    }
+    const t = revisarTexto.trim().toLowerCase();
+    const lista = revisarData.filter((g) => (!revisarEstado || (g.estado_revision || '') === revisarEstado)
+      && (!t || String(g.cliente || '').toLowerCase().includes(t) || String(g.numero_guia || '').toLowerCase().includes(t)));
 
-    counter.textContent = `${revisarData.length} guías`;
+    counter.textContent = lista.length === revisarData.length ? `${revisarData.length} guías` : `${lista.length} de ${revisarData.length} guías`;
 
     if (revisarData.length === 0) {
       tbody.innerHTML = '<tr><td colspan="11" class="empty">No hay guías con costo facturado aún.</td></tr>';
       return;
     }
+    if (lista.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="11" class="empty">Ninguna guía con ese filtro.</td></tr>';
+      return;
+    }
 
     tbody.innerHTML = '';
-    for (const g of revisarData) {
+    for (const g of lista) {
       tbody.appendChild(buildRevisarRow(g));
     }
+  }
+
+  function courierChip(c, servicio) {
+    const cc = c === 'DHL' ? 'DHL' : 'UPS';
+    const det = cc === 'UPS' && servicio ? ` <span class="em">${esc(servicioUPSLabel(servicio))}</span>` : '';
+    return `<span class="fac-chip-courier fac-chip-${cc.toLowerCase()}">${cc}</span>${det}`;
   }
 
   function buildRevisarRow(g) {
@@ -611,21 +689,23 @@
     else if (estado === 'reclamar') tr.classList.add('row-reclamar');
 
     const clase = { no_previsto: 'fac-anom-np', mas_caro: 'fac-anom-mc', peso: 'fac-anom-peso' };
+    // Motivo (08/10): las anomalías de la factura o, si no hay, el margen bajo el mínimo.
     const anom = (g.anomalias || []).length
       ? `<div class="fac-anom-fila">${g.anomalias.map((a) => `<span class="fac-chip-anom ${clase[a.clase] || ''}">${esc(a.texto)}</span>`).join(' ')}</div>`
-      : '';
+      : (!(Number(g.total_cobrado) > 0) ? '<span class="em">sin precio de venta</span>' : (g.ganancia_pct != null && estado === 'a_revisar' ? '<span class="em">margen bajo el mínimo</span>' : ''));
+    const sinPrecio = !(Number(g.total_cobrado) > 0);
     tr.innerHTML = `
-      <td class="mono">${esc(g.numero_guia)}${anom}</td>
+      <td class="mono">${esc(g.numero_guia)}</td>
       <td>${esc(g.cliente)}</td>
       <td>${esc(g.pais_destino)}</td>
-      <td>${servicioUPSLabel(g.servicio_ups)}</td>
+      <td>${courierChip(g.courier_facturado, g.servicio_ups)}</td>
       <td>${NovaUtils.formatDate(g.fecha_facturado)}</td>
-      <td class="num">${fmtUSD(g.total_cobrado)}</td>
+      <td class="num">${sinPrecio ? '<span class="fac-chip-gris">sin precio</span>' : fmtUSD(g.total_cobrado)}</td>
       <td class="num">${fmtUSD(g.costo_facturado)}</td>
       <td class="num">${gainCell(g.ganancia_usd)}</td>
       <td class="num">${pctCell(g.ganancia_pct)}</td>
-      <td>${estadoBadge(estado)}</td>
-      <td>${accionesBtns(g.id, estado)}</td>
+      <td class="fac-motivo">${anom}</td>
+      <td class="fac-estado">${estadoBadge(estado)}${accionesBtns(g.id, estado)}</td>
     `;
 
     tr.querySelectorAll('.btn-accion').forEach((btn) => {
@@ -653,8 +733,7 @@
       else if (nuevoEstado === 'reclamar') tr.classList.add('row-reclamar');
 
       const cells = tr.querySelectorAll('td');
-      cells[9].innerHTML = estadoBadge(nuevoEstado);
-      cells[10].innerHTML = accionesBtns(id, nuevoEstado);
+      cells[10].innerHTML = estadoBadge(nuevoEstado) + accionesBtns(id, nuevoEstado);
 
       tr.querySelectorAll('.btn-accion').forEach((btn) => {
         btn.addEventListener('click', () => onCambiarEstado(id, btn.dataset.estado, tr, guia));
@@ -672,9 +751,9 @@
       // 'pendiente' no debería llegar acá (la bandeja filtra a_revisar/reclamar), pero lo
       // mapeamos para no romper el render si alguna vez aparece.
       'pendiente':   ['badge-pendiente',    '• Pendiente'],
-      'a_revisar':   ['badge-a-revisar',   '⚠ A revisar'],
-      'revisado_ok': ['badge-revisado-ok',  '✓ Revisado OK'],
-      'reclamar':    ['badge-reclamar',     '⚑ Reclamar'],
+      'a_revisar':   ['badge-a-revisar',   'a revisar'],
+      'revisado_ok': ['badge-revisado-ok',  'revisado OK'],
+      'reclamar':    ['badge-reclamar',     'en reclamo'],
     };
     const [cls, label] = map[estado] || ['', estado];
     return `<span class="badge ${cls}">${label}</span>`;
@@ -683,13 +762,14 @@
   function accionesBtns(id, estado) {
     if (estado === 'a_revisar') {
       return `<div class="fac-action-btns">
-        <button class="btn btn-sm btn-ok btn-accion" data-estado="revisado_ok" data-id="${id}">✓ OK</button>
-        <button class="btn btn-sm btn-reclamar btn-accion" data-estado="reclamar" data-id="${id}">⚑ Reclamar</button>
+        <button class="btn btn-sm btn-outline btn-ok btn-accion" data-estado="revisado_ok" data-id="${id}">✓ Aprobar</button>
+        <button class="btn btn-sm btn-outline btn-reclamar btn-accion" data-estado="reclamar" data-id="${id}">Reclamar</button>
       </div>`;
     }
     if (estado === 'reclamar') {
       return `<div class="fac-action-btns">
-        <button class="btn btn-sm btn-ok btn-accion" data-estado="revisado_ok" data-id="${id}">✓ OK</button>
+        <button class="btn btn-sm btn-outline btn-ok btn-accion" data-estado="revisado_ok" data-id="${id}">✓ Aprobar</button>
+        <button class="btn btn-sm btn-outline btn-accion" data-estado="a_revisar" data-id="${id}">Volver a revisar</button>
       </div>`;
     }
     return '';
@@ -724,7 +804,13 @@
     return '<span class="em">—</span>';
   }
 
-  function show(id) { document.getElementById(id).classList.remove('hidden'); }
+  // Lo que vive adentro del paso 2 ("Resultado de la carga"): mostrar cualquiera de estos
+  // destapa el paso entero (estética 08/10/2026).
+  const EN_RESULTADO = new Set(['fac-resumen', 'fac-reconc', 'fac-advert', 'fac-anom', 'fac-no-enc', 'fac-lote']);
+  function show(id) {
+    document.getElementById(id).classList.remove('hidden');
+    if (EN_RESULTADO.has(id)) { const r = document.getElementById('fac-resultado'); if (r) r.classList.remove('hidden'); }
+  }
   function hide(id) { document.getElementById(id).classList.add('hidden'); }
 
   init();

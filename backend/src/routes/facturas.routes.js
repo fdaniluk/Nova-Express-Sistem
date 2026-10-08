@@ -472,6 +472,7 @@ router.post('/cargar', subirPdf, async (req, res, next) => {
       ...resumen,
       tipo,
       courier,
+      fecha_factura,
       // La pantalla de carga en lote muestra qué factura era cada PDF.
       numero_factura,
       // percepciones / iva / courier (07/10): la pantalla los muestra en el cuadre.

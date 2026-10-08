@@ -1,383 +1,216 @@
-/* ── Pestaña Cargar ──────────────────────────────────────── */
+/* ════════════════════════════════════════════════════════════════════════════════════
+   CONTROL DE FACTURAS — estética del sistema (08/10/2026, ítem 6 del orden de estética)
 
-.fac-upload-zone {
-  display: flex;
-  align-items: center;
-  gap: 1rem;
-  flex-wrap: wrap;
+   Mismo criterio que Guías, Cargar envío, Cotizador, Liquidaciones y Clientes: pasos
+   numerados en tarjetas, botón principal en coral, secundarios con borde azul, estados
+   como chips, tablas con cabecera gris y filas aireadas. Tokens de main.css.
+   Maqueta aprobada: docs/maquetas/maqueta-facturas.html.
+
+   ⚠ LO QUE NO SE TOCA: ningún id (fac-file-input, btn-cargar, fac-confirm*, fac-lote*,
+   fac-resumen*, fac-reconc, fac-advert, fac-anom*, fac-no-enc*, fac-table-body,
+   fac-sinenvio-*, fac-iibb-*, sinenvio-badge, las pestañas .tab[data-tab] y #tab-*),
+   ni las clases que lee facturas.js (has-file, row-a-revisar, row-reclamar, btn-accion…).
+   ════════════════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --fac-azul-suave: #eaf1f8;
+  --fac-verde: #15803d;  --fac-verde-suave: #dcfce7;
+  --fac-ambar: #b45309;  --fac-ambar-suave: #fef3c7;
+  --fac-rojo: #b91c1c;   --fac-rojo-suave: #fee2e2;
+  --fac-coral: #f26a4b;  --fac-coral-oscuro: #d9573a;
 }
 
-.fac-file-label {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.5rem;
-  padding: 0.5rem 1rem;
-  border: 1px solid var(--color-border);
-  border-radius: 4px;
-  background: #f8fafc;
-  cursor: pointer;
-  font-size: 0.875rem;
-  color: var(--color-muted);
-  transition: border-color 0.15s, background 0.15s;
-}
+/* ── Cabecera ──────────────────────────────────────────────────────────────── */
+.fac-cab-info { display: flex; gap: .5rem; align-items: center; margin-left: auto; }
+.fac-pill { font-size: .76rem; font-weight: 700; padding: .3rem .75rem; border-radius: 999px;
+  background: var(--fac-azul-suave); color: var(--color-primary); border: 1px solid #c9d8e8; white-space: nowrap; }
+.tabs { margin-bottom: 1.1rem; }
+.tab { font-weight: 500; }
+.em { color: var(--color-muted); }
 
-.fac-file-label:hover {
-  border-color: var(--color-primary-light);
-  background: #f1f5f9;
-}
+/* ── Botones (los de Guías) ─────────────────────────────────────────────────── */
+.btn-coral { background: var(--fac-coral); color: #fff; border: 1px solid var(--fac-coral); }
+.btn-coral:hover { background: var(--fac-coral-oscuro); border-color: var(--fac-coral-oscuro); }
+.btn-coral:disabled { opacity: .5; cursor: not-allowed; }
+.btn-outline { background: #fff; color: var(--color-primary); border: 1px solid var(--color-primary); }
+.btn-outline:hover { background: var(--fac-azul-suave); }
+.btn-outline:disabled { opacity: .5; cursor: not-allowed; }
+.btn-ghost { background: transparent; color: var(--color-primary); border: 1px dashed var(--color-border); }
+.btn-ghost:hover { background: #f1f5f9; border-color: var(--color-primary); }
+.btn-loading { opacity: .6; cursor: not-allowed; }
 
-.fac-file-label.has-file {
-  color: var(--color-text);
-  border-color: var(--color-primary-light);
-  background: #eff6ff;
-}
+/* ── Pasos en tarjetas ─────────────────────────────────────────────────────── */
+.fac-paso { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px;
+  box-shadow: var(--shadow); margin-bottom: 1rem; overflow: hidden; }
+.fac-paso-cab { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; padding: .75rem 1.1rem;
+  border-bottom: 1px solid var(--color-border); background: linear-gradient(90deg, var(--fac-azul-suave), #fff 70%); }
+.fac-paso-num { width: 26px; height: 26px; border-radius: 50%; background: var(--color-primary); color: #fff;
+  font-weight: 700; font-size: .85rem; display: grid; place-items: center; flex: none; }
+.fac-paso-cab h3 { margin: 0; font-size: 1rem; color: var(--color-primary); }
+.fac-paso-cab .em { font-size: .82rem; }
+.fac-paso-cuerpo { padding: 1rem 1.1rem; }
 
-#fac-file-input {
-  display: none;
-}
+/* ── Zona del PDF ──────────────────────────────────────────────────────────── */
+.fac-drop { display: flex; align-items: center; gap: 1.2rem; flex-wrap: wrap; padding: 1.1rem 1.3rem;
+  border: 2px dashed #c9d8e8; border-radius: 12px; background: #fbfcfe; transition: border-color .15s, background .15s; }
+.fac-drop.is-over { border-color: var(--fac-coral); background: #fff6f3; }
+.fac-drop-ico { font-size: 2rem; line-height: 1; }
+.fac-drop-texto { font-size: .95rem; line-height: 1.45; }
+.fac-drop-texto b { color: var(--color-primary); }
+.fac-drop-texto .em { font-size: .82rem; }
+.fac-drop-acciones { margin-left: auto; display: flex; gap: .6rem; align-items: center; flex-wrap: wrap; }
+#fac-file-input { display: none; }
+.fac-file-label { cursor: pointer; text-transform: none; letter-spacing: 0; font-size: .9rem; }
+.fac-filename { font-size: .85rem; color: var(--color-muted); font-style: italic; }
+.fac-filename.has-file { font-style: normal; font-weight: 600; color: var(--color-text);
+  padding: .4rem .7rem; border: 1px solid var(--color-border); border-radius: 8px; background: #fff; }
 
-.fac-filename {
-  font-size: 0.85rem;
-  color: var(--color-muted);
-  font-style: italic;
-}
+/* Confirmación de duplicados */
+.fac-confirm { margin-top: 1rem; padding: 1rem 1.25rem; border: 1px solid #fde68a; border-radius: 10px; background: #fffbeb; }
+.fac-confirm-msg { font-size: .95rem; color: #92400e; margin-bottom: .75rem; }
+.fac-confirm-msg strong { color: #78350f; }
+.fac-confirm-actions { display: flex; gap: .5rem; flex-wrap: wrap; }
 
-.fac-filename.has-file {
-  color: var(--color-text);
-  font-style: normal;
-  font-weight: 500;
-}
+/* ── Resultado: dos columnas ───────────────────────────────────────────────── */
+.fac-res-grid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(280px, 1fr); gap: 1rem; align-items: start; }
+@media (max-width: 1100px) { .fac-res-grid { grid-template-columns: 1fr; } }
+/* Sin cuadre ni avisos (carga en lote): una sola columna. */
+.fac-res-grid:not(:has(.fac-res-der > :not(.hidden))) { grid-template-columns: 1fr; }
+.fac-res-grid:not(:has(.fac-res-der > :not(.hidden))) .fac-res-der { display: none; }
+.fac-res-izq > *:not(:last-child), .fac-res-der > *:not(:last-child) { margin-bottom: 1rem; }
+.fac-resumen { margin: 0; }
 
-/* ── Panel de confirmación de duplicados ─────────────────── */
+/* Contadores grandes (tiles) */
+.fac-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: .7rem; }
+.fac-tiles-3 { max-width: 640px; margin-bottom: .9rem; }
+.fac-resumen-item, .fac-tile { border: 1px solid var(--color-border); border-radius: 10px; padding: .7rem .85rem; background: #fff; }
+.fac-resumen-val, .fac-tile-v { font-size: 1.6rem; font-weight: 700; line-height: 1.1; color: var(--color-primary); font-variant-numeric: tabular-nums; }
+.fac-resumen-lbl, .fac-tile-l { font-size: .68rem; font-weight: 600; text-transform: uppercase; letter-spacing: .04em; color: var(--color-muted); margin-top: .2rem; }
+.fac-resumen-val.ok, .fac-tile.ok .fac-tile-v { color: var(--fac-verde); }
+.fac-resumen-val.warning { color: var(--fac-ambar); }
+.fac-resumen-val.danger, .fac-tile.danger .fac-tile-v { color: var(--fac-rojo); }
+.fac-tipo-banner { grid-column: 1 / -1; background: #eef2ff; border: 1px solid #c7d2fe; border-left: 4px solid #4f46e5;
+  color: #312e81; font-size: 13px; padding: 8px 12px; border-radius: 8px; }
 
-.fac-confirm {
-  margin-top: 1rem;
-  padding: 1rem 1.25rem;
-  border: 1px solid #fde68a;
-  border-radius: var(--radius);
-  background: #fffbeb;
-}
+/* Títulos de sección */
+.fac-seccion-titulo { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin: 0 0 .6rem; }
+.fac-seccion-titulo h2 { margin: 0; font-size: 1.05rem; color: var(--color-primary); }
+.fac-seccion-titulo h4 { margin: 0; font-size: .95rem; color: var(--color-primary); }
+.fac-seccion-titulo .em { font-size: .82rem; }
+.fac-seccion-cab { margin-bottom: .9rem; }
+.fac-seccion-acciones { margin-left: auto; display: flex; gap: .6rem; align-items: center; }
+.fac-revisar-counter { font-size: .85rem; color: var(--color-muted); white-space: nowrap; }
+.fac-nota { font-size: 13px; color: var(--color-muted); margin: 0 0 .9rem; line-height: 1.5; }
 
-.fac-confirm-msg {
-  font-size: 0.95rem;
-  color: #92400e;
-  margin-bottom: 0.75rem;
-}
+/* Listas dentro del resultado (anomalías, sin envío, lote) — antes eran cajas rojas */
+.fac-no-enc { margin: 0; padding: 0; border: 0; background: transparent; }
+.fac-no-enc td { white-space: normal; }
+.fac-no-enc td .fac-chip-anom { white-space: normal; line-height: 1.3; }
+.fac-no-enc td .btn { white-space: nowrap; }
+.fac-no-enc-title { font-size: .95rem; font-weight: 600; color: var(--color-primary); margin-bottom: .6rem; }
+.fac-anom-nota { font-size: 12.5px; color: var(--color-muted); margin: 0 0 .6rem; }
+.fac-lote { margin-bottom: 1rem; }
 
-.fac-confirm-msg strong {
-  color: #78350f;
-}
+/* ── Cuadre de la factura ──────────────────────────────────────────────────── */
+.fac-reconc { margin: 0; padding: .85rem 1rem; border-radius: 10px; border: 1px solid transparent; }
+.fac-reconc.ok { border-color: #bbf7d0; background: #f0fdf4; }
+.fac-reconc.warn { border-color: #fde68a; background: #fffbeb; }
+.fac-reconc-title { font-size: .95rem; font-weight: 700; margin-bottom: .5rem; display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.fac-reconc.ok .fac-reconc-title { color: var(--fac-verde); }
+.fac-reconc.warn .fac-reconc-title { color: var(--fac-ambar); }
+.fac-reconc-nums { display: grid; grid-template-columns: 1fr auto; gap: .25rem 1rem; margin: 0; font-size: .88rem; }
+.fac-reconc-nums dt { color: #475569; }
+.fac-reconc-nums dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.fac-reconc-nums dd b { color: var(--color-primary); }
+.fac-reconc-nums .tot { font-weight: 700; padding-top: .3rem; margin-top: .2rem; border-top: 1px solid rgba(0, 0, 0, .08); }
+.fac-reconc-nums .dif { color: var(--fac-ambar); font-weight: 700; }
+.fac-reconc-nota { margin-top: .6rem; font-size: .78rem; line-height: 1.45; color: #475569; }
+.fac-reconc.ok .fac-reconc-nota { color: #166534; }
+.fac-reconc.warn .fac-reconc-nota { color: #92400e; }
 
-.fac-confirm-actions {
-  display: flex;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-/* ── Resumen post-carga ──────────────────────────────────── */
-
-.fac-resumen {
-  margin-top: 1rem;
-  padding: 1rem 1.25rem;
-  border: 1px solid #bbf7d0;
-  border-radius: var(--radius);
-  background: #f0fdf4;
-}
-
-.fac-resumen-nums {
-  display: flex;
-  gap: 1.5rem;
-  flex-wrap: wrap;
-  font-size: 0.95rem;
-  color: var(--color-text);
-}
-
-.fac-resumen-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  min-width: 80px;
-}
-
-.fac-resumen-val {
-  font-size: 1.6rem;
-  font-weight: 700;
-  line-height: 1.1;
-  color: var(--color-primary);
-}
-
-.fac-resumen-val.danger  { color: var(--color-danger); }
-.fac-resumen-val.warning { color: #b45309; }
-
-.fac-resumen-lbl {
-  font-size: 0.72rem;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: var(--color-muted);
-  margin-top: 0.15rem;
-  text-align: center;
-}
-
-/* ── Lista de guías no encontradas ───────────────────────── */
-
-.fac-no-enc {
-  margin-top: 1rem;
-  padding: 1rem 1.25rem;
-  border: 1px solid #fecaca;
-  border-radius: var(--radius);
-  background: #fef2f2;
-}
-
-.fac-no-enc-title {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: var(--color-danger);
-  margin-bottom: 0.6rem;
-}
-
-.fac-no-enc-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.85rem;
-}
-
-.fac-no-enc-table th,
-.fac-no-enc-table td {
-  padding: 0.35rem 0.5rem;
-  text-align: left;
-  border-bottom: 1px solid #fecaca;
-}
-
-.fac-no-enc-table th {
-  background: transparent;
-  color: var(--color-danger);
-  font-size: 0.72rem;
-}
-
-.fac-no-enc-table tr:last-child td {
-  border-bottom: none;
-}
-
-/* ── Pestaña Revisar ─────────────────────────────────────── */
-
-.fac-revisar-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 1rem;
-  gap: 0.5rem;
-  flex-wrap: wrap;
-}
-
-.fac-revisar-counter {
-  font-size: 0.85rem;
-  color: var(--color-muted);
-}
-
-.fac-table-wrap {
-  overflow-x: auto;
-}
-
-.fac-table {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.875rem;
-}
-
-.fac-table th,
-.fac-table td {
-  padding: 0.5rem 0.65rem;
-  text-align: left;
-  border-bottom: 1px solid var(--color-border);
-  white-space: nowrap;
-}
-
-.fac-table th {
-  background: #f1f5f9;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  color: var(--color-muted);
-  font-weight: 600;
-}
-
-.fac-table td.num { text-align: right; }
-
-.fac-table tr:hover td { background: #f8fafc; }
-
-/* a_revisar rows */
-.fac-table tr.row-a-revisar td {
-  background: #fffbeb;
-}
-
-.fac-table tr.row-a-revisar:hover td {
-  background: #fef3c7;
-}
-
-/* reclamar rows */
-.fac-table tr.row-reclamar td {
-  background: #eff6ff;
-}
-
-.fac-table tr.row-reclamar:hover td {
-  background: #dbeafe;
-}
-
-/* ── Badges de estado ────────────────────────────────────── */
-
-.badge-a-revisar {
-  background: #fef3c7;
-  color: #92400e;
-  border: 1px solid #fde68a;
-}
-
-.badge-revisado-ok {
-  background: #dcfce7;
-  color: #15803d;
-  border: 1px solid #bbf7d0;
-}
-
-.badge-reclamar {
-  background: #dbeafe;
-  color: #1e40af;
-  border: 1px solid #bfdbfe;
-}
-
-/* ── Botones de acción inline ────────────────────────────── */
-
-.fac-action-btns {
-  display: flex;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-}
-
-.btn-ok {
-  background: #dcfce7;
-  color: #15803d;
-  border: 1px solid #bbf7d0;
-}
-
-.btn-ok:hover {
-  background: #bbf7d0;
-}
-
-.btn-reclamar {
-  background: #dbeafe;
-  color: #1e40af;
-  border: 1px solid #bfdbfe;
-}
-
-.btn-reclamar:hover {
-  background: #bfdbfe;
-}
-
-.btn-loading {
-  opacity: 0.6;
-  cursor: not-allowed;
-}
-
-/* ── Ganancia coloreada ──────────────────────────────────── */
-
-.gain-pos  { color: var(--color-success); font-weight: 600; }
-.gain-neg  { color: var(--color-danger);  font-weight: 600; }
-.gain-zero { color: var(--color-muted); }
-
-/* ── Reconciliación contra el total del PDF ──────────────────────────────────
-   Compara la suma de las guías con el total que declara la propia factura.
-   Verde si cuadra, ámbar si no: no es un error, es algo que hay que mirar. */
-.fac-reconc {
-  margin-top: 1rem;
-  padding: 0.9rem 1.25rem;
-  border-radius: var(--radius);
-  border: 1px solid transparent;
-}
-.fac-reconc.ok {
-  border-color: #bbf7d0;
-  background: #f0fdf4;
-}
-.fac-reconc.warn {
-  border-color: #fde68a;
-  background: #fffbeb;
-}
-.fac-reconc-title {
-  font-size: 0.85rem;
-  font-weight: 600;
-  margin-bottom: 0.5rem;
-}
-.fac-reconc.ok   .fac-reconc-title { color: #15803d; }
-.fac-reconc.warn .fac-reconc-title { color: #b45309; }
-.fac-reconc-nums {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 1.5rem;
-  font-size: 0.85rem;
-  color: var(--color-text);
-}
-.fac-reconc-nums b { font-variant-numeric: tabular-nums; }
-.fac-reconc-nota {
-  margin-top: 0.6rem;
-  font-size: 0.78rem;
-  line-height: 1.45;
-  color: #92400e;
-}
-
-/* ── Avisos del parser ───────────────────────────────────────────────────────
-   Todo lo que el lector de la factura no pudo resolver. Antes esto se degradaba
-   a 0 o se descartaba en silencio. */
-.fac-advert {
-  margin-top: 1rem;
-  padding: 0.9rem 1.25rem;
-  border: 1px solid #fde68a;
-  border-radius: var(--radius);
-  background: #fffbeb;
-}
-.fac-advert-title {
-  font-size: 0.85rem;
-  font-weight: 600;
-  color: #b45309;
-  margin-bottom: 0.5rem;
-}
-.fac-advert-list {
-  margin: 0;
-  padding-left: 1.1rem;
-  font-size: 0.82rem;
-  line-height: 1.55;
-  color: var(--color-text);
-}
-.fac-advert-list li { margin-bottom: 0.3rem; }
+/* ── Avisos del lector ─────────────────────────────────────────────────────── */
+.fac-advert { margin: 0; padding: .85rem 1rem; border: 1px solid #fde68a; border-radius: 10px; background: #fffbeb; }
+.fac-advert .fac-seccion-titulo h4 { color: var(--fac-ambar); }
+.fac-advert-list { margin: 0; padding-left: 1.1rem; font-size: .82rem; line-height: 1.55; color: var(--color-text); }
+.fac-advert-list li { margin-bottom: .3rem; }
 .fac-advert-list li:last-child { margin-bottom: 0; }
 
-/* Facturas de IMPUESTOS DDP (03/09/2026): el resumen lleva un banner que dice qué tipo
-   de factura entró, y la tabla del lote un chip. La misma pantalla carga las dos. */
-.fac-tipo-banner {
-  grid-column: 1 / -1; width: 100%;
-  background: #eef2ff; border: 1px solid #c7d2fe; border-left: 4px solid #4f46e5;
-  color: #312e81; font-size: 13px; padding: 8px 12px; border-radius: 6px; margin-bottom: 8px;
-}
-.fac-chip-imp {
-  display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px;
-  background: #eef2ff; color: #4338ca; font-size: 10px; font-weight: 700; vertical-align: middle;
-}
+/* ── Barra de filtros (Revisar) ────────────────────────────────────────────── */
+.fac-toolbar { display: flex; flex-wrap: wrap; gap: .75rem 1rem; align-items: flex-end; padding: .8rem 1rem;
+  background: #fbfcfe; border: 1px solid var(--color-border); border-radius: 10px; margin-bottom: 1rem; }
+.fac-toolbar label { display: block; font-size: .7rem; letter-spacing: .4px; text-transform: uppercase; color: var(--color-muted); font-weight: 600; margin-bottom: .25rem; }
+.fac-toolbar input { padding: .45rem .6rem; border: 1px solid var(--color-border); border-radius: 6px; font: inherit; font-size: .9rem; background: #fff; width: 100%; }
+.fac-toolbar input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(42, 54, 97, .12); }
+.fac-toolbar-buscar { flex: 1 1 260px; max-width: 380px; }
+.fac-toolbar-der { margin-left: auto; align-self: center; }
+.fac-toolbar-der .fac-corte-nota { margin: 0; }
+.fac-seg { display: inline-flex; border: 1px solid var(--color-border); border-radius: 8px; overflow: hidden; background: #fff; }
+.fac-seg button { font: inherit; font-size: .82rem; padding: .42rem .8rem; border: 0; background: #fff; color: var(--color-muted); cursor: pointer; white-space: nowrap; }
+.fac-seg button + button { border-left: 1px solid var(--color-border); }
+.fac-seg button:hover { background: #f1f5f9; }
+.fac-seg button.on { background: var(--color-primary); color: #fff; }
 
-/* Nota de la fecha de corte del control (07/09): qué se está mostrando y el link para ver lo anterior. */
-.fac-corte-nota { font-size: 12.5px; color: var(--text-secondary, #6b6860); margin: 8px 0 10px; }
-.fac-corte-nota:empty { display: none; }
-.fac-corte-nota a { color: var(--color-primary, #2A3661); cursor: pointer; text-decoration: underline; }
+/* ── Tablas ────────────────────────────────────────────────────────────────── */
+.fac-tabla-card { background: #fff; border: 1px solid var(--color-border); border-radius: 12px; box-shadow: var(--shadow); }
+.fac-table-wrap { overflow-x: auto; }
+.fac-table { width: 100%; border-collapse: collapse; font-size: .86rem; }
+.fac-table th, .fac-table td { padding: .55rem .55rem; text-align: left; border-bottom: 1px solid #eef2f7; vertical-align: middle; }
+.fac-table th, .fac-table td.num, .fac-table td.mono, .fac-table .badge, .fac-table .fac-action-btns { white-space: nowrap; }
+.fac-table th { background: #f1f5f9; color: #475569; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; font-weight: 600; border-bottom: 1px solid var(--color-border); }
+.fac-table th.num, .fac-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.fac-table tr:hover td { background: #fbfcfe; }
+.fac-table tr:last-child td { border-bottom: 0; }
+.fac-table td.empty { color: var(--color-muted); white-space: normal; padding: 1rem .65rem; }
+.fac-table td.fac-motivo { white-space: normal; min-width: 210px; }
+.fac-table td.fac-motivo .fac-chip-anom { white-space: normal; line-height: 1.3; }
+.fac-table td.fac-motivo .fac-anom-fila { gap: .25rem; }
+.fac-table tr.row-a-revisar td { background: #fffdf5; }
+.fac-table tr.row-a-revisar:hover td { background: #fff8e1; }
+.fac-table tr.row-reclamar td { background: #fff5f5; }
+.fac-table tr.row-reclamar:hover td { background: #ffecec; }
+.mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .82rem; }
 
-/* Ingresos Brutos (05/10/2026) */
-.fac-iibb-meses { display: flex; flex-wrap: wrap; gap: .5rem; margin-bottom: .8rem; }
-.fac-iibb-mes { border: 1px solid var(--border, #e5e2db); border-radius: 8px; padding: .4rem .7rem; display: flex; gap: .6rem; align-items: baseline; font-size: 13px; }
-.fac-iibb-mes b { color: var(--color-primary); }
+/* ── Chips de estado y de courier ──────────────────────────────────────────── */
+.badge { font-size: .74rem; font-weight: 700; padding: .2rem .6rem; border-radius: 999px; letter-spacing: .2px; white-space: nowrap; }
+.badge-a-revisar { background: var(--fac-ambar-suave); color: var(--fac-ambar); border: 1px solid #fde68a; }
+.badge-revisado-ok { background: var(--fac-verde-suave); color: var(--fac-verde); border: 1px solid #bbf7d0; }
+.badge-reclamar { background: var(--fac-rojo-suave); color: var(--fac-rojo); border: 1px solid #fecaca; }
+.fac-chip-gris { display: inline-block; font-size: .72rem; font-weight: 700; padding: .15rem .55rem; border-radius: 999px; background: #f1f5f9; color: #475569; }
+.fac-chip-courier { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .3px; padding: 1px 7px; border-radius: 999px; vertical-align: middle; }
+.fac-chip-ups { background: #5c3b00; color: #ffd27a; }
+.fac-chip-dhl { background: #fff3c4; color: #b4000c; border: 1px solid #ffcc00; }
+.fac-chip-courier + .em { font-size: .78rem; margin-left: .3rem; }
+.fac-chip-imp { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 999px; background: #eef2ff; color: #4338ca; font-size: 10px; font-weight: 700; vertical-align: middle; }
 
-/* Cargos no previstos (05/10/2026) */
-.fac-anom-nota { font-size: 12.5px; color: var(--text-secondary, #6b6860); margin: .2rem 0 .6rem; }
-.fac-chip-anom { display: inline-block; font-size: 11.5px; padding: .1rem .45rem; border-radius: 999px; background: #FFF4EF; color: #B4492F; border: 1px solid #F6C3B4; margin: .1rem .15rem .1rem 0; white-space: nowrap; }
+/* Cargos no previstos: chips por anomalía */
+.fac-chip-anom { display: inline-block; font-size: 11.5px; font-weight: 600; padding: .15rem .5rem; border-radius: 6px;
+  background: var(--fac-ambar-suave); color: var(--fac-ambar); border: 1px solid #fcd34d; margin: .1rem .2rem .1rem 0; white-space: nowrap; }
 .fac-chip-anom.fac-anom-mc { background: #FFF8E6; color: #8A5A00; border-color: #F3D48A; }
 .fac-chip-anom.fac-anom-peso { background: #EEF3FF; color: #2F4A9E; border-color: #C3CFF6; }
-.fac-anom-fila { margin-top: .2rem; display: flex; flex-wrap: wrap; gap: .15rem; }
+.fac-anom-fila { display: flex; flex-wrap: wrap; gap: .15rem; }
 .fac-anom-fila .fac-chip-anom { white-space: normal; }
 
-/* Chip de courier en el cuadre de la factura y en Ingresos Brutos (07/10/2026). */
-.fac-chip-courier { display:inline-block; font-size:11px; font-weight:700; letter-spacing:.3px; padding:1px 7px; border-radius:999px; margin-left:6px; vertical-align:middle; }
-.fac-chip-ups { background:#5c3b00; color:#ffd27a; }
-.fac-chip-dhl { background:#fff3c4; color:#b4000c; border:1px solid #ffcc00; }
+/* ── Acciones por fila ─────────────────────────────────────────────────────── */
+.fac-action-btns { display: flex; flex-direction: column; gap: .3rem; align-items: stretch; margin-top: .4rem; }
+.fac-table td.fac-estado { min-width: 120px; }
+.fac-action-btns .btn-sm { padding: .25rem .55rem; font-size: .78rem; justify-content: center; }
+.btn-ok.btn-outline { border-color: var(--fac-verde); color: var(--fac-verde); }
+.btn-ok.btn-outline:hover { background: var(--fac-verde-suave); }
+.btn-reclamar.btn-outline { border-color: var(--fac-ambar); color: var(--fac-ambar); }
+.btn-reclamar.btn-outline:hover { background: var(--fac-ambar-suave); }
+
+/* Ganancia coloreada */
+.gain-pos { color: var(--color-success); font-weight: 600; }
+.gain-neg { color: var(--color-danger); font-weight: 600; }
+.gain-zero { color: var(--color-muted); }
+
+/* Nota de la fecha de corte del control (07/09) */
+.fac-corte-nota { font-size: 12.5px; color: var(--color-muted); margin: 8px 0 10px; }
+.fac-corte-nota:empty { display: none; }
+.fac-corte-nota a { color: var(--color-primary); cursor: pointer; text-decoration: underline; }
+
+/* Ingresos Brutos: un mes = una tarjetita */
+.fac-iibb-meses { display: flex; flex-wrap: wrap; gap: .6rem; margin-bottom: .9rem; }
+.fac-iibb-mes { border: 1px solid var(--color-border); border-radius: 10px; padding: .5rem .8rem; background: #fff; display: flex; gap: .6rem; align-items: baseline; font-size: 13px; }
+.fac-iibb-mes b { color: var(--color-primary); font-size: 1rem; }
+.fac-iibb-mes .em { font-size: .78rem; }

@@ -82,6 +82,9 @@ async function main() {
   const sqlite3 = require('sqlite3');
   const db = new sqlite3.Database(DB);
   const q = (sql, p = []) => new Promise((res, rej) => db.all(sql, p, (e, r) => (e ? rej(e) : res(r))));
+  // La factura de ejemplo es de mayo y el control arranca el 01/09 (fecha de corte en
+  // Configuración): para que la pestaña la muestre, el corte se corre antes de la factura.
+  await q("UPDATE configuracion_nova SET fecha_corte_control = '2026-01-01' WHERE id = 1");
   await abrirSesion(DB, TOKEN);
 
   // Se deja la factura de ejemplo cargada con casi todas sus guías sin envío.

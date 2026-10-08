@@ -60,10 +60,29 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
   await esperar(1500);
   const rev = await page.textContent('#fac-table-body');
   check('Revisar guías: la guía muestra los chips de anomalía', /1Z000ANOMPANT0001/.test(rev) && /Área remota \/ extendida: USD 32\.00 no previsto/.test(rev) && /Entrega residencial: USD 6\.00 no previsto/.test(rev), rev.replace(/\s+/g, ' ').slice(0, 300));
+  // Estética 08/10: contador en la pestaña, filtros por estado y por texto, chip del courier.
+  const badgeRev = await page.$eval('#revisar-badge', (b) => ({ t: b.textContent, v: !b.classList.contains('hidden') }));
+  check('la pestaña Revisar lleva el contador (1)', badgeRev.v && badgeRev.t === '1', JSON.stringify(badgeRev));
+  check('la fila muestra el chip del courier y los botones Aprobar / Reclamar', /UPS/.test(rev) && /Aprobar/.test(rev) && /Reclamar/.test(rev));
+  await page.click('#fac-revisar-estado button[data-estado="reclamar"]');
+  await esperar(300);
+  check('filtro "En reclamo" deja la tabla vacía (la guía está a revisar)', /Ninguna guía con ese filtro/.test(await page.textContent('#fac-table-body')));
+  await page.click('#fac-revisar-estado button[data-estado=""]');
+  await page.fill('#fac-revisar-buscar', 'zzz');
+  await esperar(300);
+  check('buscar por texto filtra', /Ninguna guía con ese filtro/.test(await page.textContent('#fac-table-body')));
+  await page.fill('#fac-revisar-buscar', 'ANOM PANTALLA');
+  await esperar(300);
+  check('y por cliente la encuentra', /1Z000ANOMPANT0001/.test(await page.textContent('#fac-table-body')));
+  await page.click('.tab[data-tab="sinenvio"]');
+  await esperar(1200);
+  check('Sin envío muestra las tarjetas de totales', !!(await page.$('#fac-sinenvio-tiles .fac-tile')));
 
   console.log('\n2. Salidas: chip ⚠ y bloque "Factura del courier"\n');
-  await page.goto(`${BASE}/pages/salidas.html?desde=2026-09-12&hasta=2026-09-12`);
+  // ?buscar=<guía> (08/10): el "Ver en Salidas" de Facturas llega con el buscador cargado.
+  await page.goto(`${BASE}/pages/salidas.html?buscar=1Z000ANOMPANT0001`);
   await esperar(2500);
+  check('Salidas abre con el buscador cargado desde la URL', (await page.inputValue('#buscador')) === '1Z000ANOMPANT0001');
   const chip = await page.$('.chip-anom');
   check('la fila tiene el chip ⚠ 2 en Costo UPS', !!chip && /2/.test(await chip.textContent()));
   // Flete+Fuel (06/10): nuestra suma (60 + 20 = 80) y el neto de la factura (83.5), pintada
