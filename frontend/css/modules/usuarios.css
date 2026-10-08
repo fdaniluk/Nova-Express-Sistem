@@ -1,0 +1,67 @@
+/* ════════════════════════════════════════════════════════════════════════════════════
+   USUARIOS — estética del sistema (08/10/2026, ítem 6 del orden de estética)
+   Pasos en tarjetas, botón principal en coral, secundarios con borde, permisos como chips,
+   estados como chips. Maqueta aprobada: docs/maquetas/maqueta-usuarios-configuracion.html.
+   ⚠ No cambia ningún id (form-usuario, u-*, tabla-usuarios) ni las clases que lee
+   usuarios.js (inline-select, toggle-activo, reset-pwd, pwd-inline, actions-cell).
+   ════════════════════════════════════════════════════════════════════════════════════ */
+:root { --usr-azul-suave: #eaf1f8; --usr-verde: #15803d; --usr-verde-suave: #dcfce7; --usr-rojo: #b91c1c; --usr-coral: #f26a4b; --usr-coral-oscuro: #d9573a; }
+
+.usr-cab-info { margin-left: auto; display: flex; gap: .5rem; align-items: center; }
+.usr-pill { font-size: .76rem; font-weight: 700; padding: .3rem .75rem; border-radius: 999px; background: var(--usr-azul-suave); color: var(--color-primary); border: 1px solid #c9d8e8; }
+.em { color: var(--color-muted); }
+
+.btn-coral { background: var(--usr-coral); color: #fff; border: 1px solid var(--usr-coral); }
+.btn-coral:hover { background: var(--usr-coral-oscuro); border-color: var(--usr-coral-oscuro); }
+.btn-outline { background: #fff; color: var(--color-primary); border: 1px solid var(--color-primary); }
+.btn-outline:hover { background: var(--usr-azul-suave); }
+.btn-outline-rojo { color: var(--usr-rojo); border-color: var(--usr-rojo); }
+.btn-outline-rojo:hover { background: #fee2e2; }
+
+/* Pasos en tarjetas */
+.usr-paso { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; box-shadow: var(--shadow); margin-bottom: 1rem; overflow: hidden; }
+.usr-paso-cab { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; padding: .75rem 1.1rem; border-bottom: 1px solid var(--color-border); background: linear-gradient(90deg, var(--usr-azul-suave), #fff 70%); }
+.usr-paso-num { width: 26px; height: 26px; border-radius: 50%; background: var(--color-primary); color: #fff; font-weight: 700; font-size: .85rem; display: grid; place-items: center; flex: none; }
+.usr-paso-cab h3 { margin: 0; font-size: 1rem; color: var(--color-primary); }
+.usr-paso-cab .em { font-size: .82rem; }
+.usr-paso-cuerpo { padding: 1rem 1.1rem; }
+
+/* Alta */
+.usr-grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 1rem; margin-bottom: .9rem; }
+@media (max-width: 900px) { .usr-grid3 { grid-template-columns: 1fr; } }
+.usr-grid3 .form-group { margin: 0; }
+.usr-grid3 input, .usr-grid3 select { width: 100%; padding: .5rem .65rem; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; font-size: .92rem; background: #fff; }
+.usr-grid3 input:focus, .usr-grid3 select:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(42, 54, 97, .12); }
+.usr-label { display: block; font-size: .7rem; letter-spacing: .4px; text-transform: uppercase; color: var(--color-muted); font-weight: 600; margin-bottom: .4rem; }
+.usr-label .em { font-weight: 400; text-transform: none; letter-spacing: 0; }
+.usr-permisos { display: flex; flex-wrap: wrap; gap: .5rem; }
+.usr-perm { display: inline-flex; align-items: center; gap: .4rem; padding: .4rem .75rem; border: 1px solid var(--color-border); border-radius: 999px; font-size: .86rem; cursor: pointer; background: #fff; user-select: none; margin: 0; font-weight: 500; text-transform: none; letter-spacing: 0; color: var(--color-text); }
+.usr-perm input[type="checkbox"] { position: absolute; opacity: 0; width: 0; height: 0; }
+.usr-perm .dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #c9d8e8; display: inline-block; flex: none; }
+.usr-perm .ayuda { color: var(--color-muted); font-weight: 400; font-size: .76rem; }
+.usr-perm:hover { border-color: var(--color-primary); }
+.usr-perm.on, .usr-perm:has(input:checked) { background: var(--usr-azul-suave); border-color: var(--color-primary); color: var(--color-primary); font-weight: 600; }
+.usr-perm.on .dot, .usr-perm:has(input:checked) .dot { background: var(--color-primary); border-color: var(--color-primary); }
+.usr-acciones { display: flex; gap: .6rem; margin-top: 1rem; }
+
+/* Lista */
+.usr-tabla { width: 100%; border-collapse: collapse; font-size: .88rem; }
+.usr-tabla th { background: #f1f5f9; color: #475569; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; padding: .55rem .8rem; text-align: left; border-bottom: 1px solid var(--color-border); }
+.usr-tabla td { padding: .65rem .8rem; border-bottom: 1px solid #eef2f7; vertical-align: middle; }
+.usr-tabla tr:last-child td { border-bottom: 0; }
+.usr-tabla tr:hover td { background: #fbfcfe; }
+.usr-tabla tr.usr-inactivo td { opacity: .6; }
+.usr-tabla td.empty { color: var(--color-muted); padding: 1rem .8rem; }
+.inline-select { padding: .3rem .5rem; font: inherit; font-size: .85rem; border: 1px solid var(--color-border); border-radius: 8px; background: #fff; cursor: pointer; max-width: 150px; }
+.usr-perm-mini { display: inline-flex; gap: .3rem; flex-wrap: wrap; }
+.usr-mini { font: inherit; font-size: .74rem; padding: .18rem .55rem; border-radius: 999px; border: 1px solid var(--color-border); color: var(--color-muted); background: #fff; cursor: pointer; }
+.usr-mini:hover { border-color: var(--color-primary); color: var(--color-primary); }
+.usr-mini.on { background: var(--usr-azul-suave); border-color: var(--color-primary); color: var(--color-primary); font-weight: 600; }
+.usr-todos { font-size: .82rem; }
+.usr-acceso { white-space: nowrap; color: var(--color-text); }
+.usr-chip { display: inline-block; font-size: .74rem; font-weight: 700; padding: .2rem .6rem; border-radius: 999px; }
+.usr-chip-ok { background: var(--usr-verde-suave); color: var(--usr-verde); }
+.usr-chip-gris { background: #f1f5f9; color: #475569; }
+.actions-cell { display: flex; gap: .35rem; align-items: center; flex-wrap: wrap; }
+.pwd-inline { display: inline-flex; gap: 6px; align-items: center; margin-left: 6px; }
+.pwd-inline input { width: 190px; padding: 4px 8px; font-size: 13px; border: 1px solid var(--color-border); border-radius: 6px; }

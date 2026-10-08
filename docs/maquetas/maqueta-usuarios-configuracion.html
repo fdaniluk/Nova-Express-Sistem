@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Maqueta — Usuarios y Configuración</title>
+<link rel="stylesheet" href="../../frontend/css/main.css">
+<style>
+/* MAQUETA Usuarios + Configuración (08/10/2026, ítem 6). Foto de diseño, datos inventados. */
+:root { --m-azul-suave:#eaf1f8; --m-verde:#15803d; --m-verde-suave:#dcfce7; --m-ambar:#b45309; --m-ambar-suave:#fef3c7; --m-rojo:#b91c1c; --m-rojo-suave:#fee2e2; --m-coral:#f26a4b; }
+body { padding:1.25rem 1.5rem; max-width:1360px; }
+.maq-nota { font-size:.8rem; color:#64748b; margin:0 0 .75rem; }
+.page-header { display:flex; align-items:center; gap:1rem; padding:.9rem 1.2rem; background:#fff; border:1px solid var(--color-border); border-radius:10px 10px 0 0; }
+.page-header h1 { margin:0; font-size:1.25rem; color:var(--color-primary); }
+.page-body { background:#fff; border:1px solid var(--color-border); border-top:0; border-radius:0 0 10px 10px; padding:1rem 1.2rem 1.4rem; margin-bottom:2rem; }
+.btn { font:inherit; border-radius:8px; padding:.55rem 1rem; cursor:pointer; border:1px solid transparent; font-weight:600; font-size:.9rem; }
+.btn-coral { background:var(--m-coral); color:#fff; } .btn-outline { background:#fff; color:var(--color-primary); border-color:var(--color-primary); }
+.btn-sm { padding:.3rem .65rem; font-size:.8rem; } .btn-rojo { border-color:var(--m-rojo); color:var(--m-rojo); background:#fff; }
+.paso { background:#fff; border:1px solid var(--color-border); border-radius:12px; box-shadow:var(--shadow); margin-bottom:1rem; overflow:hidden; }
+.paso-cab { display:flex; align-items:center; gap:.8rem; padding:.75rem 1.1rem; border-bottom:1px solid var(--color-border); background:linear-gradient(90deg,var(--m-azul-suave),#fff 70%); }
+.paso-num { width:26px; height:26px; border-radius:50%; background:var(--color-primary); color:#fff; font-weight:700; font-size:.85rem; display:grid; place-items:center; }
+.paso-cab h3 { margin:0; font-size:1rem; color:var(--color-primary); } .paso-cab .em { color:var(--color-muted); font-size:.82rem; }
+.paso-cuerpo { padding:1rem 1.1rem; }
+.grid3 { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; }
+label.l { display:block; font-size:.7rem; letter-spacing:.4px; text-transform:uppercase; color:var(--color-muted); font-weight:600; margin-bottom:.25rem; }
+input.i, select.i { width:100%; padding:.5rem .65rem; border:1px solid var(--color-border); border-radius:8px; font:inherit; font-size:.92rem; background:#fff; }
+.permisos { display:flex; flex-wrap:wrap; gap:.5rem; }
+.perm { display:inline-flex; align-items:center; gap:.4rem; padding:.4rem .75rem; border:1px solid var(--color-border); border-radius:999px; font-size:.84rem; cursor:pointer; background:#fff; }
+.perm.on { background:var(--m-azul-suave); border-color:var(--color-primary); color:var(--color-primary); font-weight:600; }
+.perm .dot { width:14px; height:14px; border-radius:50%; border:2px solid #c9d8e8; display:inline-block; } .perm.on .dot { background:var(--color-primary); border-color:var(--color-primary); }
+.perm .ayuda { color:var(--color-muted); font-weight:400; font-size:.76rem; }
+.tabla { width:100%; border-collapse:collapse; font-size:.88rem; }
+.tabla th { background:#f1f5f9; color:#475569; font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; padding:.55rem .65rem; text-align:left; border-bottom:1px solid var(--color-border); }
+.tabla td { padding:.65rem .65rem; border-bottom:1px solid #eef2f7; vertical-align:middle; }
+.chip { display:inline-block; font-size:.74rem; font-weight:700; padding:.2rem .6rem; border-radius:999px; }
+.chip-ok { background:var(--m-verde-suave); color:var(--m-verde); } .chip-gris { background:#f1f5f9; color:#475569; } .chip-azul { background:var(--m-azul-suave); color:var(--color-primary); } .chip-ambar { background:var(--m-ambar-suave); color:var(--m-ambar); }
+.perm-mini { display:inline-flex; gap:.3rem; flex-wrap:wrap; }
+.perm-mini span { font-size:.72rem; padding:.15rem .5rem; border-radius:999px; border:1px solid var(--color-border); color:var(--color-muted); cursor:pointer; }
+.perm-mini span.on { background:var(--m-azul-suave); border-color:var(--color-primary); color:var(--color-primary); font-weight:600; }
+.acc { display:flex; gap:.35rem; }
+.tabla-card { border:1px solid var(--color-border); border-radius:12px; overflow:hidden; box-shadow:var(--shadow); }
+.tabs { margin-bottom:1.1rem; } .tab { font-weight:500; }
+.fuel-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; margin-bottom:1rem; }
+.fuel { border:1px solid var(--color-border); border-radius:12px; padding:1rem 1.1rem; background:#fff; }
+.fuel.nova { border-top:4px solid var(--color-primary); } .fuel.dhl { border-top:4px solid #ffcc00; } .fuel.ups { border-top:4px solid #5c3b00; }
+.fuel h4 { margin:0 0 .3rem; font-size:1rem; color:var(--color-primary); display:flex; align-items:center; gap:.5rem; }
+.fuel .v { font-size:2rem; font-weight:700; color:var(--color-primary); line-height:1.1; }
+.fuel .em { color:var(--color-muted); font-size:.82rem; display:block; margin:.3rem 0 .6rem; }
+.fuel .fila { display:flex; gap:.5rem; align-items:center; }
+.fuel .fila input { width:90px; }
+.aviso { font-size:.78rem; font-weight:700; } .aviso.rojo { color:var(--m-rojo); } .aviso.ok { color:var(--m-verde); }
+details { border:1px solid var(--color-border); border-radius:10px; padding:.5rem .9rem; background:#fbfcfe; margin-bottom:1rem; }
+summary { cursor:pointer; font-weight:600; color:var(--color-primary); font-size:.9rem; }
+.ajuste { display:grid; grid-template-columns:1fr auto; gap:1rem; align-items:center; padding:.9rem 1rem; border:1px solid var(--color-border); border-radius:12px; margin-bottom:.8rem; background:#fff; }
+.ajuste h4 { margin:0 0 .2rem; font-size:.95rem; color:var(--color-primary); } .ajuste p { margin:0; font-size:.82rem; color:var(--color-muted); max-width:620px; }
+.ajuste .ctrl { display:flex; gap:.5rem; align-items:center; } .ajuste .ctrl input { width:120px; }
+.tol { display:grid; grid-template-columns:repeat(2,1fr); gap:1rem; }
+.tol .fuel .fila { margin-bottom:.4rem; } .tol label.l { margin:0; min-width:150px; }
+</style>
+</head>
+<body>
+<p class="maq-nota">Maqueta · Usuarios y Configuración · 08/10/2026 · datos inventados</p>
+
+<!-- ═══ USUARIOS ═══ -->
+<div class="page-header"><h1>Usuarios</h1><span class="chip chip-azul" style="margin-left:auto">3 activos · 1 inactivo</span></div>
+<div class="page-body">
+  <div class="paso">
+    <div class="paso-cab"><span class="paso-num">1</span><h3>Nuevo usuario</h3><span class="em">usuario, contraseña y rol; los permisos se tildan como chips</span></div>
+    <div class="paso-cuerpo">
+      <div class="grid3" style="margin-bottom:1rem">
+        <div><label class="l">Usuario</label><input class="i" placeholder="ej. gabriela"></div>
+        <div><label class="l">Contraseña</label><input class="i" type="password" placeholder="mínimo 6 caracteres"></div>
+        <div><label class="l">Rol</label><select class="i"><option>Empleado</option><option>Administrador</option></select></div>
+      </div>
+      <label class="l">Permisos <span style="font-weight:400;text-transform:none;letter-spacing:0">(el administrador los tiene todos)</span></label>
+      <div class="permisos">
+        <span class="perm on"><span class="dot"></span>Dashboard <span class="ayuda">ver la utilidad</span></span>
+        <span class="perm"><span class="dot"></span>Configuración <span class="ayuda">fuel, umbrales</span></span>
+        <span class="perm"><span class="dot"></span>Salud <span class="ayuda">panel de controles</span></span>
+        <span class="perm"><span class="dot"></span>Cierre de mes <span class="ayuda">bajar la planilla</span></span>
+        <span class="perm on"><span class="dot"></span>Pagos <span class="ayuda">confirmar cobranzas</span></span>
+      </div>
+      <div style="margin-top:1rem;display:flex;gap:.6rem"><button class="btn btn-coral">Crear usuario</button><button class="btn btn-outline">Limpiar</button></div>
+    </div>
+  </div>
+
+  <div class="paso">
+    <div class="paso-cab"><span class="paso-num">2</span><h3>Usuarios del sistema</h3><span class="em">tocá un permiso para prenderlo o apagarlo · se guarda al momento</span></div>
+    <div class="tabla-card" style="border:0;box-shadow:none;border-radius:0">
+      <table class="tabla">
+        <thead><tr><th>Usuario</th><th>Rol</th><th>Permisos</th><th>Último acceso</th><th>Estado</th><th>Acciones</th></tr></thead>
+        <tbody>
+          <tr><td><b>Felipe</b></td><td><span class="chip chip-azul">Administrador</span></td><td><span class="em" style="font-size:.8rem">todos</span></td><td>hoy 11:02</td><td><span class="chip chip-ok">activo</span></td><td class="acc"><button class="btn btn-sm btn-outline">Resetear contraseña</button><button class="btn btn-sm btn-rojo">Desactivar</button></td></tr>
+          <tr><td><b>Marcelo</b></td><td><select class="i" style="width:140px;padding:.3rem .5rem"><option>Empleado</option><option>Administrador</option></select></td><td><div class="perm-mini"><span class="on">Dashboard</span><span>Config</span><span>Salud</span><span>Cierre</span><span class="on">Pagos</span></div></td><td>ayer 18:40</td><td><span class="chip chip-ok">activo</span></td><td class="acc"><button class="btn btn-sm btn-outline">Resetear contraseña</button><button class="btn btn-sm btn-rojo">Desactivar</button></td></tr>
+          <tr><td><b>gabriela</b></td><td><select class="i" style="width:140px;padding:.3rem .5rem"><option>Empleado</option></select></td><td><div class="perm-mini"><span>Dashboard</span><span>Config</span><span>Salud</span><span class="on">Cierre</span><span class="on">Pagos</span></div></td><td>hoy 09:15</td><td><span class="chip chip-ok">activo</span></td><td class="acc"><button class="btn btn-sm btn-outline">Resetear contraseña</button><button class="btn btn-sm btn-rojo">Desactivar</button></td></tr>
+          <tr style="opacity:.6"><td><b>empleado_test</b></td><td><span class="chip chip-gris">Empleado</span></td><td><div class="perm-mini"><span>Dashboard</span><span>Config</span><span>Salud</span><span>Cierre</span><span>Pagos</span></div></td><td>nunca</td><td><span class="chip chip-gris">inactivo</span></td><td class="acc"><button class="btn btn-sm btn-outline">Activar</button></td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══ CONFIGURACIÓN ═══ -->
+<div class="page-header"><h1>Configuración</h1><span class="chip chip-ambar" style="margin-left:auto">2 cosas para mirar</span></div>
+<div class="page-body">
+  <div class="tabs">
+    <button class="tab active">Fuel <span class="tab-badge">2</span></button>
+    <button class="tab">Controles</button>
+    <button class="tab">Sistema</button>
+  </div>
+
+  <div class="fuel-grid">
+    <div class="fuel nova"><h4>Fuel Nova <span class="chip chip-azul">se cobra al cliente</span></h4><div class="v">39 %</div><span class="em">El que viene elegido por defecto al cargar un envío. Actualizado el 21/09/2026.</span><div class="fila"><input class="i" value="39"><button class="btn btn-coral btn-sm">Guardar</button></div></div>
+    <div class="fuel dhl"><h4>Fuel DHL</h4><div class="v">32 %</div><span class="aviso rojo">Hace 84 días — actualizar</span><span class="em">Lo que nos cobra DHL. Actualizado el 15/07/2026.</span><div class="fila"><input class="i" value="32"><button class="btn btn-coral btn-sm">Guardar</button></div></div>
+    <div class="fuel ups"><h4>Fuel UPS</h4><div class="v">32 %</div><span class="aviso rojo">Hace 84 días — actualizar</span><span class="em">Lo que nos cobra UPS. Actualizado el 15/07/2026.</span><div class="fila"><input class="i" value="32"><button class="btn btn-coral btn-sm">Guardar</button></div></div>
+  </div>
+  <details><summary>Historial de cambios del fuel (14)</summary>
+    <table class="tabla" style="margin-top:.6rem"><thead><tr><th>Fecha</th><th>Courier</th><th>Anterior</th><th>Nuevo</th><th>Quién</th></tr></thead>
+    <tbody><tr><td>15/07/2026 14:57</td><td><span class="chip" style="background:#5c3b00;color:#ffd27a">UPS</span></td><td>36 %</td><td>32 %</td><td>leandro</td></tr><tr><td>15/07/2026 14:57</td><td><span class="chip" style="background:#fff3c4;color:#b4000c;border:1px solid #ffcc00">DHL</span></td><td>35 %</td><td>32 %</td><td>leandro</td></tr></tbody></table>
+  </details>
+
+  <p class="maq-nota" style="margin-top:1.5rem">Pestaña "Controles" (así se vería):</p>
+  <div class="ajuste"><div><h4>Controlar desde</h4><p>Fecha de corte del control de facturas y del panel de salud: lo anterior no se destaca. El sistema se usó a medias hasta agosto.</p></div><div class="ctrl"><input class="i" type="date" value="2026-09-01"><button class="btn btn-coral btn-sm">Guardar</button></div></div>
+  <div class="ajuste"><div><h4>Ganancia mínima antes de alertar</h4><p>Una guía facturada con menos margen que esto queda "a revisar". <span class="chip chip-gris">historial: 3 cambios</span></p></div><div class="ctrl"><input class="i" value="20"><span>%</span><button class="btn btn-coral btn-sm">Guardar</button></div></div>
+  <div class="ajuste" style="grid-template-columns:1fr"><div><h4>Tolerancias del semáforo por courier</h4><p>Hasta cuánto puede desviarse el costo facturado del estimado antes de pintar ámbar o rojo en Salidas.</p>
+    <div class="tol" style="margin-top:.8rem">
+      <div class="fuel ups"><h4>UPS</h4><div class="fila"><label class="l">Ámbar desde</label><input class="i" value="5"><span>%</span></div><div class="fila"><label class="l">Rojo desde</label><input class="i" value="15"><span>%</span></div><div class="fila"><label class="l">Mínimo en USD</label><input class="i" value="2"></div><button class="btn btn-coral btn-sm" style="margin-top:.4rem">Guardar</button></div>
+      <div class="fuel dhl"><h4>DHL</h4><div class="fila"><label class="l">Ámbar desde</label><input class="i" value="5"><span>%</span></div><div class="fila"><label class="l">Rojo desde</label><input class="i" value="15"><span>%</span></div><div class="fila"><label class="l">Mínimo en USD</label><input class="i" value="2"></div><button class="btn btn-coral btn-sm" style="margin-top:.4rem">Guardar</button></div>
+    </div></div></div>
+
+  <p class="maq-nota" style="margin-top:1.5rem">Pestaña "Sistema":</p>
+  <div class="ajuste"><div><h4>Margen objetivo del dashboard</h4><p>El porcentaje contra el que el dashboard compara la utilidad del mes.</p></div><div class="ctrl"><input class="i" value="45"><span>%</span><button class="btn btn-coral btn-sm">Guardar</button></div></div>
+  <div class="ajuste"><div><h4>Numeración de proformas</h4><p>El próximo número que el sistema pone cuando la guía se emite con el campo vacío. Si la oficina tipea uno más alto, el contador salta solo.</p></div><div class="ctrl"><input class="i" value="1187"><button class="btn btn-coral btn-sm">Guardar</button></div></div>
+</div>
+</body>
+</html>

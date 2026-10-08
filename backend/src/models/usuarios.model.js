@@ -2,7 +2,11 @@ const { getDb } = require('../db');
 
 async function listarUsuarios() {
   return getDb()
-    .prepare('SELECT id, usuario, rol, ver_dashboard, editar_config, ver_salud, cerrar_mes, confirmar_pagos, activo, creado_en FROM usuarios ORDER BY id')
+    // ultimo_acceso (08/10/2026): la sesión más reciente del usuario (las vencidas se purgan,
+    // así que es "último acceso" mientras la sesión viva; después queda vacío).
+    .prepare(`SELECT u.id, u.usuario, u.rol, u.ver_dashboard, u.editar_config, u.ver_salud, u.cerrar_mes, u.confirmar_pagos, u.activo, u.creado_en,
+                     (SELECT MAX(s.creado_en) FROM sesiones s WHERE s.usuario_id = u.id) AS ultimo_acceso
+              FROM usuarios u ORDER BY u.id`)
     .all();
 }
 

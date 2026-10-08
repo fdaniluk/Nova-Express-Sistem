@@ -14,6 +14,7 @@
     "test-factura-dhl": "node scripts/test-factura-dhl.js",
     "test-residencial": "node scripts/test-residencial.js",
     "test-tracking-dhl": "node scripts/test-tracking-dhl.js",
+    "test-pantalla-usuarios-config": "node scripts/test-pantalla-usuarios-config.js",
     "dhl-prueba": "node scripts/dhl-api-prueba.js",
     "test-cotizador": "node scripts/test-cotizador-documento.js",
     "test-regla-doc": "node scripts/test-regla-documentos.js",

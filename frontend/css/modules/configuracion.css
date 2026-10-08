@@ -1,0 +1,74 @@
+/* ════════════════════════════════════════════════════════════════════════════════════
+   CONFIGURACIÓN — estética del sistema (08/10/2026, ítem 6 del orden de estética)
+   Tres pestañas (Fuel · Controles · Sistema); cada ajuste es una fila "título ·
+   explicación · valor · Guardar"; las tarjetas de fuel/umbral/tolerancias llevan el color
+   del courier arriba. Maqueta aprobada: docs/maquetas/maqueta-usuarios-configuracion.html.
+   ⚠ No cambia ningún id (fuel-cards, *-hist-body, corte-*, margen-*, proforma-*,
+   umbral-cards, tolerancia-cards) ni las clases que lee configuracion.js (fuel-card,
+   fuel-input, btn-save-*, umbral-input, tol-*).
+   ════════════════════════════════════════════════════════════════════════════════════ */
+:root { --cfg-azul-suave: #eaf1f8; --cfg-verde: #15803d; --cfg-ambar: #b45309; --cfg-ambar-suave: #fef3c7; --cfg-rojo: #b91c1c; --cfg-coral: #f26a4b; --cfg-coral-oscuro: #d9573a; }
+
+.cfg-cab-info { margin-left: auto; display: flex; gap: .5rem; align-items: center; }
+.cfg-pill { font-size: .76rem; font-weight: 700; padding: .3rem .75rem; border-radius: 999px; background: var(--cfg-azul-suave); color: var(--color-primary); border: 1px solid #c9d8e8; }
+.cfg-pill-ambar { background: var(--cfg-ambar-suave); color: var(--cfg-ambar); border-color: #fde68a; }
+.tabs { margin-bottom: 1.1rem; } .tab { font-weight: 500; }
+.em { color: var(--color-muted); }
+
+.btn-coral { background: var(--cfg-coral); color: #fff; border: 1px solid var(--cfg-coral); }
+.btn-coral:hover { background: var(--cfg-coral-oscuro); border-color: var(--cfg-coral-oscuro); }
+.btn-coral:disabled { opacity: .5; cursor: not-allowed; }
+
+.config-hint { color: var(--color-muted); font-size: .88rem; margin: 0 0 1rem; line-height: 1.5; }
+.cfg-unidad { color: var(--color-muted); font-size: .9rem; }
+.cfg-chip { display: inline-block; font-size: .7rem; font-weight: 700; padding: .15rem .55rem; border-radius: 999px; background: var(--cfg-azul-suave); color: var(--color-primary); vertical-align: middle; }
+.cfg-chip-courier { display: inline-block; font-size: 11px; font-weight: 700; letter-spacing: .3px; padding: 1px 8px; border-radius: 999px; vertical-align: middle; }
+.cfg-chip-ups { background: #5c3b00; color: #ffd27a; }
+.cfg-chip-dhl { background: #fff3c4; color: #b4000c; border: 1px solid #ffcc00; }
+
+/* Tarjetas (fuel, umbral, tolerancias) */
+.fuel-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+.fuel-cards-2 { grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); max-width: 760px; }
+.fuel-card { border: 1px solid var(--color-border); border-top: 4px solid var(--color-primary); border-radius: 12px; padding: 1rem 1.1rem; background: #fff; box-shadow: var(--shadow); }
+.fuel-card--nova { border-top-color: var(--color-primary); }
+.fuel-card--dhl { border-top-color: #ffcc00; }
+.fuel-card--ups { border-top-color: #5c3b00; }
+.fuel-card--warn { background: #fffbeb; }
+.fuel-card--danger { background: #fff5f5; }
+.fuel-card h4 { margin: 0 0 .3rem; font-size: 1rem; color: var(--color-primary); display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; }
+.fuel-card .current { font-size: 2rem; font-weight: 700; color: var(--color-primary); line-height: 1.1; font-variant-numeric: tabular-nums; }
+.fuel-age { font-size: .8rem; font-weight: 700; margin: .25rem 0 0; color: var(--color-muted); }
+.fuel-age:empty { display: none; }
+.fuel-card--warn .fuel-age { color: var(--cfg-ambar); }
+.fuel-card--danger .fuel-age { color: var(--cfg-rojo); }
+.fuel-card .hint { font-size: .82rem; color: var(--color-muted); margin: .3rem 0 .7rem; line-height: 1.45; }
+.fuel-fila { display: flex; gap: .5rem; align-items: center; }
+.fuel-fila input { width: 100px; padding: .45rem .6rem; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; font-size: .95rem; }
+.fuel-fila input:focus, .cfg-ajuste-ctrl input:focus, .tol-fila input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(42, 54, 97, .12); }
+
+/* Historial plegado */
+.cfg-details { border: 1px solid var(--color-border); border-radius: 10px; padding: .55rem .9rem; background: #fbfcfe; margin: .2rem 0 1rem; }
+.cfg-details summary { cursor: pointer; font-weight: 600; color: var(--color-primary); font-size: .9rem; }
+.cfg-details .table-wrap { margin-top: .6rem; }
+.cfg-tabla { width: 100%; border-collapse: collapse; font-size: .86rem; }
+.cfg-tabla th { background: #f1f5f9; color: #475569; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; padding: .5rem .65rem; text-align: left; border-bottom: 1px solid var(--color-border); }
+.cfg-tabla td { padding: .5rem .65rem; border-bottom: 1px solid #eef2f7; }
+.cfg-tabla .num { text-align: right; font-variant-numeric: tabular-nums; }
+.cfg-tabla td.empty { color: var(--color-muted); }
+
+/* Un ajuste = una fila */
+.cfg-ajuste { display: grid; grid-template-columns: 1fr auto; gap: 1rem 1.5rem; align-items: center; padding: 1rem 1.1rem; border: 1px solid var(--color-border); border-radius: 12px; margin-bottom: .9rem; background: #fff; box-shadow: var(--shadow); }
+.cfg-ajuste-ancho { grid-template-columns: 1fr; }
+.cfg-ajuste-texto h4 { margin: 0 0 .25rem; font-size: 1rem; color: var(--color-primary); }
+.cfg-ajuste-texto p { margin: 0 0 .3rem; font-size: .84rem; color: var(--color-muted); max-width: 720px; line-height: 1.5; }
+.cfg-ajuste-texto p:last-child { margin-bottom: 0; }
+.cfg-actual { color: var(--color-text) !important; }
+.cfg-actual b { color: var(--color-primary); }
+.cfg-ajuste-ctrl { display: flex; gap: .5rem; align-items: center; white-space: nowrap; }
+.cfg-ajuste-ctrl input { width: 150px; padding: .45rem .6rem; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; font-size: .95rem; }
+@media (max-width: 800px) { .cfg-ajuste { grid-template-columns: 1fr; } }
+
+/* Tolerancias: cuatro renglones "desde N %" */
+.tol-inputs { display: grid; grid-template-columns: 1fr; gap: .4rem; margin-top: .5rem; }
+.tol-fila { display: grid; grid-template-columns: 125px 90px auto; gap: .5rem; align-items: center; font-size: .86rem; color: var(--color-muted); margin: 0; text-transform: none; letter-spacing: 0; font-weight: 500; }
+.tol-fila input { width: 90px; padding: .4rem .55rem; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; font-size: .92rem; }

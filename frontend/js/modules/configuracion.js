@@ -10,6 +10,7 @@
   async function loadFuel() {
     const configs = await NovaAPI.configuracion.fuel();
     const container = document.getElementById('fuel-cards');
+    let avisos = 0;
     container.innerHTML = configs.map((c) => {
       const dias = diasDesde(c.fecha_actualizacion);
       const alertClass = dias >= 14 ? 'fuel-card--danger' : dias >= 7 ? 'fuel-card--warn' : '';
@@ -28,22 +29,28 @@
       // Sin cargar nunca, el fuel de Nova queda en 0 y eso NO puede pasar desapercibido:
       // un envio cotizado sin combustible se ve razonable y sale mal cobrado.
       const sinCargar = esNova && !Number(c.fuel_pct);
+      const clase = sinCargar ? 'fuel-card--danger' : alertClass;
+      if (clase === 'fuel-card--danger') avisos++;
       return `
-      <div class="fuel-card ${sinCargar ? 'fuel-card--danger' : alertClass}${esNova ? ' fuel-card--nova' : ''}" data-courier="${c.courier}">
-        <h4>${titulo}</h4>
-        <div class="current">${c.fuel_pct}%</div>
+      <div class="fuel-card fuel-card--${c.courier.toLowerCase()} ${clase}${esNova ? ' fuel-card--nova' : ''}" data-courier="${c.courier}">
+        <h4>${titulo}${esNova ? ' <span class="cfg-chip">se cobra al cliente</span>' : ''}</h4>
+        <div class="current">${c.fuel_pct} %</div>
         <p class="fuel-age">${sinCargar ? 'SIN CARGAR — los envios nuevos se estan cotizando sin combustible' : alertMsg}</p>
-        <p class="hint">${bajada}</p>
-        <p class="hint">Actualizado: ${c.fecha_actualizacion ? NovaUtils.formatDate(c.fecha_actualizacion.slice(0, 10)) : 'nunca'}</p>
-        <div class="form-group" style="margin-top:0.75rem">
-          <label>Nuevo % fuel</label>
+        <p class="hint">${bajada} Actualizado: ${c.fecha_actualizacion ? NovaUtils.formatDate(c.fecha_actualizacion.slice(0, 10)) : 'nunca'}.</p>
+        <div class="fuel-fila">
           <!-- Texto, no number (05/10/2026): con step="0.1" el navegador rechazaba 31,75 y con
                la coma devolvía vacío. Se acepta cualquier número, con coma o con punto. -->
-          <input type="text" inputmode="decimal" class="fuel-input" value="${c.fuel_pct}" placeholder="ej. 31,75">
+          <input type="text" inputmode="decimal" class="fuel-input" value="${c.fuel_pct}" placeholder="ej. 31,75" aria-label="Nuevo % fuel">
+          <span class="cfg-unidad">%</span>
+          <button type="button" class="btn btn-coral btn-sm btn-save-fuel">Guardar</button>
         </div>
-        <button type="button" class="btn btn-primary btn-sm btn-save-fuel" style="margin-top:0.5rem">Guardar</button>
       </div>`;
     }).join('');
+    // Contador en la pestaña y en la cabecera: cuántos fuel hay que mirar.
+    const badge = document.getElementById('cfg-fuel-badge');
+    if (badge) { badge.textContent = avisos; badge.classList.toggle('hidden', avisos === 0); }
+    const pill = document.getElementById('cfg-avisos');
+    if (pill) { pill.textContent = avisos ? `${avisos} fuel para actualizar` : ''; pill.classList.toggle('hidden', avisos === 0); }
 
     container.querySelectorAll('.btn-save-fuel').forEach((btn) => {
       btn.addEventListener('click', async () => {
@@ -69,12 +76,14 @@
 
     const hist = await NovaAPI.configuracion.historialFuel();
     const tbody = document.getElementById('fuel-hist-body');
+    const nFuel = document.getElementById('fuel-hist-n');
+    if (nFuel) nFuel.textContent = hist.length ? `(${hist.length})` : '';
     tbody.innerHTML = hist.length
       ? hist.map((h) => `<tr>
           <td>${h.fecha_cambio}</td>
-          <td>${h.courier}</td>
-          <td>${h.fuel_pct_anterior}%</td>
-          <td>${h.fuel_pct_nuevo}%</td>
+          <td>${courierChip(h.courier)}</td>
+          <td class="num">${h.fuel_pct_anterior} %</td>
+          <td class="num">${h.fuel_pct_nuevo} %</td>
         </tr>`).join('')
       : '<tr><td colspan="4" class="empty">Sin cambios registrados</td></tr>';
   }
@@ -83,14 +92,14 @@
     const umbrales = await NovaAPI.configuracion.umbral();
     const container = document.getElementById('umbral-cards');
     container.innerHTML = umbrales.map((c) => `
-      <div class="fuel-card" data-courier="${c.courier}">
-        <h4>${c.courier}</h4>
-        <div class="current">${c.ganancia_minima_pct}%</div>
-        <div class="form-group" style="margin-top:0.75rem">
-          <label>Ganancia mínima antes de alertar (%)</label>
-          <input type="number" class="umbral-input" step="1" min="0" value="${c.ganancia_minima_pct}">
+      <div class="fuel-card fuel-card--${String(c.courier).toLowerCase()}" data-courier="${c.courier}">
+        <h4>${courierChip(c.courier)}</h4>
+        <div class="current">${c.ganancia_minima_pct} %</div>
+        <div class="fuel-fila">
+          <input type="number" class="umbral-input" step="1" min="0" value="${c.ganancia_minima_pct}" aria-label="Ganancia mínima ${c.courier}">
+          <span class="cfg-unidad">%</span>
+          <button type="button" class="btn btn-coral btn-sm btn-save-umbral">Guardar</button>
         </div>
-        <button type="button" class="btn btn-primary btn-sm btn-save-umbral" style="margin-top:0.5rem">Guardar</button>
       </div>`).join('');
 
     container.querySelectorAll('.btn-save-umbral').forEach((btn) => {
@@ -110,12 +119,14 @@
 
     const umbralHist = await NovaAPI.configuracion.historialUmbral();
     const umbralTbody = document.getElementById('umbral-hist-body');
+    const nUmb = document.getElementById('umbral-hist-n');
+    if (nUmb) nUmb.textContent = umbralHist.length ? `(${umbralHist.length})` : '';
     umbralTbody.innerHTML = umbralHist.length
       ? umbralHist.map((h) => `<tr>
           <td>${h.fecha_cambio}</td>
-          <td>${h.courier}</td>
-          <td>${h.ganancia_pct_anterior}%</td>
-          <td>${h.ganancia_pct_nuevo}%</td>
+          <td>${courierChip(h.courier)}</td>
+          <td class="num">${h.ganancia_pct_anterior} %</td>
+          <td class="num">${h.ganancia_pct_nuevo} %</td>
         </tr>`).join('')
       : '<tr><td colspan="4" class="empty">Sin cambios registrados</td></tr>';
   }
@@ -124,27 +135,15 @@
     const tolerancias = await NovaAPI.configuracion.tolerancias();
     const container = document.getElementById('tolerancia-cards');
     container.innerHTML = tolerancias.map((c) => `
-      <div class="fuel-card" data-courier="${c.courier}">
-        <h4>${c.courier}</h4>
+      <div class="fuel-card fuel-card--${String(c.courier).toLowerCase()}" data-courier="${c.courier}">
+        <h4>${courierChip(c.courier)}</h4>
         <div class="tol-inputs">
-          <div class="form-group">
-            <label>Tolerancia costo (%)</label>
-            <input type="number" class="tol-costo" step="0.1" min="0" max="100" value="${c.tolerancia_costo_pct}">
-          </div>
-          <div class="form-group">
-            <label>Tolerancia costo (USD)</label>
-            <input type="number" class="tol-costo-usd" step="1" min="0" value="${c.tolerancia_costo_usd}">
-          </div>
-          <div class="form-group">
-            <label>Tolerancia peso (%)</label>
-            <input type="number" class="tol-peso" step="0.1" min="0" max="100" value="${c.tolerancia_peso_pct}">
-          </div>
-          <div class="form-group">
-            <label>Tolerancia peso (kg)</label>
-            <input type="number" class="tol-peso-kg" step="0.1" min="0" value="${c.tolerancia_peso_kg}">
-          </div>
+          <label class="tol-fila"><span>Costo: desde</span><input type="number" class="tol-costo" step="0.1" min="0" max="100" value="${c.tolerancia_costo_pct}"><span class="cfg-unidad">%</span></label>
+          <label class="tol-fila"><span>o desde</span><input type="number" class="tol-costo-usd" step="1" min="0" value="${c.tolerancia_costo_usd}"><span class="cfg-unidad">USD</span></label>
+          <label class="tol-fila"><span>Peso: desde</span><input type="number" class="tol-peso" step="0.1" min="0" max="100" value="${c.tolerancia_peso_pct}"><span class="cfg-unidad">%</span></label>
+          <label class="tol-fila"><span>o desde</span><input type="number" class="tol-peso-kg" step="0.1" min="0" value="${c.tolerancia_peso_kg}"><span class="cfg-unidad">kg</span></label>
         </div>
-        <button type="button" class="btn btn-primary btn-sm btn-save-tol" style="margin-top:0.5rem">Guardar</button>
+        <button type="button" class="btn btn-coral btn-sm btn-save-tol" style="margin-top:.6rem">Guardar</button>
       </div>`).join('');
 
     container.querySelectorAll('.btn-save-tol').forEach((btn) => {
@@ -252,7 +251,26 @@
     });
   }
 
+  function courierChip(c) {
+    const k = String(c || '').toUpperCase();
+    if (k === 'NOVA') return '<span class="cfg-chip">Nova</span>';
+    return `<span class="cfg-chip-courier cfg-chip-${k.toLowerCase()}">${k}</span>`;
+  }
+
+  // Pestañas (08/10): Fuel · Controles · Sistema. Se recuerda la última en el hash.
+  function bindTabs() {
+    const tabs = document.querySelectorAll('.tabs .tab[data-tab]');
+    const activar = (nombre) => {
+      tabs.forEach((t) => t.classList.toggle('active', t.dataset.tab === nombre));
+      document.querySelectorAll('.cfg-tab').forEach((p) => p.classList.toggle('hidden', p.id !== `tab-${nombre}`));
+    };
+    tabs.forEach((t) => t.addEventListener('click', () => { activar(t.dataset.tab); history.replaceState(null, '', `#${t.dataset.tab}`); }));
+    const h = (location.hash || '').replace('#', '');
+    if (h && document.getElementById(`tab-${h}`)) activar(h);
+  }
+
   async function init() {
+    bindTabs();
     try {
       await loadFuel();
       await loadCorte();

@@ -6,39 +6,7 @@
   <title>Usuarios – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260929a">
-  <style>
-    .usuarios-form-grid {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-      gap: 0.75rem 1rem;
-      align-items: end;
-    }
-    .usuarios-form-grid .checkbox-group {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding-bottom: 0.45rem;
-    }
-    .usuarios-form-grid .checkbox-group label {
-      font-weight: 500;
-      cursor: pointer;
-      margin: 0;
-    }
-    .inline-select {
-      padding: 0.25rem 0.4rem;
-      font-size: 0.85rem;
-      border: 1px solid var(--color-border, #d1d5db);
-      border-radius: 4px;
-      background: #fff;
-      cursor: pointer;
-      max-width: 140px;
-    }
-    .tabla-usuarios td { vertical-align: middle; }
-    .tabla-usuarios .actions-cell { display: flex; gap: 0.35rem; align-items: center; flex-wrap: wrap; }
-    .estado-cell { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-    .pwd-inline { display: inline-flex; gap: 6px; align-items: center; margin-left: 6px; }
-  .pwd-inline input { width: 190px; padding: 4px 8px; font-size: 13px; }
-</style>
+  <link rel="stylesheet" href="../css/modules/usuarios.css?v=20261008a">
 </head>
 <body>
 <div class="app-layout">
@@ -132,76 +100,67 @@
   <div class="page-content">
     <div class="page-header">
       <h1>Usuarios</h1>
+      <div class="usr-cab-info"><span class="usr-pill hidden" id="usr-resumen"></span></div>
     </div>
 
     <div class="page-body">
       <div id="alert-box"></div>
 
-      <div class="card">
-        <h2>Crear usuario</h2>
-        <form id="form-usuario">
-          <div class="usuarios-form-grid">
-            <div class="form-group">
-              <label for="u-usuario">Usuario *</label>
-              <input type="text" id="u-usuario" autocomplete="off" required>
+      <!-- Estética 08/10/2026 (ítem 6): pasos en tarjetas, permisos como chips. Ningún id cambió. -->
+      <div class="usr-paso">
+        <div class="usr-paso-cab"><span class="usr-paso-num">1</span><h3>Nuevo usuario</h3><span class="em">usuario, contraseña y rol; los permisos se tildan como chips</span></div>
+        <div class="usr-paso-cuerpo">
+          <form id="form-usuario">
+            <div class="usr-grid3">
+              <div class="form-group">
+                <label for="u-usuario">Usuario *</label>
+                <input type="text" id="u-usuario" autocomplete="off" required placeholder="ej. gabriela">
+              </div>
+              <div class="form-group">
+                <label for="u-password">Contraseña *</label>
+                <input type="password" id="u-password" autocomplete="new-password" minlength="6" required placeholder="mínimo 6 caracteres">
+              </div>
+              <div class="form-group">
+                <label for="u-rol">Rol *</label>
+                <select id="u-rol">
+                  <option value="empleado">Empleado</option>
+                  <option value="admin">Administrador</option>
+                </select>
+              </div>
             </div>
-            <div class="form-group">
-              <label for="u-password">Contraseña *</label>
-              <input type="password" id="u-password" autocomplete="new-password" minlength="6" required>
+            <label class="usr-label">Permisos <span class="em">(el administrador los tiene todos)</span></label>
+            <!-- Los checkbox siguen existiendo (mismos ids); el chip es la etiqueta que los envuelve. -->
+            <div class="usr-permisos" id="usr-permisos-alta">
+              <label class="usr-perm" for="u-ver-dashboard"><input type="checkbox" id="u-ver-dashboard"><span class="dot"></span>Dashboard <span class="ayuda">ver la utilidad</span></label>
+              <label class="usr-perm" for="u-editar-config"><input type="checkbox" id="u-editar-config"><span class="dot"></span>Configuración <span class="ayuda">fuel, umbrales</span></label>
+              <label class="usr-perm" for="u-ver-salud"><input type="checkbox" id="u-ver-salud"><span class="dot"></span>Salud <span class="ayuda">panel de controles</span></label>
+              <label class="usr-perm" for="u-cerrar-mes"><input type="checkbox" id="u-cerrar-mes"><span class="dot"></span>Cierre de mes <span class="ayuda">bajar la planilla</span></label>
+              <label class="usr-perm" for="u-confirmar-pagos"><input type="checkbox" id="u-confirmar-pagos"><span class="dot"></span>Pagos <span class="ayuda">confirmar cobranzas</span></label>
             </div>
-            <div class="form-group">
-              <label for="u-rol">Rol *</label>
-              <select id="u-rol">
-                <option value="empleado">Empleado</option>
-                <option value="admin">Administrador</option>
-              </select>
+            <div class="usr-acciones">
+              <button type="submit" class="btn btn-coral">Crear usuario</button>
+              <button type="reset" class="btn btn-outline">Limpiar</button>
             </div>
-            <div class="form-group checkbox-group">
-              <input type="checkbox" id="u-ver-dashboard">
-              <label for="u-ver-dashboard">Puede ver el Dashboard</label>
-            </div>
-            <div class="form-group checkbox-group">
-              <input type="checkbox" id="u-editar-config">
-              <label for="u-editar-config">Puede editar la configuración</label>
-            </div>
-            <div class="form-group checkbox-group">
-              <input type="checkbox" id="u-ver-salud">
-              <label for="u-ver-salud">Puede ver la Salud del sistema</label>
-            </div>
-            <div class="form-group checkbox-group">
-              <input type="checkbox" id="u-cerrar-mes">
-              <label for="u-cerrar-mes">Puede hacer el cierre de mes (bajar la planilla del periodo)</label>
-            </div>
-            <div class="form-group checkbox-group">
-              <input type="checkbox" id="u-confirmar-pagos">
-              <label for="u-confirmar-pagos">Puede confirmar pagos (Cobranzas)</label>
-            </div>
-          </div>
-          <div class="actions">
-            <button type="submit" class="btn btn-primary">Crear usuario</button>
-          </div>
-        </form>
+          </form>
+        </div>
       </div>
 
-      <div class="card">
-        <h2>Usuarios del sistema</h2>
+      <div class="usr-paso">
+        <div class="usr-paso-cab"><span class="usr-paso-num">2</span><h3>Usuarios del sistema</h3><span class="em">tocá un permiso para prenderlo o apagarlo · se guarda al momento</span></div>
         <div class="table-wrap">
-          <table>
+          <table class="usr-tabla">
             <thead>
               <tr>
                 <th>Usuario</th>
                 <th>Rol</th>
-                <th style="text-align:center">Dashboard</th>
-                <th style="text-align:center">Config</th>
-                <th style="text-align:center">Salud</th>
-                <th style="text-align:center">Cierre</th>
-                <th style="text-align:center">Pagos</th>
+                <th>Permisos</th>
+                <th>Último acceso</th>
                 <th>Estado</th>
                 <th>Acciones</th>
               </tr>
             </thead>
             <tbody id="tabla-usuarios" class="tabla-usuarios">
-              <tr><td colspan="7" class="empty">Cargando...</td></tr>
+              <tr><td colspan="6" class="empty">Cargando...</td></tr>
             </tbody>
           </table>
         </div>
@@ -213,6 +172,6 @@
 <script src="/js/auth-guard.js?v=20260924b"></script>
 <script src="../js/api.js?v=20261008a"></script>
 <script src="../js/main.js?v=20260929a"></script>
-<script src="../js/modules/usuarios.js?v=20260929a"></script>
+<script src="../js/modules/usuarios.js?v=20261008a"></script>
 </body>
 </html>

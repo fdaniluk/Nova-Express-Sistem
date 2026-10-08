@@ -6,53 +6,7 @@
   <title>Configuración – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260929a">
-  <style>
-    /* Cards de configuración (mudadas desde liquidaciones.css) */
-    .fuel-cards {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-      gap: 1rem;
-      margin-bottom: 1.5rem;
-    }
-    .fuel-card {
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius);
-      padding: 1rem;
-    }
-    .fuel-card h4 { margin: 0 0 0.75rem; }
-    .fuel-card .current {
-      font-size: 1.5rem;
-      font-weight: 700;
-      color: var(--color-primary);
-    }
-    .fuel-card--warn { border-color: #f59e0b; background: #fffbeb; }
-    .fuel-card--warn .fuel-age { color: #b45309; font-weight: 600; }
-    .fuel-card--danger { border-color: #ef4444; background: #fef2f2; }
-    /* El Fuel Nova es el nuestro y el predeterminado: se destaca de los del courier. */
-    .fuel-card--nova { border-color: #1f3864; border-width: 2px; background: #f4f7fc; }
-    .fuel-card--nova h4 { color: #1f3864; }
-    .fuel-card--danger .fuel-age { color: #b91c1c; font-weight: 600; }
-    .fuel-age {
-      font-size: 0.8rem;
-      color: var(--color-muted);
-      margin-bottom: 0.25rem;
-    }
-    .config-hint {
-      color: var(--color-muted);
-      font-size: 0.85rem;
-      margin-bottom: 1rem;
-    }
-    .tol-inputs { display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem 0.75rem; margin-top: 0.75rem; align-items: start; }
-    .tol-inputs .form-group { margin: 0; }
-    .tol-inputs label {
-      display: block;
-      min-height: 2.6em;
-      line-height: 1.3;
-      font-size: 0.85rem;
-      margin-bottom: 0.35rem;
-    }
-    .tol-inputs input { width: 100%; box-sizing: border-box; }
-  </style>
+  <link rel="stylesheet" href="../css/modules/configuracion.css?v=20261008a">
 </head>
 <body>
 <div class="app-layout">
@@ -146,112 +100,106 @@
   <div class="page-content">
     <div class="page-header">
       <h1>Configuración</h1>
+      <div class="cfg-cab-info"><span class="cfg-pill cfg-pill-ambar hidden" id="cfg-avisos"></span></div>
     </div>
 
     <div class="page-body">
       <div id="alert-box"></div>
 
-      <section class="card">
-        <h2>Fuel surcharge por courier</h2>
+      <!-- Estética 08/10/2026 (ítem 6): tres pestañas (Fuel · Controles · Sistema), cada ajuste
+           como una fila "título · explicación · valor · Guardar". Ningún id cambió. -->
+      <div class="tabs">
+        <button class="tab active" data-tab="fuel">Fuel <span class="tab-badge hidden" id="cfg-fuel-badge">0</span></button>
+        <button class="tab" data-tab="controles">Controles</button>
+        <button class="tab" data-tab="sistema">Sistema</button>
+      </div>
+
+      <!-- ═══ FUEL ═══ -->
+      <section id="tab-fuel" class="cfg-tab">
+        <p class="config-hint">El <b>Fuel Nova</b> es el que le cobramos al cliente (viene elegido por defecto al cargar un envío). Los de DHL y UPS son lo que nos cobran a nosotros: si pasan más de 14 días sin actualizarlos, la tarjeta se pone en rojo.</p>
         <div class="fuel-cards" id="fuel-cards"></div>
-        <h3>Historial de cambios (fuel)</h3>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr><th>Fecha</th><th>Courier</th><th>Anterior</th><th>Nuevo</th></tr>
-            </thead>
-            <tbody id="fuel-hist-body"></tbody>
-          </table>
-        </div>
+        <details class="cfg-details">
+          <summary>Historial de cambios del fuel <span class="em" id="fuel-hist-n"></span></summary>
+          <div class="table-wrap">
+            <table class="cfg-tabla">
+              <thead>
+                <tr><th>Fecha</th><th>Courier</th><th class="num">Anterior</th><th class="num">Nuevo</th></tr>
+              </thead>
+              <tbody id="fuel-hist-body"></tbody>
+            </table>
+          </div>
+        </details>
       </section>
 
-      <section class="card">
-        <h2>Controlar desde</h2>
-        <p class="config-hint">
-          Desde esta fecha el <b>panel de salud</b> destaca problemas y las bandejas de <b>Facturas</b>
-          ("Revisar guías" y "Guías sin envío") muestran guías. Lo anterior no se borra: se puede ver
-          con "Ver anteriores" en cada bandeja, pero no se destaca. Sirve para dejar atrás el período en
-          que el sistema se usó a medias (envíos de prueba, ventas sin cargar).
-        </p>
-        <div class="fuel-cards">
-          <div class="fuel-card" id="corte-card">
-            <h4>Fecha de corte del control</h4>
-            <div class="current" id="corte-actual">—</div>
-            <div class="form-group" style="margin-top:0.75rem">
-              <label>Nueva fecha</label>
-              <input type="date" id="corte-input">
-            </div>
-            <button class="btn btn-primary btn-sm" id="btn-corte-guardar">Guardar</button>
+      <!-- ═══ CONTROLES ═══ -->
+      <section id="tab-controles" class="cfg-tab hidden">
+        <div class="cfg-ajuste" id="corte-card">
+          <div class="cfg-ajuste-texto">
+            <h4>Controlar desde</h4>
+            <p>Desde esta fecha el <b>panel de salud</b> destaca problemas y las bandejas de <b>Facturas</b> ("Revisar guías" y "Guías sin envío") muestran guías. Lo anterior no se borra: se ve con "Ver anteriores", pero no se destaca. Sirve para dejar atrás el período en que el sistema se usó a medias.</p>
+            <p class="cfg-actual">Hoy: <b id="corte-actual">—</b></p>
+          </div>
+          <div class="cfg-ajuste-ctrl">
+            <input type="date" id="corte-input" aria-label="Nueva fecha de corte">
+            <button class="btn btn-coral btn-sm" id="btn-corte-guardar">Guardar</button>
           </div>
         </div>
+
+        <div class="cfg-ajuste cfg-ajuste-ancho">
+          <div class="cfg-ajuste-texto">
+            <h4>Ganancia mínima antes de alertar</h4>
+            <p>Cuando se carga la factura del courier, la guía queda <b>"a revisar"</b> si la ganancia real es menor a este porcentaje. Uno por courier.</p>
+          </div>
+          <div class="fuel-cards fuel-cards-2" id="umbral-cards"></div>
+          <details class="cfg-details">
+            <summary>Historial de cambios del umbral <span class="em" id="umbral-hist-n"></span></summary>
+            <div class="table-wrap">
+              <table class="cfg-tabla">
+                <thead>
+                  <tr><th>Fecha</th><th>Courier</th><th class="num">Anterior</th><th class="num">Nuevo</th></tr>
+                </thead>
+                <tbody id="umbral-hist-body"></tbody>
+              </table>
+            </div>
+          </details>
+        </div>
+
+        <div class="cfg-ajuste cfg-ajuste-ancho">
+          <div class="cfg-ajuste-texto">
+            <h4>Tolerancias del semáforo por courier</h4>
+            <p>Desvío máximo aceptable entre lo que facturó el courier y lo nuestro; si se supera, en Salidas la celda se pinta roja. Solo alerta cuando el courier facturó de más.</p>
+            <p><b>Los dos umbrales (% y monto) son independientes: alcanza con superar UNO de los dos para pintar rojo.</b> Ej.: un envío de 1000 USD con 6 % de desvío son 60 USD; el 6 % no llega al 20 %, pero 60 USD sí superan los 50 USD → rojo.</p>
+          </div>
+          <div class="fuel-cards fuel-cards-2" id="tolerancia-cards"></div>
+        </div>
       </section>
 
-      <section class="card">
-        <h2>Margen objetivo del dashboard</h2>
-        <p class="config-hint">
-          El gráfico "Margen por mes" del dashboard dibuja una línea punteada con este porcentaje
-          (profit ÷ compra) para ver de un vistazo qué meses quedaron abajo. Vacío = sin línea.
-        </p>
-        <div class="fuel-cards">
-          <div class="fuel-card" id="margen-card">
-            <h4>Margen objetivo (%)</h4>
-            <div class="current" id="margen-actual">—</div>
-            <div class="form-group" style="margin-top:0.75rem">
-              <label>Nuevo objetivo (vacío para sacar la línea)</label>
-              <input type="number" id="margen-input" min="0" max="500" step="0.5">
-            </div>
-            <button class="btn btn-primary btn-sm" id="btn-margen-guardar">Guardar</button>
+      <!-- ═══ SISTEMA ═══ -->
+      <section id="tab-sistema" class="cfg-tab hidden">
+        <div class="cfg-ajuste" id="margen-card">
+          <div class="cfg-ajuste-texto">
+            <h4>Margen objetivo del dashboard</h4>
+            <p>El gráfico "Margen por mes" del dashboard dibuja una línea punteada con este porcentaje (profit ÷ compra) para ver de un vistazo qué meses quedaron abajo. Vacío = sin línea.</p>
+            <p class="cfg-actual">Hoy: <b id="margen-actual">—</b></p>
+          </div>
+          <div class="cfg-ajuste-ctrl">
+            <input type="number" id="margen-input" min="0" max="500" step="0.5" placeholder="vacío = sin línea" aria-label="Nuevo margen objetivo">
+            <span class="cfg-unidad">%</span>
+            <button class="btn btn-coral btn-sm" id="btn-margen-guardar">Guardar</button>
           </div>
         </div>
-      </section>
 
-      <section class="card">
-        <h2>Numeración de proformas</h2>
-        <p class="config-hint">
-          Cuando se emite una guía con el Nº de proforma vacío, el sistema le pone el próximo número
-          y sigue contando. Si en Guías se tipea un número más alto, el contador salta solo. Acá se
-          ajusta desde dónde sigue (por ejemplo, para arrancar en 1300).
-        </p>
-        <div class="fuel-cards">
-          <div class="fuel-card" id="proforma-card">
-            <h4>Próximo Nº de proforma</h4>
-            <div class="current" id="proforma-actual">—</div>
-            <div class="form-group" style="margin-top:0.75rem">
-              <label>Nuevo próximo número</label>
-              <input type="number" id="proforma-input" min="1" step="1">
-            </div>
-            <button class="btn btn-primary btn-sm" id="btn-proforma-guardar">Guardar</button>
+        <div class="cfg-ajuste" id="proforma-card">
+          <div class="cfg-ajuste-texto">
+            <h4>Numeración de proformas</h4>
+            <p>Cuando se emite una guía con el Nº de proforma vacío, el sistema le pone el próximo número y sigue contando. Si en Guías se tipea un número más alto, el contador salta solo. Acá se ajusta desde dónde sigue.</p>
+            <p class="cfg-actual">Próximo: <b id="proforma-actual">—</b></p>
+          </div>
+          <div class="cfg-ajuste-ctrl">
+            <input type="number" id="proforma-input" min="1" step="1" aria-label="Nuevo próximo número de proforma">
+            <button class="btn btn-coral btn-sm" id="btn-proforma-guardar">Guardar</button>
           </div>
         </div>
-      </section>
-
-      <section class="card">
-        <h2>Ganancia mínima antes de alertar (%)</h2>
-        <p class="config-hint">
-          Cuando se cargue la factura del courier, se marcará la guía como "a revisar" si la ganancia real es menor a este umbral.
-        </p>
-        <div class="fuel-cards" id="umbral-cards"></div>
-        <h3>Historial de cambios (umbral ganancia)</h3>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr><th>Fecha</th><th>Courier</th><th>Anterior</th><th>Nuevo</th></tr>
-            </thead>
-            <tbody id="umbral-hist-body"></tbody>
-          </table>
-        </div>
-      </section>
-
-      <section class="card">
-        <h2>Tolerancias del semáforo por courier</h2>
-        <p class="config-hint">
-          Desvío máximo aceptable entre lo que facturó UPS y lo nuestro; si se supera, en Salidas la celda se pinta roja. Solo alerta cuando UPS facturó de más.
-        </p>
-        <p class="config-hint">
-          <strong>Los dos umbrales (% y monto) son independientes: alcanza con superar UNO de los dos para pintar rojo (es un O, no un Y).</strong>
-          Ej: un envío de 1000 USD con 6% de desvío son 60 USD; el 6% no llega al 20%, pero 60 USD sí superan los 50 USD → rojo.
-        </p>
-        <div class="fuel-cards" id="tolerancia-cards"></div>
       </section>
     </div>
   </div>
@@ -260,6 +208,6 @@
 <script src="/js/auth-guard.js?v=20260924b"></script>
 <script src="../js/api.js?v=20261008a"></script>
 <script src="../js/main.js?v=20260929a"></script>
-<script src="../js/modules/configuracion.js?v=20261005a"></script>
+<script src="../js/modules/configuracion.js?v=20261008a"></script>
 </body>
 </html>
