@@ -243,6 +243,10 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
       profitMonto: redondear2(profitMontoRaw),
       utilidad:    redondear2(profitMontoRaw),
       precioFinal: redondear2(r.total),
+      // Flete de tabla (costo) y flete de venta (costo + profit, sin fuel): es el número
+      // que la oficina compara contra la columna FLETE de sus planillas (08/10/2026).
+      flete_costo: redondear2(r.fleteBase),
+      flete_venta: redondear2(r.conGan),
       zona: r.zona,
       servicio: 'DHL Express',
       // Avisa que este precio sale de la tarifa +50 kg (otra cuenta de DHL).
@@ -262,6 +266,8 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
     profitMonto: redondear2(profitMontoRaw),
     utilidad:    redondear2(profitMontoRaw),
     precioFinal: redondear2(r.total),
+    flete_costo: redondear2(r.fleteBase),
+    flete_venta: redondear2(r.conGan),
     zona: r.zona,
     surge:   redondear2(r.surge),
     manejo:  redondear2(r.manejo),

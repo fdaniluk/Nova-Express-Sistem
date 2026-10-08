@@ -5,12 +5,14 @@
  * Para cada planilla de `scripts/datos/planillas_precios_viejos.json` (precio de flete de
  * la planilla vieja por cada 0,5 kg y COLUMNA de la hoja c+p, ya con el multiplicador de
  * Liquidación!K8):
- *   1. pone al cliente en paso 0,5 kg hasta 70 kg (cambiarPasoTramos), y
+ *   1. pone al cliente en paso 0,5 kg hasta donde llega la planilla (300 kg; antes 70) con
+ *      cambiarPasoTramos, y
  *   2. carga la matriz exportación completa: por celda,
  *        % = precio_planilla(peso, columna(zona)) / costo_hoy(peso, zona) − 1
- *      (el costo es el MISMO que usa el motor: cotizador-core). El tramo abierto 70+ toma
- *      el % del precio de 70 kg.
- * Con eso el sistema reproduce el precio del liquidador al centavo en todos los pesos hasta 70 kg.
+ *      (el costo es el MISMO que usa el motor: cotizador-core). El tramo abierto 300+ toma
+ *      el % del precio de 300 kg.
+ * Con eso el sistema reproduce el precio del liquidador al centavo en todos los pesos hasta 300 kg
+ * (la hoja `tarif 0808` del liquidador sigue por encima de los 70 kg de `c+p`; 08/10/2026).
  *
  * ── Zonas: por qué la columna NO es la zona (corrección 01/10) ──────────────────────────
  * En el liquidador la oficina NO tipea la zona del courier sino una REGIÓN:
@@ -63,6 +65,9 @@ const COL_UPS = { 1: 1, 2: 3, 3: 2, 4: 4, 5: 6, 6: 6 };
 const COL_DHL = { 1: 1, 2: 2, 3: 3, 4: 4, 5: 6, 6: 6 };
 
 const r2 = (n) => Math.round(n * 100) / 100;
+// El % de cada celda va con 4 decimales: con 2, un flete de USD 2.000 (300 kg) se desviaba
+// hasta 12 centavos de la planilla; con 4 queda al centavo en toda la tabla (08/10/2026).
+const r4 = (n) => Math.round(n * 10000) / 10000;
 const costoUpsExp = (pf, zona) => core.getUPS(core.UPS_E_LIQD, core.UPS_E_PK, core.UPS_E_MN, zona, pf);
 const costoUpsSaver = (pf, zona) => core.getUPS(core.UPS_SE_LIQD, core.UPS_SE_PK, core.UPS_SE_MN, zona, pf);
 
@@ -98,12 +103,12 @@ function precioPlanillaPorZonaDhl(precio, w) {
 function armarCeldas(precio, tramos, servicio, cols) {
   const celdas = []; let faltan = 0;
   for (const t of tramos) {
-    const w = t.max === null ? 70 : t.max;
+    const w = t.max === null ? t.min : t.max;
     for (const z of [1, 2, 3, 4, 5, 6]) {
       const p = precio.get(`${w}|${cols[z]}`);
       const c = p == null ? null : COSTO[servicio](w, z);
       if (p == null || !(c > 0)) { faltan++; continue; }
-      celdas.push({ zona: z, peso_min: t.min, peso_max: t.max, profit_pct: r2((p / c - 1) * 100) });
+      celdas.push({ zona: z, peso_min: t.min, peso_max: t.max, profit_pct: r4((p / c - 1) * 100) });
     }
   }
   return { celdas, faltan };
@@ -119,7 +124,13 @@ function armarCeldas(precio, tramos, servicio, cols) {
     if (!pl.cliente_ids || !pl.cliente_ids.length || /^NO CARGADO/.test(pl.nota || '')) { resumen.push([key, '—', 'salteado: ' + (pl.nota || 'sin cliente')]); continue; }
     const esDhl = pl.servicio === 'DHL';
     const precio = new Map(pl.precios.map(([w, z, p]) => [`${w}|${z}`, p]));
-    const tramos = P.generarTramosPaso(0.5, 70);
+    // Hasta donde llega la planilla (08/10/2026: 300 kg). Antes se cortaba en 70 kg y el
+    // tramo abierto 70+ heredaba el % de los 70 kg; como el liquidador sigue con su propia
+    // tabla hasta 300 kg (lineal por kilo, distinta de la de UPS), un envío de 87,5 kg
+    // salía USD 18 más caro que en la planilla (Acuña → Ghana, 28/09). Ahora la matriz
+    // llega hasta donde llega la planilla, en el mismo paso de 0,5 kg.
+    const hasta = Math.min(300, Math.max(...pl.precios.map(([w]) => w)));
+    const tramos = P.generarTramosPaso(0.5, hasta);
     // Qué matrices salen de esta planilla.
     const cargas = esDhl
       ? [['DHL', armarCeldas(precio, tramos, 'DHL', COL_DHL)]]
@@ -130,7 +141,7 @@ function armarCeldas(precio, tramos, servicio, cols) {
       const cli = await db.prepare('SELECT id, nombre, tarifa_pct FROM clientes WHERE id = ?').get(id);
       if (!cli) { resumen.push([key, id, 'CLIENTE INEXISTENTE']); continue; }
       if (simular) { resumen.push([key, id, `${cli.nombre}: ${cargas.map(([s, c]) => `${s} ${c.celdas.length}`).join(' + ')} celdas (simulado)${faltan ? ', faltan ' + faltan : ''}`]); continue; }
-      await P.cambiarPasoTramos(id, { paso: 0.5, hasta: 70 });
+      await P.cambiarPasoTramos(id, { paso: 0.5, hasta });
       const partes = [];
       for (const [servicio, { celdas }] of cargas) {
         const r = await P.cargarMatrizMasiva(id, { servicio, tipo: 'export', celdas, reemplazar: true });
@@ -139,12 +150,12 @@ function armarCeldas(precio, tramos, servicio, cols) {
       if (!esDhl && pl.tambien_dhl) {
         const celdasDhl = [];
         for (const t of tramos) {
-          const w = t.max === null ? 70 : t.max;
+          const w = t.max === null ? hasta : t.max;
           const pz = precioPlanillaPorZonaDhl(precio, w);
           for (const z of [1, 2, 3, 4, 5, 6]) {
             const p = pz[z]; const c = costoDhl(w, z);
             if (p == null || !(c > 0)) continue;
-            celdasDhl.push({ zona: z, peso_min: t.min, peso_max: t.max, profit_pct: r2((p / c - 1) * 100) });
+            celdasDhl.push({ zona: z, peso_min: t.min, peso_max: t.max, profit_pct: r4((p / c - 1) * 100) });
           }
         }
         const rd = await P.cargarMatrizMasiva(id, { servicio: 'DHL', tipo: 'export', celdas: celdasDhl, reemplazar: true });
@@ -165,7 +176,7 @@ function armarCeldas(precio, tramos, servicio, cols) {
       const colsV = esDhl ? COL_DHL : COL_UPS;
       let peor = 0;
       for (const t of tramos.filter((_, i) => i % 11 === 0)) {
-        const w = t.max === null ? 70 : t.max;
+        const w = t.max === null ? hasta : t.max;
         for (const z of [1, 2, 3, 4, 5, 6]) {
           const p = precio.get(`${w}|${colsV[z]}`);
           if (p == null) continue;
@@ -174,7 +185,7 @@ function armarCeldas(precio, tramos, servicio, cols) {
           peor = Math.max(peor, Math.abs(nuevo - p));
         }
       }
-      resumen.push([key, id, `${cli.nombre}: ${partes.join(' + ')} celdas, paso 0,5 kg, desvío máx. USD ${peor.toFixed(2)}${faltan ? ', sin precio en ' + faltan : ''}`]);
+      resumen.push([key, id, `${cli.nombre}: ${partes.join(' + ')} celdas, paso 0,5 kg hasta ${hasta} kg, desvío máx. USD ${peor.toFixed(2)}${faltan ? ', sin precio en ' + faltan : ''}`]);
     }
   }
   for (const [k, id, msg] of resumen) console.log(`${k.padEnd(16)} ${String(id).padEnd(5)} ${msg}`);
