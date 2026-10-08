@@ -676,6 +676,8 @@ CREATE TABLE IF NOT EXISTS usuarios (
   cerrar_mes     INTEGER NOT NULL DEFAULT 0,
   -- Cobranzas: puede confirmar pagos informados (admin OR confirmar_pagos = 1).
   confirmar_pagos INTEGER NOT NULL DEFAULT 0,
+  -- Costos de la empresa: ver todo el módulo y confirmar (admin OR ver_costos = 1).
+  ver_costos     INTEGER NOT NULL DEFAULT 0,
   activo         INTEGER NOT NULL DEFAULT 1,
   creado_en      TEXT DEFAULT (datetime('now'))
 );
@@ -1100,3 +1102,40 @@ CREATE TABLE IF NOT EXISTS clientes_vendedores (
   creado_at     TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_cv_cliente ON clientes_vendedores(cliente_id, desde);
+
+-- ============================================================================
+-- Costos de la empresa (08/10/2026). Ver db/index.js migrateCostos().
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS costos_categorias (
+  id         INTEGER PRIMARY KEY AUTOINCREMENT,
+  nombre     TEXT NOT NULL UNIQUE,
+  orden      INTEGER NOT NULL DEFAULT 100,
+  oficina    INTEGER NOT NULL DEFAULT 0,   -- 1 = la puede cargar cualquier empleado
+  automatica TEXT,                         -- 'iibb' = la llena el sistema desde las facturas
+  activa     INTEGER NOT NULL DEFAULT 1
+);
+
+CREATE TABLE IF NOT EXISTS costos (
+  id             INTEGER PRIMARY KEY AUTOINCREMENT,
+  mes            TEXT NOT NULL,                 -- 'YYYY-MM'
+  categoria_id   INTEGER NOT NULL REFERENCES costos_categorias(id),
+  detalle        TEXT NOT NULL,
+  monto          REAL NOT NULL,
+  moneda         TEXT NOT NULL CHECK (moneda IN ('ARS', 'USD')),
+  fijo           INTEGER NOT NULL DEFAULT 0,    -- se copia al mes siguiente como por_confirmar
+  estado         TEXT NOT NULL DEFAULT 'confirmado' CHECK (estado IN ('confirmado', 'por_confirmar')),
+  nota           TEXT,
+  origen_id      INTEGER,                       -- el costo del mes anterior del que se copió
+  creado_por     INTEGER REFERENCES usuarios(id),
+  creado_en      TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+  confirmado_por INTEGER REFERENCES usuarios(id),
+  confirmado_en  TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_costos_mes ON costos(mes);
+
+CREATE TABLE IF NOT EXISTS costos_meses (
+  mes            TEXT PRIMARY KEY,
+  tc             REAL,                          -- dólar del mes elegido a mano
+  tc_fuente      TEXT,
+  actualizado_en TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+);

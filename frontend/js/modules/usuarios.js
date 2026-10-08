@@ -13,6 +13,7 @@
     ['ver_salud', 'Salud'],
     ['cerrar_mes', 'Cierre'],
     ['confirmar_pagos', 'Pagos'],
+    ['ver_costos', 'Costos'],
   ];
 
   async function init() {
@@ -172,6 +173,7 @@
         ver_salud: document.getElementById('u-ver-salud').checked ? 1 : 0,
         cerrar_mes: document.getElementById('u-cerrar-mes').checked ? 1 : 0,
         confirmar_pagos: document.getElementById('u-confirmar-pagos').checked ? 1 : 0,
+        ver_costos: document.getElementById('u-ver-costos').checked ? 1 : 0,
       };
       try {
         await NovaAPI.post('/usuarios', data);

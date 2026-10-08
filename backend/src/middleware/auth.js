@@ -31,6 +31,7 @@ async function requireAuth(req, res, next) {
       ver_salud: session.ver_salud,
       cerrar_mes: session.cerrar_mes,
       confirmar_pagos: session.confirmar_pagos,
+      ver_costos: session.ver_costos,
     };
     next();
   } catch (err) {
@@ -86,6 +87,16 @@ function requireConfirmarPagos(req, res, next) {
   next();
 }
 
+// Costos de la empresa: ver todo (sueldos, totales, resultado) y confirmar. Admin OR
+// ver_costos = 1. Las rutas de "gastos del día a día" NO pasan por acá: cualquier
+// empleado logueado puede cargar los suyos (ver costos.routes.js).
+function requireCostos(req, res, next) {
+  if (!req.usuario || (req.usuario.rol !== 'admin' && req.usuario.ver_costos !== 1)) {
+    return res.status(403).json({ error: 'No tenés permiso para ver los costos de la empresa' });
+  }
+  next();
+}
+
 function requireAdmin(req, res, next) {
   if (!req.usuario || req.usuario.rol !== 'admin') {
     return res.status(403).json({ error: 'Se requiere rol administrador' });
@@ -94,5 +105,5 @@ function requireAdmin(req, res, next) {
 }
 
 module.exports = {
-  requireAuth, requireDashboard, requireConfig, requireSalud, requireCierre, requireAdmin, requireConfirmarPagos,
+  requireAuth, requireDashboard, requireConfig, requireSalud, requireCierre, requireAdmin, requireConfirmarPagos, requireCostos,
 };

@@ -15,7 +15,7 @@ router.get('/', async (req, res, next) => {
 
 router.post('/', async (req, res, next) => {
   try {
-    const { usuario, password, rol, ver_dashboard, editar_config, ver_salud, cerrar_mes, confirmar_pagos } =
+    const { usuario, password, rol, ver_dashboard, editar_config, ver_salud, cerrar_mes, confirmar_pagos, ver_costos } =
       req.body || {};
 
     if (!usuario || !String(usuario).trim())
@@ -36,6 +36,8 @@ router.post('/', async (req, res, next) => {
       return res.status(400).json({ error: 'cerrar_mes debe ser 0 o 1' });
     if (confirmar_pagos !== undefined && ![0, 1].includes(Number(confirmar_pagos)))
       return res.status(400).json({ error: 'confirmar_pagos debe ser 0 o 1' });
+    if (ver_costos !== undefined && ![0, 1].includes(Number(ver_costos)))
+      return res.status(400).json({ error: 'ver_costos debe ser 0 o 1' });
 
     const existente = await model.buscarUsuarioPorNombre(String(usuario).trim());
     if (existente) return res.status(409).json({ error: 'Ya existe un usuario con ese nombre' });
@@ -50,6 +52,7 @@ router.post('/', async (req, res, next) => {
       ver_salud: ver_salud === undefined ? 0 : Number(ver_salud),
       cerrar_mes: cerrar_mes === undefined ? 0 : Number(cerrar_mes),
       confirmar_pagos: confirmar_pagos === undefined ? 0 : Number(confirmar_pagos),
+      ver_costos: ver_costos === undefined ? 0 : Number(ver_costos),
     });
 
     const nuevo = await model.buscarUsuarioPorId(id);
@@ -62,7 +65,7 @@ router.post('/', async (req, res, next) => {
 router.patch('/:id', async (req, res, next) => {
   try {
     const id = Number(req.params.id);
-    const { rol, ver_dashboard, editar_config, ver_salud, cerrar_mes, confirmar_pagos, activo } = req.body || {};
+    const { rol, ver_dashboard, editar_config, ver_salud, cerrar_mes, confirmar_pagos, ver_costos, activo } = req.body || {};
     const campos = {};
 
     if (rol !== undefined) {
@@ -94,6 +97,11 @@ router.patch('/:id', async (req, res, next) => {
       if (![0, 1].includes(Number(confirmar_pagos)))
         return res.status(400).json({ error: 'confirmar_pagos debe ser 0 o 1' });
       campos.confirmar_pagos = Number(confirmar_pagos);
+    }
+    if (ver_costos !== undefined) {
+      if (![0, 1].includes(Number(ver_costos)))
+        return res.status(400).json({ error: 'ver_costos debe ser 0 o 1' });
+      campos.ver_costos = Number(ver_costos);
     }
     if (activo !== undefined) {
       if (![0, 1].includes(Number(activo)))

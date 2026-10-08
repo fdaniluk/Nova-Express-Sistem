@@ -45,6 +45,10 @@
         if (tab === 'iibb' && !iibbLoaded) loadIibb();
       });
     });
+    // Llegar con #iibb (desde Costos de la empresa, 08/10) abre esa pestaña.
+    const pedida = (location.hash || '').slice(1);
+    const btn = pedida && document.querySelector(`.tab[data-tab="${pedida}"]`);
+    if (btn) btn.click();
   }
 
   // ── Pestaña CARGAR ──────────────────────────────────────────────────────────

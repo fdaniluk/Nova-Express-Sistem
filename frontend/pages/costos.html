@@ -3,10 +3,10 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Cobros en pickup – Nova Express</title>
+  <title>Costos de la empresa – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260929a">
-  <link rel="stylesheet" href="../css/modules/cobros-pickup.css?v=20261008a">
+  <link rel="stylesheet" href="../css/modules/costos.css?v=20261008a">
 </head>
 <body>
 <div class="app-layout">
@@ -52,11 +52,11 @@
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M16 8h-6a2 2 0 1 0 0 4h4a2 2 0 1 1 0 4H8"/><line x1="12" y1="6" x2="12" y2="18"/></svg></span>
         <span>Comisiones</span>
       </a>
-      <a href="cobros-pickup.html" class="nav-item active">
+      <a href="cobros-pickup.html" class="nav-item">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
         <span>Cobros en pickup</span>
       </a>
-      <a href="costos.html" class="nav-item">
+      <a href="costos.html" class="nav-item active">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 3v18h18"/><rect x="7" y="12" width="3" height="6"/><rect x="12" y="8" width="3" height="10"/><rect x="17" y="5" width="3" height="13"/></svg></span>
         <span>Costos</span>
       </a>
@@ -103,129 +103,98 @@
 
   <div class="page-content">
     <div class="page-header">
-      <h1>Cobros en pickup</h1>
-      <div class="cp-cab-info">
-        <span class="cp-pill" id="cp-resumen"></span>
-        <button class="btn btn-sm btn-coral" id="btn-nueva">+ Nueva cobranza</button>
+      <h1>Costos de la empresa</h1>
+      <div class="cos-mes">
+        <button type="button" class="cos-mes-btn" id="cos-mes-prev" title="Mes anterior">‹</button>
+        <input type="month" id="cos-mes" class="cos-mes-input">
+        <button type="button" class="cos-mes-btn" id="cos-mes-next" title="Mes siguiente">›</button>
+      </div>
+      <span class="cos-pill" id="cos-tc" title="Dólar del mes: se usa para pasar los costos en pesos a dólares"></span>
+      <div class="cos-cab-info">
+        <span class="cos-seg" id="cos-moneda"><button type="button" class="on" data-moneda="USD">Ver en USD</button><button type="button" data-moneda="ARS">Ver en ARS</button></span>
       </div>
     </div>
 
     <div class="page-body">
       <div id="alert-box"></div>
 
-      <!-- Paso 1: alta / edición. Siempre a la vista (antes era un panel oculto). -->
-      <section class="cp-paso" id="form-panel">
-        <div class="cp-paso-cab"><span class="cp-paso-num">1</span><h3 id="form-title">Nueva cobranza</h3><span class="em">lo que se cobró en el pickup o en la oficina; queda en la cuenta del cliente</span></div>
-        <div class="cp-paso-cuerpo">
-          <form id="form-cobranza-el">
-            <input type="hidden" id="cobranza-id">
-            <div class="form-cobranza">
-              <div class="form-group">
-                <label class="cp-label" for="c-cliente">Cliente *</label>
-                <select id="c-cliente" required>
-                  <option value="">Seleccionar…</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label class="cp-label" for="c-fecha">Fecha *</label>
-                <input type="date" id="c-fecha" required>
-              </div>
-              <div class="form-group">
-                <label class="cp-label" for="c-monto">Monto *</label>
-                <input type="number" id="c-monto" min="0.01" step="0.01" required>
-              </div>
-              <div class="form-group">
-                <label class="cp-label" for="c-moneda">Moneda *</label>
-                <select id="c-moneda">
-                  <option value="ARS">ARS</option>
-                  <option value="USD">USD</option>
-                </select>
-              </div>
-              <div class="form-group">
-                <label class="cp-label" for="c-forma_pago">Forma de pago</label>
-                <select id="c-forma_pago">
-                  <option value="efectivo">Efectivo</option>
-                  <option value="cheque">Cheque</option>
-                  <option value="transferencia">Transferencia</option>
-                  <option value="otro">Otro</option>
-                </select>
-              </div>
-              <div class="form-group full">
-                <label class="cp-label" for="c-nota">Nota</label>
-                <input type="text" id="c-nota" placeholder="ej. a cuenta de la liquidación de septiembre">
-              </div>
+      <!-- Tarjetas (solo con permiso de costos) -->
+      <div class="cos-tiles hidden" id="cos-tiles">
+        <div class="cos-tile" id="tile-costos"><div class="l">Costos del mes</div><div class="n">—</div><div class="s"></div></div>
+        <div class="cos-tile ok" id="tile-utilidad"><div class="l">Utilidad de envíos</div><div class="n">—</div><div class="s">la misma del Dashboard (venta − costo courier)</div></div>
+        <div class="cos-tile coral" id="tile-neto"><div class="l">Resultado neto</div><div class="n">—</div><div class="s">utilidad − costos</div></div>
+        <div class="cos-tile" id="tile-anterior"><div class="l">Contra el mes anterior</div><div class="n">—</div><div class="s"></div></div>
+      </div>
+      <p class="cos-aviso hidden" id="cos-aviso-emp">Acá se cargan los <b>gastos del día a día</b> (combustible, insumos, mensajería…). Lo que cargás queda <b>por confirmar</b> hasta que lo revise dirección. Los demás costos de la empresa los ve y carga dirección.</p>
+
+      <!-- Paso 1: cargar -->
+      <section class="cos-paso" id="cos-form-panel">
+        <div class="cos-paso-cab"><span class="cos-paso-num">1</span><h3 id="cos-form-title">Cargar un costo</h3><span class="em">en la moneda en que se paga; el sistema lo pasa a la otra con el dólar del mes</span>
+          <div class="cos-cab-acciones">
+            <button type="button" class="btn btn-sm btn-outline hidden" id="btn-traer-fijos" title="Copia a este mes los costos fijos del mes anterior, como 'por confirmar'">Traer los fijos del mes pasado</button>
+            <button type="button" class="btn btn-sm btn-outline hidden" id="btn-categorias">Categorías</button>
+          </div>
+        </div>
+        <div class="cos-paso-cuerpo">
+          <form id="cos-form">
+            <input type="hidden" id="c-id">
+            <div class="cos-grid">
+              <div class="form-group"><label class="cos-label" for="c-categoria">Categoría *</label><select id="c-categoria" required></select></div>
+              <div class="form-group cos-col2"><label class="cos-label" for="c-detalle">Detalle *</label><input type="text" id="c-detalle" required placeholder="ej. Alquiler oficina Florida"></div>
+              <div class="form-group"><label class="cos-label" for="c-monto">Monto *</label><input type="number" id="c-monto" min="0.01" step="0.01" required></div>
+              <div class="form-group"><label class="cos-label" for="c-moneda">Moneda *</label><select id="c-moneda"><option value="ARS">ARS (pesos)</option><option value="USD">USD (dólares)</option></select></div>
+              <div class="form-group" id="c-fijo-grupo"><label class="cos-label" for="c-fijo">Se repite</label><select id="c-fijo"><option value="0">Solo este mes</option><option value="1">Todos los meses (fijo)</option></select></div>
+              <div class="form-group cos-col2"><label class="cos-label" for="c-nota">Nota</label><input type="text" id="c-nota" placeholder="opcional"></div>
             </div>
-            <div class="cp-acciones">
-              <button type="submit" class="btn btn-coral" id="btn-guardar">Guardar cobranza</button>
+            <div class="cos-acciones">
+              <button type="submit" class="btn btn-coral" id="btn-guardar">Guardar costo</button>
               <button type="button" class="btn btn-outline" id="btn-cancelar">Cancelar</button>
             </div>
           </form>
         </div>
       </section>
 
-      <!-- Paso 2: filtros, totales y lista -->
-      <section class="cp-paso">
-        <div class="cp-paso-cab"><span class="cp-paso-num">2</span><h3>Cobros del período</h3><span class="em">filtrá por cliente y fechas</span></div>
-        <div class="cp-paso-cuerpo">
-          <div class="filters cp-filtros">
-            <div class="form-group">
-              <label class="cp-label" for="f-cliente">Cliente</label>
-              <select id="f-cliente">
-                <option value="">Todos</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label class="cp-label" for="f-desde">Desde</label>
-              <input type="date" id="f-desde">
-            </div>
-            <div class="form-group">
-              <label class="cp-label" for="f-hasta">Hasta</label>
-              <input type="date" id="f-hasta">
-            </div>
-            <button class="btn btn-outline" id="btn-filtrar">Filtrar</button>
-            <button class="btn btn-outline btn-outline-gris" id="btn-limpiar">Limpiar</button>
-          </div>
-
-          <div class="resumen-cobranzas">
-            <div class="resumen-card ars">
-              <div class="resumen-label">Total ARS</div>
-              <div class="resumen-monto" id="total-ars">$0,00</div>
-              <div class="resumen-desglose" id="desglose-ars"></div>
-            </div>
-            <div class="resumen-card usd">
-              <div class="resumen-label">Total USD</div>
-              <div class="resumen-monto" id="total-usd">US$0.00</div>
-              <div class="resumen-desglose" id="desglose-usd"></div>
-            </div>
-            <div class="resumen-card">
-              <div class="resumen-label">Clientes</div>
-              <div class="resumen-monto" id="total-clientes">0</div>
-              <div class="resumen-desglose" id="desglose-clientes"></div>
-            </div>
-          </div>
-
-          <div class="cp-tabla-card">
-            <div class="table-wrap">
-              <table class="cp-tabla">
-                <thead>
-                  <tr>
-                    <th>Fecha</th>
-                    <th>Cliente</th>
-                    <th class="num">Monto</th>
-                    <th>Forma de pago</th>
-                    <th>Origen</th>
-                    <th>Nota</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody id="tabla-cobranzas">
-                  <tr><td colspan="7" class="empty">Cargando...</td></tr>
-                </tbody>
-              </table>
-            </div>
+      <!-- Paso 2: lista del mes -->
+      <section class="cos-paso">
+        <div class="cos-paso-cab"><span class="cos-paso-num">2</span><h3 id="cos-lista-titulo">Costos del mes</h3><span class="em" id="cos-lista-sub">agrupados por categoría</span><span class="cos-chip azul" id="cos-resumen"></span></div>
+        <div class="cos-tabla-card">
+          <div class="table-wrap">
+            <table class="cos-tabla">
+              <thead><tr><th>Detalle</th><th>Moneda</th><th class="num">Monto original</th><th class="num" id="cos-th-conv">En USD</th><th>Estado</th><th>Cargó</th><th></th></tr></thead>
+              <tbody id="cos-tabla"><tr><td colspan="7" class="empty">Cargando…</td></tr></tbody>
+            </table>
           </div>
         </div>
+        <p class="cos-pie" id="cos-pie"></p>
       </section>
+    </div>
+  </div>
+</div>
+
+<!-- Categorías (solo dirección) -->
+<div class="modal hidden" id="modal-cat">
+  <div class="modal-content cos-modal">
+    <div class="modal-header"><h2>Categorías de costos</h2><button type="button" class="modal-close" id="modal-cat-cerrar">×</button></div>
+    <div class="modal-body">
+      <p class="cos-aviso">"La carga la oficina" = cualquier empleado puede cargar gastos en esa categoría (entran por confirmar). Las demás las carga dirección.</p>
+      <table class="cos-tabla" id="cat-tabla"><thead><tr><th>Categoría</th><th>La carga la oficina</th><th>Activa</th></tr></thead><tbody></tbody></table>
+      <div class="cos-cat-nueva">
+        <input type="text" id="cat-nombre" placeholder="Nueva categoría">
+        <label class="cos-check"><input type="checkbox" id="cat-oficina"> la carga la oficina</label>
+        <button type="button" class="btn btn-sm btn-coral" id="cat-agregar">Agregar</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Dólar del mes (solo dirección) -->
+<div class="modal hidden" id="modal-tc">
+  <div class="modal-content cos-modal cos-modal-chico">
+    <div class="modal-header"><h2>Dólar del mes</h2><button type="button" class="modal-close" id="modal-tc-cerrar">×</button></div>
+    <div class="modal-body">
+      <p class="cos-aviso" id="tc-explica"></p>
+      <div class="cos-tc-fila"><label class="cos-label" for="tc-valor">Dólar a mano para este mes</label><input type="number" id="tc-valor" min="1" step="0.01" placeholder="ej. 1450"></div>
+      <div class="cos-acciones"><button type="button" class="btn btn-coral" id="tc-guardar">Guardar</button><button type="button" class="btn btn-outline" id="tc-borrar">Volver al de Cobranzas</button></div>
     </div>
   </div>
 </div>
@@ -233,6 +202,6 @@
 <script src="/js/auth-guard.js?v=20260924b"></script>
 <script src="../js/api.js?v=20261008b"></script>
 <script src="../js/main.js?v=20260929a"></script>
-<script src="../js/modules/cobros-pickup.js?v=20261008a"></script>
+<script src="../js/modules/costos.js?v=20261008a"></script>
 </body>
 </html>

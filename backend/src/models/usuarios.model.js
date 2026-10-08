@@ -4,7 +4,7 @@ async function listarUsuarios() {
   return getDb()
     // ultimo_acceso (08/10/2026): la sesión más reciente del usuario (las vencidas se purgan,
     // así que es "último acceso" mientras la sesión viva; después queda vacío).
-    .prepare(`SELECT u.id, u.usuario, u.rol, u.ver_dashboard, u.editar_config, u.ver_salud, u.cerrar_mes, u.confirmar_pagos, u.activo, u.creado_en,
+    .prepare(`SELECT u.id, u.usuario, u.rol, u.ver_dashboard, u.editar_config, u.ver_salud, u.cerrar_mes, u.confirmar_pagos, u.ver_costos, u.activo, u.creado_en,
                      (SELECT MAX(s.creado_en) FROM sesiones s WHERE s.usuario_id = u.id) AS ultimo_acceso
               FROM usuarios u ORDER BY u.id`)
     .all();
@@ -12,7 +12,7 @@ async function listarUsuarios() {
 
 async function buscarUsuarioPorId(id) {
   return getDb()
-    .prepare('SELECT id, usuario, rol, ver_dashboard, editar_config, ver_salud, cerrar_mes, confirmar_pagos, activo, creado_en FROM usuarios WHERE id = ?')
+    .prepare('SELECT id, usuario, rol, ver_dashboard, editar_config, ver_salud, cerrar_mes, confirmar_pagos, ver_costos, activo, creado_en FROM usuarios WHERE id = ?')
     .get(id);
 }
 
@@ -22,10 +22,10 @@ async function buscarUsuarioPorNombre(nombre) {
     .get(nombre);
 }
 
-async function crearUsuario({ usuario, password_hash, rol, ver_dashboard, editar_config, ver_salud, cerrar_mes, confirmar_pagos = 0 }) {
+async function crearUsuario({ usuario, password_hash, rol, ver_dashboard, editar_config, ver_salud, cerrar_mes, confirmar_pagos = 0, ver_costos = 0 }) {
   const result = await getDb()
-    .prepare('INSERT INTO usuarios (usuario, password_hash, rol, ver_dashboard, editar_config, ver_salud, cerrar_mes, confirmar_pagos, activo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1)')
-    .run(usuario, password_hash, rol, ver_dashboard, editar_config, ver_salud, cerrar_mes, confirmar_pagos);
+    .prepare('INSERT INTO usuarios (usuario, password_hash, rol, ver_dashboard, editar_config, ver_salud, cerrar_mes, confirmar_pagos, ver_costos, activo) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 1)')
+    .run(usuario, password_hash, rol, ver_dashboard, editar_config, ver_salud, cerrar_mes, confirmar_pagos, ver_costos);
   return result.lastInsertRowid;
 }
 

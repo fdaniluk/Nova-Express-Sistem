@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Maqueta — Costos de la empresa</title>
+<link rel="stylesheet" href="../../frontend/css/main.css">
+<style>
+/* MAQUETA Costos de la empresa (08/10/2026). Datos inventados. */
+:root { --m-azul-suave:#eaf1f8; --m-verde:#15803d; --m-verde-suave:#dcfce7; --m-ambar:#b45309; --m-ambar-suave:#fef3c7; --m-rojo:#b91c1c; --m-rojo-suave:#fee2e2; --m-coral:#f26a4b; }
+body { padding:1.25rem 1.5rem; max-width:1360px; }
+.maq-nota { font-size:.8rem; color:#64748b; margin:0 0 .75rem; }
+.page-header { display:flex; align-items:center; gap:1rem; padding:.9rem 1.2rem; background:#fff; border:1px solid var(--color-border); border-radius:10px 10px 0 0; }
+.page-header h1 { margin:0; font-size:1.25rem; color:var(--color-primary); }
+.page-body { background:#fff; border:1px solid var(--color-border); border-top:0; border-radius:0 0 10px 10px; padding:1rem 1.2rem 1.4rem; margin-bottom:2rem; }
+.btn { font:inherit; border-radius:8px; padding:.55rem 1rem; cursor:pointer; border:1px solid transparent; font-weight:600; font-size:.9rem; }
+.btn-coral { background:var(--m-coral); color:#fff; } .btn-outline { background:#fff; color:var(--color-primary); border-color:var(--color-primary); }
+.btn-sm { padding:.3rem .65rem; font-size:.8rem; }
+.paso { background:#fff; border:1px solid var(--color-border); border-radius:12px; box-shadow:var(--shadow); margin-bottom:1rem; overflow:hidden; }
+.paso-cab { display:flex; align-items:center; gap:.8rem; padding:.75rem 1.1rem; border-bottom:1px solid var(--color-border); background:linear-gradient(90deg,var(--m-azul-suave),#fff 70%); }
+.paso-num { width:26px; height:26px; border-radius:50%; background:var(--color-primary); color:#fff; font-weight:700; font-size:.85rem; display:grid; place-items:center; }
+.paso-cab h3 { margin:0; font-size:1rem; color:var(--color-primary); } .paso-cab .em { color:var(--color-muted); font-size:.82rem; }
+.paso-cuerpo { padding:1rem 1.1rem; }
+label.l { display:block; font-size:.7rem; letter-spacing:.4px; text-transform:uppercase; color:var(--color-muted); font-weight:600; margin-bottom:.25rem; }
+input.i, select.i { width:100%; padding:.5rem .65rem; border:1px solid var(--color-border); border-radius:8px; font:inherit; font-size:.92rem; background:#fff; }
+.tabla { width:100%; border-collapse:collapse; font-size:.88rem; }
+.tabla th { background:#f1f5f9; color:#475569; font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; padding:.55rem .65rem; text-align:left; border-bottom:1px solid var(--color-border); }
+.tabla td { padding:.65rem .65rem; border-bottom:1px solid #eef2f7; vertical-align:middle; }
+.tabla .num { text-align:right; font-variant-numeric:tabular-nums; }
+.chip { display:inline-block; font-size:.74rem; font-weight:700; padding:.2rem .6rem; border-radius:999px; }
+.chip-ok { background:var(--m-verde-suave); color:var(--m-verde); } .chip-gris { background:#f1f5f9; color:#475569; } .chip-azul { background:var(--m-azul-suave); color:var(--color-primary); } .chip-ambar { background:var(--m-ambar-suave); color:var(--m-ambar); } .chip-rojo { background:var(--m-rojo-suave); color:var(--m-rojo); }
+.tabla-card { border:1px solid var(--color-border); border-radius:12px; overflow:hidden; box-shadow:var(--shadow); }
+
+.tile { border:1px solid var(--color-border); border-top:4px solid var(--color-primary); border-radius:12px; padding:.9rem 1.1rem; background:#fff; box-shadow:var(--shadow); }
+.tile .n { font-size:1.7rem; font-weight:700; line-height:1.1; color:var(--color-primary); } .tile .l { font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; color:var(--color-muted); font-weight:600; }
+.tile .em { font-size:.8rem; color:var(--color-muted); margin-top:.3rem; }
+.tile.ok { border-top-color:var(--m-verde); } .tile.ok .n { color:var(--m-verde); }
+.tile.rojo { border-top-color:var(--m-rojo); } .tile.rojo .n { color:var(--m-rojo); }
+.tile.coral { border-top-color:var(--m-coral); }
+.tot { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-bottom:1rem; }
+.seg { display:inline-flex; border:1px solid var(--color-border); border-radius:999px; overflow:hidden; background:#fff; }
+.seg span { padding:.3rem .8rem; font-size:.8rem; cursor:pointer; color:var(--color-muted); } .seg span.on { background:var(--color-primary); color:#fff; font-weight:600; }
+.form { display:grid; grid-template-columns:repeat(5,1fr); gap:.75rem 1rem; } .form .full { grid-column:1 / -1; }
+.cat { background:#f8fafc; font-weight:700; color:var(--color-primary); }
+.cat td { padding:.45rem .65rem; }
+.tabla td.num { font-weight:600; } .tabla td.num.em2 { font-weight:400; color:var(--color-muted); font-size:.82rem; }
+.auto { font-size:.7rem; color:var(--color-muted); border:1px dashed var(--color-border); border-radius:999px; padding:.1rem .5rem; margin-left:.4rem; }
+.dash { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-bottom:1rem; }
+.dash .kpi { border:1px solid var(--color-border); border-radius:12px; padding:.8rem 1rem; background:#fff; }
+.dash .kpi .k { font-size:.72rem; text-transform:uppercase; color:var(--color-muted); font-weight:600; } .dash .kpi .v { font-size:1.5rem; font-weight:700; color:var(--color-primary); } .dash .kpi .d { font-size:.78rem; color:var(--color-muted); }
+.dash .kpi.net { background:var(--color-primary); color:#fff; } .dash .kpi.net .k, .dash .kpi.net .d { color:#cbd5e1; } .dash .kpi.net .v { color:#fff; }
+.barras { display:flex; gap:10px; align-items:flex-end; height:150px; padding:.5rem 1rem 0; border-bottom:1px solid var(--color-border); }
+.barras .m { flex:1; display:flex; gap:3px; align-items:flex-end; height:100%; } .barras .m div { flex:1; border-radius:4px 4px 0 0; }
+.barras .m .p { background:var(--color-primary); } .barras .m .c { background:#f26a4b; opacity:.85; }
+.leg { font-size:.78rem; color:var(--color-muted); padding:.4rem 1rem; } .leg i { display:inline-block; width:10px; height:10px; border-radius:2px; margin-right:4px; vertical-align:middle; }
+</style>
+</head>
+<body>
+<p class="maq-nota">Maqueta · Costos de la empresa · 08/10/2026 · datos inventados</p>
+
+<div class="page-header"><h1>Costos de la empresa</h1>
+  <span class="seg" style="margin-left:1rem"><span>‹</span><span class="on">Octubre 2026</span><span>›</span></span>
+  <span class="chip chip-gris">dólar del mes 1.420 · promedio de Cobranzas</span>
+  <span class="seg" style="margin-left:auto"><span class="on">Ver en USD</span><span>Ver en ARS</span></span>
+  <button class="btn btn-outline btn-sm">↓ Excel</button>
+</div>
+<div class="page-body">
+  <div class="tot">
+    <div class="tile"><div class="l">Costos del mes</div><div class="n">US$ 9.840</div><div class="em">$ 8.950.000 en pesos + US$ 3.540 en dólares</div></div>
+    <div class="tile ok"><div class="l">Utilidad de envíos</div><div class="n">US$ 14.210</div><div class="em">la misma que el Dashboard (venta − costo courier)</div></div>
+    <div class="tile coral"><div class="l">Resultado neto</div><div class="n">US$ 4.370</div><div class="em">utilidad − costos · 31 % de la utilidad</div></div>
+    <div class="tile"><div class="l">Contra septiembre</div><div class="n" style="color:var(--m-rojo)">+6 %</div><div class="em">septiembre: US$ 9.280 de costos</div></div>
+  </div>
+
+  <div class="paso">
+    <div class="paso-cab"><span class="paso-num">1</span><h3>Cargar un costo</h3><span class="em">en la moneda en que se paga; el sistema lo convierte con el dólar del mes</span><button class="btn btn-outline btn-sm" style="margin-left:auto">Traer los fijos del mes pasado</button></div>
+    <div class="paso-cuerpo">
+      <div class="form">
+        <div><label class="l">Categoría</label><select class="i"><option>Sueldos</option><option>Alquiler</option><option>Servicios (luz, internet, teléfono)</option><option>Impuestos y contador</option><option>Ingresos Brutos (automático)</option><option>Insumos y embalaje</option><option>Courier no refacturable</option><option>Vehículo y combustible</option><option>Otros</option><option>+ Nueva categoría…</option></select></div>
+        <div><label class="l">Detalle</label><input class="i" value="Alquiler oficina Florida"></div>
+        <div><label class="l">Monto</label><input class="i" value="1.850.000"></div>
+        <div><label class="l">Moneda</label><select class="i"><option>ARS</option><option>USD</option></select></div>
+        <div><label class="l">Se repite</label><select class="i"><option>Todos los meses (fijo)</option><option>Solo este mes</option></select></div>
+      </div>
+      <div style="display:flex;gap:.6rem;margin-top:1rem"><button class="btn btn-coral">Guardar costo</button><button class="btn btn-outline">Cancelar</button></div>
+    </div>
+  </div>
+
+  <div class="paso">
+    <div class="paso-cab"><span class="paso-num">2</span><h3>Costos de octubre</h3><span class="em">agrupados por categoría · la columna USD usa el dólar del mes</span><span class="chip chip-azul" style="margin-left:auto">14 costos · 2 por confirmar</span></div>
+    <div class="tabla-card"><table class="tabla">
+      <tr><th>Detalle</th><th>Moneda</th><th class="num">Monto original</th><th class="num">En USD</th><th>Fijo</th><th></th></tr>
+      <tr class="cat"><td colspan="3">Sueldos</td><td class="num">US$ 4.930</td><td colspan="2" class="em" style="font-weight:400;font-size:.8rem">50 % de los costos</td></tr>
+      <tr><td>Victoria</td><td><span class="chip chip-gris">ARS</span></td><td class="num">$ 2.400.000</td><td class="num em2">US$ 1.690</td><td><span class="chip chip-azul">fijo</span></td><td><button class="btn btn-outline btn-sm">Editar</button></td></tr>
+      <tr><td>Ricardo</td><td><span class="chip chip-gris">ARS</span></td><td class="num">$ 2.100.000</td><td class="num em2">US$ 1.479</td><td><span class="chip chip-azul">fijo</span></td><td><button class="btn btn-outline btn-sm">Editar</button></td></tr>
+      <tr><td>Gabriela</td><td><span class="chip chip-gris">ARS</span></td><td class="num">$ 2.500.000</td><td class="num em2">US$ 1.761</td><td><span class="chip chip-azul">fijo</span></td><td><button class="btn btn-outline btn-sm">Editar</button></td></tr>
+      <tr class="cat"><td colspan="3">Alquiler</td><td class="num">US$ 1.303</td><td colspan="2"></td></tr>
+      <tr><td>Alquiler oficina Florida</td><td><span class="chip chip-gris">ARS</span></td><td class="num">$ 1.850.000</td><td class="num em2">US$ 1.303</td><td><span class="chip chip-azul">fijo</span></td><td><button class="btn btn-outline btn-sm">Editar</button></td></tr>
+      <tr class="cat"><td colspan="3">Ingresos Brutos <span class="auto">sale de las facturas del courier</span></td><td class="num">US$ 1.612</td><td colspan="2"></td></tr>
+      <tr><td>Percepción IIBB · 6 facturas UPS + 2 DHL</td><td><span class="chip chip-ok">USD</span></td><td class="num">US$ 1.612</td><td class="num em2">US$ 1.612</td><td><span class="chip chip-gris">automático</span></td><td><button class="btn btn-outline btn-sm">Ver facturas</button></td></tr>
+      <tr class="cat"><td colspan="3">Courier no refacturable</td><td class="num">US$ 1.928</td><td colspan="2"></td></tr>
+      <tr><td>Corrección de dirección · 3 guías</td><td><span class="chip chip-ok">USD</span></td><td class="num">US$ 66,60</td><td class="num em2">US$ 66,60</td><td></td><td><button class="btn btn-outline btn-sm">Editar</button></td></tr>
+      <tr><td>Cuenta UPS impo · reclamo sin cobrar</td><td><span class="chip chip-ok">USD</span></td><td class="num">US$ 1.861</td><td class="num em2">US$ 1.861</td><td></td><td><button class="btn btn-outline btn-sm">Editar</button></td></tr>
+      <tr class="cat"><td colspan="3">Servicios</td><td class="num">US$ 67</td><td colspan="2"></td></tr>
+      <tr style="background:#fffbeb"><td>Internet + telefonía <span class="chip chip-ambar">por confirmar</span></td><td><span class="chip chip-gris">ARS</span></td><td class="num">$ 95.000</td><td class="num em2">US$ 67</td><td><span class="chip chip-azul">fijo</span></td><td><button class="btn btn-coral btn-sm">Confirmar</button></td></tr>
+    </table></div>
+    <p class="maq-nota" style="margin-top:.6rem">"Fijo" = se copia solo al mes siguiente como "por confirmar"; se confirma con el monto real cuando llega la factura. Ingresos Brutos no se edita: viene de Facturas.</p>
+  </div>
+</div>
+
+<div class="page-header"><h1>Dashboard</h1><span class="chip chip-gris" style="margin-left:auto">lo que se agrega (solo con permiso de costos)</span></div>
+<div class="page-body">
+  <div class="dash">
+    <div class="kpi"><div class="k">Profit</div><div class="v">US$ 14.210</div><div class="d">▲ 8 % vs. sept.</div></div>
+    <div class="kpi"><div class="k">Costos de la empresa</div><div class="v">US$ 9.840</div><div class="d">sueldos 50 % · IIBB 16 %</div></div>
+    <div class="kpi net"><div class="k">Resultado neto</div><div class="v">US$ 4.370</div><div class="d">profit − costos · 31 %</div></div>
+    <div class="kpi"><div class="k">Punto de equilibrio</div><div class="v">US$ 9.840</div><div class="d">de profit hacen falta para cubrir el mes · hoy 144 %</div></div>
+  </div>
+  <div class="tabla-card" style="padding-top:.6rem"><div style="font-weight:600;color:var(--color-primary);padding:0 1rem .3rem">Profit vs. costos por mes <span class="em" style="font-weight:400;font-size:.8rem">últimos 6 meses · USD</span></div>
+    <div class="barras">
+      <div class="m"><div class="p" style="height:60%"></div><div class="c" style="height:55%"></div></div>
+      <div class="m"><div class="p" style="height:72%"></div><div class="c" style="height:52%"></div></div>
+      <div class="m"><div class="p" style="height:50%"></div><div class="c" style="height:58%"></div></div>
+      <div class="m"><div class="p" style="height:80%"></div><div class="c" style="height:54%"></div></div>
+      <div class="m"><div class="p" style="height:76%"></div><div class="c" style="height:57%"></div></div>
+      <div class="m"><div class="p" style="height:88%"></div><div class="c" style="height:60%"></div></div>
+    </div>
+    <div class="leg"><i style="background:var(--color-primary)"></i>Profit &nbsp; <i style="background:#f26a4b"></i>Costos &nbsp; · may · jun · jul · ago · sep · oct — el mes en que los costos superan al profit se pinta la barra en rojo</div>
+  </div>
+</div>
+</body>
+</html>

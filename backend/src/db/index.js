@@ -769,6 +769,10 @@ async function migrateUsuarios() {
     ['cerrar_mes', 'INTEGER NOT NULL DEFAULT 0'],
     // Cobranzas: confirmar pagos informados (transferencias, etc.). Ver requireConfirmarPagos.
     ['confirmar_pagos', 'INTEGER NOT NULL DEFAULT 0'],
+    // Costos de la empresa (08/10/2026): ver TODO el módulo (sueldos, alquiler, totales,
+    // resultado neto) y confirmar lo que cargan los empleados. Regla admin OR ver_costos.
+    // Sin el permiso se entra igual, pero solo a los gastos del día a día.
+    ['ver_costos', 'INTEGER NOT NULL DEFAULT 0'],
   ];
   for (const [col, def] of toAdd) {
     if (!cols.includes(col)) {
@@ -784,6 +788,74 @@ async function migrateUsuarios() {
   if (!hecho) {
     await dbApi.prepare("UPDATE usuarios SET confirmar_pagos = 1 WHERE LOWER(usuario) = 'marcelo'").run();
     await dbApi.prepare("INSERT INTO migraciones_una_vez (clave) VALUES ('confirmar_pagos_marcelo')").run();
+  }
+  // 08/10/2026: el módulo de costos es para Marcelo. Una sola vez, igual que arriba.
+  const hechoCostos = await dbApi.prepare("SELECT 1 FROM migraciones_una_vez WHERE clave = 'ver_costos_marcelo'").get();
+  if (!hechoCostos) {
+    await dbApi.prepare("UPDATE usuarios SET ver_costos = 1 WHERE LOWER(usuario) = 'marcelo'").run();
+    await dbApi.prepare("INSERT INTO migraciones_una_vez (clave) VALUES ('ver_costos_marcelo')").run();
+  }
+}
+
+// ── Costos de la empresa (08/10/2026) ─────────────────────────────────────────────────
+// Registro mensual de lo que cuesta tener la empresa abierta (sueldos, alquiler, IIBB,
+// insumos…), para que el Dashboard pueda mostrar "utilidad de envíos − costos". Cada costo
+// se carga en la moneda en que se paga; la conversión usa el dólar del mes.
+//   · costos_categorias: lista fija + las que se agregan a mano. `oficina` = la puede cargar
+//     cualquier empleado (gastos del día a día); `automatica` = la llena el sistema (IIBB
+//     sale de las facturas del courier) y no se edita.
+//   · costos: un renglón por costo y mes. `fijo` se copia al mes siguiente como
+//     "por_confirmar"; lo que carga un empleado también entra "por_confirmar" hasta que
+//     alguien con ver_costos lo confirma.
+//   · costos_meses: dólar del mes elegido a mano (si no, el promedio de cc_tipo_cambio).
+async function migrateCostos() {
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS costos_categorias (
+      id         INTEGER PRIMARY KEY AUTOINCREMENT,
+      nombre     TEXT NOT NULL UNIQUE,
+      orden      INTEGER NOT NULL DEFAULT 100,
+      oficina    INTEGER NOT NULL DEFAULT 0,
+      automatica TEXT,
+      activa     INTEGER NOT NULL DEFAULT 1
+    )`);
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS costos (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      mes           TEXT NOT NULL,
+      categoria_id  INTEGER NOT NULL REFERENCES costos_categorias(id),
+      detalle       TEXT NOT NULL,
+      monto         REAL NOT NULL,
+      moneda        TEXT NOT NULL CHECK (moneda IN ('ARS', 'USD')),
+      fijo          INTEGER NOT NULL DEFAULT 0,
+      estado        TEXT NOT NULL DEFAULT 'confirmado' CHECK (estado IN ('confirmado', 'por_confirmar')),
+      nota          TEXT,
+      origen_id     INTEGER,
+      creado_por    INTEGER REFERENCES usuarios(id),
+      creado_en     TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+      confirmado_por INTEGER REFERENCES usuarios(id),
+      confirmado_en TEXT
+    )`);
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_costos_mes ON costos(mes)');
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS costos_meses (
+      mes        TEXT PRIMARY KEY,
+      tc         REAL,
+      tc_fuente  TEXT,
+      actualizado_en TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
+    )`);
+  // Categorías iniciales (Felipe, 08/10). Solo se insertan si no existen: las que la
+  // oficina renombre o desactive quedan como las dejó.
+  const n = await dbApi.prepare('SELECT COUNT(*) AS n FROM costos_categorias').get();
+  if (!n || !n.n) {
+    const iniciales = [
+      ['Sueldos', 10, 0, null], ['Alquiler', 20, 0, null], ['Servicios', 30, 1, null],
+      ['Impuestos y contador', 40, 0, null], ['Ingresos Brutos', 50, 0, 'iibb'],
+      ['Insumos y embalaje', 60, 1, null], ['Courier no refacturable', 70, 0, null],
+      ['Vehículo y combustible', 80, 1, null], ['Mensajería y viáticos', 90, 1, null], ['Otros', 100, 1, null],
+    ];
+    for (const [nombre, orden, oficina, automatica] of iniciales) {
+      await dbApi.prepare('INSERT INTO costos_categorias (nombre, orden, oficina, automatica) VALUES (?, ?, ?, ?)').run(nombre, orden, oficina, automatica);
+    }
   }
 }
 
@@ -1384,6 +1456,7 @@ async function initSchema() {
   await migrateCotizadorLinks();
   await migrateBot();
   await migrateBotCanales();
+  await migrateCostos();
   await migrateIndices();
   await seedIfEmpty();
 }

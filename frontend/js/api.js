@@ -323,6 +323,23 @@ api.cobrosPickup = {
   eliminar: (id) => api.delete(`/cobros-pickup/${id}`),
 };
 
+// Costos de la empresa (08/10/2026). Todos ven/cargan los gastos del día a día; con
+// ver_costos se ve todo (ver costos.routes.js).
+api.costos = {
+  mes: (mes) => api.get(`/costos?mes=${encodeURIComponent(mes)}`),
+  categorias: (todas) => api.get(`/costos/categorias${todas ? '?todas=1' : ''}`),
+  crearCategoria: (data) => api.post('/costos/categorias', data),
+  editarCategoria: (id, data) => api.put(`/costos/categorias/${id}`, data),
+  tc: (mes) => api.get(`/costos/tc?mes=${encodeURIComponent(mes)}`),
+  guardarTc: (mes, tc) => api.put('/costos/tc', { mes, tc }),
+  traerFijos: (mes) => api.post('/costos/traer-fijos', { mes }),
+  serie: (desde, hasta) => api.get(`/costos/serie?desde=${desde}&hasta=${hasta}`),
+  crear: (data) => api.post('/costos', data),
+  editar: (id, data) => api.put(`/costos/${id}`, data),
+  eliminar: (id) => api.delete(`/costos/${id}`),
+  confirmar: (id, monto) => api.post(`/costos/${id}/confirmar`, monto !== undefined ? { monto } : {}),
+};
+
 api.facturas = {
   chequear: (file) => {
     const fd = new FormData();
