@@ -1,0 +1,85 @@
+/* ════════════════════════════════════════════════════════════════════════════════════
+   SALUD — estética del sistema (08/10/2026, último ítem del orden de estética)
+   Semáforo en tarjetas con el color arriba, filtro "solo lo que hay que mirar", los
+   controles agrupados en pasos numerados (Plata · Datos que faltan · Higiene) con un chip
+   de resumen, y cada control es una fila: punto · título y resumen · plata/botón.
+   Maqueta aprobada: docs/maquetas/maqueta-salud-cobros-pickup.html.
+   ⚠ No cambia las clases que leen los tests y salud.js: salud-tile (+ rojo/ambar/ok/error),
+   chequeo (+ severidad, abierto), chequeo-head, chequeo-cuerpo, chequeo-monto,
+   chequeo-acciones, chequeo-error, ni los ids semaforo / grupos / pie / btn-refrescar.
+   ════════════════════════════════════════════════════════════════════════════════════ */
+:root { --sal-azul-suave: #eaf1f8; --sal-verde: #15803d; --sal-verde-suave: #dcfce7; --sal-ambar: #b45309; --sal-ambar-suave: #fef3c7; --sal-rojo: #b91c1c; --sal-rojo-suave: #fee2e2; --sal-violeta: #7c3aed; --sal-coral: #f26a4b; --sal-coral-oscuro: #d9573a; }
+
+.sal-cab-info { margin-left: auto; display: flex; gap: .5rem; align-items: center; }
+.sal-pill { font-size: .76rem; font-weight: 700; padding: .3rem .75rem; border-radius: 999px; background: #f1f5f9; color: #475569; }
+.sal-pill:empty { display: none; }
+.btn-coral { background: var(--sal-coral); color: #fff; border: 1px solid var(--sal-coral); }
+.btn-coral:hover { background: var(--sal-coral-oscuro); border-color: var(--sal-coral-oscuro); }
+.btn-coral:disabled { opacity: .6; cursor: progress; }
+.btn-outline { background: #fff; color: var(--color-primary); border: 1px solid var(--color-primary); }
+.btn-outline:hover { background: var(--sal-azul-suave); }
+
+/* Semáforo */
+.salud-semaforo { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+.salud-tile { background: #fff; border: 1px solid var(--color-border); border-top: 4px solid var(--color-primary); border-radius: 12px; padding: .9rem 1.1rem; box-shadow: var(--shadow); }
+.salud-tile .tile-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: var(--color-muted); font-weight: 600; }
+.salud-tile .tile-num { font-size: 2rem; font-weight: 700; line-height: 1.1; color: var(--color-primary); font-variant-numeric: tabular-nums; }
+.salud-tile .tile-num.chico { font-size: 1.3rem; padding-top: .4rem; }
+.salud-tile .tile-sub { font-size: .8rem; color: var(--color-muted); margin-top: .3rem; }
+.salud-tile.rojo  { border-top-color: var(--sal-rojo); }   .salud-tile.rojo  .tile-num { color: var(--sal-rojo); }
+.salud-tile.ambar { border-top-color: var(--sal-ambar); }  .salud-tile.ambar .tile-num { color: var(--sal-ambar); }
+.salud-tile.ok    { border-top-color: var(--sal-verde); }  .salud-tile.ok    .tile-num { color: var(--sal-verde); }
+.salud-tile.error { border-top-color: var(--sal-violeta); } .salud-tile.error .tile-num { color: var(--sal-violeta); }
+
+/* Filtro */
+.sal-filtro { display: flex; gap: .7rem; align-items: center; flex-wrap: wrap; margin-bottom: 1rem; }
+.sal-seg { display: inline-flex; border: 1px solid var(--color-border); border-radius: 999px; overflow: hidden; background: #fff; }
+.sal-seg button { font: inherit; border: 0; background: transparent; padding: .35rem .85rem; font-size: .82rem; color: var(--color-muted); cursor: pointer; }
+.sal-seg button.on { background: var(--color-primary); color: #fff; font-weight: 600; }
+.sal-filtro .em { font-size: .82rem; color: var(--color-muted); }
+.sal-vacio { padding: 1rem 1.1rem; color: var(--color-muted); font-size: .88rem; }
+
+/* Grupos en pasos */
+.salud-paso { background: #fff; border: 1px solid var(--color-border); border-radius: 12px; box-shadow: var(--shadow); margin-bottom: 1rem; overflow: hidden; }
+.salud-paso-cab { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; padding: .75rem 1.1rem; border-bottom: 1px solid var(--color-border); background: linear-gradient(90deg, var(--sal-azul-suave), #fff 70%); }
+.salud-paso-num { width: 26px; height: 26px; border-radius: 50%; background: var(--color-primary); color: #fff; font-weight: 700; font-size: .85rem; display: grid; place-items: center; flex: none; }
+.salud-paso-cab h3 { margin: 0; font-size: 1rem; color: var(--color-primary); }
+.salud-paso-cab .em { font-size: .82rem; color: var(--color-muted); }
+.sal-chip { margin-left: auto; display: inline-block; font-size: .74rem; font-weight: 700; padding: .2rem .6rem; border-radius: 999px; background: var(--sal-verde-suave); color: var(--sal-verde); }
+.sal-chip.rojo { background: var(--sal-rojo-suave); color: var(--sal-rojo); }
+.sal-chip.ambar { background: var(--sal-ambar-suave); color: var(--sal-ambar); }
+.sal-chip.error { background: #ede9fe; color: var(--sal-violeta); }
+
+/* Un control = una fila */
+.chequeo { border-bottom: 1px solid #eef2f7; }
+.chequeo:last-child { border-bottom: 0; }
+.chequeo.rojo, .chequeo.ambar, .chequeo.error { background: #fffbeb; }
+.chequeo.rojo { background: #fff5f5; }
+.chequeo.error { background: #f5f3ff; }
+.chequeo-head { display: flex; align-items: center; gap: .8rem; padding: .7rem 1.1rem; cursor: pointer; }
+.chequeo-head:hover { background: rgba(42, 54, 97, .03); }
+.chequeo.ok .chequeo-head { cursor: default; }
+.chequeo-punto { width: 10px; height: 10px; border-radius: 50%; flex: none; background: var(--sal-verde); }
+.chequeo.rojo  .chequeo-punto { background: var(--sal-rojo); }
+.chequeo.ambar .chequeo-punto { background: var(--sal-ambar); }
+.chequeo.error .chequeo-punto { background: var(--sal-violeta); }
+.chequeo-texto { flex: 1; min-width: 0; }
+.chequeo-titulo { font-weight: 600; font-size: .92rem; }
+.chequeo-resumen { font-size: .82rem; color: var(--color-muted); margin-top: .15rem; }
+.chequeo-derecha { display: flex; align-items: center; gap: .7rem; flex: none; }
+.chequeo-monto { font-weight: 700; color: var(--sal-rojo); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.chequeo-flecha { color: var(--color-muted); font-size: .8rem; transition: transform .15s; }
+.chequeo.abierto .chequeo-flecha { transform: rotate(180deg); }
+.chequeo-cuerpo { display: none; padding: 0 1.1rem 1rem 2.9rem; }
+.chequeo.abierto .chequeo-cuerpo { display: block; }
+.chequeo-cuerpo .table-wrap { border: 1px solid var(--color-border); border-radius: 10px; overflow: auto; background: #fff; }
+.chequeo-cuerpo table { width: 100%; border-collapse: collapse; font-size: .84rem; }
+.chequeo-cuerpo th { background: #f1f5f9; color: #475569; font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; padding: .5rem .65rem; text-align: left; border-bottom: 1px solid var(--color-border); white-space: nowrap; }
+.chequeo-cuerpo td { padding: .45rem .65rem; border-bottom: 1px solid #eef2f7; }
+.chequeo-cuerpo tr:last-child td { border-bottom: 0; }
+.chequeo-acciones { margin-top: .7rem; display: flex; gap: .6rem; align-items: center; font-size: .85rem; color: var(--color-muted); }
+.chequeo-error { background: #fff; border: 1px solid #ddd6fe; border-radius: 10px; padding: .6rem .8rem; font-size: .85rem; margin-bottom: .6rem; }
+.chequeo.oculto { display: none; }
+
+.salud-pie { margin-top: 1rem; font-size: .8rem; color: var(--color-muted); line-height: 1.5; }
+.chequeo-acciones a { text-decoration: none; }

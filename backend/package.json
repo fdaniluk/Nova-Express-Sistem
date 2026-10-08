@@ -106,7 +106,8 @@
     "test-escaneo": "node scripts/test-escaneo-dia.js",
     "test-paso": "node scripts/test-paso-tarifa.js && node scripts/test-pantalla-paso-tarifa.js",
     "cargar-tarifarios-viejos": "node scripts/cargar-tarifarios-viejos.js",
-    "test-matriz-vieja": "node scripts/test-matriz-planilla-vieja.js"
+    "test-matriz-vieja": "node scripts/test-matriz-planilla-vieja.js",
+    "test-pantalla-salud-cobros": "node scripts/test-pantalla-salud-cobros.js"
   },
   "keywords": [
     "nova-express",

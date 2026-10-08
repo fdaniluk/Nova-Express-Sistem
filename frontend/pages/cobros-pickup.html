@@ -6,53 +6,7 @@
   <title>Cobros en pickup – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260929a">
-  <style>
-    .resumen-cobranzas {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 1rem;
-      margin-bottom: 1rem;
-    }
-    .resumen-card {
-      flex: 1 1 200px;
-      background: #fff;
-      border: 1px solid var(--color-border);
-      border-radius: var(--radius);
-      padding: 0.9rem 1.1rem;
-    }
-    .resumen-card .resumen-label {
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      letter-spacing: 0.03em;
-      color: var(--color-muted);
-    }
-    .resumen-card .resumen-monto {
-      font-size: 1.5rem;
-      font-weight: 700;
-      margin-top: 0.2rem;
-    }
-    .resumen-card.ars .resumen-monto { color: var(--color-primary); }
-    .resumen-card.usd .resumen-monto { color: var(--color-success); }
-    .resumen-card .resumen-desglose {
-      margin-top: 0.55rem;
-      padding-top: 0.5rem;
-      border-top: 1px solid var(--color-border);
-      font-size: 0.8rem;
-      color: var(--color-muted);
-      line-height: 1.5;
-    }
-    .resumen-card .resumen-desglose .dg-item { white-space: nowrap; }
-    .resumen-card .resumen-desglose .dg-sep { margin: 0 0.4rem; opacity: 0.5; }
-    .resumen-card .resumen-desglose .dg-label { color: var(--color-muted); }
-    .resumen-card .resumen-desglose .dg-monto { font-weight: 600; color: var(--color-text); }
-    .resumen-card .resumen-desglose.vacio { color: var(--color-muted); font-style: italic; }
-    .form-cobranza {
-      display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
-      gap: 0.75rem 1rem;
-    }
-    .form-cobranza .full { grid-column: 1 / -1; }
-  </style>
+  <link rel="stylesheet" href="../css/modules/cobros-pickup.css?v=20261008a">
 </head>
 <body>
 <div class="app-layout">
@@ -146,118 +100,128 @@
   <div class="page-content">
     <div class="page-header">
       <h1>Cobros en pickup</h1>
-      <button class="btn btn-primary" id="btn-nueva">+ Nueva cobranza</button>
+      <div class="cp-cab-info">
+        <span class="cp-pill" id="cp-resumen"></span>
+        <button class="btn btn-sm btn-coral" id="btn-nueva">+ Nueva cobranza</button>
+      </div>
     </div>
 
     <div class="page-body">
       <div id="alert-box"></div>
 
-      <!-- Filtros -->
-      <div class="card">
-        <div class="filters">
-          <div class="form-group">
-            <label for="f-cliente">Cliente</label>
-            <select id="f-cliente">
-              <option value="">Todos</option>
-            </select>
-          </div>
-          <div class="form-group">
-            <label for="f-desde">Desde</label>
-            <input type="date" id="f-desde">
-          </div>
-          <div class="form-group">
-            <label for="f-hasta">Hasta</label>
-            <input type="date" id="f-hasta">
-          </div>
-          <button class="btn btn-primary" id="btn-filtrar">Filtrar</button>
-          <button class="btn btn-secondary" id="btn-limpiar">Limpiar</button>
+      <!-- Paso 1: alta / edición. Siempre a la vista (antes era un panel oculto). -->
+      <section class="cp-paso" id="form-panel">
+        <div class="cp-paso-cab"><span class="cp-paso-num">1</span><h3 id="form-title">Nueva cobranza</h3><span class="em">lo que se cobró en el pickup o en la oficina; queda en la cuenta del cliente</span></div>
+        <div class="cp-paso-cuerpo">
+          <form id="form-cobranza-el">
+            <input type="hidden" id="cobranza-id">
+            <div class="form-cobranza">
+              <div class="form-group">
+                <label class="cp-label" for="c-cliente">Cliente *</label>
+                <select id="c-cliente" required>
+                  <option value="">Seleccionar…</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="cp-label" for="c-fecha">Fecha *</label>
+                <input type="date" id="c-fecha" required>
+              </div>
+              <div class="form-group">
+                <label class="cp-label" for="c-monto">Monto *</label>
+                <input type="number" id="c-monto" min="0.01" step="0.01" required>
+              </div>
+              <div class="form-group">
+                <label class="cp-label" for="c-moneda">Moneda *</label>
+                <select id="c-moneda">
+                  <option value="ARS">ARS</option>
+                  <option value="USD">USD</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label class="cp-label" for="c-forma_pago">Forma de pago</label>
+                <select id="c-forma_pago">
+                  <option value="efectivo">Efectivo</option>
+                  <option value="cheque">Cheque</option>
+                  <option value="transferencia">Transferencia</option>
+                  <option value="otro">Otro</option>
+                </select>
+              </div>
+              <div class="form-group full">
+                <label class="cp-label" for="c-nota">Nota</label>
+                <input type="text" id="c-nota" placeholder="ej. a cuenta de la liquidación de septiembre">
+              </div>
+            </div>
+            <div class="cp-acciones">
+              <button type="submit" class="btn btn-coral" id="btn-guardar">Guardar cobranza</button>
+              <button type="button" class="btn btn-outline" id="btn-cancelar">Cancelar</button>
+            </div>
+          </form>
         </div>
-      </div>
+      </section>
 
-      <!-- Resumen por moneda -->
-      <div class="resumen-cobranzas">
-        <div class="resumen-card ars">
-          <div class="resumen-label">Total ARS</div>
-          <div class="resumen-monto" id="total-ars">$0,00</div>
-          <div class="resumen-desglose" id="desglose-ars"></div>
-        </div>
-        <div class="resumen-card usd">
-          <div class="resumen-label">Total USD</div>
-          <div class="resumen-monto" id="total-usd">US$0.00</div>
-          <div class="resumen-desglose" id="desglose-usd"></div>
-        </div>
-      </div>
-
-      <!-- Formulario add/edit (oculto por defecto) -->
-      <div class="card hidden" id="form-panel">
-        <h2 id="form-title">Nueva cobranza</h2>
-        <form id="form-cobranza-el">
-          <input type="hidden" id="cobranza-id">
-          <div class="form-cobranza">
+      <!-- Paso 2: filtros, totales y lista -->
+      <section class="cp-paso">
+        <div class="cp-paso-cab"><span class="cp-paso-num">2</span><h3>Cobros del período</h3><span class="em">filtrá por cliente y fechas</span></div>
+        <div class="cp-paso-cuerpo">
+          <div class="filters cp-filtros">
             <div class="form-group">
-              <label for="c-cliente">Cliente *</label>
-              <select id="c-cliente" required>
-                <option value="">Seleccionar…</option>
+              <label class="cp-label" for="f-cliente">Cliente</label>
+              <select id="f-cliente">
+                <option value="">Todos</option>
               </select>
             </div>
             <div class="form-group">
-              <label for="c-fecha">Fecha *</label>
-              <input type="date" id="c-fecha" required>
+              <label class="cp-label" for="f-desde">Desde</label>
+              <input type="date" id="f-desde">
             </div>
             <div class="form-group">
-              <label for="c-monto">Monto *</label>
-              <input type="number" id="c-monto" min="0.01" step="0.01" required>
+              <label class="cp-label" for="f-hasta">Hasta</label>
+              <input type="date" id="f-hasta">
             </div>
-            <div class="form-group">
-              <label for="c-moneda">Moneda *</label>
-              <select id="c-moneda">
-                <option value="ARS">ARS</option>
-                <option value="USD">USD</option>
-              </select>
-            </div>
-            <div class="form-group">
-              <label for="c-forma_pago">Forma de pago</label>
-              <select id="c-forma_pago">
-                <option value="efectivo">Efectivo</option>
-                <option value="cheque">Cheque</option>
-                <option value="transferencia">Transferencia</option>
-                <option value="otro">Otro</option>
-              </select>
-            </div>
-            <div class="form-group full">
-              <label for="c-nota">Nota</label>
-              <input type="text" id="c-nota" placeholder="Opcional">
-            </div>
+            <button class="btn btn-outline" id="btn-filtrar">Filtrar</button>
+            <button class="btn btn-outline btn-outline-gris" id="btn-limpiar">Limpiar</button>
           </div>
-          <div class="actions">
-            <button type="submit" class="btn btn-primary">Guardar</button>
-            <button type="button" class="btn btn-secondary" id="btn-cancelar">Cancelar</button>
-          </div>
-        </form>
-      </div>
 
-      <!-- Tabla de cobranzas -->
-      <div class="card">
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Fecha</th>
-                <th>Cliente</th>
-                <th>Monto</th>
-                <th>Moneda</th>
-                <th>Forma de pago</th>
-                <th>Origen</th>
-                <th>Nota</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody id="tabla-cobranzas">
-              <tr><td colspan="8" class="empty">Cargando...</td></tr>
-            </tbody>
-          </table>
+          <div class="resumen-cobranzas">
+            <div class="resumen-card ars">
+              <div class="resumen-label">Total ARS</div>
+              <div class="resumen-monto" id="total-ars">$0,00</div>
+              <div class="resumen-desglose" id="desglose-ars"></div>
+            </div>
+            <div class="resumen-card usd">
+              <div class="resumen-label">Total USD</div>
+              <div class="resumen-monto" id="total-usd">US$0.00</div>
+              <div class="resumen-desglose" id="desglose-usd"></div>
+            </div>
+            <div class="resumen-card">
+              <div class="resumen-label">Clientes</div>
+              <div class="resumen-monto" id="total-clientes">0</div>
+              <div class="resumen-desglose" id="desglose-clientes"></div>
+            </div>
+          </div>
+
+          <div class="cp-tabla-card">
+            <div class="table-wrap">
+              <table class="cp-tabla">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>Cliente</th>
+                    <th class="num">Monto</th>
+                    <th>Forma de pago</th>
+                    <th>Origen</th>
+                    <th>Nota</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody id="tabla-cobranzas">
+                  <tr><td colspan="7" class="empty">Cargando...</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
         </div>
-      </div>
+      </section>
     </div>
   </div>
 </div>
@@ -265,6 +229,6 @@
 <script src="/js/auth-guard.js?v=20260924b"></script>
 <script src="../js/api.js?v=20261008a"></script>
 <script src="../js/main.js?v=20260929a"></script>
-<script src="../js/modules/cobros-pickup.js?v=20260921a"></script>
+<script src="../js/modules/cobros-pickup.js?v=20261008a"></script>
 </body>
 </html>

@@ -1,0 +1,75 @@
+/* ════════════════════════════════════════════════════════════════════════════════════
+   COBROS EN PICKUP — estética del sistema (08/10/2026, último ítem de estética)
+   Paso 1 el alta (siempre a la vista), paso 2 filtros + totales + lista. Botón principal en
+   coral, secundarios con borde, forma de pago y origen como chips.
+   Maqueta aprobada: docs/maquetas/maqueta-salud-cobros-pickup.html.
+   ⚠ No cambia ningún id (form-panel, form-title, form-cobranza-el, c-*, f-*, btn-*,
+   total-ars/usd, desglose-ars/usd, tabla-cobranzas).
+   ════════════════════════════════════════════════════════════════════════════════════ */
+:root { --cp-azul-suave: #eaf1f8; --cp-verde: #15803d; --cp-verde-suave: #dcfce7; --cp-ambar: #b45309; --cp-ambar-suave: #fef3c7; --cp-rojo: #b91c1c; --cp-coral: #f26a4b; --cp-coral-oscuro: #d9573a; }
+
+.cp-cab-info { margin-left: auto; display: flex; gap: .5rem; align-items: center; }
+.cp-pill { font-size: .76rem; font-weight: 700; padding: .3rem .75rem; border-radius: 999px; background: var(--cp-azul-suave); color: var(--color-primary); border: 1px solid #c9d8e8; }
+.cp-pill:empty { display: none; }
+.em { color: var(--color-muted); }
+.btn-coral { background: var(--cp-coral); color: #fff; border: 1px solid var(--cp-coral); }
+.btn-coral:hover { background: var(--cp-coral-oscuro); border-color: var(--cp-coral-oscuro); }
+.btn-outline { background: #fff; color: var(--color-primary); border: 1px solid var(--color-primary); }
+.btn-outline:hover { background: var(--cp-azul-suave); }
+.btn-outline-gris { border-color: var(--color-border); color: var(--color-muted); }
+.btn-outline-rojo { color: var(--cp-rojo); border-color: var(--cp-rojo); }
+.btn-outline-rojo:hover { background: #fee2e2; }
+
+/* Pasos */
+.cp-paso { background: var(--color-surface); border: 1px solid var(--color-border); border-radius: 12px; box-shadow: var(--shadow); margin-bottom: 1rem; overflow: hidden; }
+.cp-paso-cab { display: flex; align-items: center; gap: .8rem; flex-wrap: wrap; padding: .75rem 1.1rem; border-bottom: 1px solid var(--color-border); background: linear-gradient(90deg, var(--cp-azul-suave), #fff 70%); }
+.cp-paso.editando .cp-paso-cab { background: linear-gradient(90deg, var(--cp-ambar-suave), #fff 70%); }
+.cp-paso-num { width: 26px; height: 26px; border-radius: 50%; background: var(--color-primary); color: #fff; font-weight: 700; font-size: .85rem; display: grid; place-items: center; flex: none; }
+.cp-paso-cab h3 { margin: 0; font-size: 1rem; color: var(--color-primary); }
+.cp-paso-cab .em { font-size: .82rem; }
+.cp-paso-cuerpo { padding: 1rem 1.1rem; }
+
+/* Formulario */
+.form-cobranza { display: grid; grid-template-columns: repeat(4, 1fr); gap: .75rem 1rem; }
+.form-cobranza .full { grid-column: 1 / -1; }
+.form-cobranza .form-group, .cp-filtros .form-group { margin: 0; }
+.cp-label { display: block; font-size: .7rem; letter-spacing: .4px; text-transform: uppercase; color: var(--color-muted); font-weight: 600; margin-bottom: .3rem; }
+.form-cobranza input, .form-cobranza select, .cp-filtros input, .cp-filtros select { width: 100%; padding: .5rem .65rem; border: 1px solid var(--color-border); border-radius: 8px; font: inherit; font-size: .92rem; background: #fff; }
+.form-cobranza input:focus, .form-cobranza select:focus, .cp-filtros input:focus, .cp-filtros select:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(42, 54, 97, .12); }
+.cp-acciones { display: flex; gap: .6rem; margin-top: 1rem; }
+@media (max-width: 900px) { .form-cobranza { grid-template-columns: 1fr 1fr; } }
+
+/* Filtros */
+.cp-filtros { display: flex; gap: .75rem; align-items: end; flex-wrap: wrap; margin-bottom: 1rem; }
+.cp-filtros .form-group { min-width: 160px; }
+
+/* Totales */
+.resumen-cobranzas { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; margin-bottom: 1rem; }
+.resumen-card { background: #fff; border: 1px solid var(--color-border); border-top: 4px solid var(--color-primary); border-radius: 12px; padding: .9rem 1.1rem; box-shadow: var(--shadow); }
+.resumen-card.usd { border-top-color: var(--cp-verde); }
+.resumen-card .resumen-label { font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; color: var(--color-muted); font-weight: 600; }
+.resumen-card .resumen-monto { font-size: 1.7rem; font-weight: 700; margin-top: .2rem; color: var(--color-primary); font-variant-numeric: tabular-nums; line-height: 1.15; }
+.resumen-card.usd .resumen-monto { color: var(--cp-verde); }
+.resumen-card .resumen-desglose { margin-top: .4rem; font-size: .8rem; color: var(--color-muted); line-height: 1.5; }
+.resumen-card .resumen-desglose .dg-item { white-space: nowrap; }
+.resumen-card .resumen-desglose .dg-sep { margin: 0 .4rem; opacity: .5; }
+.resumen-card .resumen-desglose .dg-monto { font-weight: 600; color: var(--color-text); }
+.resumen-card .resumen-desglose.vacio { font-style: italic; }
+
+/* Lista */
+.cp-tabla-card { border: 1px solid var(--color-border); border-radius: 12px; overflow: hidden; box-shadow: var(--shadow); }
+.cp-tabla-card .table-wrap { margin: 0; }
+.cp-tabla { width: 100%; border-collapse: collapse; font-size: .88rem; }
+.cp-tabla th { background: #f1f5f9; color: #475569; font-size: .72rem; text-transform: uppercase; letter-spacing: .04em; padding: .55rem .8rem; text-align: left; border-bottom: 1px solid var(--color-border); }
+.cp-tabla td { padding: .6rem .8rem; border-bottom: 1px solid #eef2f7; vertical-align: middle; }
+.cp-tabla tr:last-child td { border-bottom: 0; }
+.cp-tabla tr:hover td { background: #fbfcfe; }
+.cp-tabla .num { text-align: right; font-variant-numeric: tabular-nums; font-weight: 600; }
+.cp-tabla td.empty { color: var(--color-muted); padding: 1rem .8rem; text-align: center; }
+.cp-tabla td.em { font-size: .84rem; }
+.cp-chip { display: inline-block; font-size: .74rem; font-weight: 700; padding: .2rem .6rem; border-radius: 999px; }
+.cp-chip-ok { background: var(--cp-verde-suave); color: var(--cp-verde); }
+.cp-chip-gris { background: #f1f5f9; color: #475569; }
+.cp-chip-azul { background: var(--cp-azul-suave); color: var(--color-primary); }
+.cp-chip-ambar { background: var(--cp-ambar-suave); color: var(--cp-ambar); }
+.cp-fila-acciones { display: flex; gap: .35rem; justify-content: flex-end; }

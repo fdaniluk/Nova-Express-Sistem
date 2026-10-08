@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Maqueta — Salud y Cobros en pickup</title>
+<link rel="stylesheet" href="../../frontend/css/main.css">
+<style>
+/* MAQUETA Salud + Cobros en pickup (08/10/2026, último ítem de estética). Datos inventados. */
+:root { --m-azul-suave:#eaf1f8; --m-verde:#15803d; --m-verde-suave:#dcfce7; --m-ambar:#b45309; --m-ambar-suave:#fef3c7; --m-rojo:#b91c1c; --m-rojo-suave:#fee2e2; --m-coral:#f26a4b; }
+body { padding:1.25rem 1.5rem; max-width:1360px; }
+.maq-nota { font-size:.8rem; color:#64748b; margin:0 0 .75rem; }
+.page-header { display:flex; align-items:center; gap:1rem; padding:.9rem 1.2rem; background:#fff; border:1px solid var(--color-border); border-radius:10px 10px 0 0; }
+.page-header h1 { margin:0; font-size:1.25rem; color:var(--color-primary); }
+.page-body { background:#fff; border:1px solid var(--color-border); border-top:0; border-radius:0 0 10px 10px; padding:1rem 1.2rem 1.4rem; margin-bottom:2rem; }
+.btn { font:inherit; border-radius:8px; padding:.55rem 1rem; cursor:pointer; border:1px solid transparent; font-weight:600; font-size:.9rem; }
+.btn-coral { background:var(--m-coral); color:#fff; } .btn-outline { background:#fff; color:var(--color-primary); border-color:var(--color-primary); }
+.btn-sm { padding:.3rem .65rem; font-size:.8rem; }
+.paso { background:#fff; border:1px solid var(--color-border); border-radius:12px; box-shadow:var(--shadow); margin-bottom:1rem; overflow:hidden; }
+.paso-cab { display:flex; align-items:center; gap:.8rem; padding:.75rem 1.1rem; border-bottom:1px solid var(--color-border); background:linear-gradient(90deg,var(--m-azul-suave),#fff 70%); }
+.paso-num { width:26px; height:26px; border-radius:50%; background:var(--color-primary); color:#fff; font-weight:700; font-size:.85rem; display:grid; place-items:center; }
+.paso-cab h3 { margin:0; font-size:1rem; color:var(--color-primary); } .paso-cab .em { color:var(--color-muted); font-size:.82rem; }
+.paso-cuerpo { padding:1rem 1.1rem; }
+label.l { display:block; font-size:.7rem; letter-spacing:.4px; text-transform:uppercase; color:var(--color-muted); font-weight:600; margin-bottom:.25rem; }
+input.i, select.i { width:100%; padding:.5rem .65rem; border:1px solid var(--color-border); border-radius:8px; font:inherit; font-size:.92rem; background:#fff; }
+.tabla { width:100%; border-collapse:collapse; font-size:.88rem; }
+.tabla th { background:#f1f5f9; color:#475569; font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; padding:.55rem .65rem; text-align:left; border-bottom:1px solid var(--color-border); }
+.tabla td { padding:.65rem .65rem; border-bottom:1px solid #eef2f7; vertical-align:middle; }
+.tabla .num { text-align:right; font-variant-numeric:tabular-nums; }
+.chip { display:inline-block; font-size:.74rem; font-weight:700; padding:.2rem .6rem; border-radius:999px; }
+.chip-ok { background:var(--m-verde-suave); color:var(--m-verde); } .chip-gris { background:#f1f5f9; color:#475569; } .chip-azul { background:var(--m-azul-suave); color:var(--color-primary); } .chip-ambar { background:var(--m-ambar-suave); color:var(--m-ambar); } .chip-rojo { background:var(--m-rojo-suave); color:var(--m-rojo); }
+.tabla-card { border:1px solid var(--color-border); border-radius:12px; overflow:hidden; box-shadow:var(--shadow); }
+/* Salud */
+.sem { display:grid; grid-template-columns:repeat(4,1fr); gap:1rem; margin-bottom:1rem; }
+.tile { border:1px solid var(--color-border); border-top:4px solid var(--color-primary); border-radius:12px; padding:.9rem 1.1rem; background:#fff; box-shadow:var(--shadow); }
+.tile .n { font-size:2rem; font-weight:700; line-height:1.1; color:var(--color-primary); } .tile .l { font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; color:var(--color-muted); font-weight:600; }
+.tile .em { font-size:.8rem; color:var(--color-muted); margin-top:.3rem; }
+.tile.rojo { border-top-color:var(--m-rojo); } .tile.rojo .n { color:var(--m-rojo); }
+.tile.ambar { border-top-color:var(--m-ambar); } .tile.ambar .n { color:var(--m-ambar); }
+.tile.ok { border-top-color:var(--m-verde); } .tile.ok .n { color:var(--m-verde); }
+.ctrl { display:grid; grid-template-columns:auto 1fr auto; gap:.8rem; align-items:center; padding:.7rem 1rem; border-bottom:1px solid #eef2f7; }
+.ctrl:last-child { border-bottom:0; }
+.ctrl .dot { width:10px; height:10px; border-radius:50%; } .dot.ok { background:var(--m-verde); } .dot.rojo { background:var(--m-rojo); } .dot.ambar { background:var(--m-ambar); }
+.ctrl b { display:block; font-size:.92rem; color:var(--color-text); } .ctrl span.d { font-size:.82rem; color:var(--color-muted); }
+.ctrl.abierto { background:#fffbeb; }
+.ctrl-det { grid-column:1 / -1; }
+.seg { display:inline-flex; border:1px solid var(--color-border); border-radius:999px; overflow:hidden; }
+.seg span { padding:.3rem .8rem; font-size:.8rem; cursor:pointer; color:var(--color-muted); } .seg span.on { background:var(--color-primary); color:#fff; font-weight:600; }
+/* Cobros */
+.tot { display:grid; grid-template-columns:repeat(3,1fr); gap:1rem; margin-bottom:1rem; }
+.filtros { display:flex; gap:.75rem; align-items:end; flex-wrap:wrap; margin-bottom:1rem; }
+.filtros > div { min-width:160px; }
+.form { display:grid; grid-template-columns:repeat(4,1fr); gap:.75rem 1rem; }
+.form .full { grid-column:1 / -1; }
+</style>
+</head>
+<body>
+<p class="maq-nota">Maqueta · Salud y Cobros en pickup · 08/10/2026 · datos inventados</p>
+
+<!-- ═══ SALUD ═══ -->
+<div class="page-header"><h1>Salud del sistema</h1><span class="chip chip-gris" style="margin-left:auto">revisado hoy 15:34</span><button class="btn btn-coral btn-sm">Volver a revisar</button></div>
+<div class="page-body">
+  <div class="sem">
+    <div class="tile rojo"><div class="l">Urgente</div><div class="n">1</div><div class="em">plata en juego</div></div>
+    <div class="tile ambar"><div class="l">Para mirar</div><div class="n">2</div><div class="em">datos que faltan</div></div>
+    <div class="tile ok"><div class="l">En orden</div><div class="n">11</div><div class="em">controles verdes</div></div>
+    <div class="tile"><div class="l">Desde el corte</div><div class="n" style="font-size:1.3rem;padding-top:.4rem">01/09/2026</div><div class="em">lo anterior no se destaca</div></div>
+  </div>
+  <div style="display:flex;gap:.6rem;align-items:center;margin-bottom:1rem"><span class="seg"><span class="on">Todos</span><span>Solo lo que hay que mirar</span></span><span class="em" style="font-size:.82rem;color:var(--color-muted)">Un control abierto muestra su detalle y el botón para ir a arreglarlo.</span></div>
+
+  <div class="paso">
+    <div class="paso-cab"><span class="paso-num">1</span><h3>Plata</h3><span class="em">lo que puede costar dinero si no se mira</span><span class="chip chip-rojo" style="margin-left:auto">1 para mirar</span></div>
+    <div class="ctrl abierto"><span class="dot rojo"></span><div><b>Desvíos contra la factura sin revisar</b><span class="d">3 envíos con costo fuera de tolerancia esperan revisión (USD 212 en juego).</span></div><button class="btn btn-outline btn-sm">Ir a Facturas</button>
+      <div class="ctrl-det tabla-card" style="margin-top:.5rem"><table class="tabla"><tr><th>Guía</th><th>Cliente</th><th class="num">Estimado</th><th class="num">Facturado</th><th class="num">Dif.</th></tr><tr><td>1Z327W096799333912</td><td>Miguel Acuña</td><td class="num">86,04</td><td class="num">142,10</td><td class="num" style="color:var(--m-rojo);font-weight:700">+56,06</td></tr><tr><td>9743171491</td><td>Casablanca</td><td class="num">87,74</td><td class="num">131,20</td><td class="num" style="color:var(--m-rojo);font-weight:700">+43,46</td></tr></table></div></div>
+    <div class="ctrl"><span class="dot ok"></span><div><b>Envíos en más de una liquidación</b><span class="d">Ningún envío está cargado en dos liquidaciones.</span></div><span></span></div>
+    <div class="ctrl"><span class="dot ok"></span><div><b>Guías facturadas sin envío cargado</b><span class="d">Todas las guías facturadas desde el corte tienen su envío.</span></div><span></span></div>
+    <div class="ctrl"><span class="dot ok"></span><div><b>Facturas del courier que no cuadran</b><span class="d">Todas las facturas cargadas cuadran con el detalle por guía.</span></div><span></span></div>
+    <div class="ctrl"><span class="dot ok"></span><div><b>Envíos con un fuel distinto al de Configuración</b><span class="d">Todos los envíos de los últimos 60 días usan el fuel que regía el día que se cargaron.</span></div><span></span></div>
+  </div>
+
+  <div class="paso">
+    <div class="paso-cab"><span class="paso-num">2</span><h3>Datos que faltan</h3><span class="em">clientes o envíos incompletos</span><span class="chip chip-ambar" style="margin-left:auto">2 para mirar</span></div>
+    <div class="ctrl abierto"><span class="dot ambar"></span><div><b>Clientes activos sin margen configurado</b><span class="d">2 de 118 clientes activos no tienen ni porcentaje ni matriz: el cotizador no les calcula la ganancia.</span></div><button class="btn btn-outline btn-sm">Ir a Clientes</button></div>
+    <div class="ctrl abierto"><span class="dot ambar"></span><div><b>Envíos de meses cerrados sin precio de venta</b><span class="d">4 envíos de septiembre no tienen precio ni están liquidados.</span></div><button class="btn btn-outline btn-sm">Ir a Salidas</button></div>
+    <div class="ctrl"><span class="dot ok"></span><div><b>Clientes cargados dos veces</b><span class="d">No hay clientes con el mismo nombre.</span></div><span></span></div>
+  </div>
+
+  <div class="paso">
+    <div class="paso-cab"><span class="paso-num">3</span><h3>Higiene del sistema</h3><span class="em">copias, cierres y basura en la base</span><span class="chip chip-ok" style="margin-left:auto">todo en orden</span></div>
+    <div class="ctrl"><span class="dot ok"></span><div><b>Backups de la base</b><span class="d">30 copias en el VPS, la última hace 20 minutos; copia externa del 05/10.</span></div><span></span></div>
+    <div class="ctrl"><span class="dot ok"></span><div><b>Cierres de mes archivados</b><span class="d">Septiembre cerrado el 02/10 por Victoria.</span></div><span></span></div>
+    <div class="ctrl"><span class="dot ok"></span><div><b>Liquidaciones en borrador olvidadas</b><span class="d">No hay liquidaciones en borrador de más de 7 días.</span></div><span></span></div>
+  </div>
+  <p class="maq-nota" style="margin-top:.5rem">Este panel solo lee: no modifica ningún dato. Se controla desde la fecha de corte de Configuración.</p>
+</div>
+
+<!-- ═══ COBROS EN PICKUP ═══ -->
+<div class="page-header"><h1>Cobros en pickup</h1><span class="chip chip-azul" style="margin-left:auto">octubre · 7 cobros</span><button class="btn btn-coral btn-sm">+ Nueva cobranza</button></div>
+<div class="page-body">
+  <div class="paso">
+    <div class="paso-cab"><span class="paso-num">1</span><h3>Nueva cobranza</h3><span class="em">lo que el chofer cobró en el pickup; va a la cuenta del cliente</span></div>
+    <div class="paso-cuerpo">
+      <div class="form">
+        <div><label class="l">Cliente</label><select class="i"><option>Fagliano</option></select></div>
+        <div><label class="l">Fecha</label><input class="i" type="date" value="2026-10-08"></div>
+        <div><label class="l">Monto</label><input class="i" value="150.000"></div>
+        <div><label class="l">Moneda</label><select class="i"><option>ARS</option><option>USD</option></select></div>
+        <div><label class="l">Forma de pago</label><select class="i"><option>Efectivo</option><option>Transferencia</option></select></div>
+        <div><label class="l">Cobró</label><select class="i"><option>Ricardo (chofer)</option></select></div>
+        <div class="full"><label class="l">Nota</label><input class="i" placeholder="ej. a cuenta de la liquidación de septiembre"></div>
+      </div>
+      <div style="display:flex;gap:.6rem;margin-top:1rem"><button class="btn btn-coral">Guardar cobranza</button><button class="btn btn-outline">Cancelar</button></div>
+    </div>
+  </div>
+
+  <div class="paso">
+    <div class="paso-cab"><span class="paso-num">2</span><h3>Cobros del período</h3><span class="em">filtrá por cliente y fechas</span></div>
+    <div class="paso-cuerpo">
+      <div class="filtros">
+        <div><label class="l">Cliente</label><select class="i"><option>Todos</option></select></div>
+        <div><label class="l">Desde</label><input class="i" type="date" value="2026-10-01"></div>
+        <div><label class="l">Hasta</label><input class="i" type="date" value="2026-10-08"></div>
+        <button class="btn btn-outline">Filtrar</button><button class="btn btn-outline" style="border-color:var(--color-border);color:var(--color-muted)">Limpiar</button>
+      </div>
+      <div class="tot">
+        <div class="tile"><div class="l">Total ARS</div><div class="n">$ 1.235.000</div><div class="em">5 cobros · efectivo $ 835.000 · transferencia $ 400.000</div></div>
+        <div class="tile ok"><div class="l">Total USD</div><div class="n">US$ 1.420</div><div class="em">2 cobros · efectivo</div></div>
+        <div class="tile"><div class="l">Clientes</div><div class="n">4</div><div class="em">Fagliano, Zappala, Casablanca, Lascano</div></div>
+      </div>
+      <div class="tabla-card"><table class="tabla">
+        <tr><th>Fecha</th><th>Cliente</th><th class="num">Monto</th><th>Forma de pago</th><th>Cobró</th><th>Nota</th><th></th></tr>
+        <tr><td>08/10/2026</td><td><strong>Fagliano</strong></td><td class="num">$ 150.000</td><td><span class="chip chip-gris">efectivo</span></td><td>Ricardo</td><td class="em">a cuenta sept.</td><td><button class="btn btn-outline btn-sm">Editar</button></td></tr>
+        <tr><td>07/10/2026</td><td><strong>Zappala</strong></td><td class="num">US$ 920</td><td><span class="chip chip-gris">efectivo</span></td><td>Ricardo</td><td></td><td><button class="btn btn-outline btn-sm">Editar</button></td></tr>
+        <tr><td>06/10/2026</td><td><strong>Casablanca</strong></td><td class="num">$ 400.000</td><td><span class="chip chip-azul">transferencia</span></td><td>Oficina</td><td class="em">liquidación 112</td><td><button class="btn btn-outline btn-sm">Editar</button></td></tr>
+        <tr><td>03/10/2026</td><td><strong>Lascano</strong></td><td class="num">US$ 500</td><td><span class="chip chip-gris">efectivo</span></td><td>Ricardo</td><td></td><td><button class="btn btn-outline btn-sm">Editar</button></td></tr>
+      </table></div>
+    </div>
+  </div>
+</div>
+</body>
+</html>

@@ -1,3 +1,5 @@
+// Cobros en pickup — estética del sistema (08/10/2026): el alta es el paso 1, siempre a la
+// vista; el paso 2 son filtros, totales y la lista. Endpoints sin cambios.
 (function () {
   const alertBox = document.getElementById('alert-box');
   const tabla = document.getElementById('tabla-cobranzas');
@@ -5,6 +7,9 @@
   const totalUsdEl = document.getElementById('total-usd');
   const desgloseArsEl = document.getElementById('desglose-ars');
   const desgloseUsdEl = document.getElementById('desglose-usd');
+  const totalClientesEl = document.getElementById('total-clientes');
+  const desgloseClientesEl = document.getElementById('desglose-clientes');
+  const resumenCab = document.getElementById('cp-resumen');
 
   const filtroCliente = document.getElementById('f-cliente');
   const filtroDesde = document.getElementById('f-desde');
@@ -97,6 +102,14 @@
     totalArsEl.textContent = fmtArs.format(resumen.total_ars || 0);
     totalUsdEl.textContent = 'US$' + fmtUsd.format(resumen.total_usd || 0);
     renderDesglose();
+    // Tercera tarjeta (08/10/2026): cuántos clientes cobraron en el período y quiénes.
+    const nombres = [...new Set(cobranzas.map((c) => c.cliente_nombre).filter(Boolean))];
+    if (totalClientesEl) totalClientesEl.textContent = String(nombres.length);
+    if (desgloseClientesEl) {
+      desgloseClientesEl.textContent = nombres.length ? nombres.slice(0, 6).join(', ') + (nombres.length > 6 ? ` y ${nombres.length - 6} más` : '') : 'Sin cobranzas';
+      desgloseClientesEl.classList.toggle('vacio', !nombres.length);
+    }
+    if (resumenCab) resumenCab.textContent = cobranzas.length ? `${cobranzas.length} cobro${cobranzas.length === 1 ? '' : 's'} en el período` : '';
   }
 
   // Desglose por forma de pago dentro de cada moneda, calculado en el frontend
@@ -144,9 +157,11 @@
       : fmtArs.format(monto || 0);
   }
 
+  const CHIP_FORMA = { efectivo: 'cp-chip-gris', cheque: 'cp-chip-ambar', transferencia: 'cp-chip-azul', otro: 'cp-chip-gris' };
+
   function renderTabla() {
     if (!cobranzas.length) {
-      tabla.innerHTML = '<tr><td colspan="8" class="empty">No hay cobranzas en el período seleccionado.</td></tr>';
+      tabla.innerHTML = '<tr><td colspan="7" class="empty">No hay cobranzas en el período seleccionado.</td></tr>';
       return;
     }
     tabla.innerHTML = cobranzas
@@ -154,16 +169,15 @@
         (c) => `
       <tr>
         <td>${NovaUtils.formatDate(c.fecha)}</td>
-        <td>${c.cliente_nombre || '—'}</td>
-        <td>${formatMonto(c.monto, c.moneda)}</td>
-        <td>${c.moneda}</td>
-        <td>${FORMAS[c.forma_pago] || c.forma_pago || '—'}</td>
-        <td>${c.pickup_id ? '<span class="badge badge-liquidado">Pickup</span>' : '<span class="badge badge-pendiente">Directa</span>'}</td>
-        <td>${c.nota ? escapeHtml(c.nota) : '—'}</td>
+        <td><strong>${escapeHtml(c.cliente_nombre || '—')}</strong></td>
+        <td class="num">${formatMonto(c.monto, c.moneda)}</td>
+        <td><span class="cp-chip ${CHIP_FORMA[c.forma_pago] || 'cp-chip-gris'}">${(FORMAS[c.forma_pago] || c.forma_pago || '—').toLowerCase()}</span></td>
+        <td>${c.pickup_id ? '<span class="cp-chip cp-chip-ok">pickup</span>' : '<span class="cp-chip cp-chip-azul">directa</span>'}</td>
+        <td class="em">${c.nota ? escapeHtml(c.nota) : ''}</td>
         <td>
-          <div style="display:flex;gap:0.35rem">
-            <button class="btn btn-sm btn-secondary" data-id="${c.id}" data-action="editar">Editar</button>
-            <button class="btn btn-sm btn-danger" data-id="${c.id}" data-action="eliminar">Eliminar</button>
+          <div class="cp-fila-acciones">
+            <button class="btn btn-sm btn-outline" data-id="${c.id}" data-action="editar">Editar</button>
+            <button class="btn btn-sm btn-outline btn-outline-rojo" data-id="${c.id}" data-action="eliminar">Eliminar</button>
           </div>
         </td>
       </tr>`
@@ -194,8 +208,10 @@
     document.getElementById('c-fecha').value = hoyISO();
     document.getElementById('c-moneda').value = 'ARS';
     document.getElementById('c-forma_pago').value = 'efectivo';
-    formPanel.classList.remove('hidden');
+    formPanel.classList.remove('editando');
+    document.getElementById('btn-guardar').textContent = 'Guardar cobranza';
     formPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    selCliente.focus();
   }
 
   function abrirEdicion(id) {
@@ -210,14 +226,22 @@
     document.getElementById('c-moneda').value = c.moneda || 'ARS';
     document.getElementById('c-forma_pago').value = c.forma_pago || 'efectivo';
     document.getElementById('c-nota').value = c.nota || '';
-    formPanel.classList.remove('hidden');
+    formPanel.classList.add('editando');
+    document.getElementById('btn-guardar').textContent = 'Guardar cambios';
     formPanel.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
+  // El formulario está siempre a la vista (08/10/2026): "cerrar" es volver a "nueva".
   function cerrarForm() {
-    formPanel.classList.add('hidden');
+    modoEdicion = false;
     formEl.reset();
     cobranzaIdInput.value = '';
+    formTitle.textContent = 'Nueva cobranza';
+    formPanel.classList.remove('editando');
+    document.getElementById('btn-guardar').textContent = 'Guardar cobranza';
+    document.getElementById('c-fecha').value = hoyISO();
+    document.getElementById('c-moneda').value = 'ARS';
+    document.getElementById('c-forma_pago').value = 'efectivo';
   }
 
   function getFormData() {

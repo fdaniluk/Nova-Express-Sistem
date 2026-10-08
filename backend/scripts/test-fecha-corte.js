@@ -156,6 +156,9 @@ async function main() {
 
     await page.goto(BASE + '/pages/configuracion.html', { waitUntil: 'networkidle' });
     await esperar(1000);
+    // Desde el 08/10 la fecha de corte vive en la pestaña Controles.
+    await page.click('.tab[data-tab="controles"]');
+    await esperar(300);
     check('Configuración muestra la fecha de corte', await page.evaluate(() => document.getElementById('corte-actual')?.textContent.trim() === '01/09/2026'),
       await page.evaluate(() => document.getElementById('corte-actual')?.textContent));
     await page.fill('#corte-input', '2026-08-01');
