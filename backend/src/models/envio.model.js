@@ -233,6 +233,8 @@ async function calcularDesgloseAlCosto(data, pesoFacturable) {
     // Protección de Documentos de DHL (USD 7,50). Sin esta línea el cargo se pierde al
     // congelar el costo y reaparece como descuadre al conciliar contra la factura.
     proteccionDoc: data.proteccion_doc ? true : false,
+    // Entrega residencial (UPS, USD 6): tilde del alta/edición (08/10/2026).
+    residencial: data.residencial ? true : false,
     // Tipo de paquete → tarifa de documento de DHL (hasta 2 kg). Sin esto el costo se
     // congelaba siempre con la tabla de mercadería, aunque el envío estuviera marcado
     // como documento, y la utilidad de esos envíos quedaba mal calculada.
@@ -305,11 +307,11 @@ async function crear(data) {
           cliente_id, fecha, courier, tipo_envio, numero_guia, pais_destino, destino_raw, direccion, zona,
           cantidad_bultos, peso_real, largo, ancho, alto,
           peso_volumetrico, peso_facturable, fob, total_cobrado, observaciones,
-          numero_salida, bulto, tipo_paquete, asegurado, ddp, proteccion_doc, remota, entrega,
+          numero_salida, bulto, tipo_paquete, asegurado, ddp, proteccion_doc, residencial, remota, entrega,
           flete, descuento, seguro, fuel, fuel_pct, fuel_origen, derechos, adicionales, otros, profit, porcentaje,
           extras_json, servicio_ups, num_sal_cero, seguro_venta, tarifa_50,
           destinatario_id, contenido, proforma_numero, guia_id, remitente_id, cp_destino, descuento_venta_pct
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         data.cliente_id,
@@ -341,6 +343,7 @@ async function crear(data) {
         data.asegurado ?? 0,
         data.ddp ?? 0,
         data.proteccion_doc ?? 0,
+        data.residencial ? 1 : 0,
         data.remota ?? 0,
         data.entrega ?? null,
         desglose ? desglose.flete : (data.flete ?? null),
@@ -435,7 +438,7 @@ async function actualizar(id, data) {
     // La fecha mueve el costo desde el 27-sep-2026: el surge UPS de importación y el de
     // DHL dependen del día del envío.
     'fecha',
-    'fob', 'fuel_pct', 'fuel_origen', 'tipo_paquete', 'asegurado', 'ddp', 'proteccion_doc', 'remota', 'entrega',
+    'fob', 'fuel_pct', 'fuel_origen', 'tipo_paquete', 'asegurado', 'ddp', 'proteccion_doc', 'residencial', 'remota', 'entrega',
   ];
   const cambioElCosto = CAMPOS_QUE_MUEVEN_EL_COSTO.some((c) => {
     if (data[c] === undefined) return false;
@@ -504,7 +507,7 @@ async function actualizar(id, data) {
         peso_volumetrico = ?, peso_facturable = ?,
         fob = ?, total_cobrado = ?, observaciones = ?,
         servicio_ups = ?, fuel_pct = ?, fuel_origen = ?,
-        tipo_paquete = ?, asegurado = ?, ddp = ?, proteccion_doc = ?, remota = ?, entrega = ?,
+        tipo_paquete = ?, asegurado = ?, ddp = ?, proteccion_doc = ?, residencial = ?, remota = ?, entrega = ?,
         num_sal_cero = ?,
         seguro_venta = ?,
         destinatario_id = ?, contenido = ?, proforma_numero = ?, remitente_id = ?,
@@ -540,6 +543,7 @@ async function actualizar(id, data) {
       data.asegurado !== undefined ? (data.asegurado ? 1 : 0) : actual.asegurado,
       data.ddp !== undefined ? (data.ddp ? 1 : 0) : actual.ddp,
       data.proteccion_doc !== undefined ? (data.proteccion_doc ? 1 : 0) : actual.proteccion_doc,
+      data.residencial !== undefined ? (data.residencial ? 1 : 0) : actual.residencial,
       data.remota !== undefined ? (data.remota ? 1 : 0) : actual.remota,
       data.entrega !== undefined ? data.entrega : actual.entrega,
       data.num_sal_cero !== undefined ? (data.num_sal_cero ? 1 : 0) : actual.num_sal_cero,

@@ -65,7 +65,9 @@ initDb()
     // envíos en curso y pinta rojo/amarillo/verde solo. Sin credenciales UPS queda
     // apagado (los tests y cualquier entorno sin .env de UPS caen acá y no tocan la
     // red). La primera pasada espera un minuto para no pisar el arranque.
-    if ((process.env.UPS_CLIENT_ID || '').trim()) {
+    // DHL (08/10/2026): con DHL_API_KEY/SECRET en el .env, la misma pasada rastrea los DHL.
+    const hayDHL = require('./services/dhl.service').hayCredenciales();
+    if ((process.env.UPS_CLIENT_ID || '').trim() || hayDHL) {
       const { refrescarSemaforo } = require('./services/tracking-auto.service');
       const correrSemaforo = async () => {
         try {
@@ -78,7 +80,7 @@ initDb()
       setTimeout(correrSemaforo, 60 * 1000);
       setInterval(correrSemaforo, 4 * 60 * 60 * 1000);
     } else {
-      console.log('[tracking-auto] sin credenciales UPS: el semáforo automático queda apagado');
+      console.log('[tracking-auto] sin credenciales UPS ni DHL: el semáforo automático queda apagado');
     }
     // Mercado Pago (24/09/2026): cada 10 minutos trae los cobros de los últimos 3 días y
     // guarda los nuevos en pagos_entrantes (no duplica: cada cobro tiene su id de MP).

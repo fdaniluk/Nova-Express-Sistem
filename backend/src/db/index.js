@@ -286,6 +286,9 @@ async function migrateEnvios() {
     // tarifario, se pide con una tilde. DEFAULT 0 = ningún envío que ya existe cambia
     // de precio al aplicar esta migración.
     ['proteccion_doc',   'INTEGER DEFAULT 0'],
+    // Entrega residencial de UPS (USD 6,00; 08/10/2026). UPS lo cobraba en el 30 % de las
+    // guías y el alta no tenía forma de preverlo: saltaba siempre como anomalía de factura.
+    ['residencial',      'INTEGER DEFAULT 0'],
     // De DONDE salio el fuel de este envio: 'nova' | 'dhl' | 'ups' | 'cliente' | 'manual'.
     // El porcentaje se sigue congelando en fuel_pct; esto guarda POR QUE es ese. Sin esto,
     // dentro de un mes nadie puede explicar por que un envio tiene 27% si Nova estaba en 30%.

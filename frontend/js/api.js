@@ -306,6 +306,7 @@ api.salidas = {
 
 api.tracking = {
   ups: (guia) => api.get(`/tracking/ups/${encodeURIComponent(guia)}`),
+  dhl: (guia) => api.get(`/tracking/dhl/${encodeURIComponent(guia)}`),
 };
 
 api.cobrosPickup = {

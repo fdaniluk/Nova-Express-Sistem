@@ -337,6 +337,9 @@
                   <div class="env-chips">
                     <label class="env-check chip" for="asegurado"><input type="checkbox" id="asegurado"> Asegurado <small>FOB ≥ 100 se marca solo</small></label>
                     <label class="env-check chip" for="ddp"><input type="checkbox" id="ddp"> DDP <small>impuestos a cargo de Nova</small></label>
+                    <!-- Entrega residencial de UPS (USD 6,00): si el destino es una casa, UPS lo cobra
+                         siempre. Se tilda acá para cobrárselo al cliente de entrada (08/10/2026). -->
+                    <label class="env-check chip" for="residencial" id="grupo-residencial"><input type="checkbox" id="residencial"> Entrega residencial <small>UPS, USD 6</small></label>
                     <!-- Servicio OPCIONAL de DHL (USD 7,50 por envio): se pide, no sale por defecto.
                          Se oculta cuando el courier es UPS porque no existe de ese lado. -->
                     <label class="env-check chip" for="proteccion_doc" id="grupo-proteccion-doc"><input type="checkbox" id="proteccion_doc"> Protección doc. <small>solo DHL</small></label>
@@ -483,11 +486,11 @@
 </div>
 
 <script src="/js/auth-guard.js?v=20260924b"></script>
-<script src="../js/api.js?v=20261005a"></script>
+<script src="../js/api.js?v=20261008a"></script>
 <script src="../js/main.js?v=20260929a"></script>
 <script src="/shared/cotizador/cotizador-core.js?v=20261002a"></script>
 <script src="/shared/guias/validar-guia.js?v=20260915a"></script>
 <script src="../js/cotizaciones-recientes.js?v=20261002a"></script>
-<script src="../js/modules/envios.js?v=20261002a"></script>
+<script src="../js/modules/envios.js?v=20261008a"></script>
 </body>
 </html>

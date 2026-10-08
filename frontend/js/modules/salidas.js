@@ -558,7 +558,7 @@
 
     // Iconos (revisión/alerta/tracking) solo en el primer renglón del envío.
     const guiaIcons = isFirst
-      ? `${revisionIconHtml(e)}${alert ? alertIconHtml(alert, e) : ''}${e.courier === 'UPS' ? trackBtnHtml(e.numero_guia) : ''}`
+      ? `${revisionIconHtml(e)}${alert ? alertIconHtml(alert, e) : ''}${(e.courier === 'UPS' || e.courier === 'DHL') && e.numero_guia ? trackBtnHtml(e.numero_guia, e.courier) : ''}`
       : '';
 
     // Lápiz para editar la guía de ESTE bulto: solo en bultos reales (id no nulo).
@@ -1973,8 +1973,9 @@
   // Antes abría un recuadro con lo que devuelve la API de UPS, pero la página es más
   // completa y más fácil de leer, así que el recuadro se retiró. El endpoint
   // /api/tracking/ups sigue existiendo por si otra pantalla lo necesita.
-  function trackBtnHtml(guia) {
-    return `<button class="track-btn" data-guia="${esc(guia)}" title="Ver el tracking en la página de UPS">🚚</button>`;
+  // DHL (08/10/2026): el mismo camioncito lleva a la página de tracking de DHL.
+  function trackBtnHtml(guia, courier = 'UPS') {
+    return `<button class="track-btn" data-guia="${esc(guia)}" data-courier="${esc(courier)}" title="Ver el tracking en la página de ${esc(courier)}">🚚</button>`;
   }
 
   function bindTracking() {
@@ -1982,8 +1983,11 @@
       const btn = e.target.closest('.track-btn');
       if (!btn) return;
       e.stopPropagation();
+      const guia = encodeURIComponent(btn.dataset.guia);
       // loc=es_AR para que UPS la muestre en castellano.
-      const url = `https://www.ups.com/track?loc=es_AR&tracknum=${encodeURIComponent(btn.dataset.guia)}`;
+      const url = btn.dataset.courier === 'DHL'
+        ? `https://www.dhl.com/ar-es/home/tracking/tracking-express.html?submit=1&tracking-id=${guia}`
+        : `https://www.ups.com/track?loc=es_AR&tracknum=${guia}`;
       window.open(url, '_blank', 'noopener');
     });
   }
@@ -2320,6 +2324,9 @@
               <div class="sal-chks" style="grid-column:1 / -1">
                 <label class="sal-chk"><input type="checkbox" id="saled-asegurado">Asegurado</label>
                 <label class="sal-chk"><input type="checkbox" id="saled-ddp">DDP</label>
+                <!-- Entrega residencial de UPS (USD 6,00; 08/10/2026): se tilda si el destino es una
+                     casa, así se cobra de entrada y la factura no lo marca como no previsto. -->
+                <label class="sal-chk" id="saled-residencial-label" title="Entrega residencial de UPS — USD 6,00 por envío"><input type="checkbox" id="saled-residencial">Residencial</label>
                 <!-- Impuestos de destino facturados por UPS (solo lectura): llegan en una
                      factura aparte, 1-2 meses después, y se liquidan al cliente en su
                      propio documento. Se llena en abrirModal. -->
@@ -2581,6 +2588,7 @@
       }
     }
     document.getElementById('saled-proteccion-doc').checked = Boolean(envio.proteccion_doc);
+    document.getElementById('saled-residencial').checked = Boolean(envio.residencial);
 
     // Identidad editable: fecha, cliente, courier, país destino y "sin numerar".
     document.getElementById('saled-fecha').value = envio.fecha || '';
@@ -3247,6 +3255,7 @@
       // cargo de 24.05 desaparece del desglose.
       ddp: document.getElementById('saled-ddp').checked ? 1 : 0,
       proteccion_doc: document.getElementById('saled-proteccion-doc').checked ? 1 : 0,
+      residencial: document.getElementById('saled-residencial').checked ? 1 : 0,
       pais_destino: document.getElementById('saled-pais-destino').value || null,
       courier: document.getElementById('saled-courier').value,
       // Servicio UPS tal como está AHORA en el modal (null en DHL).
@@ -3491,6 +3500,7 @@
       fob: num('saled-fob') ?? 0,
       ddp: document.getElementById('saled-ddp').checked,
       proteccionDoc: document.getElementById('saled-proteccion-doc').checked,
+      residencial: document.getElementById('saled-residencial').checked,
       entrega: document.getElementById('saled-entrega').value,
       contenido: document.getElementById('saled-tipo-paquete').value === 'd'
         ? 'documento' : 'paquete',
@@ -3733,6 +3743,7 @@
       remota:         document.getElementById('saled-entrega').value !== 'normal' ? 1 : 0,
       ddp:            document.getElementById('saled-ddp').checked ? 1 : 0,
       proteccion_doc: document.getElementById('saled-proteccion-doc').checked ? 1 : 0,
+      residencial:    document.getElementById('saled-residencial').checked ? 1 : 0,
       observaciones:  document.getElementById('saled-observaciones').value.trim() || null,
     };
     for (const f of ['flete', 'descuento', 'seguro', 'fuel', 'derechos', 'adicionales', 'otros', 'profit', 'porcentaje']) {

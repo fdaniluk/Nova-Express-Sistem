@@ -131,7 +131,7 @@ function detectarAnomalias(envio, factura) {
   // Extras que el envío marcó aunque no tengan monto (ej. zona de entrega).
   const marcado = (tipo) => {
     if (tipo === 'remota') return Boolean(envio.remota) || (envio.entrega && envio.entrega !== 'normal');
-    if (tipo === 'residencial') return envio.entrega === 'residencial';
+    if (tipo === 'residencial') return Boolean(envio.residencial) || envio.entrega === 'residencial';
     if (tipo === 'ddp') return Boolean(envio.ddp);
     if (tipo === 'seguro') return Boolean(envio.asegurado);
     return false;

@@ -10,9 +10,10 @@
  *
  * LAS REGLAS (decididas por Felipe el 31/08):
  *  - Corre cada 4 horas (y una vez al arrancar el servidor).
- *  - Solo UPS: DHL no tiene API configurada, sus botones siguen siendo manuales.
- *  - GANA UPS SIEMPRE: en un envío UPS, lo que diga el courier pisa lo que se haya
- *    marcado a mano. Los botones quedan para DHL y para el que quiera ver el detalle.
+ *  - UPS desde el 31/08; DHL desde el 08/10/2026 (MyDHL API, dhl.service.js). Cada
+ *    courier entra solo si el servidor tiene sus credenciales en .env.
+ *  - GANA EL COURIER SIEMPRE: lo que diga UPS o DHL pisa lo que se haya marcado a mano.
+ *    Los botones quedan para ver el detalle y para los envíos sin API.
  *
  * QUÉ MIRA Y QUÉ NO
  *  - Envíos UPS de los últimos 45 días, con guía con pinta de UPS (1Z + 16), que no
@@ -32,6 +33,7 @@
  */
 
 const { getTracking, getPaquetesEnvio, semaforoDeEstado } = require('./ups.service');
+const dhl = require('./dhl.service');
 
 // Completa `envio_bultos.numero_guia` con las cajas que informó UPS (28/09/2026). Con
 // varios bultos, cada caja sale con su propio número y la oficina solo tipea el de la
@@ -67,14 +69,23 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
  * @param pausaMs     respiro entre llamadas a UPS
  * @returns {consultados, pintados, errores, omitidos}
  */
-async function refrescarSemaforo(db, { obtenerTracking = getTracking, obtenerPaquetes = null, limite = 300, pausaMs = 250 } = {}) {
+async function refrescarSemaforo(db, { obtenerTracking = getTracking, obtenerPaquetes = null, obtenerTrackingDHL = null, limite = 300, pausaMs = 250, couriers = null } = {}) {
   // Con un UPS simulado (tests) que solo inyecta obtenerTracking, se usa ese para todo.
   if (!obtenerPaquetes) obtenerPaquetes = obtenerTracking === getTracking ? getPaquetesEnvio : obtenerTracking;
+  // Qué couriers se consultan: los que tienen API. En tests se inyecta el doble de DHL
+  // (obtenerTrackingDHL) o la lista `couriers`; en producción manda el .env.
+  if (!couriers) {
+    couriers = [];
+    if (obtenerTracking !== getTracking || (process.env.UPS_CLIENT_ID || '').trim()) couriers.push('UPS');
+    if (obtenerTrackingDHL || dhl.hayCredenciales()) couriers.push('DHL');
+  }
+  if (!obtenerTrackingDHL) obtenerTrackingDHL = dhl.getTrackingDHL;
+  const filtroCourier = couriers.map((c) => `UPPER(courier) LIKE '%${c}%'`).join(' OR ') || '0';
   const candidatos = await db.prepare(`
-    SELECT id, numero_guia,
+    SELECT id, numero_guia, courier,
            (SELECT COUNT(*) FROM envio_bultos b WHERE b.envio_id = envios.id) AS n_bultos
     FROM envios
-    WHERE UPPER(courier) LIKE '%UPS%'
+    WHERE (${filtroCourier})
       AND numero_guia IS NOT NULL AND TRIM(numero_guia) != ''
       AND (no_volo IS NULL OR no_volo = 0)
       AND fecha >= date('now', 'localtime', '-45 day')
@@ -88,13 +99,17 @@ async function refrescarSemaforo(db, { obtenerTracking = getTracking, obtenerPaq
     if (resumen.consultados >= limite) break;
 
     const guia = String(e.numero_guia).trim();
-    if (!UPS_GUIA_REGEX.test(guia)) {
-      // Guía que no tiene forma de UPS (mal tipeada o de otra cuenta): se anota UNA vez
+    const esDHL = /DHL/i.test(String(e.courier || ''));
+    const regex = esDHL ? dhl.DHL_GUIA_REGEX : UPS_GUIA_REGEX;
+    const nombre = esDHL ? 'DHL' : 'UPS';
+    if (!regex.test(guia)) {
+      // Guía que no tiene forma del courier (mal tipeada o de otra cuenta): se anota UNA vez
       // para que se vea en el tooltip, y no se gasta una llamada de API en ella.
+      const aviso = `Guía sin formato ${nombre}: no se puede rastrear`;
       await db.prepare(`
         UPDATE envios SET tracking_detalle = ?, tracking_fecha = datetime('now', 'localtime')
         WHERE id = ? AND (tracking_detalle IS NULL OR tracking_detalle != ?)
-      `).run('Guía sin formato UPS: no se puede rastrear', e.id, 'Guía sin formato UPS: no se puede rastrear');
+      `).run(aviso, e.id, aviso);
       resumen.omitidos++;
       continue;
     }
@@ -103,9 +118,10 @@ async function refrescarSemaforo(db, { obtenerTracking = getTracking, obtenerPaq
     try {
       // Varios bultos: se pide el envío entero (una entrada por caja), se completan las
       // guías de los bultos que falten y el semáforo se pinta CAJA POR CAJA (28/09).
+      // DHL devuelve siempre las piezas en la misma consulta.
       const varios = Number(e.n_bultos) > 1;
-      const t = varios ? await obtenerPaquetes(guia) : await obtenerTracking(guia);
-      const color = semaforoDeEstado(t?.tipo, t?.estado);
+      const t = esDHL ? await obtenerTrackingDHL(guia) : (varios ? await obtenerPaquetes(guia) : await obtenerTracking(guia));
+      const color = esDHL ? dhl.semaforoDeEstadoDHL(t?.tipo, t?.estado) : semaforoDeEstado(t?.tipo, t?.estado);
       const detalle = [t?.estado, t?.ubicacion].filter(Boolean).join(' — ') || null;
       if (varios && Array.isArray(t?.paquetes)) resumen.guias_completadas = (resumen.guias_completadas || 0) + await completarGuiasBultos(db, e.id, t.paquetes);
       if (color) {
@@ -113,8 +129,8 @@ async function refrescarSemaforo(db, { obtenerTracking = getTracking, obtenerPaq
           UPDATE envios SET tracking_estado = ?, tracking_detalle = ?, tracking_fecha = datetime('now', 'localtime')
           WHERE id = ?
         `).run(color, detalle, e.id);
-        // Gana UPS siempre: pisa lo manual en los bultos de este envío. Por caja si UPS
-        // informó cada una; si no, el color del envío para todas.
+        // Gana el courier siempre: pisa lo manual en los bultos de este envío. Por caja si
+        // el courier informó cada una; si no, el color del envío para todas.
         await db.prepare('UPDATE envio_bultos SET estado_caja = ? WHERE envio_id = ?').run(color, e.id);
         if (varios && Array.isArray(t?.paquetes)) {
           for (const p of t.paquetes) {
@@ -126,7 +142,7 @@ async function refrescarSemaforo(db, { obtenerTracking = getTracking, obtenerPaq
         // UPS respondió pero sin nada útil: se deja constancia de que se miró.
         await db.prepare(`
           UPDATE envios SET tracking_detalle = ?, tracking_fecha = datetime('now', 'localtime') WHERE id = ?
-        `).run('UPS sin actividad para esta guía', e.id);
+        `).run(`${nombre} sin actividad para esta guía`, e.id);
       }
     } catch (err) {
       // El error queda A LA VISTA en el envío (no solo en el log): tracking_detalle lo

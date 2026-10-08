@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Maqueta — Control de facturas Nova Express</title>
+<link rel="stylesheet" href="../../frontend/css/main.css">
+<style>
+/* ─────────────────────────────────────────────────────────────────────────
+   MAQUETA de Control de facturas con el criterio de Guías / Cargar envío /
+   Cotizador / Liquidaciones (08/10/2026, ítem 6 del orden de estética).
+   Es una FOTO de diseño con datos inventados. Nada se ejecuta.
+   Lo que cambia respecto de hoy:
+   · Cargar: zona para soltar el PDF (o elegirlo), el courier se detecta solo y se
+     muestra como chip; el resultado en tarjetas: contadores grandes, el CUADRE en
+     una tarjeta propia (guías · IVA · percepción · total) y las anomalías con los
+     chips de siempre y un atajo a Salidas.
+   · Revisar guías: barra de filtros (estado, cliente, corte), estados como chips,
+     diferencia pintada, acciones con los mismos botones de Guías.
+   · Sin envío e Ingresos Brutos: tarjetas de totales arriba, tabla con cabecera gris.
+   · Las pestañas llevan el contador (a revisar · sin envío).
+   ───────────────────────────────────────────────────────────────────────── */
+:root { --fac-azul-suave:#eaf1f8; --fac-verde:#15803d; --fac-verde-suave:#dcfce7; --fac-ambar:#b45309; --fac-ambar-suave:#fef3c7; --fac-rojo:#b91c1c; --fac-rojo-suave:#fee2e2; --fac-coral:#f26a4b; }
+body { padding: 1.25rem 1.5rem; max-width: 1360px; }
+.maq-nota { font-size:.8rem; color:#64748b; margin:0 0 .75rem; }
+.page-header { display:flex; align-items:center; gap:1rem; padding:.9rem 1.2rem; background:#fff; border:1px solid var(--color-border); border-radius:10px 10px 0 0; }
+.page-header h1 { margin:0; font-size:1.25rem; color:var(--color-primary); }
+.fac-cab-info { display:flex; gap:.5rem; align-items:center; margin-left:auto; }
+.fac-pill { font-size:.76rem; font-weight:700; padding:.3rem .75rem; border-radius:999px; background:var(--fac-azul-suave); color:var(--color-primary); border:1px solid #c9d8e8; }
+.page-body { background:#fff; border:1px solid var(--color-border); border-top:0; border-radius:0 0 10px 10px; padding:1rem 1.2rem 1.4rem; }
+.tabs { margin-bottom:1.1rem; } .tab { font-weight:500; }
+.tab-badge.ambar { background:var(--fac-ambar-suave); color:var(--fac-ambar); }
+.btn { font:inherit; border-radius:8px; padding:.55rem 1rem; cursor:pointer; border:1px solid transparent; font-weight:600; font-size:.9rem; }
+.btn-coral { background:var(--fac-coral); color:#fff; } .btn-outline { background:#fff; color:var(--color-primary); border-color:var(--color-primary); }
+.btn-ghost { background:transparent; color:var(--color-primary); border:1px dashed var(--color-border); }
+.btn-sm { padding:.35rem .7rem; font-size:.8rem; }
+/* Pasos en tarjetas, como Guías */
+.paso { background:var(--color-surface); border:1px solid var(--color-border); border-radius:12px; box-shadow:var(--shadow); margin-bottom:1rem; overflow:hidden; }
+.paso-cab { display:flex; align-items:center; gap:.8rem; padding:.75rem 1.1rem; border-bottom:1px solid var(--color-border); background:linear-gradient(90deg,var(--fac-azul-suave),#fff 70%); }
+.paso-num { width:26px; height:26px; border-radius:50%; background:var(--color-primary); color:#fff; font-weight:700; font-size:.85rem; display:grid; place-items:center; }
+.paso-cab h3 { margin:0; font-size:1rem; color:var(--color-primary); }
+.paso-cab .em { color:var(--color-muted); font-size:.82rem; margin-left:.3rem; }
+.paso-cuerpo { padding:1rem 1.1rem; }
+/* Zona de PDF */
+.fac-drop { display:flex; align-items:center; gap:1.2rem; padding:1.1rem 1.3rem; border:2px dashed #c9d8e8; border-radius:12px; background:#fbfcfe; }
+.fac-drop .ico { font-size:2rem; }
+.fac-drop b { color:var(--color-primary); }
+.fac-drop .em { color:var(--color-muted); font-size:.85rem; }
+.fac-drop .acciones { margin-left:auto; display:flex; gap:.5rem; align-items:center; }
+.fac-archivo { display:inline-flex; align-items:center; gap:.5rem; padding:.4rem .7rem; border:1px solid var(--color-border); border-radius:8px; background:#fff; font-size:.88rem; }
+.chip { display:inline-block; font-size:.74rem; font-weight:700; padding:.2rem .6rem; border-radius:999px; letter-spacing:.3px; }
+.chip-dhl { background:#fff3c4; color:#b4000c; border:1px solid #ffcc00; } .chip-ups { background:#5c3b00; color:#ffd27a; }
+.chip-ok { background:var(--fac-verde-suave); color:var(--fac-verde); } .chip-ambar { background:var(--fac-ambar-suave); color:var(--fac-ambar); } .chip-rojo { background:var(--fac-rojo-suave); color:var(--fac-rojo); } .chip-gris { background:#f1f5f9; color:#475569; }
+.chip-anom { background:var(--fac-ambar-suave); color:var(--fac-ambar); border:1px solid #fcd34d; font-weight:600; font-size:.74rem; padding:.15rem .5rem; border-radius:6px; margin:.1rem .2rem .1rem 0; display:inline-block; }
+/* Resultado: contadores + cuadre lado a lado */
+.fac-res-grid { display:grid; grid-template-columns:1.4fr 1fr; gap:1rem; }
+.tiles { display:grid; grid-template-columns:repeat(4,1fr); gap:.7rem; }
+.tile { border:1px solid var(--color-border); border-radius:10px; padding:.7rem .8rem; background:#fff; }
+.tile .v { font-size:1.6rem; font-weight:700; color:var(--color-primary); line-height:1.1; } .tile .l { font-size:.7rem; font-weight:600; text-transform:uppercase; letter-spacing:.04em; color:var(--color-muted); margin-top:.15rem; }
+.tile.ok .v { color:var(--fac-verde); } .tile.warn .v { color:var(--fac-ambar); } .tile.danger .v { color:var(--fac-rojo); }
+.cuadre { border:1px solid #bbf7d0; background:#f0fdf4; border-radius:10px; padding:.8rem 1rem; }
+.cuadre h4 { margin:0 0 .5rem; font-size:.95rem; color:var(--fac-verde); display:flex; align-items:center; gap:.5rem; }
+.cuadre dl { display:grid; grid-template-columns:1fr auto; gap:.25rem 1rem; margin:0; font-size:.88rem; }
+.cuadre dt { color:#475569; } .cuadre dd { margin:0; text-align:right; font-variant-numeric:tabular-nums; }
+.cuadre dd b { color:var(--color-primary); } .cuadre .tot { border-top:1px solid #bbf7d0; padding-top:.3rem; margin-top:.2rem; font-weight:700; }
+.cuadre .nota { font-size:.78rem; color:#166534; margin-top:.5rem; }
+/* Tablas */
+.fac-table { width:100%; border-collapse:collapse; font-size:.86rem; }
+.fac-table th { background:#f1f5f9; color:#475569; font-size:.72rem; text-transform:uppercase; letter-spacing:.04em; padding:.55rem .6rem; text-align:left; border-bottom:1px solid var(--color-border); }
+.fac-table td { padding:.6rem .6rem; border-bottom:1px solid #eef2f7; vertical-align:middle; }
+.fac-table tr:hover td { background:#fbfcfe; }
+.num { text-align:right; font-variant-numeric:tabular-nums; } .mono { font-family:ui-monospace,Menlo,Consolas,monospace; font-size:.82rem; }
+.dif-mas { color:var(--fac-rojo); font-weight:700; } .dif-menos { color:var(--fac-verde); font-weight:700; }
+.toolbar { display:flex; flex-wrap:wrap; gap:.75rem 1rem; align-items:flex-end; padding:.8rem 1rem; background:#fbfcfe; border:1px solid var(--color-border); border-radius:10px; margin-bottom:1rem; }
+.toolbar label { display:block; font-size:.7rem; letter-spacing:.4px; text-transform:uppercase; color:var(--color-muted); font-weight:600; margin-bottom:.2rem; }
+.toolbar input, .toolbar select { padding:.45rem .6rem; border:1px solid var(--color-border); border-radius:6px; font:inherit; font-size:.9rem; background:#fff; }
+.toolbar .der { margin-left:auto; display:flex; gap:.5rem; align-items:center; }
+.seg { display:inline-flex; border:1px solid var(--color-border); border-radius:8px; overflow:hidden; }
+.seg button { font:inherit; font-size:.82rem; padding:.4rem .8rem; border:0; background:#fff; color:var(--color-muted); cursor:pointer; }
+.seg button.on { background:var(--color-primary); color:#fff; }
+.acciones-fila { display:flex; gap:.3rem; }
+.acciones-fila .btn-sm.ok { border-color:var(--fac-verde); color:var(--fac-verde); } .acciones-fila .btn-sm.rec { border-color:var(--fac-ambar); color:var(--fac-ambar); }
+.seccion-titulo { display:flex; align-items:center; gap:.6rem; margin:1.4rem 0 .6rem; }
+.seccion-titulo h2 { margin:0; font-size:1.05rem; color:var(--color-primary); }
+.seccion-titulo .em { color:var(--color-muted); font-size:.82rem; }
+.sep { height:1px; background:var(--color-border); margin:1.6rem 0; }
+.mes-lista { display:flex; gap:.6rem; flex-wrap:wrap; margin-bottom:.8rem; }
+.mes { border:1px solid var(--color-border); border-radius:10px; padding:.5rem .8rem; background:#fff; display:flex; gap:.7rem; align-items:baseline; }
+.mes b { color:var(--color-primary); } .mes .em { color:var(--color-muted); font-size:.78rem; }
+</style>
+</head>
+<body>
+<p class="maq-nota">Maqueta · Control de facturas · 08/10/2026 · datos inventados · las tres vistas una debajo de la otra (en la pantalla real son pestañas)</p>
+
+<div class="page-header"><h1>Control de facturas</h1>
+  <div class="fac-cab-info"><span class="fac-pill">UPS · DHL</span><span class="fac-pill">corte 01/09/2026</span></div>
+</div>
+<div class="page-body">
+  <div class="tabs">
+    <button class="tab active">Cargar factura</button>
+    <button class="tab">Revisar guías <span class="tab-badge">12</span></button>
+    <button class="tab">Sin envío <span class="tab-badge ambar">4</span></button>
+    <button class="tab">Ingresos Brutos</button>
+  </div>
+
+  <!-- ═══ PESTAÑA CARGAR ═══ -->
+  <div class="paso">
+    <div class="paso-cab"><span class="paso-num">1</span><h3>El PDF de la factura</h3><span class="em">UPS o DHL: el sistema reconoce cuál es</span></div>
+    <div class="paso-cuerpo">
+      <div class="fac-drop">
+        <span class="ico">📄</span>
+        <div><b>Soltá el PDF acá</b> o elegilo desde la compu<br><span class="em">Una factura por vez · hasta 20 MB · también sirve la de impuestos DDP</span></div>
+        <div class="acciones">
+          <span class="fac-archivo">DHL-1700A00033064_02102026.pdf <span class="chip chip-dhl">DHL</span></span>
+          <button class="btn btn-outline">Elegir otro</button>
+          <button class="btn btn-coral">Cargar factura</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="paso">
+    <div class="paso-cab"><span class="paso-num">2</span><h3>Resultado de la carga</h3><span class="em">factura 1700A00033064 · DHL · 30/09/2026</span></div>
+    <div class="paso-cuerpo">
+      <div class="fac-res-grid">
+        <div>
+          <div class="tiles">
+            <div class="tile ok"><div class="v">4</div><div class="l">Guías en la factura</div></div>
+            <div class="tile ok"><div class="v">3</div><div class="l">Cruzadas con envío</div></div>
+            <div class="tile warn"><div class="v">1</div><div class="l">Sin envío</div></div>
+            <div class="tile danger"><div class="v">2</div><div class="l">Con cargos no previstos</div></div>
+          </div>
+          <div class="seccion-titulo"><h2>Guías con cargos no previstos</h2><span class="em">quedan "a revisar"; en Salidas se ven con el chip ⚠</span></div>
+          <table class="fac-table">
+            <thead><tr><th>Guía</th><th>Cliente</th><th>Qué facturó de más</th><th class="num">Costo</th><th></th></tr></thead>
+            <tbody>
+              <tr><td class="mono">5751412866</td><td>Giannastasio</td><td><span class="chip-anom">Paquete de mayor tamaño: USD 69.00 no previsto</span></td><td class="num">904.17</td><td><button class="btn btn-outline btn-sm">Ver en Salidas</button></td></tr>
+              <tr><td class="mono">5534904185</td><td>Good Horses</td><td><span class="chip-anom">Manejo adicional: USD 23.00 no previsto</span><span class="chip-anom">Peso: facturado 57.5 kg, cargado 52 kg (+5.5 kg)</span></td><td class="num">655.50</td><td><button class="btn btn-outline btn-sm">Ver en Salidas</button></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <div class="cuadre">
+            <h4>✓ La factura cuadra <span class="chip chip-dhl">DHL</span></h4>
+            <dl>
+              <dt>Suma de las 4 guías</dt><dd><b>USD 3.303,02</b></dd>
+              <dt>IVA 21 % (sobre el seguro)</dt><dd>USD 28,78</dd>
+              <dt>Percepción IIBB</dt><dd>USD 99,10</dd>
+              <dt class="tot">Total de la factura</dt><dd class="tot">USD 3.430,90</dd>
+            </dl>
+            <div class="nota">El IVA (crédito fiscal) y la percepción no se reparten entre los envíos: quedan en la pestaña Ingresos Brutos. El costo de cada guía es el del detalle.</div>
+          </div>
+          <div class="seccion-titulo"><h2>Avisos del lector</h2><span class="em">1</span></div>
+          <table class="fac-table"><tbody>
+            <tr><td><span class="chip chip-ambar">sin envío</span></td><td><span class="mono">8729631341</span> no tiene envío cargado (USD 703,38). Quedó en "Sin envío".</td></tr>
+          </tbody></table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="sep"></div>
+
+  <!-- ═══ PESTAÑA REVISAR ═══ -->
+  <div class="seccion-titulo"><h2>Revisar guías</h2><span class="em">solo las que tienen algo para mirar: a revisar o en reclamo · 12 guías</span></div>
+  <div class="toolbar">
+    <div><label>Estado</label><div class="seg"><button class="on">A revisar · 9</button><button>En reclamo · 3</button><button>Todas</button></div></div>
+    <div><label>Cliente</label><input placeholder="Buscar cliente o guía…" style="width:260px"></div>
+    <div><label>Desde</label><input type="date" value="2026-09-01"></div>
+    <div class="der"><button class="btn btn-ghost btn-sm">Ver anteriores al corte</button><button class="btn btn-outline btn-sm">↺ Actualizar</button></div>
+  </div>
+  <table class="fac-table">
+    <thead><tr><th>Guía</th><th>Cliente</th><th>País</th><th>Courier</th><th>F. factura</th><th class="num">Venta</th><th class="num">Costo</th><th class="num">Diferencia</th><th>Motivo</th><th>Estado</th><th>Acciones</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">1Z327W096792589516</td><td>AUBONE</td><td>Estados Unidos</td><td><span class="chip chip-ups">UPS</span></td><td>30/09/2026</td><td class="num">612,00</td><td class="num">498,26</td><td class="num dif-mas">+105,82 (27 %)</td><td><span class="chip-anom">Área remota: USD 42.15 no previsto</span><span class="chip-anom">Peso +3 kg</span></td><td><span class="chip chip-ambar">a revisar</span></td><td><div class="acciones-fila"><button class="btn btn-outline btn-sm ok">✓ Aprobar</button><button class="btn btn-outline btn-sm rec">Reclamar</button></div></td></tr>
+      <tr><td class="mono">5751412866</td><td>Giannastasio</td><td>Alemania</td><td><span class="chip chip-dhl">DHL</span></td><td>30/09/2026</td><td class="num">1.240,00</td><td class="num">904,17</td><td class="num dif-mas">+69,00 (8 %)</td><td><span class="chip-anom">Paquete de mayor tamaño: USD 69.00</span></td><td><span class="chip chip-ambar">a revisar</span></td><td><div class="acciones-fila"><button class="btn btn-outline btn-sm ok">✓ Aprobar</button><button class="btn btn-outline btn-sm rec">Reclamar</button></div></td></tr>
+      <tr><td class="mono">1Z327W096791477308</td><td>Sbertoli</td><td>España</td><td><span class="chip chip-ups">UPS</span></td><td>30/09/2026</td><td class="num">390,00</td><td class="num">346,75</td><td class="num dif-mas">+64,59 (23 %)</td><td><span class="chip-anom">Entrega residencial: USD 6.00</span><span class="chip-anom">Fuel +12.40</span></td><td><span class="chip chip-rojo">en reclamo</span></td><td><div class="acciones-fila"><button class="btn btn-outline btn-sm ok">✓ Aprobar</button><button class="btn btn-outline btn-sm">Volver a pendiente</button></div></td></tr>
+      <tr><td class="mono">1Z327W096790928000</td><td>Battlo</td><td>Italia</td><td><span class="chip chip-ups">UPS</span></td><td>30/09/2026</td><td class="num">0,00 <span class="chip chip-gris">sin precio</span></td><td class="num">381,36</td><td class="num">—</td><td><span class="em">margen bajo el mínimo</span></td><td><span class="chip chip-ambar">a revisar</span></td><td><div class="acciones-fila"><button class="btn btn-outline btn-sm">Cargar precio</button></div></td></tr>
+    </tbody>
+  </table>
+
+  <div class="sep"></div>
+
+  <!-- ═══ PESTAÑA SIN ENVÍO ═══ -->
+  <div class="seccion-titulo"><h2>Guías facturadas sin envío</h2><span class="em">el courier cobró y nadie las cargó: plata que no se le factura a ningún cliente</span></div>
+  <div class="tiles" style="grid-template-columns:repeat(3,1fr);max-width:620px;margin-bottom:.9rem">
+    <div class="tile danger"><div class="v">4</div><div class="l">Guías desde el corte</div></div>
+    <div class="tile danger"><div class="v">USD 2.812</div><div class="l">Costo sin imputar</div></div>
+    <div class="tile"><div class="v">35</div><div class="l">Anteriores al 01/09 (ocultas)</div></div>
+  </div>
+  <table class="fac-table">
+    <thead><tr><th>Guía</th><th>Courier</th><th>Factura</th><th>F. factura</th><th>País</th><th class="num">Peso</th><th class="num">Costo</th><th>Acciones</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">8729631341</td><td><span class="chip chip-dhl">DHL</span></td><td class="mono">1700A00033064</td><td>30/09/2026</td><td>Malasia</td><td class="num">62,5 kg</td><td class="num">703,38</td><td><div class="acciones-fila"><button class="btn btn-coral btn-sm">Cargar el envío</button><button class="btn btn-outline btn-sm">Buscar parecida</button></div></td></tr>
+      <tr><td class="mono">1Z327W096797411680</td><td><span class="chip chip-ups">UPS</span></td><td class="mono">0020-00075895</td><td>30/09/2026</td><td>Estados Unidos</td><td class="num">12 kg</td><td class="num">318,45</td><td><div class="acciones-fila"><button class="btn btn-coral btn-sm">Cargar el envío</button><button class="btn btn-outline btn-sm">Buscar parecida</button></div></td></tr>
+    </tbody>
+  </table>
+
+  <div class="sep"></div>
+
+  <!-- ═══ PESTAÑA INGRESOS BRUTOS ═══ -->
+  <div class="seccion-titulo"><h2>Ingresos Brutos e IVA</h2><span class="em">lo que el courier cobra al pie de la factura y no es costo de ningún envío</span></div>
+  <div class="mes-lista">
+    <div class="mes"><span class="em">2026-09</span><b>USD 1.090,88</b><span class="em">percepción</span><span class="em">· IVA USD 43,48</span></div>
+    <div class="mes"><span class="em">2026-08</span><b>USD 176,32</b><span class="em">percepción</span></div>
+    <div class="mes"><span class="em">2026-07</span><b>USD 402,10</b><span class="em">percepción</span></div>
+  </div>
+  <table class="fac-table">
+    <thead><tr><th>Factura</th><th>Courier</th><th>Fecha</th><th class="num">Guías</th><th class="num">Subtotal guías</th><th class="num">IVA</th><th class="num">Percepción IIBB</th><th class="num">Total factura</th></tr></thead>
+    <tbody>
+      <tr><td class="mono">1700A00033064</td><td><span class="chip chip-dhl">DHL</span></td><td>30/09/2026</td><td class="num">4</td><td class="num">3.303,02</td><td class="num">28,78</td><td class="num"><b>99,10</b></td><td class="num">3.430,90</td></tr>
+      <tr><td class="mono">1700A00033061</td><td><span class="chip chip-dhl">DHL</span></td><td>30/09/2026</td><td class="num">6</td><td class="num">764,44</td><td class="num">14,70</td><td class="num"><b>22,94</b></td><td class="num">802,08</td></tr>
+      <tr><td class="mono">0020-00075895</td><td><span class="chip chip-ups">UPS</span></td><td>30/09/2026</td><td class="num">139</td><td class="num">32.321,44</td><td class="num">—</td><td class="num"><b>969,64</b></td><td class="num">33.291,08</td></tr>
+    </tbody>
+  </table>
+</div>
+</body>
+</html>

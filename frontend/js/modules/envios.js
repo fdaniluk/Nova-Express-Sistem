@@ -514,6 +514,8 @@
     // Recalcular al tildar/destildar DDP (passthrough +24.05)
     document.getElementById('ddp').addEventListener('change', debounce(updateCotizacion, 400));
     document.getElementById('proteccion_doc').addEventListener('change', debounce(updateCotizacion, 400));
+    // Entrega residencial (UPS, USD 6): recotiza al tildar.
+    document.getElementById('residencial').addEventListener('change', debounce(updateCotizacion, 400));
 
     // Recalcular al cambiar la zona de entrega (el recargo lo resuelve el motor).
     // Son DOS cargos distintos de UPS: extendida (42.15 o 0.92/kg) y remota (5.86 por
@@ -706,6 +708,7 @@
         bultos: bultosParaCotizar,
         ddp: document.getElementById('ddp').checked,
         proteccionDoc: document.getElementById('proteccion_doc').checked,
+        residencial: document.getElementById('residencial').checked,
         entrega: document.getElementById('entrega').value,
         // Tipo de paquete → tarifa de DOCUMENTO de DHL (hasta 2 kg). El formulario ya tenía
         // el selector y lo guardaba en el envío, pero nunca se lo mandaba al cotizador: por
@@ -828,6 +831,7 @@
         asegurado: document.getElementById('asegurado').checked ? 1 : 0,
         ddp: document.getElementById('ddp').checked ? 1 : 0,
         proteccion_doc: document.getElementById('proteccion_doc').checked ? 1 : 0,
+        residencial: document.getElementById('residencial').checked ? 1 : 0,
         // "Sin numerar" (salida 0): marcable ya en el alta, pedido de administración (14/08).
         num_sal_cero: document.getElementById('sin_numerar').checked ? 1 : 0,
         entrega: document.getElementById('entrega').value,
@@ -943,6 +947,7 @@
     seguroTocado = true;
     document.getElementById('ddp').checked = Boolean(envio.ddp);
     document.getElementById('proteccion_doc').checked = Boolean(envio.proteccion_doc);
+    document.getElementById('residencial').checked = Boolean(envio.residencial);
     document.getElementById('sin_numerar').checked = Boolean(envio.num_sal_cero);
     // Sin destildar: si el envio ya tiene el cargo, se muestra aunque hoy no califique.
     aplicarVisibilidadProteccionDoc(false);
@@ -1153,6 +1158,8 @@
     setVal('entrega', d.entrega || 'normal');
     const prot = document.getElementById('proteccion_doc');
     if (prot) prot.checked = Boolean(d.proteccion_doc);
+    const resi = document.getElementById('residencial');
+    if (resi) resi.checked = Boolean(d.residencial);
     // Descuento especial (02/10/2026): si la cotización se hizo con descuento, el envío
     // sale con el mismo % aunque el peso haya cambiado (el cotizador automático lo aplica).
     const desc = Number(d.descuento_pct) || 0;

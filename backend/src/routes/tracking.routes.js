@@ -38,13 +38,26 @@ router.get('/ups/:guia/paquetes', async (req, res, next) => {
   }
 });
 
+// Tracking DHL (08/10/2026, MyDHL API). Solo lectura.
+router.get('/dhl/:guia', async (req, res, next) => {
+  const guia = (req.params.guia || '').trim();
+  const dhl = require('../services/dhl.service');
+  if (!dhl.DHL_GUIA_REGEX.test(guia)) return res.status(400).json({ error: 'Numero de guia DHL invalido (10 dígitos)' });
+  if (!dhl.hayCredenciales()) return res.status(503).json({ error: 'El servidor no tiene credenciales DHL configuradas' });
+  try {
+    res.json(await dhl.getTrackingDHL(guia));
+  } catch (err) {
+    next(err);
+  }
+});
+
 // Una pasada del semáforo automático A PEDIDO (el job corre solo cada 4 horas; esto es
 // para no esperar: después de cargar las salidas del día, o probando). Devuelve el
 // resumen de la pasada. Requiere credenciales UPS en el servidor, como el job.
 router.post('/refrescar', async (req, res, next) => {
   try {
-    if (!(process.env.UPS_CLIENT_ID || '').trim()) {
-      return res.status(503).json({ error: 'El servidor no tiene credenciales UPS configuradas' });
+    if (!(process.env.UPS_CLIENT_ID || '').trim() && !require('../services/dhl.service').hayCredenciales()) {
+      return res.status(503).json({ error: 'El servidor no tiene credenciales UPS ni DHL configuradas' });
     }
     const { getDb } = require('../db');
     const { refrescarSemaforo } = require('../services/tracking-auto.service');

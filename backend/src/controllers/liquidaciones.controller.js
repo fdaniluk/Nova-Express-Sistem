@@ -162,6 +162,7 @@ async function cotizar(req, res, next) {
       entrega: entrada.entrega,
       ddp: entrada.ddp,
       proteccionDoc: entrada.proteccionDoc,
+      residencial: Boolean(entrada.residencial),
       contenido: entrada.contenido,
       precioKgVenta: entrada.precioKgVenta,
       seguroPropio: entrada.seguroPropio,

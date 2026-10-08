@@ -73,6 +73,7 @@ async function listarSalidas({ desde, hasta } = {}) {
       e.entrega,
       e.ddp,
       e.proteccion_doc,
+      e.residencial,
       e.zona,
       e.servicio_ups,
       e.fob                 AS valor_declarado,
@@ -345,6 +346,7 @@ async function listarSalidas({ desde, hasta } = {}) {
     descuento_venta_pct: row.descuento_venta_pct ?? null,
     ddp: Boolean(row.ddp),
     proteccion_doc: Boolean(row.proteccion_doc),
+    residencial: Boolean(row.residencial),
     zona: row.zona,
     servicio_ups: row.servicio_ups,
     valor_declarado: row.valor_declarado,
@@ -629,6 +631,8 @@ router.post('/:id/recalcular', async (req, res, next) => {
       // Protección de documentos de DHL: mismo criterio que el DDP. Sin esta línea el
       // primer "Recalcular" borraría los 7,50 en silencio.
       proteccion_doc: body.proteccion_doc != null ? body.proteccion_doc : envio.proteccion_doc,
+      // Entrega residencial (UPS, USD 6): mismo criterio.
+      residencial: body.residencial != null ? body.residencial : envio.residencial,
       // Mercadería o documento: en DHL selecciona la tabla de documento (hasta 2 kg). Se
       // toma del modal si vino y si no del envío, igual que remota y ddp. Sin esto, un
       // recálculo sobre un documento lo re-costeaba como mercadería.
@@ -710,7 +714,7 @@ const SALIDAS_EDITABLE = [
   // fob (valor declarado): editable desde el 14/08 a pedido de administración. El seguro
   // sale de él, así que en envíos liquidados queda congelado (está en CAMPOS_PLATA).
   'fob',
-  'numero_guia', 'numero_salida', 'bulto', 'tipo_paquete', 'asegurado', 'remota', 'entrega', 'ddp', 'proteccion_doc', 'direccion', 'descuento_venta_pct',
+  'numero_guia', 'numero_salida', 'bulto', 'tipo_paquete', 'asegurado', 'remota', 'entrega', 'ddp', 'proteccion_doc', 'residencial', 'direccion', 'descuento_venta_pct',
   'peso_real', 'largo', 'ancho', 'alto', 'peso_facturable', 'peso_volumetrico',
   'flete', 'descuento', 'seguro', 'fuel', 'fuel_pct', 'derechos', 'adicionales', 'otros',
   'total_cobrado', 'profit', 'porcentaje', 'observaciones', 'extras_json',

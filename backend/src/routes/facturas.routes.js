@@ -272,7 +272,7 @@ router.post('/cargar', subirPdf, async (req, res, next) => {
         try {
           // Igual que en /chequear: igualdad directa para que entre por el índice único.
           const envio = await db
-            .prepare('SELECT id, total_cobrado, costo_facturado, estado_revision, ddp, impuestos_facturados, extras_json, seguro, derechos, fuel, peso_facturable, entrega, remota, cliente_id, asegurado FROM envios WHERE numero_guia = ?')
+            .prepare('SELECT id, total_cobrado, costo_facturado, estado_revision, ddp, impuestos_facturados, extras_json, seguro, derechos, fuel, peso_facturable, entrega, remota, residencial, cliente_id, asegurado FROM envios WHERE numero_guia = ?')
             .get(normalizarGuia(guia.numero_guia));
 
           detalle.push({ guia, envio_id: envio ? envio.id : null, encontrada: envio ? 1 : 0 });
@@ -502,7 +502,7 @@ router.get('/guias', async (req, res, next) => {
         e.id, e.numero_guia, e.pais_destino, e.fecha,
         e.total_cobrado, e.costo_facturado, e.courier_facturado,
         e.fecha_facturado, e.estado_revision, e.servicio_ups,
-        e.extras_json, e.seguro, e.derechos, e.fuel, e.peso_facturable, e.peso_facturado, e.entrega, e.remota, e.ddp,
+        e.extras_json, e.seguro, e.derechos, e.fuel, e.peso_facturable, e.peso_facturado, e.entrega, e.remota, e.residencial, e.ddp,
         (SELECT fg.cargos_json FROM factura_guias fg WHERE fg.envio_id = e.id ORDER BY fg.id DESC LIMIT 1) AS cargos_json,
         (SELECT fg.fuel_facturado FROM factura_guias fg WHERE fg.envio_id = e.id ORDER BY fg.id DESC LIMIT 1) AS fuel_facturado,
         c.nombre AS cliente
