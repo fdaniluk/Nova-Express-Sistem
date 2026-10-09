@@ -99,6 +99,85 @@
     pintarPlata();
     pintarRitmo();
     pintarProyeccion();
+    pintarCostos();
+  }
+
+  // ── Costos de la empresa (entrega 2, 09/10/2026) ────────────────────────────
+  // Profit de envíos del período (con los filtros de arriba) contra los costos cargados en
+  // Costos, mes a mes. Solo para quien tiene permiso de costos: el servidor responde 403 y
+  // la tarjeta no aparece. No bloquea el resto del Dashboard: es una segunda llamada.
+  async function pintarCostos() {
+    const card = $('dash-costos');
+    if (!card) return;
+    const s = datos.series;
+    if (!s || !s.meses || !s.meses.length) { card.classList.add('hidden'); return; }
+    let serie;
+    try {
+      serie = await NovaAPI.costos.serie(s.meses[0], s.meses[s.meses.length - 1]);
+    } catch (err) {
+      card.classList.add('hidden');
+      if (err.status !== 403) console.warn('[dashboard] costos:', err.message);
+      return;
+    }
+    if (!Array.isArray(serie)) { card.classList.add('hidden'); return; }
+    card.classList.remove('hidden');
+    const porMes = Object.fromEntries(serie.map((x) => [x.mes, x]));
+    // Un mes sin ningún costo cargado no es "costó 0": queda sin dato (sin barra ni neto).
+    const costos = s.meses.map((m) => (porMes[m] && porMes[m].n > 0 ? porMes[m].costos_usd : null));
+    const profit = s.meses.map((_, i) => s.profit[i] || 0);
+    const neto = s.meses.map((_, i) => (costos[i] == null ? null : Math.round((profit[i] - costos[i]) * 100) / 100));
+    const mesesConCostos = s.meses.filter((_, i) => costos[i] != null && costos[i] > 0);
+    const sinTc = serie.filter((x) => x.sin_tc).map((x) => mesCorto(x.mes));
+    const totCostos = costos.reduce((a, b) => a + (b || 0), 0);
+    const totProfit = profit.reduce((a, b) => a + b, 0);
+    const netoTot = Math.round((totProfit - totCostos) * 100) / 100;
+    const pctCostos = totProfit > 0 ? Math.round((totCostos / totProfit) * 100) : null;
+    const ultimo = [...serie].reverse().find((x) => x.costos_usd != null && x.costos_usd > 0);
+    $('dash-costos-sub').textContent = `lo que cuesta tener Nova abierta, contra el profit de envíos · ${mesCorto(s.meses[0])} → ${mesCorto(s.meses[s.meses.length - 1])}`;
+
+    const item = (k, v, vcls, r, d, dcls, extra) => `<div class="dash-proy-item" data-costos="${k}"><div class="k">${k === 'costos' ? 'Costos del período' : k === 'neto' ? 'Resultado neto' : 'Punto de equilibrio'}${extra || ''}</div><div class="v${vcls ? ' ' + vcls : ''}">${v}</div><div class="r">${r}</div>${d}</div>`;
+    const nMeses = mesesConCostos.length;
+    let html = item('costos', `USD ${fmtCorto(totCostos)}`, '',
+      nMeses ? `${nMeses} ${nMeses === 1 ? 'mes' : 'meses'} con costos · USD ${fmtCorto(totCostos / nMeses)} por mes` : 'todavía no hay costos cargados en el período',
+      `<div class="d">${ultimo ? `${mesCorto(ultimo.mes)}: USD ${fmtCorto(ultimo.costos_usd)}${ultimo.por_confirmar ? ` · ${ultimo.por_confirmar} por confirmar` : ''}` : ''}</div>`);
+    if (nMeses) {
+      const cubre = netoTot >= 0;
+      html += item('neto', `USD ${fmtCorto(netoTot)}`, cubre ? 'ok' : 'neg',
+        `profit USD ${fmtCorto(totProfit)} − costos USD ${fmtCorto(totCostos)}`,
+        `<div class="d ${cubre ? 'up' : 'dn'}">${cubre ? (pctCostos != null ? `▲ los costos se llevan el ${fmtN(pctCostos, 0)} % del profit` : '▲ cubre') : `▼ los costos superan al profit por USD ${fmtCorto(-netoTot)}`}</div>`);
+    }
+    // Punto de equilibrio: el mes en curso si está en el período (con la proyección del
+    // Dashboard); si no, el último mes con costos.
+    const pr = datos.proyeccion;
+    const mesEq = pr && s.meses.includes(pr.mes) && porMes[pr.mes] && porMes[pr.mes].costos_usd > 0 ? pr.mes : (ultimo ? ultimo.mes : null);
+    if (mesEq) {
+      const cEq = porMes[mesEq].costos_usd;
+      const i = s.meses.indexOf(mesEq);
+      const lleva = profit[i] || 0;
+      const falta = Math.max(0, cEq - lleva);
+      const pct = Math.min(100, Math.round((lleva / cEq) * 100));
+      const enCurso = pr && pr.mes === mesEq && pr.confianza !== 'cerrado';
+      const proy = enCurso ? `proyección: USD ${fmtCorto(pr.profit)}, ${pr.profit >= cEq ? 'cubre' : 'no cubre'}` : (falta ? 'no cubrió' : 'cubierto');
+      html += item('equilibrio', `USD ${fmtCorto(cEq)}`, '', 'profit que hace falta para cubrir el mes',
+        `<div class="dash-eq"><i class="${falta ? 'falta' : ''}" style="width:${pct}%"></i></div><div class="d">${falta ? `lleva USD ${fmtCorto(lleva)} · faltan USD ${fmtCorto(falta)}` : `lleva USD ${fmtCorto(lleva)} · cubierto`} (${proy})</div>`,
+        '', ` · ${mesNombre(mesEq)}`);
+    }
+    $('dash-costos-kpis').innerHTML = html;
+
+    chart('c-costos', {
+      data: { labels: s.meses.map(mesCorto), datasets: [
+        { type: 'bar', label: 'Profit de envíos', data: profit, backgroundColor: COL.ok, borderRadius: 4, order: 2 },
+        { type: 'bar', label: 'Costos de la empresa', data: costos, backgroundColor: '#f0a1a1', borderRadius: 4, order: 2 },
+        { type: 'line', label: 'Resultado neto', data: neto, borderColor: COL.p, pointRadius: 3, tension: 0.3, order: 1, spanGaps: false },
+      ] },
+      options: { responsive: true, maintainAspectRatio: false,
+        plugins: { legend, tooltip: { callbacks: { label: (c) => `${c.dataset.label}: ${c.raw == null ? 'sin datos' : fmtUSD(c.raw)}` } } },
+        scales: { x: { grid: { display: false } }, y: { grid: { color: COL.grid }, ticks: { callback: fmtCorto } } } },
+    });
+    let hint = 'Profit de envíos del Dashboard (con los filtros de arriba) contra los costos cargados en Costos, en USD al dólar de cada mes.';
+    if (filtros.courier || filtros.tipo) hint += ' OJO: los costos no dependen del courier ni del tipo; con esos filtros el profit queda recortado y el neto es solo orientativo.';
+    if (sinTc.length) hint += ` Sin dólar cargado en ${sinTc.join(', ')}: sus pesos no se suman.`;
+    $('dash-costos-hint').textContent = hint;
   }
 
   // ── Proyección del mes en curso ─────────────────────────────────────────────

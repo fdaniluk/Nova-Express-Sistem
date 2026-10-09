@@ -112,6 +112,7 @@
     "test-pantalla-costos": "node scripts/test-pantalla-costos.js",
     "test-saltos-tarifa": "node scripts/test-saltos-tarifa.js",
     "test-seguro-opcional": "node scripts/test-seguro-opcional.js",
+    "test-pantalla-dashboard-costos": "node scripts/test-pantalla-dashboard-costos.js",
     "test-pantalla-salidas-sesion": "node scripts/test-pantalla-salidas-sesion.js",
     "test-pantalla-retomar-borrador": "node scripts/test-pantalla-retomar-borrador.js"
   },

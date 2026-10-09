@@ -328,11 +328,15 @@ async function seriePorMes(desde, hasta) {
   const out = [];
   for (const m of meses) {
     const { tc } = await tipoCambioMes(m);
-    const rows = await db.prepare('SELECT monto, moneda, categoria_id FROM costos WHERE mes = ?').all(m);
+    const rows = await db.prepare('SELECT monto, moneda, categoria_id, estado FROM costos WHERE mes = ?').all(m);
     const iibb = await iibbDelMes(m);
-    let usd = iibb.total; let sinTc = false;
-    for (const r of rows) { const v = convertir(r.monto, r.moneda, tc); if (v.usd == null) sinTc = true; else usd = r2(usd + v.usd); }
-    out.push({ mes: m, costos_usd: sinTc ? null : r2(usd), sin_tc: sinTc, n: rows.length + (iibb.total ? 1 : 0) });
+    let usd = iibb.total; let sinTc = false; let porConfirmar = 0;
+    for (const r of rows) {
+      if (r.estado === 'por_confirmar') porConfirmar++;
+      const v = convertir(r.monto, r.moneda, tc); if (v.usd == null) sinTc = true; else usd = r2(usd + v.usd);
+    }
+    // por_confirmar (09/10, Dashboard): cuántos renglones del mes esperan revisión de dirección.
+    out.push({ mes: m, costos_usd: sinTc ? null : r2(usd), sin_tc: sinTc, n: rows.length + (iibb.total ? 1 : 0), por_confirmar: porConfirmar });
   }
   return out;
 }

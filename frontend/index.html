@@ -6,7 +6,7 @@
   <title>Dashboard – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="css/main.css?v=20260929a">
-  <link rel="stylesheet" href="css/modules/dashboard.css?v=20260929c">
+  <link rel="stylesheet" href="css/modules/dashboard.css?v=20261009a">
 </head>
 <body>
 <div class="app-layout">
@@ -165,6 +165,18 @@
         <div class="dash-hint" id="dash-proy-hint"></div>
       </div>
 
+      <!-- Costos de la empresa (entrega 2, 09/10/2026): solo para quien tiene permiso de Costos.
+           Se muestra cuando GET /api/costos/serie responde; con 403 queda oculta. -->
+      <div class="card dash-card dash-costos hidden" id="dash-costos">
+        <h2>Costos de la empresa <span class="sub" id="dash-costos-sub">lo que cuesta tener Nova abierta, contra el profit de envíos</span>
+          <span class="der"><a class="btn btn-sm btn-outline" href="pages/costos.html">Ir a Costos →</a></span></h2>
+        <div class="dash-costos-grid">
+          <div class="dash-costos-kpis" id="dash-costos-kpis"></div>
+          <div class="dash-chart h280"><canvas id="c-costos"></canvas></div>
+        </div>
+        <div class="dash-hint" id="dash-costos-hint"></div>
+      </div>
+
       <div class="dash-grid2">
         <div class="card dash-card">
           <h2>Por mes <span class="sub" id="dash-mes-sub">facturables · barra clara = período de comparación</span>
@@ -237,6 +249,6 @@
 <script src="js/api.js?v=20261008b"></script>
 <script src="js/main.js?v=20260929a"></script>
 <script src="js/vendor/chart.umd.js?v=20260915a"></script>
-<script src="js/modules/dashboard.js?v=20260929d"></script>
+<script src="js/modules/dashboard.js?v=20261009a"></script>
 </body>
 </html>

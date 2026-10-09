@@ -1,0 +1,80 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Maqueta — Dashboard: Costos de la empresa (entrega 2)</title>
+<link rel="stylesheet" href="../../frontend/css/main.css">
+<link rel="stylesheet" href="../../frontend/css/modules/dashboard.css">
+<style>
+  body { background: #f3f5f9; padding: 20px; font-family: 'Segoe UI', system-ui, sans-serif; }
+  .wrap { max-width: 1180px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px; }
+  .nota { font-size: 12px; color: #64748b; }
+  /* Lo nuevo (va a dashboard.css) */
+  .dash-costos-grid { display: grid; grid-template-columns: 300px 1fr; gap: 14px; align-items: stretch; }
+  @media (max-width: 900px) { .dash-costos-grid { grid-template-columns: 1fr; } }
+  .dash-costos-kpis { display: flex; flex-direction: column; gap: 10px; }
+  .dash-costos-kpis .dash-proy-item { flex: 1; }
+  .dash-proy-item .v.neg { color: var(--color-danger); }
+  .dash-proy-item .v.ok { color: var(--color-success); }
+  .dash-eq { height: 6px; border-radius: 3px; background: #e5e9f1; margin: 6px 0 4px; overflow: hidden; }
+  .dash-eq i { display: block; height: 100%; background: var(--color-success); }
+  .dash-eq i.falta { background: var(--color-danger); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="nota">Maqueta: tarjeta nueva del Dashboard, debajo de la proyección. Solo la ve quien tiene permiso de Costos (Marcelo / admin). Toma el mismo período de la cabecera. Números inventados.</div>
+
+  <div class="card dash-card" id="dash-costos">
+    <h2>Costos de la empresa <span class="sub">lo que cuesta tener Nova abierta, contra el profit de envíos · may 26 → oct 26</span>
+      <span class="der"><a class="btn btn-sm btn-outline" href="#">Ir a Costos →</a></span></h2>
+    <div class="dash-costos-grid">
+      <div class="dash-costos-kpis">
+        <div class="dash-proy-item">
+          <div class="k">Costos del período</div>
+          <div class="v">USD 71,4k</div>
+          <div class="r">6 meses · USD 11,9k por mes</div>
+          <div class="d">sep: USD 12,3k · 4 por confirmar</div>
+        </div>
+        <div class="dash-proy-item">
+          <div class="k">Resultado neto</div>
+          <div class="v ok">USD 18,2k</div>
+          <div class="r">profit USD 89,6k − costos USD 71,4k</div>
+          <div class="d up">▲ los costos se llevan el 80 % del profit</div>
+        </div>
+        <div class="dash-proy-item">
+          <div class="k">Punto de equilibrio · octubre</div>
+          <div class="v">USD 12,1k</div>
+          <div class="r">profit que hace falta para cubrir el mes</div>
+          <div class="dash-eq"><i style="width:58%"></i></div>
+          <div class="d">lleva USD 7,0k · faltan USD 5,1k (proyección: USD 13,8k, cubre)</div>
+        </div>
+      </div>
+      <div class="dash-chart h280"><canvas id="c-costos"></canvas></div>
+    </div>
+    <div class="dash-hint">Profit de envíos del Dashboard (con los filtros de arriba) contra los costos cargados en Costos, en USD al dólar de cada mes. Los costos no dependen del courier ni del tipo: con esos filtros puestos el profit queda recortado y el neto es solo orientativo. Un mes sin dólar cargado no suma sus pesos.</div>
+  </div>
+
+  <div class="nota">Variante del neto en rojo (mes que no cubre): el número va en rojo y el texto dice "los costos superan al profit por USD X".</div>
+</div>
+<script src="../../frontend/js/vendor/chart.umd.js"></script>
+<script>
+  Chart.defaults.font.family = "'Segoe UI', system-ui, -apple-system, sans-serif";
+  Chart.defaults.font.size = 11; Chart.defaults.color = '#64748b';
+  const labels = ['May 26', 'Jun 26', 'Jul 26', 'Ago 26', 'Sep 26', 'Oct 26'];
+  const profit = [13200, 15800, 14100, 16900, 17200, 7000];
+  const costos = [11200, 11800, 12600, 11500, 12300, 12000];
+  const neto = profit.map((p, i) => p - costos[i]);
+  new Chart(document.getElementById('c-costos'), {
+    data: { labels, datasets: [
+      { type: 'bar', label: 'Profit de envíos', data: profit, backgroundColor: '#15803d', borderRadius: 4, order: 2 },
+      { type: 'bar', label: 'Costos de la empresa', data: costos, backgroundColor: '#f0a1a1', borderRadius: 4, order: 2 },
+      { type: 'line', label: 'Resultado neto', data: neto, borderColor: '#2A3661', pointRadius: 3, tension: 0.3, order: 1 },
+    ] },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'top', align: 'end', labels: { boxWidth: 10 } } },
+      scales: { x: { grid: { display: false } }, y: { grid: { color: '#eef1f5' }, ticks: { callback: (v) => (v / 1000).toFixed(0) + 'k' } } } },
+  });
+</script>
+</body>
+</html>
