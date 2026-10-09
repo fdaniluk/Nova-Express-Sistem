@@ -1739,3 +1739,8 @@ body.salidas-page .page-header.sal-header {
 
 .sal-res-cargos { font-size: .9em; color: #B4492F; }
 .sal-res-cargos .sal-res-val { color: inherit; }
+
+/* Columnas ocultas (09/10): el botón muestra cuántas hay ocultas. */
+#btn-hide-cols.active { background: #eaf1f8; color: var(--color-primary); border-color: var(--color-primary); }
+.hide-cols-n { display: inline-block; min-width: 16px; padding: 0 5px; border-radius: 8px; background: var(--color-primary); color: #fff; font-size: 10px; font-weight: 700; text-align: center; }
+.sticky-cols-hint { font-size: 11px; color: #94a3b8; margin: 6px 0; }

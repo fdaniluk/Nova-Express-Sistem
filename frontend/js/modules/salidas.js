@@ -109,6 +109,15 @@
   let stickyCols = [];          // [{ key, label, nth }] en orden visual izquierda→derecha
   let stickyPins = new Set();   // claves actualmente fijadas
 
+  // ── Columnas ocultas (pedido de Felipe, 09/10) ──────────────────────────────
+  // CUALQUIER columna se puede ocultar desde el botón "Ocultar columnas". Mismo registro y
+  // misma técnica que las fijas: CSS por posición (:nth-child) en un <style>, así sobrevive
+  // al re-render del tbody. Solo es de vista: el Excel sale completo y los totales no
+  // cambian. Se guarda en localStorage (dura entre sesiones, por navegador).
+  const HIDDEN_LS_KEY = 'nova.salidas.hiddenCols';
+  let hiddenCols = new Set();   // claves ocultas
+  let hiddenNth = new Set();    // posiciones 1-based ocultas (derivado, para colspans y flechas)
+
   const alertBox = document.getElementById('alert-box');
 
   // ── Init ────────────────────────────────────────────────────────────────────
@@ -136,6 +145,8 @@
     buildStickyCols();
     loadStickyPins();
     bindStickyCols();
+    loadHiddenCols();
+    bindHiddenCols();
     loadUpsOverride();
     bindUpsToggle();
     bindFloatingScrollbar();
@@ -437,6 +448,7 @@
     // Plegar/desplegar el bloque UPS (clase de la tabla + botón) ANTES de medir sticky: con
     // table-layout auto, ocultar columnas redistribuye anchos y mueve los offsets sticky.
     syncUpsChrome();
+    applyHiddenCols();
 
     // Re-medir offsets sticky: con table-layout auto los anchos de columna dependen del
     // contenido, que cambia al filtrar / cambiar de mes / ordenar. NO toca ningún <td>,
@@ -466,12 +478,24 @@
   // Colspan de la celda de CONTENIDO de la sub-fila de detalle (arranca en Venta Total, col 19,
   // y llega hasta Observaciones, col 36). Plegado → restar las 5 columnas del bloque.
   function detailContentColspan() {
-    return upsVisible ? 21 : 21 - UPS_BLOCK_COLS;
+    return (upsVisible ? 21 : 21 - UPS_BLOCK_COLS) - hiddenCountInRange(20, 40);
   }
 
   // Colspan de las filas de estado vacío / cargando / error (abarcan toda la tabla).
   function emptyColspan() {
-    return upsVisible ? 40 : 40 - UPS_BLOCK_COLS;
+    return Math.max(1, (upsVisible ? 40 : 40 - UPS_BLOCK_COLS) - hiddenCountInRange(1, 40));
+  }
+
+  // Cuántas columnas ocultas a mano hay entre dos posiciones (1-based, inclusive), sin
+  // contar las del bloque UPS cuando está plegado (esas ya las restó el bloque).
+  function hiddenCountInRange(a, b) {
+    let n = 0;
+    for (const c of stickyCols) {
+      if (c.nth < a || c.nth > b || !hiddenCols.has(c.key)) continue;
+      if (!upsVisible && c.ups) continue;
+      n++;
+    }
+    return n;
   }
 
   // Aplica la visibilidad efectiva al "chrome": clase de la tabla (CSS oculta .ups-col) y
@@ -501,6 +525,7 @@
   function applyUpsCols() {
     upsVisible = computeUpsVisible();
     syncUpsChrome();
+    applyHiddenCols();
     document.querySelectorAll('#salidas-body tr.extras-detail-row > td:last-child')
       .forEach((td) => { td.colSpan = detailContentColspan(); });
     document.querySelectorAll('#salidas-body td.salidas-empty')
@@ -1685,7 +1710,7 @@
       let key = th.dataset.col || stickySlug(label);
       while (seen.has(key)) key += '_';   // dos rótulos iguales no pueden pisarse
       seen.add(key);
-      stickyCols.push({ key, label, nth: i + 1 });
+      stickyCols.push({ key, label, nth: i + 1, ups: th.classList.contains('ups-col') });
     });
   }
 
@@ -1829,6 +1854,126 @@
 
     // Los anchos de columna cambian al redimensionar (table-layout auto + width:100%).
     window.addEventListener('resize', applyStickyCols);
+  }
+
+  // ── Columnas ocultas ─────────────────────────────────────────────────────────
+  function loadHiddenCols() {
+    let arr = null;
+    try {
+      const raw = localStorage.getItem(HIDDEN_LS_KEY);
+      if (raw) arr = JSON.parse(raw);
+    } catch (_) { arr = null; }
+    if (!Array.isArray(arr)) arr = [];
+    const keys = new Set(stickyCols.map((c) => c.key));
+    hiddenCols = new Set(arr.filter((c) => keys.has(c)));
+  }
+
+  function saveHiddenCols() {
+    try { localStorage.setItem(HIDDEN_LS_KEY, JSON.stringify([...hiddenCols])); } catch (_) {}
+  }
+
+  // Reescribe el <style id="hidden-cols-style"> y acomoda los colspans que dependen de
+  // cuántas columnas hay a la vista: la banda de grupos del thead (cada título abarca sus
+  // columnas visibles; si no le queda ninguna, desaparece), las sub-filas de detalle y los
+  // estados vacíos. Se llama en cada render y al cambiar el bloque UPS.
+  function applyHiddenCols() {
+    let styleEl = document.getElementById('hidden-cols-style');
+    if (!styleEl) {
+      styleEl = document.createElement('style');
+      styleEl.id = 'hidden-cols-style';
+      document.head.appendChild(styleEl);
+    }
+    hiddenNth = new Set(stickyCols.filter((c) => hiddenCols.has(c.key)).map((c) => c.nth));
+    styleEl.textContent = [...hiddenNth].map((n) =>
+      `.salidas-table thead tr.th-cols th:nth-child(${n}),.salidas-table tbody tr[data-envio-id] > td:nth-child(${n}){display:none;}`).join('\n');
+
+    // Banda de grupos: el colspan original se guarda la primera vez en data-span.
+    let pos = 1;
+    document.querySelectorAll('.salidas-table thead tr.th-groups th').forEach((th) => {
+      if (!th.dataset.span) th.dataset.span = String(th.colSpan || 1);
+      const span = Number(th.dataset.span);
+      const desde = pos, hasta = pos + span - 1;
+      pos += span;
+      if (!th.classList.contains('thg')) return;   // la esquina del checkbox
+      // Las del bloque UPS plegado ya las esconde su propia clase: acá solo las ocultas a mano.
+      const ocultas = hiddenCountInRange(desde, hasta);
+      const visibles = span - ocultas;
+      th.colSpan = Math.max(1, visibles);
+      th.style.display = visibles > 0 ? '' : 'none';
+    });
+
+    document.querySelectorAll('#salidas-body tr.extras-detail-row > td:last-child')
+      .forEach((td) => { td.colSpan = detailContentColspan(); });
+    document.querySelectorAll('#salidas-body td.salidas-empty')
+      .forEach((td) => { td.colSpan = emptyColspan(); });
+
+    const btn = document.getElementById('btn-hide-cols');
+    if (btn) {
+      btn.classList.toggle('active', hiddenCols.size > 0);
+      btn.innerHTML = `👁 Ocultar columnas${hiddenCols.size ? ` <span class="hide-cols-n">${hiddenCols.size}</span>` : ''}`;
+    }
+  }
+
+  // Botón "Ocultar columnas" + panel con un tilde por columna (tildada = se ve). "Todas" las
+  // vuelve a mostrar de un golpe. Mismo panel flotante que el de columnas fijas.
+  function bindHiddenCols() {
+    const btn = document.getElementById('btn-hide-cols');
+    if (!btn) return;
+
+    const panel = document.createElement('div');
+    panel.id = 'hidden-cols-panel';
+    panel.className = 'sticky-cols-panel';
+    panel.style.display = 'none';
+    panel.innerHTML = `
+      <div class="sticky-cols-title">Columnas a la vista</div>
+      <div class="sticky-cols-list">
+      ${stickyCols.map((c) => `
+        <label><input type="checkbox" value="${escAttr(c.key)}" ${hiddenCols.has(c.key) ? '' : 'checked'}> ${esc(c.label)}</label>
+      `).join('')}
+      </div>
+      <div class="sticky-cols-hint">Solo cambia lo que se ve: el Excel sale completo.</div>
+      <button type="button" class="btn btn-sm btn-secondary hidden-cols-all">Mostrar todas</button>`;
+    document.body.appendChild(panel);
+
+    const aplicar = () => {
+      saveHiddenCols();
+      applyHiddenCols();
+      // Una columna oculta puede ser la activa o estar en la selección: se limpia.
+      limpiarSeleccion();
+      reconcileActiveCell();
+      applyStickyCols();
+      refreshFloatingScrollbar();
+    };
+
+    panel.querySelectorAll('input[type=checkbox]').forEach((cb) => {
+      cb.addEventListener('change', () => {
+        if (cb.checked) hiddenCols.delete(cb.value);
+        else hiddenCols.add(cb.value);
+        aplicar();
+      });
+    });
+
+    panel.querySelector('.hidden-cols-all').addEventListener('click', () => {
+      hiddenCols.clear();
+      panel.querySelectorAll('input[type=checkbox]').forEach((cb) => { cb.checked = true; });
+      aplicar();
+    });
+
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (panel.style.display !== 'none') { panel.style.display = 'none'; return; }
+      const rect = btn.getBoundingClientRect();
+      panel.style.top = `${rect.bottom + window.scrollY + 4}px`;
+      panel.style.left = `${rect.left + window.scrollX}px`;
+      panel.style.display = 'block';
+    });
+
+    document.addEventListener('click', (e) => {
+      if (!panel.contains(e.target) && !e.target.closest('#btn-hide-cols')) {
+        panel.style.display = 'none';
+      }
+    });
+    applyHiddenCols();
   }
 
   // ── Barra de scroll horizontal flotante ──────────────────────────────────────
@@ -4509,6 +4654,11 @@
     if (!upsVisible && colIndex >= UPS_COL_START && colIndex <= UPS_COL_END) {
       colIndex = UPS_COL_START - 1;
     }
+    // Lo mismo con una columna oculta a mano (09/10): a la visible más cercana.
+    if (!colSeleccionable(colIndex)) {
+      const der = nextVisibleCol(colIndex), izq = prevVisibleCol(colIndex);
+      colIndex = colSeleccionable(izq) ? izq : colSeleccionable(der) ? der : colIndex;
+    }
     activeCell = { rowIndex, colIndex };
     applyActiveCellHighlight();
   }
@@ -4608,7 +4758,11 @@
     if (!upsVisible && n >= UPS_COL_START && n <= UPS_COL_END) {
       n = Math.min(GRID_MAX_COL, UPS_COL_END + 1);
     }
-    return n;
+    // Columnas ocultas a mano (09/10): se saltean; si no queda ninguna visible a la
+    // derecha, se queda donde está.
+    let m = n;
+    while (m <= GRID_MAX_COL && !colSeleccionable(m)) m++;
+    return m <= GRID_MAX_COL ? m : c;
   }
 
   // Vecino navegable a la izquierda, con el mismo salto sobre el bloque UPS plegado.
@@ -4617,7 +4771,9 @@
     if (!upsVisible && p >= UPS_COL_START && p <= UPS_COL_END) {
       p = Math.max(GRID_MIN_COL, UPS_COL_START - 1);
     }
-    return p;
+    let m = p;
+    while (m >= GRID_MIN_COL && !colSeleccionable(m)) m--;
+    return m >= GRID_MIN_COL ? m : c;
   }
 
   // Scroll automático a la celda activa, dos ejes.
@@ -4726,6 +4882,7 @@
   function colSeleccionable(c) {
     if (c < GRID_MIN_COL || c > GRID_MAX_COL) return false;
     if (!upsVisible && c >= UPS_COL_START && c <= UPS_COL_END) return false;
+    if (hiddenNth.has(c + 1)) return false;   // oculta a mano (09/10): tampoco se suma
     return true;
   }
 

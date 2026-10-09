@@ -6,7 +6,7 @@
   <title>Salidas – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260929a">
-  <link rel="stylesheet" href="../css/modules/salidas.css?v=20261006b">
+  <link rel="stylesheet" href="../css/modules/salidas.css?v=20261009a">
   <!-- Acá se cargaba la librería xlsx desde un CDN, para el viejo botón "Exportar Excel".
        Se fue con el botón el 06/08/2026: la planilla del cierre la arma el servidor, así
        que esta pantalla ya no le pide nada a internet. Si alguna vez vuelve a hacer falta
@@ -120,6 +120,7 @@
              por envio (el primer bulto). Es solo de vista: no toca filtros ni totales. -->
         <button class="btn btn-sm btn-secondary btn-toggle-alertas" id="btn-primer-bulto" title="Mostrar un solo renglón por envío (el primer bulto)">▸ 1º bulto</button>
         <button class="btn btn-sm btn-secondary" id="btn-sticky-cols" title="Fijar columnas a la izquierda">📌 Columnas fijas</button>
+        <button class="btn btn-sm btn-secondary" id="btn-hide-cols" title="Elegir qué columnas se ven (solo de vista: el Excel sale completo)">👁 Ocultar columnas</button>
         <button class="btn btn-sm btn-secondary" id="btn-toggle-ups" aria-pressed="false" title="Mostrar u ocultar las columnas de comparación con UPS">🧾 Columnas UPS</button>
         <button class="btn btn-sm btn-secondary" id="btn-leyenda" title="Qué significa cada color de la tabla">? Colores</button>
       </div>
@@ -271,6 +272,6 @@
 <script src="/shared/guias/validar-guia.js?v=20260915a"></script>
 <script src="../js/cotizaciones-recientes.js?v=20261002a"></script>
 <script src="../js/finde.js?v=20260922b"></script>
-<script src="../js/modules/salidas.js?v=20261009b"></script>
+<script src="../js/modules/salidas.js?v=20261009c"></script>
 </body>
 </html>
