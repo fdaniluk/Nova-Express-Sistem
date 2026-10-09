@@ -489,3 +489,8 @@ td.tarifa-cell.cero .cell-val { color: #d03b3b; font-weight: 650; }
 .unir-nota { color: #b45309; font-size: 11px; }
 .rs-mover { display: flex; gap: 6px; align-items: center; margin-top: 6px; width: 100%; font-size: 13px; }
 .rs-mover select { flex: 1; min-width: 0; }
+
+/* Escalones al revés en la tarifa (09/10/2026): aviso arriba de la grilla y celdas en rojo. */
+.tarifas-saltos { background: #fee2e2; border: 1px solid #fca5a5; border-radius: 10px; padding: .6rem .9rem; margin: .5rem 0 .75rem; font-size: .86rem; color: #7f1d1d; line-height: 1.5; }
+.tarifas-saltos ul { margin: .3rem 0 0; padding-left: 1.2rem; }
+td.tarifa-cell.salto { background: #fee2e2 !important; color: #b91c1c !important; box-shadow: inset 0 0 0 2px #fca5a5; }

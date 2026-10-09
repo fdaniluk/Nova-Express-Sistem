@@ -951,10 +951,19 @@
     if (largo) {
       html += `<div class="grid-buscar"><label>Ir al peso</label><input type="number" step="0.5" min="0" class="grid-buscar-input" data-serv="${serv}" data-tipo="${tipo}" value="${buscarPeso}" placeholder="kg"> <span class="tarifas-hint">${buscarPeso !== '' ? `mostrando los tramos alrededor de ${buscarPeso} kg · ` : ''}${filasDeGrilla(serv, tipo).length} tramos</span>${buscarPeso !== '' ? `<button type="button" class="btn btn-secondary btn-sm grid-buscar-todo">Ver todos</button>` : ''}</div>`;
     }
+    const m = matrices[claveM(serv, tipo)] || {};
+    // Escalones al revés (09/10): el servidor avisa cuando al pasar de un tramo al siguiente
+    // el precio del flete BAJA (GIANNASTACIO: 105 % en 45–50 y 90 % en 50+ → un envío de
+    // 50,5 kg salía más barato que uno de 50). Se listan arriba y se pintan las dos celdas.
+    const saltos = (m.pct && Array.isArray(m.pct.saltos)) ? m.pct.saltos : [];
+    const saltoEn = new Set();
+    saltos.forEach((x) => { saltoEn.add(`${x.zona}|${x.tramo}`); saltoEn.add(`${x.zona}|${x.tramo_siguiente}`); });
+    if (saltos.length) {
+      html += `<div class="tarifas-saltos" data-serv="${serv}" data-tipo="${tipo}"><strong>⚠ La tarifa baja al subir de peso</strong> en ${saltos.length === 1 ? 'un tramo' : `${saltos.length} tramos`}: un envío más pesado sale más barato que uno más liviano. Revisá el % de esos tramos.<ul>${saltos.slice(0, 8).map((x) => `<li>Zona ${x.zona}: a los ${x.peso} kg pasa de ${x.desde_pct} % (${x.tramo} kg) a ${x.hasta_pct} % (${x.tramo_siguiente} kg): USD ${x.precio_antes.toFixed(2)} → ${x.precio_despues.toFixed(2)}</li>`).join('')}${saltos.length > 8 ? `<li>… y ${saltos.length - 8} más</li>` : ''}</ul></div>`;
+    }
     html += `<div class="tarifas-grid-wrap${largo ? ' largo' : ''}"><table class="tarifas-grid"><thead><tr><th></th><th class="col-todas">Todas</th>`;
     TARIFAS_ZONAS.forEach((z) => { html += `<th>Zona ${z}</th>`; });
     html += '</tr></thead><tbody>';
-    const m = matrices[claveM(serv, tipo)] || {};
     filas.forEach((banda) => {
       const maxAttr = banda.max === null ? '' : banda.max;
       const dataST = `data-serv="${serv}" data-tipo="${tipo}"`;
@@ -998,6 +1007,7 @@
               : 'Lo que se cobra en esta zona y este tramo. Para cambiarlo, botón Editar.'))
           : 'Hacé clic para cambiar el valor de esta zona';
         if (banda.vieja) cls = cls.replace('tarifa-cell', 'celda-vieja');
+        if (saltoEn.has(`${zona}|${banda.max === null ? `${banda.min}+` : `${banda.min}-${banda.max}`}`)) cls += ' salto';
         html += `<td class="${cls}" ${dataST} data-zona="${zona}" data-min="${banda.min}" data-max="${maxAttr}"`
           + ` title="${banda.vieja ? 'Tramo viejo: se cobra igual que siempre, pero no se puede editar desde acá.' : title}">`
           + `${banda.vieja ? '' : del}<span class="cell-val">${banda.vieja ? '' : formatoValor(ef.val, ef.unidad)}</span></td>`;

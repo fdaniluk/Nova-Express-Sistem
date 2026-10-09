@@ -110,6 +110,7 @@ const api = {
     // con el borrador y rechaza con 409 si difieren (el "borrador pegado").
     confirmar: (id, envio_ids) => request(`/liquidaciones/${id}/confirmar`, { method: 'PATCH', body: envio_ids ? { envio_ids } : undefined }),
     eliminarBorrador: (id) => api.delete(`/liquidaciones/${id}`),
+    obtener: (id) => api.get(`/liquidaciones/${id}`),
     listar: (params) => {
       const q = new URLSearchParams(params).toString();
       return api.get(`/liquidaciones${q ? `?${q}` : ''}`);

@@ -354,6 +354,9 @@ async function listarSalidas({ desde, hasta } = {}) {
     descuento: row.descuento,
     seguro: row.seguro,
     fuel: row.fuel,
+    // El % de fuel que rige para el envío (09/10): la grilla lo usa para mostrar el surge
+    // con su combustible, como lo desglosa la liquidación.
+    fuel_pct: resolverFuelPct(row),
     derechos: row.derechos,
     adicionales: row.adicionales,
     otros: row.otros,

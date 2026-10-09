@@ -660,6 +660,24 @@
     return fmtKg(e.peso_facturable);
   }
 
+  // El surge de UPS se muestra CON su fuel (09/10/2026, pedido de la oficina): la liquidación
+  // lo desglosa así ("Surge fee (con fuel)") y en Salidas aparecía pelado, con su combustible
+  // escondido en la columna Fuel. Los números guardados no cambian (Fuel sigue incluyendo el
+  // fuel del surge, como lo factura UPS): es solo cómo se lee. Devuelve { label, monto, title }.
+  function extraVista(x, fuelPct) {
+    const pct = Number(fuelPct) || 0;
+    if (x && x.tipo === 'surge' && pct > 0) {
+      const base = Number(x.monto) || 0;
+      const fuelSurge = Math.round(base * pct) / 100;
+      return {
+        label: `${x.label || 'Surge fee'} (con fuel)`,
+        monto: Math.round((base + fuelSurge) * 100) / 100,
+        title: `Surge ${fmtUSDPlano(base)} + ${fmtUSDPlano(fuelSurge)} de combustible (${pct} %). El combustible del surge está dentro de la columna Fuel; en la liquidación va junto al surge, como acá.`,
+      };
+    }
+    return { label: x.label || x.tipo || '—', monto: Number(x.monto) || 0, title: '' };
+  }
+
   // Celda "Adic": monto + un ▸ clickeable SOLO en la fila principal (isFirst) y solo si
   // el envío tiene desglose (e.extras). En las filas de bulto o sin extras queda como hoy.
   // El ▸ es un <button> propio (no un input) para no disparar shouldYieldGridNav.
@@ -792,7 +810,7 @@
     // ya está liquidado se marca que se cobra en la próxima liquidación del cliente.
     const posteriores = (e.cargos || []).filter((c) => c.estado !== 'anulado');
     const chips = extras
-      .map((x) => `<span class="extra-chip">${esc(x.label)} <b>${fmtUSD(x.monto)}</b></span>`)
+      .map((x) => { const v = extraVista(x, e.fuel_pct); return `<span class="extra-chip"${v.title ? ` title="${escAttr(v.title)}"` : ''}>${esc(v.label)} <b>${fmtUSD(v.monto)}</b></span>`; })
       .concat(posteriores.map((c) => `<span class="extra-chip extra-chip-post" title="Cargo posterior · ${NovaUtils.formatDate(c.fecha)}${c.estado === 'pendiente' && e.liquidado ? ' · se cobra en la próxima liquidación del cliente' : ''}${c.estado === 'liquidado' ? ' · liq. #' + c.liquidacion_id : ''}">${esc(c.label)} <b>${fmtUSD(c.monto)}</b>${c.estado === 'pendiente' && e.liquidado ? ' <i>próx. liq.</i>' : ''}</span>`))
       .join('');
     const extrasBlock = (extras.length || posteriores.length) ? `
@@ -800,7 +818,7 @@
         <span class="detail-block-title">Extracargos compra</span>
         <div class="extras-breakdown">
           ${chips}
-          <span class="extra-chip extra-chip-total">Σ <b>${fmtUSD((parseNum(e.adicionales) || 0) + (parseNum(e.cargos_total) || 0))}</b></span>
+          <span class="extra-chip extra-chip-total" title="Suma de la columna Adic. + cargos posteriores. El surge se lista con su fuel, que en las columnas está dentro de Fuel: por eso Σ puede ser menor que la suma de los chips.">Σ <b>${fmtUSD((parseNum(e.adicionales) || 0) + (parseNum(e.cargos_total) || 0))}</b></span>
         </div>
       </div>` : '';
 
@@ -2683,7 +2701,11 @@
     document.getElementById('saled-peso-volumetrico').value = envio.peso_volumetrico ?? '';
     renderEditBultos();
     renderEstadoCajaSection();
-    document.getElementById('saled-recalc-status').textContent = '';
+    // Todo lo que es "de la sesión de edición" y no del envío se limpia acá (09/10/2026):
+    // la oficina abría un envío, recalculaba o calculaba la venta, salía sin guardar, y al
+    // abrir OTRO envío seguían a la vista las leyendas "Flete X → Y", "Venta aplicada…" y
+    // el panel del precio sugerido del anterior — números de otro envío en pantalla.
+    limpiarLeyendasDeSesion();
 
     document.getElementById('sal-modal-alert').innerHTML = '';
     // Cada envío arranca con el panel cerrado y sin nada pintado: si quedara lo del envío
@@ -3004,18 +3026,20 @@
       return;
     }
 
-    const rows = editExtras.map((x) => `
-      <div class="saled-extra-row">
-        <span class="saled-extra-label">${esc(x.label || x.tipo || '—')}</span>
-        <span class="saled-extra-monto">${fmtUSD(x.monto)}</span>
-      </div>`).join('');
+    const fuelPctEnvio = editEnvio ? editEnvio.fuel_pct : null;
+    const rows = editExtras.map((x) => { const v = extraVista(x, fuelPctEnvio); return `
+      <div class="saled-extra-row"${v.title ? ` title="${escAttr(v.title)}"` : ''}>
+        <span class="saled-extra-label">${esc(v.label)}</span>
+        <span class="saled-extra-monto">${fmtUSD(v.monto)}</span>
+      </div>`; }).join('');
+    const haySurge = editExtras.some((x) => x.tipo === 'surge') && Number(fuelPctEnvio) > 0;
 
     block.innerHTML = `
       <div class="saled-extras-title">Desglose de adicionales</div>
       <div class="saled-extras-list">
         ${rows}
         <div class="saled-extra-row saled-extra-total">
-          <span class="saled-extra-label">Total desglose</span>
+          <span class="saled-extra-label">Total desglose${haySurge ? ' (sin el fuel del surge, que está en Fuel)' : ''}</span>
           <span class="saled-extra-monto">${fmtUSD(extrasSum())}</span>
         </div>
       </div>
@@ -3661,6 +3685,21 @@
       panel.classList.add('hidden');
       document.getElementById('saled-venta-status').textContent = '';
     });
+  }
+
+  // Leyendas y paneles que nacen de un Recalcular / Calcular venta / cargo de ESTA sesión
+  // de edición. Nunca son datos del envío: al abrir otro envío tienen que desaparecer.
+  function limpiarLeyendasDeSesion() {
+    for (const id of ['saled-recalc-status', 'saled-venta-status', 'saled-cargo-status']) {
+      const el = document.getElementById(id);
+      if (el) { el.textContent = ''; el.className = 'saled-recalc-status'; }
+    }
+    const panel = document.getElementById('saled-venta-panel');
+    if (panel) { panel.classList.add('hidden'); panel.innerHTML = ''; }
+    const btn = document.getElementById('saled-calcular-venta');
+    if (btn) btn.disabled = false;
+    const rec = document.getElementById('saled-recalcular');
+    if (rec) rec.disabled = false;
   }
 
   // fmtUSD devuelve HTML con <span class="em"> para los vacios; aca hace falta texto plano.

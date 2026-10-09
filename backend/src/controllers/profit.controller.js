@@ -18,6 +18,8 @@ async function getMatrix(req, res, next) {
     }
 
     const matriz = await profitService.obtenerMatriz(id, servicio, tipo);
+    // Escalones al revés entre tramos (09/10): la pantalla los marca en rojo.
+    matriz.saltos = await profitService.detectarSaltos(id, servicio, tipo);
     res.json(matriz);
   } catch (e) {
     next(e);

@@ -109,7 +109,10 @@
     "test-matriz-vieja": "node scripts/test-matriz-planilla-vieja.js",
     "test-pantalla-salud-cobros": "node scripts/test-pantalla-salud-cobros.js",
     "test-costos": "node scripts/test-costos.js",
-    "test-pantalla-costos": "node scripts/test-pantalla-costos.js"
+    "test-pantalla-costos": "node scripts/test-pantalla-costos.js",
+    "test-saltos-tarifa": "node scripts/test-saltos-tarifa.js",
+    "test-pantalla-salidas-sesion": "node scripts/test-pantalla-salidas-sesion.js",
+    "test-pantalla-retomar-borrador": "node scripts/test-pantalla-retomar-borrador.js"
   },
   "keywords": [
     "nova-express",

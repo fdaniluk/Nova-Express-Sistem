@@ -391,11 +391,15 @@
       const prev = document.getElementById('liq-preview');
       prev.insertBefore(box, prev.firstChild);
     }
-    if (!lista || !lista.length) { box.hidden = true; box.innerHTML = ''; return; }
+    // El borrador que se está retomando (09/10) no es "otro": no se avisa sobre él.
+    lista = (lista || []).filter((b) => Number(b.id) !== Number(lastLiquidacionId));
+    if (!lista.length) { box.hidden = true; box.innerHTML = ''; return; }
     box.hidden = false;
-    box.innerHTML = `<strong>⚠ Ojo:</strong> ${lista.length === 1 ? 'hay un borrador anterior' : `hay ${lista.length} borradores anteriores`} con envíos de esta selección. Si seguís, el sistema te va a pedir borrarlo antes de crear uno nuevo.
+    box.innerHTML = `<strong>⚠ Ojo:</strong> ${lista.length === 1 ? 'hay un borrador anterior' : `hay ${lista.length} borradores anteriores`} con envíos de esta selección. Podés retomarlo tal cual estaba, o borrarlo y seguir con esta selección nueva.
       <ul>${lista.map((b) => `<li>Borrador <strong>#${b.id}</strong> del ${NovaUtils.formatDate(b.fecha)} · ${b.guias.length} envío${b.guias.length === 1 ? '' : 's'} en común: ${b.guias.join(', ')}
+        <button type="button" class="btn btn-sm btn-outline" data-retomar-previo="${b.id}">Retomar ese borrador</button>
         <button type="button" class="btn btn-sm btn-secondary" data-borrar-previo="${b.id}">Borrar ese borrador</button></li>`).join('')}</ul>`;
+    box.querySelectorAll('[data-retomar-previo]').forEach((btn) => btn.addEventListener('click', () => retomarBorrador(btn.dataset.retomarPrevio)));
     box.querySelectorAll('[data-borrar-previo]').forEach((btn) => {
       btn.addEventListener('click', async () => {
         const id = btn.dataset.borrarPrevio;
@@ -586,6 +590,54 @@
     return liq.id;
   }
 
+  // RETOMAR UN BORRADOR (09/10/2026, pedido de la oficina). Antes, si alguien armaba la
+  // liquidación, bajaba el Excel para revisar y salía sin confirmar, el borrador quedaba
+  // colgado y solo se podía borrar: había que volver a seleccionar, recalcular y crear otro.
+  // Ahora se abre en "Crear liquidación" con el cliente, el período, sus envíos tildados y
+  // sus adicionales; la vista previa se recalcula sobre los valores congelados (son los
+  // mismos del borrador) y Confirmar / Excel actúan sobre ESE borrador, no sobre uno nuevo.
+  async function retomarBorrador(id) {
+    try {
+      const liq = await NovaAPI.liquidaciones.obtener(id);
+      if (!liq) throw new Error(`No se encontró la liquidación #${id}.`);
+      if (liq.estado === 'confirmada') throw new Error(`La liquidación #${id} ya está confirmada: no se retoma, se consulta desde el historial.`);
+      document.querySelector('.tab[data-tab="crear"]').click();
+      document.getElementById('liq-cliente').value = String(liq.cliente_id);
+      if (liq.periodo_desde) document.getElementById('liq-desde').value = String(liq.periodo_desde).slice(0, 10);
+      if (liq.periodo_hasta) document.getElementById('liq-hasta').value = String(liq.periodo_hasta).slice(0, 10);
+      await cargarEnviosCliente();
+      const ids = new Set((liq.items || []).map((i) => Number(i.envio_id)));
+      const faltan = [];
+      document.querySelectorAll('.liq-envio-check').forEach((c) => { c.checked = ids.has(Number(c.value)); ids.delete(Number(c.value)); });
+      // Lo que el borrador tenía y ya no está pendiente (se liquidó en otra, o cambió de período).
+      for (const it of liq.items || []) if (ids.has(Number(it.envio_id))) faltan.push(it.numero_guia || it.envio_id);
+      // Adicionales manuales por envío: lo que el backend ya separó como "manual" en el
+      // detalle del ítem (cargos_adicionales también guarda filas espejo con la columna
+      // entera, así que no se lee esa tabla a ciegas; ver liquidacion.model buscarPorId).
+      for (const it of liq.items || []) {
+        const manual = (it.adicional_detalle || []).filter((d) => d.tipo === 'manual').reduce((s, d) => s + (Number(d.monto) || 0), 0);
+        const inp = document.querySelector(`tr[data-envio-id="${it.envio_id}"] .liq-adicional`);
+        if (inp && manual > 0) inp.value = String(Math.round(manual * 100) / 100);
+      }
+      // Si al borrador le falta algún envío, ya no se puede confirmar tal cual (el backend
+      // compara la selección con el borrador y corta con 409): se borra y Confirmar / Excel
+      // crean uno nuevo con lo que quedó, que es lo que se está viendo.
+      if (faltan.length) { await NovaAPI.liquidaciones.eliminarBorrador(id).catch(() => {}); lastLiquidacionId = null; }
+      else lastLiquidacionId = Number(id);
+      await calcularPreview();
+      if (!lastPreview) { lastLiquidacionId = null; return; }
+      // calcularPreview no toca lastLiquidacionId; queda apuntando al borrador retomado.
+      if (!faltan.length) lastLiquidacionId = Number(id);
+      document.getElementById('liq-resumen-pie').textContent = faltan.length ? 'Borrador retomado con menos envíos: al confirmar o exportar se arma uno nuevo.' : `Borrador #${id} retomado: revisá, bajá el Excel si hace falta y confirmá. Si cambiás algo, se reemplaza por uno nuevo.`;
+      document.getElementById('liq-resumen-pie').classList.remove('ok');
+      document.getElementById('liq-preview').scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (faltan.length) NovaUtils.showAlert(alertBox, `Ojo: ${faltan.length === 1 ? 'un envío del borrador ya no está pendiente' : `${faltan.length} envíos del borrador ya no están pendientes`} (${faltan.join(', ')}). La vista previa es con los que quedan; al confirmar o bajar el Excel se arma un borrador nuevo con eso.`, 'error');
+      else NovaUtils.showAlert(alertBox, `Borrador #${id} retomado.`, 'success');
+    } catch (err) {
+      NovaUtils.showAlert(alertBox, err.message, 'error');
+    }
+  }
+
   function bindHistorial() {
     document.getElementById('btn-hist-filtrar').addEventListener('click', loadHistorial);
   }
@@ -616,6 +668,7 @@
           <td><span class="liq-chip ${l.estado === 'confirmada' ? 'confirmada' : 'borrador'}">${l.estado}</span> <span class="liq-num-id">#${l.id}</span></td>
           <td class="acciones">
             <button type="button" class="btn btn-sm btn-outline" data-export="${l.id}">Excel</button>
+            ${l.estado !== 'confirmada' ? `<button type="button" class="btn btn-sm btn-coral" data-retomar="${l.id}" title="Abre este borrador en Crear liquidación con sus envíos ya tildados, para revisarlo, bajar el Excel y confirmarlo.">Retomar</button>` : ''}
             ${l.estado !== 'confirmada' ? `<button type="button" class="btn btn-sm btn-danger" data-borrar="${l.id}" title="Borrar este borrador. No toca ningún envío: los envíos de un borrador siguen pendientes.">Borrar</button>` : ''}
           </td>
         </tr>`
@@ -625,6 +678,7 @@
           window.open(NovaAPI.liquidaciones.exportarUrl(btn.dataset.export), '_blank');
         });
       });
+      tbody.querySelectorAll('[data-retomar]').forEach((btn) => btn.addEventListener('click', () => retomarBorrador(btn.dataset.retomar)));
       // Borrar borradores muertos (los #12 y #30 del limitador L1 se sacan por acá).
       tbody.querySelectorAll('[data-borrar]').forEach((btn) => {
         btn.addEventListener('click', async () => {

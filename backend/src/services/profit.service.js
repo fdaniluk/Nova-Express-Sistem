@@ -1090,7 +1090,64 @@ async function cargarMatrizMasiva(clienteId, { servicio, tipo, celdas, reemplaza
   return { servicio, tipo, celdas: n };
 }
 
+// ── Saltos para abajo en la tarifa (09/10/2026) ──────────────────────────────────────
+// La oficina vio que un envío UPS de 50 kg bajaba de precio al pasar a 50,5 kg: el tramo
+// 45–50 tenía 105 % y el 50+ 90 %. El motor estaba bien; la matriz tenía un escalón al
+// revés. Esto lo detecta: para cada zona, en cada borde entre tramos compara el precio de
+// venta del flete en el último peso del tramo contra el primer peso del siguiente. Si baja,
+// es un salto. Solo exportación por porcentaje (lo que cargó la oficina); costo del motor.
+async function detectarSaltos(clienteId, servicio, tipo = 'export') {
+  if (tipo !== 'export') return [];
+  const core = require('../../../shared/cotizador/cotizador-core.js');
+  const db = getDb();
+  const cliente = await db.prepare('SELECT tarifa_pct, modo_tarifa FROM clientes WHERE id = ?').get(clienteId);
+  if (!cliente || cliente.modo_tarifa === 'por_kg') return [];
+  const tramos = await obtenerTramos(clienteId);
+  const filas = await db.prepare('SELECT zona, peso_min, peso_max, profit_pct FROM profit_overrides WHERE cliente_id = ? AND servicio = ? AND tipo = ?').all(clienteId, servicio, tipo);
+  const celda = new Map(); const banda = new Map(); const porZona = new Map(); let tabla = null;
+  for (const f of filas) {
+    if (f.zona !== null && f.peso_min !== null) celda.set(`${f.zona}|${f.peso_min}`, f.profit_pct);
+    else if (f.peso_min !== null) banda.set(f.peso_min, f.profit_pct);
+    else if (f.zona !== null) porZona.set(f.zona, f.profit_pct);
+    else tabla = f.profit_pct;
+  }
+  const pctDe = (zona, t) => {
+    const k = `${zona}|${t.min}`;
+    if (celda.has(k)) return celda.get(k);
+    if (banda.has(t.min)) return banda.get(t.min);
+    if (porZona.has(zona)) return porZona.get(zona);
+    if (tabla !== null) return tabla;
+    return Number(cliente.tarifa_pct) || 0;
+  };
+  const PAIS_DHL = {};
+  for (const [pais, z] of Object.entries(core.ZONAS_DHL)) if (!PAIS_DHL[z]) PAIS_DHL[z] = pais;
+  const costo = (pf, zona) => {
+    if (servicio === 'DHL') {
+      const r = core.cotizarServicio('DHL', { pais: PAIS_DHL[zona], tipo: 'export', pf, fob: 0, fuelPct: 0, profitPct: 0, bultosProc: [{ dims: [10, 10, 10], pr: pf, pf }], contenido: 'paquete' });
+      return r ? r.fleteBase : null;
+    }
+    return servicio === 'UPS_SAVER'
+      ? core.getUPS(core.UPS_SE_LIQD, core.UPS_SE_PK, core.UPS_SE_MN, zona, pf)
+      : core.getUPS(core.UPS_E_LIQD, core.UPS_E_PK, core.UPS_E_MN, zona, pf);
+  };
+  const r2 = (n) => Math.round(n * 100) / 100;
+  const saltos = [];
+  for (const zona of ZONAS) {
+    for (let i = 0; i < tramos.length - 1; i++) {
+      const t = tramos[i]; const sig = tramos[i + 1];
+      if (t.max === null) break;
+      const c1 = costo(t.max, zona); const c2 = costo(t.max + 0.5, zona);
+      if (!(c1 > 0) || !(c2 > 0)) continue;
+      const p1 = r2(c1 * (1 + pctDe(zona, t) / 100));
+      const p2 = r2(c2 * (1 + pctDe(zona, sig) / 100));
+      if (p2 < p1 - 0.005) saltos.push({ zona, peso: t.max, desde_pct: pctDe(zona, t), hasta_pct: pctDe(zona, sig), precio_antes: p1, precio_despues: p2, tramo: `${t.min}-${t.max}`, tramo_siguiente: sig.max === null ? `${sig.min}+` : `${sig.min}-${sig.max}` });
+    }
+  }
+  return saltos;
+}
+
 module.exports = {
+  detectarSaltos,
   PASOS,
   HASTA_POR_DEFECTO,
   generarTramosPaso,

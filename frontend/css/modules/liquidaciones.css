@@ -52,6 +52,8 @@
 .btn-outline { background: #fff; color: var(--color-primary); border: 1px solid var(--color-primary); }
 .btn-outline:hover { background: var(--liq-azul-suave); }
 .btn-outline:disabled { opacity: .5; cursor: not-allowed; }
+.btn-coral { background: var(--liq-coral); color: #fff; border: 1px solid var(--liq-coral); }
+.btn-coral:hover { background: var(--liq-coral-oscuro); border-color: var(--liq-coral-oscuro); }
 .btn-ghost { background: transparent; color: var(--color-primary); border: 1px dashed var(--color-border); }
 .btn-ghost:hover { background: #f1f5f9; border-color: var(--color-primary); }
 
