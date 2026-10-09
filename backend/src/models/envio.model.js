@@ -233,6 +233,9 @@ async function calcularDesgloseAlCosto(data, pesoFacturable) {
     // Protección de Documentos de DHL (USD 7,50). Sin esta línea el cargo se pierde al
     // congelar el costo y reaparece como descuadre al conciliar contra la factura.
     proteccionDoc: data.proteccion_doc ? true : false,
+    // El tilde "Asegurado" manda sobre el seguro (09/10/2026): si viene, se respeta; si no
+    // viene (altas viejas, importación), el seguro sigue al valor declarado.
+    asegurado: data.asegurado === undefined || data.asegurado === null ? null : Boolean(Number(data.asegurado)),
     // Entrega residencial (UPS, USD 6): tilde del alta/edición (08/10/2026).
     residencial: data.residencial ? true : false,
     // Tipo de paquete → tarifa de documento de DHL (hasta 2 kg). Sin esto el costo se
@@ -340,7 +343,9 @@ async function crear(data) {
         data.numero_salida ?? null,
         data.bulto ?? null,
         data.tipo_paquete ?? null,
-        data.asegurado ?? 0,
+        // Sin tilde explícita (importación, bot, API): se guarda lo que el motor cobró, así
+        // el flag siempre dice la verdad del envío (09/10/2026).
+        data.asegurado ?? ((desglose && Number(desglose.seguro) > 0) ? 1 : 0),
         data.ddp ?? 0,
         data.proteccion_doc ?? 0,
         data.residencial ? 1 : 0,

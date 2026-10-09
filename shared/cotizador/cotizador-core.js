@@ -350,13 +350,31 @@ function calcSeguroUPS(v,propio){
 // en Salidas y en la liquidación.
 const DHL_PROTECCION_DOC=7.50;
 
+// DHL (09/10/2026, pedido de Felipe): igual que UPS, el seguro arranca en USD 100 de valor
+// declarado. Antes se cobraba el mínimo de 17,50 desde USD 1.
 function calcSeguroDHL(v,propio){
   const p=seguroPropioMonto(v,propio); if(p)return p;
   if(v<=0)return{monto:0,desc:'Sin seguro (valor = 0)'};
+  if(v<100)return{monto:0,desc:'Sin cargo (valor menor a USD 100)'};
   const raw=parseFloat((v*0.015).toFixed(2));
   const m=Math.max(17.50,raw);
   if(raw<17.50)return{monto:17.50,desc:'Seguro DHL: mínimo USD 17.50'};
   return{monto:m,desc:`Seguro DHL: 1.5% × USD ${v.toLocaleString('es-AR')} = USD ${m.toFixed(2)}`};
+}
+
+// El tilde "Asegurado" manda (09/10/2026). `asegurado` puede ser:
+//   · null/undefined → lo de siempre: según el valor declarado (≥ USD 100 paga);
+//   · true  → se cobra aunque el valor sea menor a 100 (el mínimo de la escala: UPS 15, DHL 17,50;
+//             con seguro propio del cliente, su cuenta);
+//   · false → no se cobra, valga lo que valga.
+function calcSeguro(courier,v,propio,asegurado){
+  const base=courier==='DHL'?calcSeguroDHL(v,propio):calcSeguroUPS(v,propio);
+  if(asegurado===false)return{monto:0,desc:'Sin seguro (no asegurado)'};
+  if(asegurado===true&&base.monto===0&&v>0){
+    const p=seguroPropioMonto(v,propio); if(p)return p;
+    return courier==='DHL'?{monto:17.50,desc:'Seguro DHL: mínimo USD 17.50 (asegurado a pedido)'}:{monto:15,desc:'Seguro: USD 15.00 fijo (asegurado a pedido)'};
+  }
+  return base;
 }
 
 // Extracargos DHL por bulto: sobrepeso (>70 kg real o facturable) y exceso de tamaño
@@ -579,6 +597,8 @@ function cotizarServicio(servicio, params) {
     // Seguro negociado del cliente: { pct, min } o null. Cuando viene, reemplaza la escala
     // de seguro del courier en DHL y en UPS. Ver seguroPropioMonto().
     seguroPropio=null,
+    // El tilde "Asegurado" del envío: true / false / null (= según el valor). Ver calcSeguro().
+    asegurado=null,
     // Fecha del envío (YYYY-MM-DD) para las tarifas que cambian en el tiempo (surge de
     // importación desde el 27-sep-2026). Sin fecha = hoy.
     fecha=null,
@@ -631,7 +651,7 @@ function cotizarServicio(servicio, params) {
     const goGreen=aplicaGoGreen?parseFloat((pf*0.98).toFixed(2)):0;
     const{sobrepesoTotal,excesoTotal,noConvencionalTotal}=calcDHLExtras(bultosProc);
     const topesDHL=calcTopesPieza(bultosProc).dhl;
-    const seguroObj=calcSeguroDHL(fob,seguroPropio);
+    const seguroObj=calcSeguro('DHL',fob,seguroPropio,asegurado);
     const extras=[];
     if(goGreen>0)           extras.push([`GoGreen (${Number(pf.toFixed(3))} kg × USD 0.98)`,goGreen]);
     if(sobrepesoTotal>0)    extras.push(['Sobrepeso (DHL)',sobrepesoTotal]);
@@ -704,7 +724,7 @@ function cotizarServicio(servicio, params) {
   // como 5.50, y con el fuel encima como 7.26. Criterio de Felipe (29/07): los recargos
   // del courier se pasan al costo, igual que el surge y el DDP.
   const flete=fleteBase;
-  const seguroObj=calcSeguroUPS(fob,seguroPropio);
+  const seguroObj=calcSeguro('UPS',fob,seguroPropio,asegurado);
   const manejo=parseFloat((manejoCount*27.65+contornoExtra).toFixed(2));
   const extras=[];
   if(manejoCount>0)  extras.push([`Manejo adicional (${manejoCount} bulto${manejoCount>1?'s':''})`,manejoCount*27.65]);
@@ -758,7 +778,7 @@ if(typeof module!=='undefined'&&module.exports){
     UPS_SAVER_ES_IT,UPS_SAVER_ES_PK,UPS_SAVER_IT_PK,
     resolverZona,
     getPesoVol,getDHL,getDHLBig,getDHLE50,getUPS,getUPSSaverEsIt,
-    getSurge,getSurgeImportNuevo,getSurgeDHL,calcSeguroUPS,calcSeguroDHL,seguroPropioMonto,DHL_PROTECCION_DOC,calcDHLExtras,calcUPSDimExtras,calcImpuestos,calcZonaEntrega,normalizarEntrega,
+    getSurge,getSurgeImportNuevo,getSurgeDHL,calcSeguroUPS,calcSeguroDHL,calcSeguro,seguroPropioMonto,DHL_PROTECCION_DOC,calcDHLExtras,calcUPSDimExtras,calcImpuestos,calcZonaEntrega,normalizarEntrega,
     TOPES_PIEZA,calcTopesPieza,MSG_CONTORNO_UPS,
     cotizarServicio,
   };

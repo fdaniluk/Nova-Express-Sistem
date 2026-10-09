@@ -193,6 +193,9 @@ async function main() {
     const comun = {
       pais: esc.envio.pais_destino, tipo, servicio: esc.servicio, pesoFacturable: esc.pf,
       fob: esc.envio.fob, bultos, cliente_id: cli.id, profitPct: 0, profitManual: false,
+      // La misma fecha que el envío: desde el 01/10 DHL tiene extracargo por demanda por
+      // calendario, y los caminos con envio_id cotizan con la fecha del envío (agosto).
+      fecha: '2026-08-07',
     };
 
     // 1. Cargar envío: arma todo a mano, con el fuel de configuración.

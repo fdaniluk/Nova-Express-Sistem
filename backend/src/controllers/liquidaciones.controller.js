@@ -168,6 +168,7 @@ async function cotizar(req, res, next) {
       seguroPropio: entrada.seguroPropio,
       fecha: entrada.fecha,
       descuentoPct: entrada.descuentoPct,
+      asegurado: entrada.asegurado,
     });
 
     if (!resultado) {

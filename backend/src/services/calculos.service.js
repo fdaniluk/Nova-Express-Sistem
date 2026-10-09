@@ -187,7 +187,7 @@ function contenidoDe(tipoPaquete) {
   return String(tipoPaquete ?? '').toLowerCase() === 'd' ? 'documento' : 'paquete';
 }
 
-function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zonaOverride, bultos = [], residencial = false, remota = false, entrega, ddp = false, proteccionDoc = false, contenido = 'paquete', precioKgVenta = null, seguroPropio = null, fecha = null, descuentoPct = 0 }) {
+function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, profitPct, zonaOverride, bultos = [], residencial = false, remota = false, entrega, ddp = false, proteccionDoc = false, contenido = 'paquete', precioKgVenta = null, seguroPropio = null, fecha = null, descuentoPct = 0, asegurado = null }) {
   const pf     = Number(pesoFacturable) || 0;
   const fuel   = (Number(fuelPct)   || 0) / 100;
   const profit = (Number(profitPct) || 0) / 100;
@@ -218,6 +218,8 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
     seguroPropio,
     // Descuento especial sobre el flete de venta (02/10/2026), en %.
     descuentoPct: Number(descuentoPct) || 0,
+    // El tilde "Asegurado" (09/10/2026): true/false manda; null = según el valor declarado.
+    asegurado: asegurado === true || asegurado === false ? asegurado : null,
   });
   if (!r) return null;
 
@@ -294,7 +296,7 @@ function cotizarEnvio({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, prof
 // Por construcción flete+seguro+fuel+adicionales == total (costo a profit 0).
 // El fuelPct debe ser el autoritativo de config (lo resuelve el caller).
 // Devuelve null si el país no figura en las tablas y no hay zonaOverride.
-function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zonaOverride, bultos = [], residencial = false, remota = false, entrega, ddp = false, proteccionDoc = false, contenido = 'paquete', fecha = null }) {
+function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zonaOverride, bultos = [], residencial = false, remota = false, entrega, ddp = false, proteccionDoc = false, contenido = 'paquete', fecha = null, asegurado = null }) {
   const paisCanon = canonizarPais(pais) || pais || '';
   const r = cotizarServicioCore(servicio, {
     pais: paisCanon,
@@ -312,6 +314,7 @@ function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zo
     proteccionDoc,
     contenido,
     fecha,
+    asegurado: asegurado === true || asegurado === false ? asegurado : null,
   });
   if (!r) return null;
 

@@ -634,6 +634,12 @@ router.post('/:id/recalcular', async (req, res, next) => {
       // Protección de documentos de DHL: mismo criterio que el DDP. Sin esta línea el
       // primer "Recalcular" borraría los 7,50 en silencio.
       proteccion_doc: body.proteccion_doc != null ? body.proteccion_doc : envio.proteccion_doc,
+      // Asegurado (09/10): del modal si vino, del envío si no. Es lo que decide el seguro.
+      // Si cambió el valor declarado y nadie dijo nada del tilde, se vuelve al automático
+      // (desde USD 100): el "no" guardado era por el valor viejo, no una decisión.
+      asegurado: body.asegurado != null ? body.asegurado
+        : (body.fob !== undefined && Number(body.fob ?? 0) !== Number(envio.fob ?? 0)) ? null
+        : envio.asegurado,
       // Entrega residencial (UPS, USD 6): mismo criterio.
       residencial: body.residencial != null ? body.residencial : envio.residencial,
       // Mercadería o documento: en DHL selecciona la tabla de documento (hasta 2 kg). Se

@@ -516,6 +516,7 @@
     document.getElementById('proteccion_doc').addEventListener('change', debounce(updateCotizacion, 400));
     // Entrega residencial (UPS, USD 6): recotiza al tildar.
     document.getElementById('residencial').addEventListener('change', debounce(updateCotizacion, 400));
+    document.getElementById('asegurado').addEventListener('change', debounce(updateCotizacion, 400));
 
     // Recalcular al cambiar la zona de entrega (el recargo lo resuelve el motor).
     // Son DOS cargos distintos de UPS: extendida (42.15 o 0.92/kg) y remota (5.86 por
@@ -709,6 +710,9 @@
         ddp: document.getElementById('ddp').checked,
         proteccionDoc: document.getElementById('proteccion_doc').checked,
         residencial: document.getElementById('residencial').checked,
+        // El tilde "Asegurado" manda sobre el seguro (09/10): se tilda solo a partir de
+        // USD 100 (DHL y UPS por igual) y se puede sacar o poner a mano.
+        asegurado: document.getElementById('asegurado').checked,
         entrega: document.getElementById('entrega').value,
         // Tipo de paquete → tarifa de DOCUMENTO de DHL (hasta 2 kg). El formulario ya tenía
         // el selector y lo guardaba en el envío, pero nunca se lo mandaba al cotizador: por

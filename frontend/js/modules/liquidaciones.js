@@ -211,7 +211,16 @@
         // OJO: se busca en gruposPendientes (la lista ENTERA), no en lo que quedó filtrado:
         // el grupo es el mismo y así el botón no depende de lo que esté tipeado.
         const grupo = gruposPendientes.find((g) => String(g.cliente_id) === String(btn.dataset.liqCliente));
-        if (grupo && grupo.envios.length) {
+        // Si en Pendientes se filtró por fecha (09/10, pedido de administración), ESE es el
+        // período que se quiere liquidar: se lleva tal cual a Crear, así no hay que volver
+        // a tipearlo. Sin filtro, lo de siempre: desde el envío más viejo hasta hoy.
+        const pendDesde = document.getElementById('pend-desde').value;
+        const pendHasta = document.getElementById('pend-hasta').value;
+        if (pendDesde || pendHasta) {
+          const fechas = grupo && grupo.envios.length ? grupo.envios.map((e) => e.fecha).filter(Boolean).sort() : [];
+          document.getElementById('liq-desde').value = pendDesde || fechas[0] || NovaUtils.hoyLocal(new Date()).slice(0, 8) + '01';
+          document.getElementById('liq-hasta').value = pendHasta || NovaUtils.hoyLocal(new Date());
+        } else if (grupo && grupo.envios.length) {
           const fechas = grupo.envios.map((e) => e.fecha).filter(Boolean).sort();
           document.getElementById('liq-desde').value = fechas[0];
           document.getElementById('liq-hasta').value = NovaUtils.hoyLocal(new Date());

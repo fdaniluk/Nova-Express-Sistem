@@ -72,6 +72,7 @@
   let editMulti = false;    // true si el envío tiene más de un bulto
   let editExtras = [];      // desglose de adicionales [{ tipo, label, monto }]
   let editExtrasDirty = false; // true solo si el desglose viene de un Recalcular de esta sesión
+  let aseguradoTocado = false; // true si en esta edición se tocó el tilde Asegurado a mano
 
   // ── Navegación por celdas (estilo Excel) ────────────────────────────────────
   // activeCell es una COORDENADA LÓGICA, no un nodo: { rowIndex, colIndex } | null.
@@ -2508,6 +2509,14 @@
     document.getElementById('sal-modal-delete').addEventListener('click', deleteEditModal);
     document.getElementById('sal-modal-no-volo').addEventListener('click', toggleNoVolo);
     document.getElementById('saled-recalcular').addEventListener('click', recalcularDesglose);
+    // Asegurado (09/10): se prende solo desde USD 100 de valor declarado (DHL y UPS por
+    // igual) mientras nadie lo haya tocado a mano en esta edición; el tilde manda.
+    document.getElementById('saled-asegurado').addEventListener('change', () => { aseguradoTocado = true; });
+    document.getElementById('saled-fob').addEventListener('input', () => {
+      if (aseguradoTocado) return;
+      const v = Number(document.getElementById('saled-fob').value);
+      document.getElementById('saled-asegurado').checked = Number.isFinite(v) && v >= 100;
+    });
     document.getElementById('saled-agregar-bulto').addEventListener('click', agregarBultoModal);
     document.getElementById('saled-calcular-venta').addEventListener('click', calcularVenta);
     document.getElementById('saled-courier').addEventListener('change', () => { toggleProtDocVisible(true); onCourierModalChange(); });
@@ -2601,6 +2610,7 @@
     document.getElementById('saled-tipo-paquete').value = envio.tipo_paquete ?? '';
     document.getElementById('saled-direccion').value = envio.direccion || 'expo';
     document.getElementById('saled-asegurado').checked = Boolean(envio.asegurado);
+    aseguradoTocado = false;
     document.getElementById('saled-entrega').value = envio.entrega || (envio.remota ? 'extendida' : 'normal');
     document.getElementById('saled-ddp').checked = Boolean(envio.ddp);
     {
@@ -3291,6 +3301,8 @@
       ddp: document.getElementById('saled-ddp').checked ? 1 : 0,
       proteccion_doc: document.getElementById('saled-proteccion-doc').checked ? 1 : 0,
       residencial: document.getElementById('saled-residencial').checked ? 1 : 0,
+      // Asegurado tal como está tildado AHORA (09/10): es lo que decide si va el seguro.
+      asegurado: document.getElementById('saled-asegurado').checked ? 1 : 0,
       pais_destino: document.getElementById('saled-pais-destino').value || null,
       courier: document.getElementById('saled-courier').value,
       // Servicio UPS tal como está AHORA en el modal (null en DHL).
@@ -3536,6 +3548,7 @@
       ddp: document.getElementById('saled-ddp').checked,
       proteccionDoc: document.getElementById('saled-proteccion-doc').checked,
       residencial: document.getElementById('saled-residencial').checked,
+      asegurado: document.getElementById('saled-asegurado').checked,
       entrega: document.getElementById('saled-entrega').value,
       contenido: document.getElementById('saled-tipo-paquete').value === 'd'
         ? 'documento' : 'paquete',

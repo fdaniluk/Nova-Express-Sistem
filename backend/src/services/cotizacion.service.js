@@ -177,7 +177,7 @@ async function leerEnvio(envioId) {
   const db = getDb();
   return db.prepare(`
     SELECT e.id, e.cliente_id, e.courier, e.servicio_ups, e.tipo_envio, e.pais_destino,
-           e.zona, e.fob, e.fuel_pct, e.fuel_origen, e.tipo_paquete, e.ddp, e.proteccion_doc, e.residencial, e.entrega,
+           e.zona, e.fob, e.fuel_pct, e.fuel_origen, e.tipo_paquete, e.ddp, e.proteccion_doc, e.residencial, e.entrega, e.asegurado,
            e.remota, e.peso_real, e.largo, e.ancho, e.alto, e.peso_facturable, e.fecha, e.descuento_venta_pct
     FROM envios e WHERE e.id = ?`).get(envioId);
 }
@@ -240,6 +240,10 @@ async function normalizarEntrada(crudo = {}) {
 
   const ddp = boolDe(c.ddp, envio && envio.ddp);
   const proteccionDoc = boolDe(c.proteccionDoc, envio && envio.proteccion_doc);
+  // Asegurado (09/10): el body manda, si no el envío; sin ninguno queda null (según el valor).
+  const asegurado = c.asegurado !== undefined && c.asegurado !== null
+    ? Boolean(c.asegurado === true || c.asegurado === 1 || c.asegurado === '1' || c.asegurado === 'true')
+    : (envio && envio.asegurado !== null && envio.asegurado !== undefined ? Boolean(Number(envio.asegurado)) : null);
   // Entrega residencial de UPS (08/10/2026): del body si vino, si no la guardada en el envío.
   const residencial = boolDe(c.residencial, envio && envio.residencial);
   const entrega = tomar(c.entrega, envio && envio.entrega)
@@ -308,7 +312,7 @@ async function normalizarEntrada(crudo = {}) {
     // Para el motor
     pais, tipo, servicio, pesoFacturable, fob,
     fuelPct: fuel.fuelPct, profitPct, zona, bultos: bultos || [],
-    ddp, proteccionDoc, residencial, entrega, contenido, precioKgVenta, seguroPropio, descuentoPct,
+    ddp, proteccionDoc, residencial, entrega, contenido, precioKgVenta, seguroPropio, descuentoPct, asegurado,
     // Fecha del envío (29/09/2026): el surge de importación cambió el 27-sep y el de DHL
     // rige por calendario. Sin esto "Calcular venta" de un envío de agosto usaba la tabla
     // de hoy mientras el costo congelado usaba la de su fecha.

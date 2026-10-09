@@ -795,6 +795,14 @@ async function migrateUsuarios() {
     await dbApi.prepare("UPDATE usuarios SET ver_costos = 1 WHERE LOWER(usuario) = 'marcelo'").run();
     await dbApi.prepare("INSERT INTO migraciones_una_vez (clave) VALUES ('ver_costos_marcelo')").run();
   }
+  // 09/10/2026: desde hoy el tilde "Asegurado" manda sobre el seguro. Los envíos viejos a los
+  // que se les cobró seguro pero quedaron sin tilde (importados, bot, API) se marcan como
+  // asegurados para que un Recalcular no les saque el seguro en silencio. Una sola vez.
+  const hechoAseg = await dbApi.prepare("SELECT 1 FROM migraciones_una_vez WHERE clave = 'asegurado_segun_seguro'").get();
+  if (!hechoAseg) {
+    await dbApi.prepare('UPDATE envios SET asegurado = 1 WHERE COALESCE(asegurado, 0) = 0 AND COALESCE(seguro, 0) > 0').run();
+    await dbApi.prepare("INSERT INTO migraciones_una_vez (clave) VALUES ('asegurado_segun_seguro')").run();
+  }
 }
 
 // ── Costos de la empresa (08/10/2026) ─────────────────────────────────────────────────

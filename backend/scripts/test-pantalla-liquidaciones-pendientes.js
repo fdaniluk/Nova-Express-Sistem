@@ -124,6 +124,21 @@ async function main() {
   check('y termina hoy', (await page.inputValue('#liq-hasta')) === iso(hoy), await page.inputValue('#liq-hasta'));
   const tabla = await page.textContent('#liq-envios-body');
   check('la tabla para liquidar trae LOS DOS envíos', /1Z000PENDVIEJO0001/.test(tabla) && /1Z000PENDHOY000001/.test(tabla));
+
+  console.log('\n4. Con filtro de fecha en Pendientes, "Liquidar" se lleva ESE período (09/10)\n');
+  await page.click('.tab[data-tab="pendientes"]');
+  await esperar(600);
+  const primero = iso(new Date(hoy.getFullYear(), hoy.getMonth(), 1));
+  await page.fill('#pend-desde', primero);
+  await page.fill('#pend-hasta', iso(hoy));
+  await page.click('#btn-pend-filtrar');
+  await esperar(1200);
+  await page.click(`[data-liq-cliente="${cli.id}"]`);
+  await esperar(1500);
+  check('Crear arranca en el "desde" del filtro, no en el envío más viejo', (await page.inputValue('#liq-desde')) === primero, await page.inputValue('#liq-desde'));
+  check('y termina en el "hasta" del filtro', (await page.inputValue('#liq-hasta')) === iso(hoy), await page.inputValue('#liq-hasta'));
+  const tabla2 = await page.textContent('#liq-envios-body');
+  check('la tabla trae solo el envío del período filtrado', !/1Z000PENDVIEJO0001/.test(tabla2) && /1Z000PENDHOY000001/.test(tabla2));
   check('ningún error en la pantalla', errores.length === 0, errores.slice(0, 3).join(' | '));
 
   console.log('\n' + '─'.repeat(60));
