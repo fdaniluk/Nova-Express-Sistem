@@ -74,6 +74,13 @@ function resolverPeriodo(q) {
 // 'anio' = las mismas fechas del año pasado. Elegible (pedido de Felipe, 10/09).
 function resolverComparacion(desde, hasta, modo) {
   if (modo === 'anio') return { desde: restarAnio(desde), hasta: restarAnio(hasta), modo: 'anio' };
+  // Meses enteros (Este mes, Este año, 12 meses, o un rango del 1 al último día): se
+  // corre la misma cantidad de meses. Antes se restaba la misma cantidad de DÍAS, y
+  // septiembre (30 días) se comparaba contra el 2–31 de agosto (14/10, lo vio Felipe).
+  if (desde.endsWith('-01') && hasta.endsWith('-01')) {
+    const n = mesesEntre(desde, hasta).length;
+    return { desde: primerDia(addMonths(mesDe(desde), -n)), hasta: desde, modo: 'previo' };
+  }
   const largo = diasEntre(desde, hasta);
   return { desde: sumarDias(desde, -largo), hasta: desde, modo: 'previo' };
 }
@@ -491,8 +498,12 @@ async function analitica(q = {}) {
       dias_liquidacion: dias == null ? null : r1(dias),
     };
   };
-  const nuevos = await db.prepare('SELECT COUNT(*) AS n FROM clientes WHERE date(created_at) >= ? AND date(created_at) < ?').get(desde, hasta);
-  const nuevosAnt = await db.prepare('SELECT COUNT(*) AS n FROM clientes WHERE date(created_at) >= ? AND date(created_at) < ?').get(comp.desde, comp.hasta);
+  // Cliente nuevo = su PRIMER envío (que voló) cae en el período. Antes se miraba la fecha
+  // de alta de la ficha, y la carga masiva de tarifarios del 28/09 creó ~100 fichas de
+  // golpe: septiembre decía "102 clientes nuevos" (14/10).
+  const SQL_NUEVOS = `SELECT COUNT(*) AS n FROM (SELECT cliente_id, MIN(fecha) AS primera FROM envios WHERE no_volo = 0 GROUP BY cliente_id) WHERE primera >= ? AND primera < ?`;
+  const nuevos = await db.prepare(SQL_NUEVOS).get(desde, hasta);
+  const nuevosAnt = await db.prepare(SQL_NUEVOS).get(comp.desde, comp.hasta);
   const ritmo = { ...ritmoDe(envios, desde, hasta), clientes_nuevos: nuevos.n || 0, ant: { ...ritmoDe(enviosAnt, comp.desde, comp.hasta), clientes_nuevos: nuevosAnt.n || 0 } };
 
   return {

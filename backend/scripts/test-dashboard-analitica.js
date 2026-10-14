@@ -224,7 +224,17 @@ async function main() {
   check('en disputa: 0', d.plata.disputa.n === 0);
   check('ritmo: kg por envío 11.7 (70/6), venta por envío 283.33', cerca(d.ritmo.kg_envio, 11.7, 0.06) && cerca(d.ritmo.venta_envio, 283.33), JSON.stringify(d.ritmo));
   check('  días carga → liquidación = 10 (el único liquidado)', d.ritmo.dias_liquidacion === 10, d.ritmo.dias_liquidacion);
-  check('  clientes nuevos del período: al menos los 2 creados hoy', d.ritmo.clientes_nuevos >= 2, d.ritmo.clientes_nuevos);
+  check('  clientes nuevos del período: 0 (ALFA y BETA ya tenían envíos en el período previo)', d.ritmo.clientes_nuevos === 0 && d.ritmo.ant.clientes_nuevos === 2, JSON.stringify([d.ritmo.clientes_nuevos, d.ritmo.ant.clientes_nuevos]));
+  {
+    // Meses enteros: la comparación corre meses, no días (14/10: septiembre vs 2–31 de agosto).
+    const A = require('../src/services/analitica.service');
+    const c = A.resolverComparacion('2026-09-01', '2026-10-01', 'previo');
+    check('  comparación de un mes entero = el mes anterior entero (1–31 ago, no 2–31)', c.desde === '2026-08-01' && c.hasta === '2026-09-01', JSON.stringify(c));
+    const c2 = A.resolverComparacion('2026-08-01', '2026-10-01', 'previo');
+    check('  dos meses enteros → los dos anteriores (jun–jul)', c2.desde === '2026-06-01' && c2.hasta === '2026-08-01', JSON.stringify(c2));
+    const c3 = A.resolverComparacion('2026-09-10', '2026-09-20', 'previo');
+    check('  un rango suelto sigue siendo el mismo largo justo antes', c3.desde === '2026-08-31' && c3.hasta === '2026-09-10', JSON.stringify(c3));
+  }
 
   console.log('\n7. Excel\n');
   r = await get(`/api/dashboard/analitica.xlsx?${qBase}`);
