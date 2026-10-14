@@ -301,6 +301,12 @@
       x.strokeStyle = '#9aa9d6'; x.lineWidth = 1.5; x.beginPath(); x.moveTo(0, 8); x.lineTo(8, 0); x.stroke();
       return x.createPattern(c, 'repeat');
     })();
+    // El mes contra el que se compara cada barra clara (14/10: en "Este mes" el tooltip decía
+    // "Oct 26 · Período anterior" y parecía que octubre se comparaba con octubre): corrido
+    // 12 meses si es contra el año pasado, o tantos meses como tiene el período si es el previo.
+    const corr = datos.comparacion.modo === 'anio' ? 12 : s.meses.length;
+    const mesAnt = (ym) => { const [y, mm] = ym.split('-').map(Number); const d = new Date(Date.UTC(y, mm - 1 - corr, 1)); return `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`; };
+    const altura = datos.comparacion.misma_altura ? ` (hasta el ${Number(datos.comparacion.hasta.slice(8, 10))})` : '';
     const datasets = [
       { label: compLabel, data: s.meses.map((_, i) => (s[m.ant][i] === undefined ? null : s[m.ant][i])), backgroundColor: COL.pl, borderRadius: 4, stack: 'ant' },
       { label: 'Este período', data: s[m.serie], backgroundColor: vista.mes === 'profit' ? COL.ok : COL.p, borderRadius: 4, stack: 'act' },
@@ -314,7 +320,9 @@
         responsive: true, maintainAspectRatio: false,
         plugins: { legend, tooltip: { callbacks: { label: (c) => (c.dataset.stack === 'act' && c.datasetIndex === 2
           ? `Proyección al cierre: ${fmtVal((s[m.serie][c.dataIndex] || 0) + (c.raw || 0))}`
-          : `${c.dataset.label}: ${fmtVal(c.raw)}`) } } },
+          : c.datasetIndex === 0
+            ? `${mesCorto(mesAnt(s.meses[c.dataIndex]))}${altura}: ${fmtVal(c.raw)}`
+            : `${c.dataset.label}: ${fmtVal(c.raw)}`) } } },
         scales: { x: { stacked: true, grid: { display: false } }, y: { stacked: true, grid: { color: COL.grid }, ticks: { callback: (v) => (m.unidad === 'USD' ? fmtCorto(v) : fmtN(v) + (m.unidad ? ' ' + m.unidad : '')) } } },
       },
     });

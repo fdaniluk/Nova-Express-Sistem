@@ -124,6 +124,18 @@ async function main() {
   await page.click('.dash-per[data-periodo="mes"]');
   await esperar(600);
   check('"Este mes" deja un solo mes en el gráfico', await page.evaluate(() => window.Chart.getChart(document.getElementById('c-mes')).data.labels.length === 1));
+  // El tooltip de la barra clara nombra el MES contra el que se compara (14/10): en "Este mes"
+  // decía "Oct 26 · Período anterior" y parecía octubre contra octubre.
+  const tip = await page.evaluate(() => {
+    const ch = window.Chart.getChart(document.getElementById('c-mes'));
+    const cb = ch.options.plugins.tooltip.callbacks.label;
+    return [cb({ dataset: ch.data.datasets[0], datasetIndex: 0, dataIndex: 0, raw: 5 }), cb({ dataset: ch.data.datasets[1], datasetIndex: 1, dataIndex: 0, raw: 7 })];
+  });
+  const MES = ['Ene', 'Feb', 'Mar', 'Abr', 'May', 'Jun', 'Jul', 'Ago', 'Sep', 'Oct', 'Nov', 'Dic'];
+  // Acá el selector sigue en "año pasado": el mismo mes del año anterior.
+  const ant = new Date(); ant.setDate(1); ant.setFullYear(ant.getFullYear() - 1);
+  const etiquetaAnt = `${MES[ant.getMonth()]} ${String(ant.getFullYear()).slice(2)}`;
+  check(`  la barra clara dice el mes contra el que compara (${etiquetaAnt}, hasta el día de hoy), no el mes en curso`, tip[0].startsWith(etiquetaAnt) && /\(hasta el \d+\)/.test(tip[0]) && /Este período/.test(tip[1]), JSON.stringify(tip));
   const excel = await page.$eval('#dash-excel', (a) => a.href);
   check('el botón Excel apunta al xlsx con los mismos filtros', /analitica\.xlsx\?periodo=mes/.test(excel) && /comparar=anio/.test(excel), excel);
   const r = await fetch(excel, { headers: H });
