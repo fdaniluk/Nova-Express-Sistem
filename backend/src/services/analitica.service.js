@@ -234,7 +234,7 @@ const SQL_ENVIOS = `
   SELECT
     e.id, e.fecha, e.courier, e.tipo_envio, e.pais_destino, e.cliente_id, e.numero_guia,
     c.nombre AS cliente_nombre, c.nombre_nova AS cliente_nombre_nova,
-    e.cantidad_bultos, e.peso_real, e.peso_facturable, e.peso_facturado,
+    e.cantidad_bultos, e.peso_real, e.peso_volumetrico, e.peso_facturable, e.peso_facturado,
     e.total_cobrado AS total,
     e.flete, e.descuento, e.seguro, e.fuel, e.derechos, e.adicionales, e.otros,
     e.profit, e.porcentaje,
@@ -547,15 +547,25 @@ async function detalle(q = {}) {
     if (kpi === 'compra' || kpi === 'venta' || kpi === 'profit') return conVenta(e);
     return true;
   });
-  const fila = (e) => ({
-    id: e.id, fecha: e.fecha, guia: e.numero_guia, cliente: e.cliente_nombre, cliente_id: e.cliente_id,
-    courier: e.courier, tipo: e.tipo_envio, destino: normalizarPais(e.pais_destino).nombre,
-    kg_fact: r1(Number(e.peso_facturable) || 0), kg_real: r1(Number(e.peso_real) || 0),
-    venta: r2(ventaDe(e)), compra: r2(compraOficial(e)), profit: conVenta(e) ? r2(profitOficial(e)) : null,
-    liquidado: !!e.liquidado, dias: diasEntre(e.fecha, hoy),
-  });
+  // Cada tarjeta muestra SU número (15/10, pedido de Felipe: tres botones no pueden llevar a
+  // la misma tabla): la fila lleva todo lo que cada detalle necesita y el orden de fábrica
+  // es el del KPI (los kilos del más pesado al más liviano, la compra de mayor a menor…).
+  const fila = (e) => {
+    const venta = ventaDe(e); const compra = compraOficial(e); const profit = venta > 0 ? profitOficial(e) : null;
+    return {
+      id: e.id, fecha: e.fecha, guia: e.numero_guia, cliente: e.cliente_nombre, cliente_id: e.cliente_id,
+      courier: e.courier, tipo: e.tipo_envio, destino: normalizarPais(e.pais_destino).nombre, bultos: Number(e.cantidad_bultos) || 1,
+      kg_fact: r1(Number(e.peso_facturable) || 0), kg_real: r1(Number(e.peso_real) || 0), kg_vol: r1(Number(e.peso_volumetrico) || 0),
+      total: r2(Number(e.total) || 0), cargos_post: r2(Number(e.cargos_post) || 0), venta: r2(venta),
+      compra: r2(compra), compra_origen: e.costo_facturado != null ? 'real' : 'estimado',
+      profit: profit == null ? null : r2(profit), margen_pct: profit != null && compra > 0 ? r1((profit / compra) * 100) : null,
+      liquidado: !!e.liquidado, dias: diasEntre(e.fecha, hoy),
+    };
+  };
   const porCourier = {};
   for (const c of ['UPS', 'DHL']) porCourier[c] = cerrar(envios.filter((e) => e.courier === c).reduce(sumar, acumulador()));
+  const porTipo = {};
+  for (const t of ['exportacion', 'importacion']) porTipo[t] = cerrar(envios.filter((e) => e.tipo_envio === t).reduce(sumar, acumulador()));
   const porCliente = new Map();
   for (const e of envios) {
     const k = e.cliente_id;
@@ -567,10 +577,18 @@ async function detalle(q = {}) {
     .sort((a, b) => (b[metrica] || 0) - (a[metrica] || 0));
   const totales = cerrar(envios.reduce(sumar, acumulador()));
   if (kpi === 'sin_venta') { totales.compra = totales.sin_venta.compra; }
+  const compraReal = envios.filter((e) => e.costo_facturado != null);
+  totales.compra_real = { n: compraReal.length, usd: r2(compraReal.reduce((s, e) => s + compraOficial(e), 0)) };
+  totales.cargos_post = r2(envios.reduce((s, e) => s + (Number(e.cargos_post) || 0), 0));
+  const filas = envios.map(fila);
+  const porFecha = (a, b) => (a.fecha < b.fecha ? 1 : a.fecha > b.fecha ? -1 : b.id - a.id);
+  const ORDEN = { kg_fact: 'kg_fact', compra: 'compra', venta: 'venta', profit: 'profit' };
+  const orden = ORDEN[kpi] ? (a, b) => ((b[ORDEN[kpi]] || 0) - (a[ORDEN[kpi]] || 0)) || porFecha(a, b) : porFecha;
+  filas.sort(orden);
   return {
     kpi, periodo: { desde, hasta: sumarDias(hasta, -1), etiqueta }, filtros,
-    totales, por_courier: porCourier, por_cliente: clientes.slice(0, 10), clientes_n: clientes.length,
-    filas: envios.sort((a, b) => (a.fecha < b.fecha ? 1 : a.fecha > b.fecha ? -1 : b.id - a.id)).slice(0, TOPE_FILAS).map(fila),
+    totales, por_courier: porCourier, por_tipo: porTipo, por_cliente: clientes.slice(0, 10), clientes_n: clientes.length,
+    filas: filas.slice(0, TOPE_FILAS),
     filas_total: envios.length, truncado: envios.length > TOPE_FILAS,
   };
 }

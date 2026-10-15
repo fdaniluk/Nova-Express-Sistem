@@ -543,13 +543,26 @@
   // la lista de envíos que lo componen, con el mismo período y los mismos filtros de arriba.
   const QUE_ES = {
     envios: ['Envíos', 'Envíos con fecha en el período, sin los NO VOLÓ. Un envío de varios bultos cuenta una vez. Los que no tienen precio de venta cargado también entran acá (pero no en Venta, Compra ni Profit).'],
-    kg_fact: ['Kg facturables', 'Suma del peso facturable de los envíos del período: el mayor entre el peso real y el volumétrico, que es lo que cobra el courier.'],
-    compra: ['Compra', 'Lo que nos cuesta el courier por esos envíos: el costo real de la factura cuando ya está aprobada en Facturas; si no, el estimado al cargar el envío (flete + fuel + extras). Solo envíos con precio de venta cargado.'],
-    venta: ['Venta', 'Lo que se le cobra al cliente: el total del envío más los cargos posteriores. Los envíos sin precio cargado no entran (están en "sin precio afuera").'],
-    profit: ['Profit', 'Venta menos compra, envío por envío, solo de los que tienen precio. El % es profit ÷ compra (margen sobre el costo).'],
+    kg_fact: ['Kg facturables', 'Suma del peso facturable de los envíos del período: el mayor entre el peso real y el volumétrico, que es lo que cobra el courier. La lista va del más pesado al más liviano.'],
+    compra: ['Compra', 'Lo que nos cuesta el courier por esos envíos: el costo real de la factura cuando ya está aprobada en Facturas ("Real"); si no, el estimado al cargar el envío (flete + fuel + extras). Solo envíos con precio de venta cargado. De mayor a menor.'],
+    venta: ['Venta', 'Lo que se le cobra al cliente: el total del envío más los cargos posteriores (en columnas separadas). Los envíos sin precio cargado no entran (están en "sin precio afuera"). De mayor a menor.'],
+    profit: ['Profit', 'Venta menos compra, envío por envío, solo de los que tienen precio. El % es profit ÷ compra (margen sobre el costo). Los negativos en rojo. De mayor a menor.'],
     sin_liquidar: ['Sin liquidar', 'Envíos del período que todavía no están en una liquidación confirmada. "+30 días" son los que llevan más de un mes cargados sin liquidar. Se liquidan desde Liquidaciones → Pendientes.'],
     sin_venta: ['Sin precio de venta', 'Envíos cargados sin precio de venta: no entran en Venta, Compra ni Profit hasta que se les cargue. Se arregla en Salidas abriendo el envío y tocando "Calcular venta" (o cargando el total a mano).'],
   };
+  /* Columnas por KPI: cada tarjeta muestra SU número (15/10). [col, título, cómo se pinta]
+     'txt' texto · 'n0/n1/n2' número con decimales · 'b' = la columna fuerte del KPI. */
+  const C_BASE = [['fecha', 'Fecha', 'fecha'], ['guia', 'Guía', 'guia'], ['cliente', 'Cliente', 'cliente'], ['courier', 'Courier', 'txt'], ['destino', 'Destino', 'txt']];
+  const COLS = {
+    envios: [...C_BASE, ['tipo', 'Tipo', 'tipo'], ['bultos', 'Bultos', 'n0'], ['kg_fact', 'Kg fact.', 'n1']],
+    kg_fact: [...C_BASE, ['kg_real', 'Kg real', 'n1'], ['kg_vol', 'Kg vol', 'n1'], ['kg_fact', 'Kg facturable', 'n1b']],
+    compra: [...C_BASE, ['kg_fact', 'Kg', 'n1'], ['compra', 'Compra USD', 'n2b'], ['compra_origen', 'Costo', 'origen']],
+    venta: [...C_BASE, ['kg_fact', 'Kg', 'n1'], ['total', 'Cobrado USD', 'n2'], ['cargos_post', 'Cargos post.', 'n2'], ['venta', 'Venta USD', 'n2b']],
+    profit: [...C_BASE, ['venta', 'Venta', 'n2'], ['compra', 'Compra', 'n2'], ['profit', 'Profit USD', 'profit'], ['margen_pct', '%', 'pct']],
+    sin_liquidar: [...C_BASE, ['kg_fact', 'Kg', 'n1'], ['venta', 'Venta USD', 'n2b'], ['dias', 'Días', 'dias']],
+    sin_venta: [...C_BASE, ['kg_fact', 'Kg', 'n1'], ['compra', 'Compra est.', 'n2'], ['liquidado', 'Liq.', 'liq']],
+  };
+  const ORDEN_FABRICA = { kg_fact: 'kg_fact', compra: 'compra', venta: 'venta', profit: 'profit', sin_liquidar: 'dias' };
   let detalle = null;          // lo que devolvió el servidor
   let detOrden = { col: 'fecha', asc: false };
   let detCliente = null;       // filtro por cliente (chip)
@@ -563,8 +576,9 @@
   };
   function abrirDetalle(kpi) {
     if (!QUE_ES[kpi]) return;
-    detCliente = null; detOrden = { col: 'fecha', asc: false };
+    detCliente = null; detOrden = { col: ORDEN_FABRICA[kpi] || 'fecha', asc: false };
     $('dash-detalle-k').textContent = QUE_ES[kpi][0];
+    $('dash-detalle-t').querySelector('thead').innerHTML = '<tr>' + COLS[kpi].map(([c, t, f]) => `<th data-col="${c}"${/^n|profit|pct|dias/.test(f) ? ' class="n"' : ''}>${t}</th>`).join('') + '</tr>';
     $('dash-detalle-v').textContent = '…';
     $('dash-detalle-sub').textContent = '';
     $('dash-detalle-que').textContent = QUE_ES[kpi][1];
@@ -597,13 +611,27 @@
     const d = detalle, kpi = d.kpi;
     const metrica = kpi === 'sin_liquidar' ? 'venta' : kpi === 'sin_venta' ? 'envios' : kpi;
     const val = (x) => (metrica === 'envios' ? fmtN(x.envios) : metrica === 'kg_fact' ? fmtN(x.kg_fact, 0) + ' kg' : 'USD ' + fmtCorto(kpi === 'sin_venta' ? x.sin_venta.compra : x[metrica]));
+    const extra = (x) => (kpi === 'profit' && x.margen_pct != null ? ` · ${fmtN(x.margen_pct, 0)}%` : kpi === 'kg_fact' || kpi === 'venta' || kpi === 'compra' ? ` · ${fmtN(x.envios)} env.` : '');
     const chips = [];
     for (const c of ['UPS', 'DHL']) {
       const x = d.por_courier[c];
-      if (x && x.envios) chips.push(`<span class="chip ${c.toLowerCase()}">${c}: <b>${val(x)}</b> · ${fmtN(x.envios)} envíos</span>`);
+      if (x && x.envios) chips.push(`<span class="chip ${c.toLowerCase()}">${c}: <b>${val(x)}</b>${kpi === 'envios' ? '' : ` · ${fmtN(x.envios)} envíos`}${kpi === 'profit' && x.margen_pct != null ? ` · ${fmtN(x.margen_pct, 0)}%` : ''}</span>`);
     }
+    if (kpi === 'envios' && d.por_tipo) {
+      for (const [t, nombre] of [['exportacion', 'Expo'], ['importacion', 'Impo']]) {
+        const x = d.por_tipo[t];
+        if (x && x.envios) chips.push(`<span class="chip tipo">${nombre}: <b>${fmtN(x.envios)}</b></span>`);
+      }
+    }
+    if (kpi === 'compra' && d.totales.compra_real) {
+      const cr = d.totales.compra_real;
+      chips.push(`<span class="chip tipo">Con factura real: <b>${fmtN(cr.n)}</b> · USD ${fmtCorto(cr.usd)}</span>`);
+      chips.push(`<span class="chip tipo">Estimados: <b>${fmtN(d.totales.envios - cr.n)}</b> · USD ${fmtCorto(d.totales.compra - cr.usd)}</span>`);
+    }
+    if (kpi === 'venta' && d.totales.cargos_post > 0) chips.push(`<span class="chip tipo">Cargos posteriores: <b>USD ${fmtCorto(d.totales.cargos_post)}</b></span>`);
     for (const c of d.por_cliente.slice(0, 8)) {
-      chips.push(`<span class="chip cli${detCliente === c.cliente_id ? ' on' : ''}" data-cli="${c.cliente_id}" title="Filtrar la lista por este cliente">${esc(c.cliente)}: <b>${val(c)}</b></span>`);
+      const neg = kpi === 'profit' && c.profit < 0;
+      chips.push(`<span class="chip cli${detCliente === c.cliente_id ? ' on' : ''}${neg ? ' neg' : ''}" data-cli="${c.cliente_id}" title="Filtrar la lista por este cliente">${esc(c.cliente)}: <b>${val(c)}</b>${extra(c)}</span>`);
     }
     if (d.clientes_n > 8) chips.push(`<span class="chip" style="background:#fff;color:var(--color-muted)">+${d.clientes_n - 8} clientes más</span>`);
     $('dash-detalle-reparto').innerHTML = chips.join('');
@@ -620,21 +648,23 @@
     });
     $('dash-detalle-t').querySelectorAll('th').forEach((th) => { th.classList.toggle('sorted', th.dataset.col === col); th.classList.toggle('asc', th.dataset.col === col && asc); });
     const tb = $('dash-detalle-t').querySelector('tbody');
-    if (!filas.length) { tb.innerHTML = '<tr class="vacio"><td colspan="10">No hay envíos con eso.</td></tr>'; }
-    else {
-      tb.innerHTML = filas.map((f) => `<tr>
-        <td>${fmtDia(f.fecha)}</td>
-        <td><a href="pages/salidas.html?buscar=${encodeURIComponent(f.guia || '')}" title="Abrir en Salidas">${esc(f.guia || '—')}</a></td>
-        <td><a href="pages/clientes-perfil.html?id=${f.cliente_id}">${esc(f.cliente)}</a></td>
-        <td>${esc(f.courier)}</td>
-        <td>${esc(f.destino)}</td>
-        <td class="n">${fmtN(f.kg_fact, 1)}</td>
-        <td class="n">${f.venta ? fmtN(f.venta, 2) : '<span style="color:#b45309">sin precio</span>'}</td>
-        <td class="n">${fmtN(f.compra, 2)}</td>
-        <td class="n${f.profit != null && f.profit < 0 ? ' neg' : ''}">${f.profit == null ? '—' : fmtN(f.profit, 2)}</td>
-        <td><span class="liq${f.liquidado ? '' : ' no'}">${f.liquidado ? 'Sí' : `No${f.dias > 30 ? ' · ' + f.dias + ' d' : ''}`}</span></td>
-      </tr>`).join('');
-    }
+    const cols = COLS[d.kpi];
+    const celda = (f, [c, , fmt]) => {
+      const v = f[c];
+      if (fmt === 'fecha') return `<td>${fmtDia(v)}</td>`;
+      if (fmt === 'guia') return `<td><a href="pages/salidas.html?buscar=${encodeURIComponent(v || '')}" title="Abrir en Salidas">${esc(v || '—')}</a></td>`;
+      if (fmt === 'cliente') return `<td><a href="pages/clientes-perfil.html?id=${f.cliente_id}">${esc(v)}</a></td>`;
+      if (fmt === 'tipo') return `<td>${v === 'importacion' ? 'Impo' : 'Expo'}</td>`;
+      if (fmt === 'origen') return `<td><span class="orig${v === 'real' ? ' real' : ''}">${v === 'real' ? 'Real' : 'Estimado'}</span></td>`;
+      if (fmt === 'liq') return `<td><span class="liq${v ? '' : ' no'}">${v ? 'Sí' : 'No'}</span></td>`;
+      if (fmt === 'dias') return `<td class="n${v > 30 ? ' neg' : ''}">${fmtN(v)} d</td>`;
+      if (fmt === 'profit') return `<td class="n${v != null && v < 0 ? ' neg' : ''}"><b>${v == null ? '—' : fmtN(v, 2)}</b></td>`;
+      if (fmt === 'pct') return `<td class="n${v != null && v < 0 ? ' neg' : ''}">${v == null ? '—' : fmtN(v, 0) + '%'}</td>`;
+      if (/^n/.test(fmt)) { const dec = Number(fmt[1]); const txt = fmtN(v, dec); return `<td class="n">${fmt.endsWith('b') ? '<b>' + txt + '</b>' : txt}</td>`; }
+      return `<td>${esc(v == null ? '' : String(v))}</td>`;
+    };
+    if (!filas.length) { tb.innerHTML = `<tr class="vacio"><td colspan="${cols.length}">No hay envíos con eso.</td></tr>`; }
+    else tb.innerHTML = filas.map((f) => `<tr>${cols.map((c) => celda(f, c)).join('')}</tr>`).join('');
     const n = filas.length, tot = d.filas_total;
     $('dash-detalle-n').textContent = `${fmtN(n)}${n !== tot ? ` de ${fmtN(tot)}` : ''} envíos${d.truncado ? ` (se muestran los primeros ${fmtN(d.filas.length)})` : ''}`;
   }
@@ -662,7 +692,7 @@
     $('dash-detalle-t').querySelector('thead').addEventListener('click', (e) => {
       const th = e.target.closest('th[data-col]');
       if (!th || !detalle) return;
-      detOrden = { col: th.dataset.col, asc: detOrden.col === th.dataset.col ? !detOrden.asc : (th.dataset.col === 'cliente' || th.dataset.col === 'guia' || th.dataset.col === 'destino') };
+      detOrden = { col: th.dataset.col, asc: detOrden.col === th.dataset.col ? !detOrden.asc : ['cliente', 'guia', 'destino', 'courier', 'tipo', 'compra_origen'].includes(th.dataset.col) };
       pintarFilas();
     });
   }

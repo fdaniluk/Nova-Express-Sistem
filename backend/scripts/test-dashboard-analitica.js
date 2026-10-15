@@ -253,6 +253,17 @@ async function main() {
   check('con filtro de courier se respeta (DHL: 2 filas)', dd.filas.length === 2 && dd.filas.every((f) => f.courier === 'DHL') && dd.filtros.courier === 'DHL', JSON.stringify(dd.filas.map((f) => f.courier)));
   dd = await det('cualquiera');
   check('un kpi desconocido cae en envíos', dd.kpi === 'envios');
+  // 15/10: cada tarjeta muestra SU número — orden de fábrica y columnas propias.
+  dd = await det('kg_fact');
+  check('kg_fact: ordenado del más pesado al más liviano, con kg real y vol', dd.filas.every((f, i) => i === 0 || dd.filas[i - 1].kg_fact >= f.kg_fact) && dd.filas.every((f) => 'kg_vol' in f && 'kg_real' in f), JSON.stringify(dd.filas.map((f) => f.kg_fact)));
+  dd = await det('compra');
+  check('compra: de mayor a menor, con el origen del costo y el resumen real/estimado', dd.filas.every((f, i) => i === 0 || dd.filas[i - 1].compra >= f.compra) && dd.filas.every((f) => ['real', 'estimado'].includes(f.compra_origen)) && dd.totales.compra_real && typeof dd.totales.compra_real.n === 'number', JSON.stringify([dd.filas.map((f) => [f.compra, f.compra_origen]), dd.totales.compra_real]));
+  dd = await det('venta');
+  check('venta: de mayor a menor, cobrado y cargos posteriores separados', dd.filas.every((f, i) => i === 0 || dd.filas[i - 1].venta >= f.venta) && dd.filas.every((f) => 'total' in f && 'cargos_post' in f && cerca(f.total + f.cargos_post, f.venta)), JSON.stringify(dd.filas.map((f) => [f.total, f.cargos_post, f.venta])));
+  dd = await det('profit');
+  check('profit: de mayor a menor, con el % por envío', dd.filas.every((f, i) => i === 0 || dd.filas[i - 1].profit >= f.profit) && dd.filas.every((f) => f.compra > 0 ? cerca(f.margen_pct, Math.round((f.profit / f.compra) * 1000) / 10) : f.margen_pct === null), JSON.stringify(dd.filas.map((f) => [f.profit, f.compra, f.margen_pct])));
+  dd = await det('envios');
+  check('envíos: reparto por tipo (expo/impo) y bultos por fila', dd.por_tipo && (dd.por_tipo.exportacion.envios + dd.por_tipo.importacion.envios) === 6 && dd.filas.every((f) => f.bultos >= 1), JSON.stringify(dd.por_tipo));
 
   console.log('\n7. Excel\n');
   r = await get(`/api/dashboard/analitica.xlsx?${qBase}`);

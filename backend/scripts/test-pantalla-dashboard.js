@@ -162,6 +162,20 @@ async function main() {
   await page.fill('#dash-detalle-buscar', ''); await esperar(200);
   await page.keyboard.press('Escape'); await esperar(200);
   check('Escape lo cierra', !(await page.isVisible('#dash-detalle')));
+  // 15/10: cada tarjeta tiene SUS columnas — Compra, Venta y Profit no pueden ser la misma tabla.
+  const cabeceras = async (kpi) => { await page.click(`.dash-kpi[data-kpi="${kpi}"]`); await esperar(1000); const h = await page.$$eval('#dash-detalle-t thead th', (ths) => ths.map((t) => t.textContent.trim())); await page.keyboard.press('Escape'); await esperar(150); return h; };
+  const hCompra = await cabeceras('compra'); const hVenta = await cabeceras('venta'); const hProfit = await cabeceras('profit'); const hKg = await cabeceras('kg_fact');
+  check('Compra, Venta y Profit abren tablas distintas', hCompra.join() !== hVenta.join() && hVenta.join() !== hProfit.join() && hCompra.join() !== hProfit.join(), [hCompra, hVenta, hProfit].map((h) => h.join('|')).join(' // '));
+  check('   Compra: costo con origen Real/Estimado', hCompra.includes('Costo') && hCompra.includes('Compra USD'));
+  check('   Venta: cobrado y cargos posteriores en columnas separadas', hVenta.includes('Cobrado USD') && hVenta.includes('Cargos post.') && hVenta.includes('Venta USD'));
+  check('   Profit: venta, compra, profit y %', hProfit.includes('Profit USD') && hProfit.includes('%'));
+  check('   Kg facturables: kg real, vol y facturable', hKg.includes('Kg real') && hKg.includes('Kg vol') && hKg.includes('Kg facturable'));
+  await page.click('.dash-kpi[data-kpi="kg_fact"]'); await esperar(1000);
+  const kgs = await page.$$eval('#dash-detalle-t tbody tr:not(.vacio)', (trs) => trs.map((tr) => parseFloat(tr.lastElementChild.textContent.replace(/\./g, '').replace(',', '.'))));
+  check('   y la lista va del más pesado al más liviano', kgs.length >= 2 && kgs.every((k, i) => i === 0 || kgs[i - 1] >= k), kgs.join(' '));
+  check('   el orden marcado en la cabecera es Kg facturable', (await page.$eval('#dash-detalle-t thead th.sorted', (t) => t.textContent.trim())) === 'Kg facturable');
+  if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/dash-detalle-kg.png' });
+  await page.keyboard.press('Escape'); await esperar(150);
   await page.click('.dash-kpi[data-kpi="sin_liquidar"]');
   await esperar(1200);
   check('"Sin liquidar" abre con su explicación y el botón va a Liquidaciones', /liquidación confirmada/.test(await page.textContent('#dash-detalle-que')) && /liquidaciones\.html$/.test(await page.$eval('#dash-detalle-ir', (a) => a.getAttribute('href'))));

@@ -143,6 +143,10 @@
 .dash-detalle-reparto .chip.ups { background: #fff7ed; color: #9a3412; border-color: #fdba74; }
 .dash-detalle-reparto .chip.dhl { background: #fef2f2; color: #991b1b; border-color: #fca5a5; }
 .dash-detalle-reparto .chip.cli { background: #f8fafc; color: #334155; border-color: var(--color-border); cursor: pointer; }
+.dash-detalle-reparto .chip.tipo { background: #f1f5f9; color: #334155; border-color: #cbd5e1; }
+.dash-detalle-reparto .chip.cli.neg b { color: var(--color-danger); }
+.dash-detalle-t td .orig { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 8px; background: #f1f5f9; color: #475569; }
+.dash-detalle-t td .orig.real { background: #dcfce7; color: #166534; }
 .dash-detalle-reparto .chip.cli.on { background: #eef2fb; border-color: var(--color-primary); color: var(--color-primary); }
 .dash-detalle-barra { display: flex; align-items: center; gap: 10px; padding: 8px 20px; }
 .dash-detalle-barra input { flex: 1; font: inherit; font-size: 12.5px; padding: 6px 9px; border: 1px solid var(--color-border); border-radius: 8px; }
