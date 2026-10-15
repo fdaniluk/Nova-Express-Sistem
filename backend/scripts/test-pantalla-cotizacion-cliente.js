@@ -565,8 +565,9 @@ async function main() {
   const b1 = trazos2.find((t) => /^Bulto 1$/.test(t.txt));
   const b2 = trazos2.find((t) => /^Bulto 2$/.test(t.txt));
   check('la imagen lista Bulto 1 y Bulto 2', !!b1 && !!b2, trazos2.map((t) => t.txt.trim()).filter((s) => /Bulto/.test(s)).join(' | '));
-  const detB2 = trazos2.find((t) => b2 && Math.abs(t.y - b2.y) < 1 && /40×30×20/.test(t.txt));
-  check('cada renglón lleva peso real, medidas y facturable del bulto', !!detB2 && /12 kg real/.test(detB2.txt) && !!trazos2.find((t) => b2 && Math.abs(t.y - b2.y) < 1 && /kg facturable/.test(t.txt)), detB2 ? detB2.txt : 'sin detalle');
+  const filaB2 = trazos2.filter((t) => b2 && Math.abs(t.y - b2.y) < 1).map((t) => t.txt.trim());
+  check('cada renglón lleva peso real, medidas, vol y facturable del bulto', filaB2.includes('12') && filaB2.includes('40 × 30 × 20') && filaB2.includes('4.8') && filaB2.includes('12.0'), filaB2.join(' | '));
+  check('el panel tiene título y encabezados de columna', !!trazos2.find((t) => /DETALLE DE BULTOS/.test(t.txt)) && !!trazos2.find((t) => /^kg facturable$/.test(t.txt)));
   const tot2 = trazos2.find((t) => /^Total$/.test(t.txt)) || trazos2.find((t) => /Precio|TOTAL/i.test(t.txt));
   check('los bultos van arriba del desglose y no lo pisan', !!b2 && (!tot2 || tot2.y > b2.y + 10));
   const choques2 = [];

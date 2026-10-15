@@ -136,8 +136,12 @@
        cada uno con sus medidas y pesos, pero la imagen solo llevaba los totales, y el
        cliente se quedaba sin ver con qué se cotizó. Un renglón por bulto, arriba del
        desglose. Con un solo bulto ya va todo en la línea de medidas. */
-    const H_BULTO = 17, BULTOS_TOP = 4, BULTOS_BOT = 10;
-    const H_BULTOS = bultos.length > 1 ? BULTOS_TOP + bultos.length * H_BULTO + BULTOS_BOT : 0;
+    /* Panel de bultos (solo con más de uno): caja clara con título, encabezados de
+       columna y una fila alineada por bulto. PANEL_PAD arriba/abajo adentro de la caja,
+       H_BTIT el título + encabezados, H_BULTO cada fila, BULTOS_BOT el aire hasta el desglose. */
+    const H_BULTO = 19, H_BTIT = 34, PANEL_PAD = 10, BULTOS_BOT = 16;
+    const H_PANEL = bultos.length > 1 ? PANEL_PAD + H_BTIT + bultos.length * H_BULTO + PANEL_PAD : 0;
+    const H_BULTOS = H_PANEL ? H_PANEL + BULTOS_BOT : 0;
     const filas = filasDe(d);
     /* La línea de medidas se arma en TRAMOS: el peso facturable es el dato que decide el
        precio, así que va en negrita y más oscuro (pedido del padre de Felipe, 20/08). */
@@ -263,22 +267,38 @@
     /* ── BULTOS (solo si hay más de uno) ──────────────────────────────────────────── */
     let y = hCab + CUERPO_TOP;
     if (H_BULTOS) {
-      y += BULTOS_TOP;
+      const px = P, pw = W - P * 2;
+      x.fillStyle = esDhl ? '#fdf8ec' : '#eef3fb';
+      const rr = (rx, ry, rw, rh, r) => { x.beginPath(); x.moveTo(rx + r, ry); x.arcTo(rx + rw, ry, rx + rw, ry + rh, r); x.arcTo(rx + rw, ry + rh, rx, ry + rh, r); x.arcTo(rx, ry + rh, rx, ry, r); x.arcTo(rx, ry, rx + rw, ry, r); x.closePath(); };
+      rr(px, y, pw, H_PANEL, 6); x.fill();
+      x.strokeStyle = esDhl ? '#eedca0' : '#cddcf3'; x.lineWidth = 1;
+      rr(px + 0.5, y + 0.5, pw - 1, H_PANEL - 1, 6); x.stroke();
+      const cx = { num: px + 14, real: px + 110, med: px + 215, vol: px + 380, fact: px + pw - 14 };
+      const acento = esDhl ? '#7a5f1f' : '#3d5a8a';
+      const suave = esDhl ? '#a8853a' : '#7d92b5';
+      let yy = y + PANEL_PAD;
+      x.font = '700 10px "DM Sans", sans-serif'; x.fillStyle = acento; x.textAlign = 'left';
+      x.fillText('DETALLE DE BULTOS', cx.num, yy + 10);
+      yy += 20;
+      x.font = '500 10px "DM Mono", monospace'; x.fillStyle = suave;
+      x.fillText('kg real', cx.real, yy + 9);
+      x.fillText('medidas (cm)', cx.med, yy + 9);
+      x.fillText('kg vol', cx.vol, yy + 9);
+      x.textAlign = 'right'; x.fillText('kg facturable', cx.fact, yy + 9); x.textAlign = 'left';
+      yy += 14;
       bultos.forEach((b, i) => {
-        const base = y + 12;
-        const num = `Bulto ${b.num || i + 1}`;
-        x.font = '600 11px "DM Sans", sans-serif'; x.fillStyle = esDhl ? '#7a5f1f' : '#3d5a8a';
-        x.fillText(num, P, base);
-        const wNum = x.measureText(num).width;
-        const det = `  ${Number(b.pr)} kg real · ${b.l}×${b.a}×${b.al} cm · ${Number(b.pv).toFixed(1)} kg vol · `;
-        x.font = '400 11px "DM Mono", monospace'; x.fillStyle = '#7d8aa3';
-        x.fillText(det, P + wNum, base);
-        const wDet = x.measureText(det).width;
-        x.font = '500 11px "DM Mono", monospace'; x.fillStyle = '#3d5a8a';
-        x.fillText(`${Number(b.pf).toFixed(1)} kg facturable`, P + wNum + wDet, base);
-        y += H_BULTO;
+        const base = yy + 13;
+        x.font = '600 11px "DM Sans", sans-serif'; x.fillStyle = acento;
+        x.fillText(`Bulto ${b.num || i + 1}`, cx.num, base);
+        x.font = '400 11.5px "DM Mono", monospace'; x.fillStyle = '#5c5a54';
+        x.fillText(String(Number(b.pr)), cx.real, base);
+        x.fillText(`${b.l} × ${b.a} × ${b.al}`, cx.med, base);
+        x.fillText(Number(b.pv).toFixed(1), cx.vol, base);
+        x.font = '600 11.5px "DM Mono", monospace'; x.fillStyle = '#1a1916'; x.textAlign = 'right';
+        x.fillText(Number(b.pf).toFixed(1), cx.fact, base); x.textAlign = 'left';
+        yy += H_BULTO;
       });
-      y += BULTOS_BOT;
+      y += H_PANEL + BULTOS_BOT;
     }
 
     /* ── DESGLOSE ─────────────────────────────────────────────────────────────────── */
