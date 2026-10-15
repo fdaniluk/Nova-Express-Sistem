@@ -538,6 +538,136 @@
     $('dash-top-n').addEventListener('change', (e) => { vista.topN = Number(e.target.value); if (datos) pintarTop(); });
   }
 
+  // ── Detalle de una tarjeta (15/10/2026, pedido de Felipe) ──────────────────
+  // Tocar un KPI abre un panel con QUÉ es ese número, cómo se reparte (courier, clientes) y
+  // la lista de envíos que lo componen, con el mismo período y los mismos filtros de arriba.
+  const QUE_ES = {
+    envios: ['Envíos', 'Envíos con fecha en el período, sin los NO VOLÓ. Un envío de varios bultos cuenta una vez. Los que no tienen precio de venta cargado también entran acá (pero no en Venta, Compra ni Profit).'],
+    kg_fact: ['Kg facturables', 'Suma del peso facturable de los envíos del período: el mayor entre el peso real y el volumétrico, que es lo que cobra el courier.'],
+    compra: ['Compra', 'Lo que nos cuesta el courier por esos envíos: el costo real de la factura cuando ya está aprobada en Facturas; si no, el estimado al cargar el envío (flete + fuel + extras). Solo envíos con precio de venta cargado.'],
+    venta: ['Venta', 'Lo que se le cobra al cliente: el total del envío más los cargos posteriores. Los envíos sin precio cargado no entran (están en "sin precio afuera").'],
+    profit: ['Profit', 'Venta menos compra, envío por envío, solo de los que tienen precio. El % es profit ÷ compra (margen sobre el costo).'],
+    sin_liquidar: ['Sin liquidar', 'Envíos del período que todavía no están en una liquidación confirmada. "+30 días" son los que llevan más de un mes cargados sin liquidar. Se liquidan desde Liquidaciones → Pendientes.'],
+    sin_venta: ['Sin precio de venta', 'Envíos cargados sin precio de venta: no entran en Venta, Compra ni Profit hasta que se les cargue. Se arregla en Salidas abriendo el envío y tocando "Calcular venta" (o cargando el total a mano).'],
+  };
+  let detalle = null;          // lo que devolvió el servidor
+  let detOrden = { col: 'fecha', asc: false };
+  let detCliente = null;       // filtro por cliente (chip)
+  const detEl = $('dash-detalle');
+  const fmtKpiValor = (kpi, t) => {
+    if (kpi === 'envios') return `${fmtN(t.envios)} <small>envíos</small>`;
+    if (kpi === 'kg_fact') return `${fmtN(t.kg_fact, 0)} <small>kg</small>`;
+    if (kpi === 'sin_liquidar') return `${fmtN(t.envios)} <small>envíos · USD ${fmtCorto(t.venta)}</small>`;
+    if (kpi === 'sin_venta') return `${fmtN(t.envios)} <small>envíos · USD ${fmtCorto(t.compra)} de compra</small>`;
+    return `USD ${fmtCorto(t[kpi])}${kpi === 'profit' && t.margen_pct != null ? ` <small>· ${fmtN(t.margen_pct, 0)}%</small>` : ''}`;
+  };
+  function abrirDetalle(kpi) {
+    if (!QUE_ES[kpi]) return;
+    detCliente = null; detOrden = { col: 'fecha', asc: false };
+    $('dash-detalle-k').textContent = QUE_ES[kpi][0];
+    $('dash-detalle-v').textContent = '…';
+    $('dash-detalle-sub').textContent = '';
+    $('dash-detalle-que').textContent = QUE_ES[kpi][1];
+    $('dash-detalle-reparto').innerHTML = '';
+    $('dash-detalle-t').querySelector('tbody').innerHTML = '<tr class="vacio"><td colspan="10">Cargando…</td></tr>';
+    $('dash-detalle-buscar').value = '';
+    $('dash-detalle-ir').href = kpi === 'sin_liquidar' ? 'pages/liquidaciones.html' : 'pages/salidas.html';
+    $('dash-detalle-ir').textContent = kpi === 'sin_liquidar' ? 'Ir a Liquidaciones' : 'Abrir Salidas';
+    detEl.classList.remove('hidden'); detEl.setAttribute('aria-hidden', 'false');
+    $('dash-detalle-fondo').classList.remove('hidden');
+    detEl.dataset.kpi = kpi;
+    NovaAPI.dashboard.detalle(`${query()}&kpi=${kpi}`).then((d) => {
+      if (detEl.dataset.kpi !== kpi) return;
+      detalle = d;
+      const t = d.totales;
+      $('dash-detalle-v').innerHTML = fmtKpiValor(kpi, t);
+      $('dash-detalle-sub').textContent = `${fmtDia(d.periodo.desde)} → ${fmtDia(d.periodo.hasta)}${d.filtros.courier ? ' · solo ' + d.filtros.courier : ''}${d.filtros.tipo ? ' · ' + d.filtros.tipo : ''}`;
+      pintarReparto();
+      pintarFilas();
+    }).catch((err) => {
+      $('dash-detalle-t').querySelector('tbody').innerHTML = `<tr class="vacio"><td colspan="10">No se pudo cargar el detalle: ${esc(err.message)}</td></tr>`;
+    });
+  }
+  function cerrarDetalle() {
+    detEl.classList.add('hidden'); detEl.setAttribute('aria-hidden', 'true');
+    $('dash-detalle-fondo').classList.add('hidden');
+    detalle = null;
+  }
+  function pintarReparto() {
+    const d = detalle, kpi = d.kpi;
+    const metrica = kpi === 'sin_liquidar' ? 'venta' : kpi === 'sin_venta' ? 'envios' : kpi;
+    const val = (x) => (metrica === 'envios' ? fmtN(x.envios) : metrica === 'kg_fact' ? fmtN(x.kg_fact, 0) + ' kg' : 'USD ' + fmtCorto(kpi === 'sin_venta' ? x.sin_venta.compra : x[metrica]));
+    const chips = [];
+    for (const c of ['UPS', 'DHL']) {
+      const x = d.por_courier[c];
+      if (x && x.envios) chips.push(`<span class="chip ${c.toLowerCase()}">${c}: <b>${val(x)}</b> · ${fmtN(x.envios)} envíos</span>`);
+    }
+    for (const c of d.por_cliente.slice(0, 8)) {
+      chips.push(`<span class="chip cli${detCliente === c.cliente_id ? ' on' : ''}" data-cli="${c.cliente_id}" title="Filtrar la lista por este cliente">${esc(c.cliente)}: <b>${val(c)}</b></span>`);
+    }
+    if (d.clientes_n > 8) chips.push(`<span class="chip" style="background:#fff;color:var(--color-muted)">+${d.clientes_n - 8} clientes más</span>`);
+    $('dash-detalle-reparto').innerHTML = chips.join('');
+  }
+  function pintarFilas() {
+    const d = detalle;
+    const q = $('dash-detalle-buscar').value.trim().toLowerCase();
+    let filas = d.filas.filter((f) => (!detCliente || f.cliente_id === detCliente) && (!q || `${f.guia || ''} ${f.cliente || ''} ${f.destino || ''}`.toLowerCase().includes(q)));
+    const { col, asc } = detOrden;
+    filas = [...filas].sort((a, b) => {
+      const va = a[col], vb = b[col];
+      const r = typeof va === 'number' || typeof vb === 'number' ? (Number(va) || 0) - (Number(vb) || 0) : String(va || '').localeCompare(String(vb || ''));
+      return asc ? r : -r;
+    });
+    $('dash-detalle-t').querySelectorAll('th').forEach((th) => { th.classList.toggle('sorted', th.dataset.col === col); th.classList.toggle('asc', th.dataset.col === col && asc); });
+    const tb = $('dash-detalle-t').querySelector('tbody');
+    if (!filas.length) { tb.innerHTML = '<tr class="vacio"><td colspan="10">No hay envíos con eso.</td></tr>'; }
+    else {
+      tb.innerHTML = filas.map((f) => `<tr>
+        <td>${fmtDia(f.fecha)}</td>
+        <td><a href="pages/salidas.html?buscar=${encodeURIComponent(f.guia || '')}" title="Abrir en Salidas">${esc(f.guia || '—')}</a></td>
+        <td><a href="pages/clientes-perfil.html?id=${f.cliente_id}">${esc(f.cliente)}</a></td>
+        <td>${esc(f.courier)}</td>
+        <td>${esc(f.destino)}</td>
+        <td class="n">${fmtN(f.kg_fact, 1)}</td>
+        <td class="n">${f.venta ? fmtN(f.venta, 2) : '<span style="color:#b45309">sin precio</span>'}</td>
+        <td class="n">${fmtN(f.compra, 2)}</td>
+        <td class="n${f.profit != null && f.profit < 0 ? ' neg' : ''}">${f.profit == null ? '—' : fmtN(f.profit, 2)}</td>
+        <td><span class="liq${f.liquidado ? '' : ' no'}">${f.liquidado ? 'Sí' : `No${f.dias > 30 ? ' · ' + f.dias + ' d' : ''}`}</span></td>
+      </tr>`).join('');
+    }
+    const n = filas.length, tot = d.filas_total;
+    $('dash-detalle-n').textContent = `${fmtN(n)}${n !== tot ? ` de ${fmtN(tot)}` : ''} envíos${d.truncado ? ` (se muestran los primeros ${fmtN(d.filas.length)})` : ''}`;
+  }
+  function bindDetalle() {
+    document.querySelectorAll('.dash-kpi[data-kpi]').forEach((el) => {
+      el.setAttribute('role', 'button'); el.setAttribute('tabindex', '0'); el.title = 'Ver de qué está hecho este número';
+      el.addEventListener('click', (e) => {
+        // El "N sin precio afuera" de Compra abre SU detalle, no el de la compra.
+        const sv = e.target.closest('.sin-venta');
+        abrirDetalle(sv ? 'sin_venta' : el.dataset.kpi);
+      });
+      el.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); abrirDetalle(el.dataset.kpi); } });
+    });
+    $('dash-detalle-cerrar').addEventListener('click', cerrarDetalle);
+    $('dash-detalle-fondo').addEventListener('click', cerrarDetalle);
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !detEl.classList.contains('hidden')) cerrarDetalle(); });
+    $('dash-detalle-buscar').addEventListener('input', () => { if (detalle) pintarFilas(); });
+    $('dash-detalle-reparto').addEventListener('click', (e) => {
+      const chip = e.target.closest('.chip.cli');
+      if (!chip || !detalle) return;
+      const id = Number(chip.dataset.cli);
+      detCliente = detCliente === id ? null : id;
+      pintarReparto(); pintarFilas();
+    });
+    $('dash-detalle-t').querySelector('thead').addEventListener('click', (e) => {
+      const th = e.target.closest('th[data-col]');
+      if (!th || !detalle) return;
+      detOrden = { col: th.dataset.col, asc: detOrden.col === th.dataset.col ? !detOrden.asc : (th.dataset.col === 'cliente' || th.dataset.col === 'guia' || th.dataset.col === 'destino') };
+      pintarFilas();
+    });
+  }
+
   bind();
+  bindDetalle();
   cargar();
 }());

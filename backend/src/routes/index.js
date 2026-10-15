@@ -27,6 +27,7 @@ const cotizadorLinksRoutes = require('./cotizador-links.routes');
 const usuariosRoutes = require('./usuarios.routes');
 const botRoutes = require('./bot');
 const botWebhookRoutes = require('./bot-webhook');
+const consultasRoutes = require('./consultas.routes');
 const { requireAuth, requireDashboard, requireSalud, requireAdmin } = require('../middleware/auth');
 
 const router = Router();
@@ -63,6 +64,7 @@ router.use('/guias', guiasRoutes);
 router.use('/cotizaciones', cotizacionesRoutes);
 router.use('/cotizador-links', cotizadorLinksRoutes);
 router.use('/salidas', salidasRoutes);
+router.use('/consultas', consultasRoutes);
 router.use('/liquidaciones', liquidacionesRoutes);
 router.use('/configuracion', configuracionRoutes);
 router.use('/pickups', pickupsRoutes);

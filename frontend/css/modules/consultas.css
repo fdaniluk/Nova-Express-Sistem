@@ -1,0 +1,52 @@
+/* Consultas de la publicidad (14/10/2026). Reusa la cara del Asistente (asi-*): misma
+   grilla lista + chat, mismas burbujas. Lo propio va con con-*. */
+@import url('asistente.css');
+
+.con-filtros{display:flex;flex-wrap:wrap;gap:.3rem;margin-bottom:.6rem}
+.con-filtros button{font:inherit;font-size:.74rem;padding:.3rem .55rem;border:1px solid var(--color-border);border-radius:999px;background:#fff;color:var(--color-muted);cursor:pointer}
+.con-filtros button.activa{border-color:var(--color-primary);background:#eef2fb;color:var(--color-primary);font-weight:600}
+#con-consultas{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:.3rem;overflow:auto;min-height:0;flex:1}
+#con-consultas li{padding:.5rem .6rem;border:1px solid var(--color-border);border-radius:8px;cursor:pointer;background:#fff;font-size:.82rem;line-height:1.35}
+#con-consultas li:hover{background:#f8fafc}
+#con-consultas li.activa{border-color:var(--color-primary);background:#eef2fb}
+#con-consultas li .n{font-weight:600;color:var(--color-text);display:flex;justify-content:space-between;gap:.4rem}
+#con-consultas li .n .badge{min-width:18px;padding:0 6px;border-radius:9px;background:var(--color-accent,#e85d2a);color:#fff;font-size:.68rem;font-weight:700;text-align:center;line-height:18px}
+#con-consultas li .r{color:var(--color-muted);font-size:.76rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#con-consultas li .f{color:#94a3b8;font-size:.7rem}
+.con-vacio{font-size:.82rem;color:var(--color-muted);text-align:center;padding:1rem 0}
+
+.con-cabecera{display:flex;align-items:center;justify-content:space-between;gap:.6rem;flex-wrap:wrap;padding:.7rem 1.1rem;border-bottom:1px solid var(--color-border);background:#fff}
+.con-quien{font-size:.9rem;display:flex;align-items:center;gap:.5rem;flex-wrap:wrap}
+.con-tel{color:var(--color-muted);font-size:.8rem}
+.con-estado-chip{font-size:.68rem;font-weight:700;text-transform:uppercase;letter-spacing:.4px;padding:.15rem .5rem;border-radius:999px;background:#eef2fb;color:var(--color-primary)}
+.con-estado-chip.derivada{background:#fff3cd;color:#8a5a00}
+.con-estado-chip.atendida{background:#dcfce7;color:#166534}
+.con-estado-chip.cerrada{background:#f1f5f9;color:#64748b}
+.con-acciones{display:flex;gap:.4rem;flex-wrap:wrap}
+.con-resumen{margin:.7rem 1.1rem 0;padding:.55rem .8rem;border-radius:8px;font-size:.84rem;line-height:1.5;background:#fff8e6;border:1px solid #e8c96a;color:#4a3d10}
+.con-resumen .d{display:flex;flex-wrap:wrap;gap:.25rem .8rem;margin-top:.3rem;font-size:.78rem;color:#6b5a20}
+.con-resumen .d span b{color:#4a3d10}
+.asi-msg.humano{background:#eef2fb;border-color:#c7d2fe}
+.asi-msg .quien{display:block;margin-bottom:.15rem;font-size:.68rem;color:var(--color-muted);text-transform:uppercase;letter-spacing:.4px}
+
+.con-sim{margin:0 1.1rem .8rem;padding:.6rem .8rem;border:1px dashed #b9c2d0;border-radius:8px;background:#f8fafc}
+.con-sim-tit{font-size:.72rem;color:var(--color-muted);margin-bottom:.4rem}
+#con-sim-form{display:grid;grid-template-columns:150px 140px 1fr auto;gap:.4rem}
+#con-sim-form input{font:inherit;font-size:.84rem;padding:.4rem .5rem;border:1px solid var(--color-border);border-radius:6px}
+.con-sim-resp{margin-top:.4rem;font-size:.8rem;color:var(--color-muted);white-space:pre-wrap}
+@media (max-width:900px){#con-sim-form{grid-template-columns:1fr 1fr}}
+
+.con-reglas{width:min(720px,96vw)}
+.con-reglas .modal-header{display:flex;align-items:center;justify-content:space-between;padding:.9rem 1.1rem;border-bottom:1px solid var(--color-border)}
+.con-reglas .modal-header h2{margin:0;font-size:1.05rem;color:var(--color-primary)}
+.con-reglas .modal-body{padding:1rem 1.1rem}
+.con-reglas .modal-footer{display:flex;justify-content:flex-end;gap:.5rem;padding:.8rem 1.1rem;border-top:1px solid var(--color-border)}
+#con-reglas-texto{width:100%;font:inherit;font-size:.88rem;line-height:1.5;padding:.6rem .7rem;border:1px solid var(--color-border);border-radius:8px;resize:vertical}
+.modal{position:fixed;inset:0;background:rgba(15,23,42,.45);display:flex;align-items:center;justify-content:center;z-index:1000;padding:1rem}
+.modal.hidden{display:none}
+.modal-content{background:#fff;border-radius:12px;max-height:92vh;overflow:auto;box-shadow:0 20px 60px rgba(15,23,42,.25)}
+.modal-close{font:inherit;font-size:1.4rem;line-height:1;border:0;background:transparent;cursor:pointer;color:var(--color-muted)}
+.nav-badge{display:inline-block;min-width:18px;padding:0 6px;margin-left:.3rem;border-radius:9px;background:var(--color-accent,#e85d2a);color:#fff;font-size:.68rem;font-weight:700;text-align:center;line-height:18px;vertical-align:middle}
+.nav-badge[hidden]{display:none}
+.asi-aviso.ok{background:#dcfce7;border-color:#86efac;color:#166534}
+.asi-aviso.info{background:#eef2fb;border-color:#c7d2fe;color:#1e3a8a}

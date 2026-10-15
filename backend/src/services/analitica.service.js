@@ -232,7 +232,7 @@ function proyectarMes(envios, desde, hasta, hoy, mesAnterior, historia = null) {
 // ── Lectura ────────────────────────────────────────────────────────────────────
 const SQL_ENVIOS = `
   SELECT
-    e.id, e.fecha, e.courier, e.tipo_envio, e.pais_destino, e.cliente_id,
+    e.id, e.fecha, e.courier, e.tipo_envio, e.pais_destino, e.cliente_id, e.numero_guia,
     c.nombre AS cliente_nombre, c.nombre_nova AS cliente_nombre_nova,
     e.cantidad_bultos, e.peso_real, e.peso_facturable, e.peso_facturado,
     e.total_cobrado AS total,
@@ -523,4 +523,56 @@ async function analitica(q = {}) {
   };
 }
 
-module.exports = { analitica, resolverPeriodo, resolverComparacion, compararMismaAltura, diasHabiles, proyectarMes, precisionHistorica, acumuladoPorHabil, normalizarPais, mesesEntre };
+// ── El detalle de un KPI (15/10/2026, pedido de Felipe) ────────────────────────
+// Tocar una tarjeta del Dashboard tiene que mostrar DE QUÉ está hecho ese número: la lista
+// de envíos que lo componen, con el mismo período y los mismos filtros, más cómo se reparte
+// por courier y por cliente. Mismas funciones que los KPIs (sumar / cerrar), así el detalle
+// no puede decir otra cosa que la tarjeta.
+const KPIS_DETALLE = ['envios', 'kg_fact', 'compra', 'venta', 'profit', 'sin_liquidar', 'sin_venta'];
+const TOPE_FILAS = 1500;
+async function detalle(q = {}) {
+  const kpi = KPIS_DETALLE.includes(q.kpi) ? q.kpi : 'envios';
+  const db = getDb();
+  const hoy = hoyLocal();
+  const { desde, hasta: hastaPeriodo, etiqueta } = resolverPeriodo(q);
+  // Período en curso: hasta hoy, como los KPIs (misma altura).
+  const corte = etiqueta === 'rango' ? null : compararMismaAltura(desde, hastaPeriodo, 'previo', hoy);
+  const hasta = corte ? corte.hasta_periodo : hastaPeriodo;
+  const filtros = { courier: q.courier || '', tipo: q.tipo || '' };
+  const todos = await leerEnvios(db, desde, hasta, filtros);
+  const conVenta = (e) => ventaDe(e) > 0;
+  const envios = todos.filter((e) => {
+    if (kpi === 'sin_liquidar') return !e.liquidado;
+    if (kpi === 'sin_venta') return !conVenta(e);
+    if (kpi === 'compra' || kpi === 'venta' || kpi === 'profit') return conVenta(e);
+    return true;
+  });
+  const fila = (e) => ({
+    id: e.id, fecha: e.fecha, guia: e.numero_guia, cliente: e.cliente_nombre, cliente_id: e.cliente_id,
+    courier: e.courier, tipo: e.tipo_envio, destino: normalizarPais(e.pais_destino).nombre,
+    kg_fact: r1(Number(e.peso_facturable) || 0), kg_real: r1(Number(e.peso_real) || 0),
+    venta: r2(ventaDe(e)), compra: r2(compraOficial(e)), profit: conVenta(e) ? r2(profitOficial(e)) : null,
+    liquidado: !!e.liquidado, dias: diasEntre(e.fecha, hoy),
+  });
+  const porCourier = {};
+  for (const c of ['UPS', 'DHL']) porCourier[c] = cerrar(envios.filter((e) => e.courier === c).reduce(sumar, acumulador()));
+  const porCliente = new Map();
+  for (const e of envios) {
+    const k = e.cliente_id;
+    if (!porCliente.has(k)) porCliente.set(k, { cliente_id: k, cliente: e.cliente_nombre, acc: acumulador() });
+    sumar(porCliente.get(k).acc, e);
+  }
+  const metrica = kpi === 'sin_liquidar' ? 'venta' : kpi === 'sin_venta' ? 'envios' : kpi;
+  const clientes = [...porCliente.values()].map((c) => ({ cliente_id: c.cliente_id, cliente: c.cliente, ...cerrar(c.acc) }))
+    .sort((a, b) => (b[metrica] || 0) - (a[metrica] || 0));
+  const totales = cerrar(envios.reduce(sumar, acumulador()));
+  if (kpi === 'sin_venta') { totales.compra = totales.sin_venta.compra; }
+  return {
+    kpi, periodo: { desde, hasta: sumarDias(hasta, -1), etiqueta }, filtros,
+    totales, por_courier: porCourier, por_cliente: clientes.slice(0, 10), clientes_n: clientes.length,
+    filas: envios.sort((a, b) => (a.fecha < b.fecha ? 1 : a.fecha > b.fecha ? -1 : b.id - a.id)).slice(0, TOPE_FILAS).map(fila),
+    filas_total: envios.length, truncado: envios.length > TOPE_FILAS,
+  };
+}
+
+module.exports = { analitica, detalle, resolverPeriodo, resolverComparacion, compararMismaAltura, diasHabiles, proyectarMes, precisionHistorica, acumuladoPorHabil, normalizarPais, mesesEntre };

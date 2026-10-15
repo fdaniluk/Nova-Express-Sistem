@@ -1297,6 +1297,44 @@ async function migrateBotCanales() {
   await dbApi.exec("CREATE INDEX IF NOT EXISTS idx_bot_vinculos_codigo ON bot_vinculos(codigo) WHERE estado = 'pendiente'");
 }
 
+/* Consultas de la publicidad (14/10/2026): una fila por teléfono que escribe por el
+   WhatsApp de la pauta. El hilo vive en bot_conversaciones (usuario_id NULL: no es nadie
+   del sistema). `estado`: bot (lo atiende el asistente) · derivada (vale: la mira Felipe)
+   · atendida (alguien de la oficina ya contestó) · cerrada. Las reglas del filtro son texto
+   editable desde la pantalla. Ver services/consultas.service.js. */
+async function migrateConsultas() {
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS consultas (
+      id                 INTEGER PRIMARY KEY AUTOINCREMENT,
+      canal              TEXT NOT NULL,
+      telefono           TEXT NOT NULL,
+      nombre             TEXT,
+      estado             TEXT NOT NULL DEFAULT 'bot',
+      datos              TEXT NOT NULL DEFAULT '{}',
+      resumen            TEXT,
+      motivo             TEXT,
+      conversacion_id    INTEGER REFERENCES bot_conversaciones(id),
+      no_leidos          INTEGER NOT NULL DEFAULT 0,
+      atendida_por       TEXT,
+      creado_en          TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      actualizado_en     TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      ultimo_mensaje_en  TEXT,
+      derivada_en        TEXT,
+      cerrada_en         TEXT
+    )
+  `);
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_consultas_tel ON consultas(canal, telefono, id)');
+  await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_consultas_estado ON consultas(estado, actualizado_en)');
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS consultas_reglas (
+      id             INTEGER PRIMARY KEY CHECK (id = 1),
+      texto          TEXT NOT NULL,
+      actualizado_en TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      usuario        TEXT
+    )
+  `);
+}
+
 async function migrateCotizadorLinks() {
   await dbApi.exec(`
     CREATE TABLE IF NOT EXISTS cotizador_links (
@@ -1464,6 +1502,7 @@ async function initSchema() {
   await migrateCotizadorLinks();
   await migrateBot();
   await migrateBotCanales();
+  await migrateConsultas();
   await migrateCostos();
   await migrateIndices();
   await seedIfEmpty();

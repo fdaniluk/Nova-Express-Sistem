@@ -264,6 +264,8 @@ api.clientes.tramos = {
 api.dashboard = {
   // Rediseño 10/09/2026: todo el dashboard en una llamada; `q` es el query string armado.
   analitica: (q) => api.get(`/dashboard/analitica${q ? `?${q}` : ''}`),
+  // Detalle de una tarjeta (15/10/2026): los envíos que componen el número.
+  detalle: (q) => api.get(`/dashboard/detalle?${q}`),
   analiticaExcelUrl: (q) => `${API_BASE}/dashboard/analitica.xlsx${q ? `?${q}` : ''}`,
 };
 
@@ -411,6 +413,18 @@ api.cotizadorLinks = {
 };
 
 // El asistente de la oficina (14/09/2026). Misma sesion, mismas reglas.
+// Consultas de la publicidad (14/10/2026): las que entran por el WhatsApp de la pauta.
+api.consultas = {
+  listar: (estado) => api.get(`/consultas${estado ? `?estado=${encodeURIComponent(estado)}` : ''}`),
+  resumen: () => api.get('/consultas/resumen'),
+  obtener: (id) => api.get(`/consultas/${id}`),
+  responder: (id, texto) => api.post(`/consultas/${id}/responder`, { texto }),
+  estado: (id, estado, motivo) => api.post(`/consultas/${id}/estado`, { estado, motivo }),
+  reglas: () => api.get('/consultas/reglas'),
+  guardarReglas: (texto) => api.put('/consultas/reglas', { texto }),
+  simular: (telefono, texto, nombre) => api.post('/consultas/simular', { telefono, texto, nombre }),
+};
+
 api.bot = {
   estado: () => api.get('/bot/estado'),
   mensaje: (texto, conversacion_id) => api.post('/bot/mensaje', { texto, conversacion_id: conversacion_id || null }),

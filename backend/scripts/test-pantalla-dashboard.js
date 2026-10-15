@@ -141,6 +141,32 @@ async function main() {
   const r = await fetch(excel, { headers: H });
   check('y el xlsx baja (200)', r.status === 200 && /spreadsheetml/.test(r.headers.get('content-type')));
 
+  console.log('\n4b. Tocar una tarjeta abre el detalle (15/10)\n');
+  await page.click('.dash-kpi[data-kpi="envios"]');
+  await esperar(1200);
+  check('se abre el panel con el nombre del KPI y la explicación', await page.isVisible('#dash-detalle') && (await page.textContent('#dash-detalle-k')) === 'Envíos' && /NO VOLÓ/.test(await page.textContent('#dash-detalle-que')));
+  check('con el número y el período', /envíos/.test(await page.textContent('#dash-detalle-v')) && /→/.test(await page.textContent('#dash-detalle-sub')), await page.textContent('#dash-detalle-v'));
+  const filasDet = await page.$$('#dash-detalle-t tbody tr:not(.vacio)');
+  check('y la lista de envíos que lo componen, con link a Salidas por guía', filasDet.length >= 2 && !!(await page.$('#dash-detalle-t tbody a[href*="salidas.html?buscar="]')), String(filasDet.length));
+  check('reparto por courier y por cliente en chips', (await page.$$('#dash-detalle-reparto .chip')).length >= 2);
+  if (process.env.SHOTS) await page.screenshot({ path: process.env.SHOTS + '/dash-detalle.png' });
+  if (await page.$('#dash-detalle-reparto .chip.cli')) {
+    const antesN = (await page.$$('#dash-detalle-t tbody tr:not(.vacio)')).length;
+    await page.click('#dash-detalle-reparto .chip.cli'); await esperar(200);
+    const despN = (await page.$$('#dash-detalle-t tbody tr:not(.vacio)')).length;
+    check('   tocar un cliente filtra la lista', despN <= antesN && !!(await page.$('#dash-detalle-reparto .chip.cli.on')), `${antesN} → ${despN}`);
+    await page.click('#dash-detalle-reparto .chip.cli.on'); await esperar(200);
+  }
+  await page.fill('#dash-detalle-buscar', 'zzzzzz'); await esperar(200);
+  check('   el buscador filtra', !!(await page.$('#dash-detalle-t tbody tr.vacio')));
+  await page.fill('#dash-detalle-buscar', ''); await esperar(200);
+  await page.keyboard.press('Escape'); await esperar(200);
+  check('Escape lo cierra', !(await page.isVisible('#dash-detalle')));
+  await page.click('.dash-kpi[data-kpi="sin_liquidar"]');
+  await esperar(1200);
+  check('"Sin liquidar" abre con su explicación y el botón va a Liquidaciones', /liquidación confirmada/.test(await page.textContent('#dash-detalle-que')) && /liquidaciones\.html$/.test(await page.$eval('#dash-detalle-ir', (a) => a.getAttribute('href'))));
+  await page.click('#dash-detalle-cerrar'); await esperar(200);
+
   console.log('\n5. Sin permiso no se ve\n');
   await sql('UPDATE usuarios SET ver_dashboard = 0 WHERE id = ?', [uid]);
   await page.goto(`${BASE}/index.html`);

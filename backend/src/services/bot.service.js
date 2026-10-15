@@ -506,6 +506,65 @@ const HERRAMIENTAS = {
       return { cancelado: true };
     },
   },
+
+  /* ── Audiencia 'prospecto' (14/10/2026): el filtro de las consultas de la publicidad ──
+     El que escribe NO es de la oficina ni es cliente: es alguien que vio la pauta de
+     Instagram. No tiene sesión, no tiene cookie, no ve NINGUNA de las herramientas de
+     arriba. Sus tres herramientas solo tocan SU consulta (ctx.consulta), nunca la base de
+     envíos ni precios. La lógica vive en consultas.service.js. */
+  anotar_consulta: {
+    audiencia: ['prospecto'],
+    definicion: {
+      name: 'anotar_consulta',
+      description: 'Guarda lo que la persona ya contó sobre su envío. Llamala cada vez que aparezca un dato nuevo (solo los campos que cambiaron). No decide nada: solo anota.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          nombre: { type: 'string', description: 'Nombre de la persona o de la empresa, si lo dijo.' },
+          que_envia: { type: 'string', description: 'Qué quiere mandar (mercadería, muestras, documentos, compra personal, mudanza…).' },
+          sentido: { type: 'string', enum: ['exportacion', 'importacion', 'no_dice'], description: 'exportacion = sale de Argentina; importacion = entra a Argentina.' },
+          destino: { type: 'string', description: 'País o ciudad de destino (o de origen si es importación).' },
+          peso: { type: 'string', description: 'Peso aproximado y/o medidas, como lo dijo.' },
+          tipo: { type: 'string', enum: ['empresa', 'particular', 'no_dice'] },
+          frecuencia: { type: 'string', enum: ['puntual', 'seguido', 'no_dice'] },
+          notas: { type: 'string', description: 'Cualquier otro dato útil (plazo, valor, si ya exportó antes…).' },
+        },
+      },
+    },
+    async ejecutar(a, ctx) { return require('./consultas.service').anotar(ctx.consulta, a); },
+  },
+  derivar_consulta: {
+    audiencia: ['prospecto'],
+    definicion: {
+      name: 'derivar_consulta',
+      description: 'La consulta VALE: pasársela a Felipe. Después de llamarla, despedite diciendo que Felipe le va a escribir por este mismo chat. No vuelvas a preguntar nada.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          resumen: { type: 'string', description: 'Dos o tres líneas para Felipe: quién es, qué quiere mandar, a dónde, cuánto, cada cuánto.' },
+          motivo: { type: 'string', description: 'Por qué vale (en pocas palabras).' },
+        },
+        required: ['resumen', 'motivo'],
+      },
+    },
+    async ejecutar(a, ctx) { return require('./consultas.service').derivar(ctx.consulta, a); },
+  },
+  cerrar_consulta: {
+    audiencia: ['prospecto'],
+    definicion: {
+      name: 'cerrar_consulta',
+      description: 'La consulta NO es para Nova (o la persona no quiere seguir). Después de llamarla, despedite con amabilidad y, si corresponde, decile por qué no podemos ayudarla.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          resumen: { type: 'string', description: 'Una o dos líneas de qué pedía.' },
+          motivo: { type: 'string', description: 'Por qué se cierra (fuera de lo que hacemos, sin datos, no contesta, spam…).' },
+        },
+        required: ['resumen', 'motivo'],
+      },
+    },
+    async ejecutar(a, ctx) { return require('./consultas.service').cerrar(ctx.consulta, a); },
+  },
 };
 
 /* Las herramientas que ve el modelo dependen de QUIÉN escribe. Hoy todas son 'interno'
@@ -523,7 +582,8 @@ function permitida(nombre, audiencia = 'interno') {
   return !!h && (h.audiencia || ['interno']).includes(audiencia);
 }
 
-function systemPrompt(usuario, audiencia = 'interno') {
+function systemPrompt(usuario, audiencia = 'interno', extra = {}) {
+  if (audiencia === 'prospecto') return require('./consultas.service').systemPrompt(extra.consulta, extra.reglas);
   return [
     /* Un solo lugar donde se dice quién es y qué no hace. Cuando exista la audiencia
        'cliente', acá va SU texto: nunca datos de la oficina, nunca de otro cliente. */
@@ -546,8 +606,8 @@ async function crearConversacion(usuario, canal = 'panel') {
   const db = getDb();
   const r = await db.prepare(
     'INSERT INTO bot_conversaciones (usuario_id, usuario, canal) VALUES (?, ?, ?)'
-  ).run(usuario.id, usuario.usuario || null, canal);
-  return { id: r.lastInsertRowid || r.lastID, usuario_id: usuario.id, canal };
+  ).run(usuario ? usuario.id : null, (usuario && usuario.usuario) || null, canal);
+  return { id: r.lastInsertRowid || r.lastID, usuario_id: usuario ? usuario.id : null, canal };
 }
 
 async function leerConversacion(id, usuario) {
@@ -592,8 +652,17 @@ async function leerMensajes(conversacionId, limite = HISTORIAL) {
 /* Historial en el formato de la API. Una conversación no puede empezar con un tool_result
    huérfano (si el recorte de HISTORIAL cortó justo ahí), así que se descartan los
    mensajes del principio hasta el primer texto de la persona. */
+/* Solo los campos que la API conoce: un bloque de texto guardado con `humano` (la
+   respuesta de alguien de la oficina en una consulta, 14/10) viaja sin esa marca. */
+function bloqueParaApi(b) {
+  if (!b || typeof b !== 'object') return b;
+  if (b.type === 'text') return { type: 'text', text: b.text };
+  if (b.type === 'tool_use') return { type: 'tool_use', id: b.id, name: b.name, input: b.input };
+  if (b.type === 'tool_result') return { type: 'tool_result', tool_use_id: b.tool_use_id, content: b.content };
+  return b;
+}
 function historialParaApi(mensajes) {
-  const arr = mensajes.map((m) => ({ role: m.rol, content: m.contenido }));
+  const arr = mensajes.map((m) => ({ role: m.rol, content: Array.isArray(m.contenido) ? m.contenido.map(bloqueParaApi) : m.contenido }));
   while (arr.length && !(arr[0].role === 'user' && Array.isArray(arr[0].content) && arr[0].content.some((b) => b.type === 'text'))) arr.shift();
   return arr;
 }
@@ -611,7 +680,8 @@ function mensajesParaPantalla(mensajes) {
     if (m.rol === 'assistant') {
       herramientasAcum.push(...herramientas);
       if (!texto) continue;
-      out.push({ id: m.id, rol: 'assistant', texto, herramientas: herramientasAcum, creado_en: m.creado_en });
+      const humano = (bloques.find((b) => b.type === 'text' && b.humano) || {}).humano || null;
+      out.push({ id: m.id, rol: 'assistant', texto, herramientas: herramientasAcum, creado_en: m.creado_en, humano });
       herramientasAcum = [];
     } else if (texto) {
       out.push({ id: m.id, rol: 'user', texto, herramientas: [], creado_en: m.creado_en });
@@ -654,6 +724,7 @@ async function llamarModeloMock(system, mensajes, ctx) {
     const nombre = tu ? tu.name : '?';
     let res; try { res = JSON.parse(tr.content); } catch { res = tr.content; }
     if (res && res.error) return texto(`[mock] ${nombre}: ${res.error}`);
+    if (ctx.audiencia === 'prospecto') return require('./consultas.service').mock(ctx, '', '', uso, texto, tr, nombre, res);
     switch (nombre) {
       case 'buscar_envios': {
         const rs = res.resumen_semaforo || {};
@@ -681,6 +752,7 @@ async function llamarModeloMock(system, mensajes, ctx) {
 
   const t = (bloques.find((b) => b.type === 'text') || {}).text || '';
   const tl = t.toLowerCase();
+  if (ctx.audiencia === 'prospecto') return require('./consultas.service').mock(ctx, t, tl, uso, texto, tr);
   const pend = await leerPendiente(ctx.conversacion.id);
   if (pend && /^\s*(s[ií]|dale|confirmo|ok|cargalo|carg[aá]lo)(?![a-záéíóú])/.test(tl)) return uso('confirmar_pickup', {});
   if (pend && /^\s*(no|cancel)/.test(tl)) return uso('cancelar_pendiente', {});
@@ -734,7 +806,7 @@ async function llamarModeloMock(system, mensajes, ctx) {
  * @param {{usuario:object, cookie:string, texto:string, conversacion_id?:number, canal?:string}} p
  * @returns {{conversacion_id:number, texto:string, herramientas:string[], pendiente:object|null}}
  */
-async function procesarMensaje({ usuario, cookie, texto, conversacion_id, canal = 'panel', audiencia = 'interno' }) {
+async function procesarMensaje({ usuario, cookie, texto, conversacion_id, canal = 'panel', audiencia = 'interno', consulta = null, reglas = '' }) {
   const est = estado();
   if (!est.disponible) {
     const e = new Error('El asistente no está configurado: falta ANTHROPIC_API_KEY en el .env del servidor.');
@@ -747,10 +819,10 @@ async function procesarMensaje({ usuario, cookie, texto, conversacion_id, canal 
 
   let conversacion = conversacion_id ? await leerConversacion(conversacion_id, usuario) : null;
   if (!conversacion) conversacion = await crearConversacion(usuario, canal);
-  const ctx = { cookie, usuario, conversacion };
+  const ctx = { cookie, usuario, conversacion, audiencia, consulta };
 
   await guardarMensaje(conversacion.id, 'user', [{ type: 'text', text: limpio }]);
-  const system = systemPrompt(usuario, audiencia);
+  const system = systemPrompt(usuario, audiencia, { consulta, reglas });
   const usadas = [];
   let respuestaTexto = '';
 
@@ -806,6 +878,6 @@ async function listarConversaciones(usuario, limite = 20) {
 }
 
 module.exports = {
-  estado, procesarMensaje, listarConversaciones, leerConversacion, leerMensajes, mensajesParaPantalla,
+  estado, procesarMensaje, listarConversaciones, leerConversacion, leerMensajes, mensajesParaPantalla, guardarMensaje, crearConversacion,
   HERRAMIENTAS, definicionesPara, pesoFacturable, resolverFecha,
 };

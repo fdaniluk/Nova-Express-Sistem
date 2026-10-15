@@ -158,7 +158,7 @@ async function topeSuperado(vinculoId) {
 
    @returns {{respuesta:string, vinculado:boolean, conversacion_id?:number}}
 */
-async function recibirMensaje({ canal, identificador, texto, nombre }) {
+async function recibirMensaje({ canal, identificador, texto, nombre, prospecto = false }) {
   if (!CANALES.includes(canal)) { const e = new Error('Canal desconocido'); e.status = 400; throw e; }
   const id = normalizar(canal, identificador);
   const limpio = String(texto || '').trim();
@@ -171,7 +171,10 @@ async function recibirMensaje({ canal, identificador, texto, nombre }) {
 
   /* ── Sin vínculo: solo se acepta un código de vinculación ───────────────────────── */
   if (!vinculo) {
-    const posible = limpio.replace(/\D/g, '');
+    /* Un código es el mensaje ENTERO: seis dígitos (con espacios o guiones a lo sumo).
+       Antes se sacaban todos los no-dígitos y "40x30x20" (las medidas de una caja de un
+       prospecto, 14/10) se leía como el código 403020. */
+    const posible = limpio.replace(/[\s-]/g, '');
     if (/^\d{6}$/.test(posible)) {
       const pend = await db.prepare(
         "SELECT * FROM bot_vinculos WHERE codigo = ? AND canal = ? AND estado = 'pendiente'"
@@ -192,6 +195,15 @@ async function recibirMensaje({ canal, identificador, texto, nombre }) {
         respuesta: `Listo, quedaste vinculado como ${pend.usuario || 'usuario del sistema'}. Escribime lo que necesites: una guía, la venta del día, una cotización o un pickup.`,
         vinculado: true, recien_vinculado: true,
       };
+    }
+    /* Un teléfono sin vínculo por WhatsApp es, desde el 14/10, ALGUIEN QUE VIO LA PAUTA:
+       va al filtro de consultas (audiencia 'prospecto', sin ninguna herramienta de la
+       oficina). Por el canal de prueba solo si el simulador de Consultas lo pide
+       explícitamente: el simulador del Asistente sigue diciendo "no te tengo vinculado". */
+    if (canal === 'whatsapp' || (canal === 'prueba' && prospecto)) {
+      const consultas = require('./consultas.service');
+      const out = await consultas.recibirDeProspecto({ canal, telefono: id, texto: limpio, nombre });
+      return { respuesta: out.respuesta, vinculado: false, prospecto: true, consulta_id: out.consulta_id, estado: out.estado, silencio: !!out.silencio, herramientas: out.herramientas };
     }
     return {
       respuesta: 'No te tengo vinculado, así que no puedo responderte. Entrá al sistema, andá a Asistente → Teléfonos, sacá un código y mandámelo por acá.',

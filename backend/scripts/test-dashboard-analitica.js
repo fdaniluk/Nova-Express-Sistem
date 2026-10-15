@@ -236,6 +236,24 @@ async function main() {
     check('  un rango suelto sigue siendo el mismo largo justo antes', c3.desde === '2026-08-31' && c3.hasta === '2026-09-10', JSON.stringify(c3));
   }
 
+  console.log('\n6b. Detalle de una tarjeta (15/10)\n');
+  const det = async (kpi, extra = '') => (await get(`/api/dashboard/detalle?${qBase}&kpi=${kpi}${extra}`)).json();
+  let dd = await det('envios');
+  check('envíos: 6 filas (el NO VOLÓ afuera) con guía, cliente, kg, venta, compra, profit, liquidado', dd.filas.length === 6 && dd.filas_total === 6 && dd.filas.every((f) => f.guia && f.cliente && 'profit' in f && 'liquidado' in f), JSON.stringify(dd.filas[0]));
+  check('   totales iguales a los KPIs', dd.totales.envios === d.kpis.envios && cerca(dd.totales.venta, d.kpis.venta) && cerca(dd.totales.profit, d.kpis.profit), JSON.stringify(dd.totales));
+  check('   reparto por courier y por cliente', dd.por_courier.UPS.envios === 4 && dd.por_courier.DHL.envios === 2 && dd.por_cliente.length === 2 && dd.por_cliente[0].envios === 3, JSON.stringify([dd.por_courier.UPS.envios, dd.por_courier.DHL.envios, dd.por_cliente.map((c) => [c.cliente, c.envios])]));
+  dd = await det('venta');
+  check('venta: solo los 5 con precio (el de Brasil sin venta queda afuera)', dd.filas.length === 5 && dd.filas.every((f) => f.venta > 0) && cerca(dd.totales.venta, 1700), JSON.stringify([dd.filas.length, dd.totales.venta]));
+  dd = await det('sin_venta');
+  check('sin_venta: el de Brasil, con su compra', dd.filas.length === 1 && dd.filas[0].destino === 'Brasil' && dd.filas[0].venta === 0 && dd.totales.compra === 80, JSON.stringify([dd.filas, dd.totales.compra]));
+  dd = await det('sin_liquidar');
+  check('sin_liquidar: 5 (el liquidado afuera) con el total de venta', dd.filas.length === 5 && dd.filas.every((f) => !f.liquidado) && cerca(dd.totales.venta, 1550), JSON.stringify([dd.filas.length, dd.totales.venta]));
+  check('   y los días desde la carga', dd.filas.every((f) => typeof f.dias === 'number'));
+  dd = await det('profit', '&courier=DHL');
+  check('con filtro de courier se respeta (DHL: 2 filas)', dd.filas.length === 2 && dd.filas.every((f) => f.courier === 'DHL') && dd.filtros.courier === 'DHL', JSON.stringify(dd.filas.map((f) => f.courier)));
+  dd = await det('cualquiera');
+  check('un kpi desconocido cae en envíos', dd.kpi === 'envios');
+
   console.log('\n7. Excel\n');
   r = await get(`/api/dashboard/analitica.xlsx?${qBase}`);
   check('GET analitica.xlsx → 200 xlsx', r.status === 200 && /spreadsheetml/.test(r.headers.get('content-type')), r.headers.get('content-type'));

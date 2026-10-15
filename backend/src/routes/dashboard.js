@@ -285,6 +285,16 @@ router.get('/analitica', async (req, res, next) => {
   }
 });
 
+// El detalle de una tarjeta (15/10/2026): los envíos que componen ese número, con los
+// mismos filtros. ?kpi=envios|kg_fact|compra|venta|profit|sin_liquidar|sin_venta
+router.get('/detalle', async (req, res, next) => {
+  try {
+    res.json(await analitica.detalle(req.query || {}));
+  } catch (e) {
+    next(e);
+  }
+});
+
 // El Excel de lo que se ve: una hoja por bloque (KPIs, por mes, clientes, destinos,
 // estimado vs real). Mismos filtros que /analitica.
 router.get('/analitica.xlsx', async (req, res, next) => {

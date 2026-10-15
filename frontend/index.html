@@ -6,7 +6,7 @@
   <title>Dashboard – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="css/main.css?v=20260929a">
-  <link rel="stylesheet" href="css/modules/dashboard.css?v=20261009a">
+  <link rel="stylesheet" href="css/modules/dashboard.css?v=20261015a">
 </head>
 <body>
 <div class="app-layout">
@@ -67,6 +67,10 @@
       <a href="pages/asistente.html" class="nav-item">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span>
         <span>Asistente</span>
+      </a>
+      <a href="pages/consultas.html" class="nav-item">
+        <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 10h8M8 14h5"/><path d="M21 12a9 9 0 0 1-13.4 7.8L3 21l1.2-4.6A9 9 0 1 1 21 12z"/></svg></span>
+        <span>Consultas</span>
       </a>
       <a href="pages/pickups.html" class="nav-item">
         <span class="nav-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></span>
@@ -237,6 +241,36 @@
         </div>
       </div>
 
+      <!-- Detalle de una tarjeta (15/10/2026): tocar un KPI abre esto con los envíos que lo
+           componen, cómo se reparte por courier y por cliente, y qué significa el número. -->
+      <div class="dash-detalle-fondo hidden" id="dash-detalle-fondo"></div>
+      <aside class="dash-detalle hidden" id="dash-detalle" aria-hidden="true">
+        <div class="dash-detalle-cab">
+          <div>
+            <div class="dash-detalle-k" id="dash-detalle-k"></div>
+            <div class="dash-detalle-v" id="dash-detalle-v"></div>
+            <div class="dash-detalle-sub" id="dash-detalle-sub"></div>
+          </div>
+          <button type="button" class="dash-detalle-cerrar" id="dash-detalle-cerrar" aria-label="Cerrar">✕</button>
+        </div>
+        <div class="dash-detalle-que" id="dash-detalle-que"></div>
+        <div class="dash-detalle-reparto" id="dash-detalle-reparto"></div>
+        <div class="dash-detalle-barra">
+          <input type="search" id="dash-detalle-buscar" placeholder="Buscar guía, cliente o destino…">
+          <span class="dash-hint" id="dash-detalle-n"></span>
+          <a class="btn btn-sm btn-outline" id="dash-detalle-ir" href="pages/salidas.html">Abrir Salidas</a>
+        </div>
+        <div class="dash-detalle-tabla">
+          <table class="dash-tabla dash-detalle-t" id="dash-detalle-t">
+            <thead><tr>
+              <th data-col="fecha">Fecha</th><th data-col="guia">Guía</th><th data-col="cliente">Cliente</th><th data-col="courier">Courier</th><th data-col="destino">Destino</th>
+              <th class="n" data-col="kg_fact">Kg</th><th class="n" data-col="venta">Venta</th><th class="n" data-col="compra">Compra</th><th class="n" data-col="profit">Profit</th><th data-col="liquidado">Liq.</th>
+            </tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </aside>
+
       <div class="dash-footer">
         <span>Σ de envíos con fecha en el período, sin los NO VOLÓ.</span>
         <span>Profit = venta − compra estimada; cuando la factura del courier está aprobada se usa el costo real.</span>
@@ -246,9 +280,9 @@
 </div>
 
 <script src="/js/auth-guard.js?v=20260924b"></script>
-<script src="js/api.js?v=20261008b"></script>
+<script src="js/api.js?v=20261015a"></script>
 <script src="js/main.js?v=20260929a"></script>
 <script src="js/vendor/chart.umd.js?v=20260915a"></script>
-<script src="js/modules/dashboard.js?v=20261014a"></script>
+<script src="js/modules/dashboard.js?v=20261015a"></script>
 </body>
 </html>

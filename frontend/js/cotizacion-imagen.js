@@ -132,6 +132,12 @@
        naranja de la marca a la izquierda. Tiene que llamar la atención sin sonar a reto. */
     const EST_GAP = 14, H_EST = conEst ? 46 : 0;
 
+    /* Bulto por bulto (15/10/2026, pedido de Felipe): con más de un bulto la pantalla lista
+       cada uno con sus medidas y pesos, pero la imagen solo llevaba los totales, y el
+       cliente se quedaba sin ver con qué se cotizó. Un renglón por bulto, arriba del
+       desglose. Con un solo bulto ya va todo en la línea de medidas. */
+    const H_BULTO = 17, BULTOS_TOP = 4, BULTOS_BOT = 10;
+    const H_BULTOS = bultos.length > 1 ? BULTOS_TOP + bultos.length * H_BULTO + BULTOS_BOT : 0;
     const filas = filasDe(d);
     /* La línea de medidas se arma en TRAMOS: el peso facturable es el dato que decide el
        precio, así que va en negrita y más oscuro (pedido del padre de Felipe, 20/08). */
@@ -159,7 +165,7 @@
     /* El primer renglón de la cabecera es solo el nombre del cliente. La fecha va al pie. */
     const hayRenglon1 = Boolean(nombre);
     const hCab = CAB_TOP + (hayRenglon1 ? H_RENGLON1 : 0) + OFF_COURIER + H_META + CAB_BOT;
-    let hCuerpo = CUERPO_TOP;
+    let hCuerpo = CUERPO_TOP + H_BULTOS;
     filas.forEach(([, , t]) => { hCuerpo += H_FILA + (t === 'subtotal' ? SEP_SUB : 0) + (t === 'total' ? SEP_TOT : 0); });
     hCuerpo += DISC_GAP + H_DISC + (conEst ? EST_GAP + H_EST - 10 : 0) + CUERPO_BOT;
     const H = hCab + hCuerpo + H_PIE;
@@ -254,8 +260,28 @@
       x.restore();
     }
 
-    /* ── DESGLOSE ─────────────────────────────────────────────────────────────────── */
+    /* ── BULTOS (solo si hay más de uno) ──────────────────────────────────────────── */
     let y = hCab + CUERPO_TOP;
+    if (H_BULTOS) {
+      y += BULTOS_TOP;
+      bultos.forEach((b, i) => {
+        const base = y + 12;
+        const num = `Bulto ${b.num || i + 1}`;
+        x.font = '600 11px "DM Sans", sans-serif'; x.fillStyle = esDhl ? '#7a5f1f' : '#3d5a8a';
+        x.fillText(num, P, base);
+        const wNum = x.measureText(num).width;
+        const det = `  ${Number(b.pr)} kg real · ${b.l}×${b.a}×${b.al} cm · ${Number(b.pv).toFixed(1)} kg vol · `;
+        x.font = '400 11px "DM Mono", monospace'; x.fillStyle = '#7d8aa3';
+        x.fillText(det, P + wNum, base);
+        const wDet = x.measureText(det).width;
+        x.font = '500 11px "DM Mono", monospace'; x.fillStyle = '#3d5a8a';
+        x.fillText(`${Number(b.pf).toFixed(1)} kg facturable`, P + wNum + wDet, base);
+        y += H_BULTO;
+      });
+      y += BULTOS_BOT;
+    }
+
+    /* ── DESGLOSE ─────────────────────────────────────────────────────────────────── */
     filas.forEach(([izq, der, tipoF]) => {
       if (tipoF === 'subtotal') { y += SEP_SUB / 2; x.fillStyle = '#e2e0d8'; x.fillRect(P, y, W - P * 2, 1); y += SEP_SUB / 2; }
       if (tipoF === 'total') { y += SEP_TOT / 2; x.fillStyle = '#1a1916'; x.fillRect(P, y, W - P * 2, 1.5); y += SEP_TOT / 2; }

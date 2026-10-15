@@ -532,6 +532,67 @@ async function main() {
   check('ningún texto se sale de los márgenes', seVan.length === 0,
     seVan.slice(0, 3).map((t) => `"${t.txt.trim().slice(0, 25)}" hasta ${Math.round(t.der)}`).join(' | '));
 
+  /* 15/10: con más de un bulto la pantalla muestra "Bulto #1 … Bulto #2 …" y la imagen
+     lo perdía (solo iba el total). Ahora va un renglón por bulto, sin pisar nada. */
+  console.log('\n8b. Varios bultos en la imagen\n');
+  await page.click('.btn-add');
+  await esperar(200);
+  const filasB = await page.$$('.bulto-row');
+  check('se agregó un segundo bulto', filasB.length === 2, `${filasB.length} filas`);
+  await filasB[1].$eval('.b-peso', (e) => { e.value = '12'; e.dispatchEvent(new Event('input', { bubbles: true })); });
+  await filasB[1].$eval('.b-largo', (e) => { e.value = '40'; e.dispatchEvent(new Event('input', { bubbles: true })); });
+  await filasB[1].$eval('.b-ancho', (e) => { e.value = '30'; e.dispatchEvent(new Event('input', { bubbles: true })); });
+  await filasB[1].$eval('.b-alto', (e) => { e.value = '20'; e.dispatchEvent(new Event('input', { bubbles: true })); });
+  await page.click('.btn-calc');
+  await esperar(1200);
+  const trazos2 = await page.evaluate(async () => {
+    const proto = CanvasRenderingContext2D.prototype;
+    const orig = proto.fillText;
+    const t = [];
+    proto.fillText = function espia(txt, xx, yy) {
+      t.push({ txt: String(txt), x: xx, y: yy, font: this.font, align: this.textAlign });
+      return orig.apply(this, arguments);
+    };
+    try { await window.copiarImagen(0, document.querySelector('.btn-copiar')); }
+    finally { proto.fillText = orig; }
+    const m = document.createElement('canvas').getContext('2d');
+    return t.map((o) => {
+      m.font = o.font;
+      const w = m.measureText(o.txt).width;
+      return { ...o, w, izq: o.align === 'right' ? o.x - w : o.x, der: o.align === 'right' ? o.x : o.x + w };
+    });
+  });
+  const b1 = trazos2.find((t) => /^Bulto 1$/.test(t.txt));
+  const b2 = trazos2.find((t) => /^Bulto 2$/.test(t.txt));
+  check('la imagen lista Bulto 1 y Bulto 2', !!b1 && !!b2, trazos2.map((t) => t.txt.trim()).filter((s) => /Bulto/.test(s)).join(' | '));
+  const detB2 = trazos2.find((t) => b2 && Math.abs(t.y - b2.y) < 1 && /40×30×20/.test(t.txt));
+  check('cada renglón lleva peso real, medidas y facturable del bulto', !!detB2 && /12 kg real/.test(detB2.txt) && !!trazos2.find((t) => b2 && Math.abs(t.y - b2.y) < 1 && /kg facturable/.test(t.txt)), detB2 ? detB2.txt : 'sin detalle');
+  const tot2 = trazos2.find((t) => /^Total$/.test(t.txt)) || trazos2.find((t) => /Precio|TOTAL/i.test(t.txt));
+  check('los bultos van arriba del desglose y no lo pisan', !!b2 && (!tot2 || tot2.y > b2.y + 10));
+  const choques2 = [];
+  for (let i = 0; i < trazos2.length; i += 1) {
+    for (let j = i + 1; j < trazos2.length; j += 1) {
+      const a = trazos2[i]; const b = trazos2[j];
+      if (!a.txt.trim() || !b.txt.trim()) continue;
+      if (Math.abs(a.y - b.y) > BANDA) continue;
+      if (a.izq < b.der - 0.5 && b.izq < a.der - 0.5) choques2.push(`"${a.txt.trim().slice(0, 22)}" con "${b.txt.trim().slice(0, 22)}"`);
+    }
+  }
+  check('🔴 con dos bultos ningún texto se encima con otro', choques2.length === 0, choques2.slice(0, 3).join(' | '));
+  const seVan2 = trazos2.filter((t) => t.der > W_IMG - P_IMG + 0.5 || t.izq < P_IMG - 0.5);
+  check('ni se sale de los márgenes', seVan2.length === 0, seVan2.slice(0, 3).map((t) => `"${t.txt.trim().slice(0, 25)}" hasta ${Math.round(t.der)}`).join(' | '));
+  if (process.env.SHOTS) {
+    const png = await page.evaluate(async () => {
+      let out = null; const o = HTMLCanvasElement.prototype.toBlob;
+      HTMLCanvasElement.prototype.toBlob = function (cb) { out = this.toDataURL('image/png'); cb(new Blob([])); };
+      try { await window.copiarImagen(0, document.querySelector('.btn-copiar')); } finally { HTMLCanvasElement.prototype.toBlob = o; }
+      return out;
+    });
+    if (png) require('fs').writeFileSync(process.env.SHOTS + '/cotizacion-imagen-bultos.png', Buffer.from(png.split(',')[1], 'base64'));
+  }
+  const una = trazos2.filter((t) => /^Bulto \d+$/.test(t.txt));
+  check('con un solo bulto no se dibuja la lista (sigue como antes)', !trazos.some((t) => /^Bulto \d+$/.test(t.txt)) && una.length === 2);
+
   await browser.close();
   matarSrv();
   // El formato lo lee verificar.js para sumar las tandas: no cambiarlo.

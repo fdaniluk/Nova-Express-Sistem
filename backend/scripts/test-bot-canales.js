@@ -108,12 +108,14 @@ async function main() {
     canales.recibirMensaje({ canal, identificador: id, texto });
 
   // ── 1 ──────────────────────────────────────────────────────────────────────
-  console.log('\n1. Un teléfono sin vincular no obtiene nada\n');
+  console.log('\n1. Un teléfono sin vincular no obtiene nada de la oficina\n');
+  /* Desde el 14/10 un WhatsApp sin vínculo es un PROSPECTO (vio la publicidad): lo atiende
+     el filtro de consultas, que no tiene ninguna herramienta de la oficina. */
   const r1 = await telefono('cómo viene la guía 1Z555AA10123456701');
-  check('contesta que no está vinculado', /no te tengo vinculado/i.test(r1.respuesta), r1.respuesta);
+  check('lo atiende el filtro de consultas, no el asistente de la oficina', r1.prospecto === true && r1.vinculado === false, JSON.stringify(r1));
   check('   y NO dice nada de la guía', !/CANALES|España|150/.test(r1.respuesta), r1.respuesta);
   check('   ni queda marcado como vinculado', r1.vinculado === false);
-  check('   ni abrió conversación', (await get('SELECT COUNT(*) n FROM bot_conversaciones')).n === 0);
+  check('   la conversación que abre no es de ningún usuario del sistema', (await get('SELECT COUNT(*) n FROM bot_conversaciones WHERE usuario_id IS NOT NULL')).n === 0);
   const r1b = await telefono('123456');
   check('un código inventado tampoco sirve', /no sirve/i.test(r1b.respuesta), r1b.respuesta);
 
@@ -178,7 +180,7 @@ async function main() {
   const baja = await fetch(`${BASE}/api/bot/vinculos/${mio.id}`, { method: 'DELETE', headers: H });
   check('el dueño lo puede dar de baja', baja.status === 200, String(baja.status));
   const r6 = await telefono('venta de hoy');
-  check('   y desde ahí el teléfono no obtiene más nada', /no te tengo vinculado/i.test(r6.respuesta), r6.respuesta);
+  check('   y desde ahí el teléfono no obtiene más nada de la oficina (vuelve al filtro)', r6.vinculado === false && r6.prospecto === true && !/USD|venta/i.test(r6.respuesta), JSON.stringify(r6));
   const ajeno = await fetch(`${BASE}/api/bot/vinculos/999`, { method: 'DELETE', headers: H2 });
   check('un vínculo que no existe da 404', ajeno.status === 404, String(ajeno.status));
 
