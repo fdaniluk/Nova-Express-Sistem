@@ -279,7 +279,7 @@
 .pin-orden:hover { opacity: 1; transform: scale(1.15); }
 
 .pickup-card-v2-content {
-  flex: 1
+  flex: 1;
   padding: 1rem 1.1rem;
   min-width: 0;
 }
