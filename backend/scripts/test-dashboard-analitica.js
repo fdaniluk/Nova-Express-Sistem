@@ -101,7 +101,11 @@ async function main() {
   let r = await get(`/api/dashboard/analitica?${qBase}`);
   let d = await j(r);
   check('GET /dashboard/analitica → 200', r.status === 200, JSON.stringify(d).slice(0, 200));
-  check('el período va del 1 del mes anterior al último día de este mes', d.periodo.desde === desde && d.periodo.hasta === hasta, JSON.stringify(d.periodo));
+  // 15/10: un rango que termina en el futuro se corta en hoy y se compara a la misma altura
+  // (antes el rango se respetaba tal cual: el mes a medias contra el anterior entero, todo
+  // en rojo, y sin proyección — lo vio Marcelo en el celular).
+  check('el período va del 1 del mes anterior hasta hoy (el rango pedía hasta fin de mes, se corta en hoy)', d.periodo.desde === desde && d.periodo.hasta === d.generado_en && d.comparacion.misma_altura === true, JSON.stringify(d.periodo));
+  check('   y con el mes en curso adentro del rango hay proyección', !!d.proyeccion && d.proyeccion.mes === M0, JSON.stringify(d.proyeccion && d.proyeccion.mes));
   check('6 envíos (el NO VOLÓ no cuenta)', d.kpis.envios === 6, d.kpis.envios);
   check('bultos 7 (uno de 2)', d.kpis.bultos === 7, d.kpis.bultos);
   check('kg facturables 70 (sin los 99 del NO VOLÓ)', cerca(d.kpis.kg_fact, 70), d.kpis.kg_fact);

@@ -329,7 +329,11 @@ async function analitica(q = {}) {
   // tramo del período anterior), y una proyección del mes entero contra el mes anterior
   // entero.
   // Solo en los períodos predefinidos: un rango elegido a mano se toma tal cual.
-  const mismaAltura = etiqueta === 'rango' ? null : compararMismaAltura(desde, hastaPeriodo, comp.modo, hoy);
+  // Un rango a mano que termina en el futuro (ej. 1 al 31 del mes en curso) también se
+  // corta en hoy y se compara a la misma altura: si no, el mes a medias se comparaba contra
+  // el anterior entero (todo en rojo) y desaparecía la proyección (Marcelo, 15/10).
+  // Un rango ya cerrado no se toca: compararMismaAltura devuelve null.
+  const mismaAltura = compararMismaAltura(desde, hastaPeriodo, comp.modo, hoy);
   if (mismaAltura) { comp = mismaAltura; hasta = mismaAltura.hasta_periodo; }
   const filtros = {
     courier: ['UPS', 'DHL'].includes(String(q.courier || '').toUpperCase()) ? String(q.courier).toUpperCase() : null,
@@ -536,7 +540,7 @@ async function detalle(q = {}) {
   const hoy = hoyLocal();
   const { desde, hasta: hastaPeriodo, etiqueta } = resolverPeriodo(q);
   // Período en curso: hasta hoy, como los KPIs (misma altura).
-  const corte = etiqueta === 'rango' ? null : compararMismaAltura(desde, hastaPeriodo, 'previo', hoy);
+  const corte = compararMismaAltura(desde, hastaPeriodo, 'previo', hoy);
   const hasta = corte ? corte.hasta_periodo : hastaPeriodo;
   const filtros = { courier: q.courier || '', tipo: q.tipo || '' };
   const todos = await leerEnvios(db, desde, hasta, filtros);
