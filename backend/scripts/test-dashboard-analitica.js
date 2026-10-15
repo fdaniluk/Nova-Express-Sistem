@@ -140,7 +140,7 @@ async function main() {
   const esperadosM0 = 3;
   check(`periodo=mes → solo este mes hasta hoy: ${esperadosM0} envío(s)`, dM.kpis.envios === esperadosM0 && dM.periodo.meses.length === 1, `${dM.kpis.envios} ${JSON.stringify(dM.periodo.meses)}`);
   check('   y compara a la misma altura del mes anterior (1..hoy)', dM.comparacion.misma_altura === true && dM.comparacion.desde === `${M1}-01` && Number(dM.comparacion.hasta.slice(8, 10)) <= diaHoy, JSON.stringify(dM.comparacion));
-  check('   con una proyección del mes por ritmo de día hábil', dM.proyeccion && dM.proyeccion.metodo === 'ritmo_habil' && dM.proyeccion.habiles_mes >= 20 && dM.proyeccion.mes_anterior && ['baja', 'media', 'alta', 'cerrado'].includes(dM.proyeccion.confianza), JSON.stringify(dM.proyeccion));
+  check('   con una proyección del mes (ritmo solo: no hay 3 meses cerrados antes)', dM.proyeccion && dM.proyeccion.metodo === 'ritmo_habil' && dM.proyeccion.habiles_mes >= 20 && dM.proyeccion.mes_anterior && ['baja', 'media', 'alta', 'cerrado'].includes(dM.proyeccion.confianza), JSON.stringify(dM.proyeccion));
   {
     // Unitario, con fechas fijas: 15 de septiembre 2026 (martes; 11 hábiles pasados de 22).
     const A = require('../src/services/analitica.service');
@@ -161,9 +161,9 @@ async function main() {
     check('   Este año vs año pasado al 15/09 → 01/01/2025..15/09/2025', cA.desde === '2025-01-01' && cA.hasta === '2025-09-16', JSON.stringify(cA));
     const c12 = A.compararMismaAltura('2025-10-01', '2026-10-01', 'previo', '2026-09-15');
     check('   12 meses al 15/09 → 01/10/2024..15/09/2025', c12.desde === '2024-10-01' && c12.hasta === '2025-09-16', JSON.stringify(c12));
-    // Precisión histórica: se hace la misma cuenta, a la misma altura, sobre los meses
-    // cerrados. Mes A: todo parejo (la proyección acierta); mes B: la mitad del mes con 1
-    // envío por día y la otra mitad con 3 (a mitad de mes la proyección erra −50 %).
+    // 15/10: la proyección es la MEZCLA (ritmo ponderado por el avance del mes + promedio de
+    // los 3 meses anteriores). Sin 3 meses cerrados antes, queda el ritmo solo.
+    check('   sin historia el método es el ritmo solo y lo dice', pr.metodo === 'ritmo_habil' && pr.base === null);
     const mesDe = (ym, porDia) => {
       const out = [];
       for (let d = 1; d <= 31; d++) {
@@ -173,13 +173,22 @@ async function main() {
       }
       return out;
     };
-    const hA = { mes: '2026-06', envios: mesDe('2026-06', () => 2) };
+    const parejo = (ym) => ({ mes: ym, envios: mesDe(ym, () => 2) });
+    const hist = [parejo('2026-06'), parejo('2026-07'), parejo('2026-08')];
+    const pr2 = A.proyectarMes([fake('2026-09-02', 100, 500), fake('2026-09-10', 120, 600)], '2026-09-01', '2026-10-01', '2026-09-15', [fake('2026-08-05', 300, 1000)], hist);
+    const baseKg = pr2.base && pr2.base.kg_fact;
+    check('   con jun, jul y ago cerrados: mezcla 50/50 a mitad de mes (ritmo 440 kg, promedio ~600 kg → ~520 kg)', pr2.metodo === 'mezcla' && pr2.peso_ritmo_pct === 50 && pr2.ritmo.kg_fact === 440 && baseKg > 590 && baseKg < 630 && Math.abs(pr2.kg_fact - (0.5 * 440 + 0.5 * baseKg)) < 0.2, JSON.stringify({ m: pr2.metodo, w: pr2.peso_ritmo_pct, r: pr2.ritmo, b: pr2.base, kg: pr2.kg_fact }));
+    check('   el "vs mes anterior" usa la proyección mezclada', pr2.vs_mes_anterior.kg_fact === Math.round(((pr2.kg_fact - 300) / 300) * 1000) / 10, JSON.stringify(pr2.vs_mes_anterior));
+    check('   la precisión sale de la calibración de las planillas (31 meses) con el rango de esa altura', pr2.precision && pr2.precision.origen === 'planillas' && pr2.precision.kg_fact.fraccion === 0.5 && pr2.rango.kg_fact.min < pr2.kg_fact && pr2.rango.kg_fact.max > pr2.kg_fact && pr2.rango.venta, JSON.stringify({ p: pr2.precision.kg_fact, r: pr2.rango }));
+    check('   confianza a mitad de mes: alta (error medio de kilos 9,6 %)', pr2.confianza === 'alta', pr2.confianza);
+    // Precisión propia: mide la mezcla sobre meses cerrados, cada uno con sus 3 anteriores.
+    // Feb–abr parejos; mayo arranca con 1 por día y termina con 3 (a mitad de mes la mezcla
+    // erra para abajo); junio parejo (acierta). Abril chico no cuenta ni como base.
     const hB = { mes: '2026-05', envios: mesDe('2026-05', (d) => (d <= 15 ? 1 : 3)) };
-    const hChico = { mes: '2026-04', envios: [fake('2026-04-10', 5, 0)] };
-    const prec = A.precisionHistorica([hChico, hB, hA], 11, 22);
-    check('   precisión: ignora meses de menos de 30 envíos y mide el error de cada mes cerrado', prec && prec.meses.join() === '2026-05,2026-06' && Math.abs(prec.envios.max) <= 5 && prec.envios.min < -30 && prec.envios.min > -50, JSON.stringify(prec));
-    const pr2 = A.proyectarMes([fake('2026-09-02', 100, 500), fake('2026-09-10', 120, 600)], '2026-09-01', '2026-10-01', '2026-09-15', [fake('2026-08-05', 300, 1000)], [hB, hA]);
-    check('   con esa historia la confianza baja y el rango incluye la proyección (440 kg)', pr2.confianza === 'baja' && pr2.rango.kg_fact && pr2.rango.kg_fact.min <= 440 && pr2.rango.kg_fact.max > 600, JSON.stringify({ c: pr2.confianza, r: pr2.rango, p: pr2.precision && pr2.precision.kg_fact }));
+    const prec = A.precisionHistorica([parejo('2026-02'), parejo('2026-03'), parejo('2026-04'), hB, parejo('2026-06')], 11, 22);
+    check('   precisión propia: evalúa mayo y junio (los 3 primeros son solo base), mayo erra para abajo y junio acierta', prec && prec.origen === 'sistema' && prec.meses.join() === '2026-05,2026-06' && prec.errores.envios[0] < -15 && prec.errores.envios[0] > -40 && Math.abs(prec.errores.envios[1]) <= 5, JSON.stringify(prec));
+    const precHueco = A.precisionHistorica([parejo('2026-02'), parejo('2026-03'), { mes: '2026-04', envios: [fake('2026-04-10', 5, 0)] }, hB, parejo('2026-06')], 11, 22);
+    check('   un mes chico corta la base: no se evalúa nada', precHueco === null, JSON.stringify(precHueco));
   }
   const d12 = await j(await get('/api/dashboard/analitica'));
   check('sin parámetros → últimos 12 meses (12 meses en la serie, los 8 envíos)', d12.periodo.meses.length === 12 && d12.kpis.envios === 8, `${d12.periodo.meses.length} / ${d12.kpis.envios}`);

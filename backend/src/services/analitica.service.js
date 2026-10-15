@@ -18,6 +18,7 @@ const { getDb } = require('../db');
 const { deriveProfit, profitDoble, costoEstimado, utilidadEnvio, ventaEnvio, compraEnvio, cargosDdp, SUBQUERY_LIQUIDACION, SUBQUERY_CARGOS } = require('../utils/profit');
 const { hoyLocal } = require('../utils/fecha');
 const { esHabil, habilesEntre } = require('../utils/habiles');
+const { bandaCalibrada, CALIBRACION } = require('../utils/calibracion-proyeccion');
 const configuracionModel = require('../models/configuracion.model');
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -121,20 +122,22 @@ function diasHabiles(desde, hasta) {
   return habilesEntre(desde, hasta);
 }
 
-// PROYECCIÓN DEL MES EN CURSO (29/09/2026), por ritmo de día hábil: lo acumulado dividido
-// por los días hábiles transcurridos (incluido hoy), por los días hábiles del mes.
+// PROYECCIÓN DEL MES EN CURSO.
 //
-// Por qué este método (análisis de julio, agosto y septiembre 2026, los tres meses que
-// tiene el sistema completos): la primera semana NO anticipó el mes. Pesó el 34 %, el 20 %
-// y el 30 % de los kilos (según cayeran los pallets grandes de DHL), y agosto, que arrancó
-// flojo, terminó siendo el mes más pesado. Al 5º día hábil cualquier método erraba entre
-// −40 % y +40 % en kilos y ±15–30 % en envíos; al 10º, el ritmo hábil ya erraba ±10 %, y
-// al 15º, ±10 % en kilos y ±3 % en envíos. Proyectar con "cuánto pesó la primera semana en
-// los meses anteriores" no mejoró al ritmo simple con tan pocos meses.
+// 29/09/2026: ritmo por día hábil (lo del mes / hábiles pasados × hábiles del mes), con solo
+// jul–sep 2026 para medirlo.
+// 15/10/2026: con 34 meses de planillas (dic-2023 → sep-2026) se midió de verdad. La primera
+// semana pesó entre el 12 % y el 39 % del mes: NO anticipa el mes. El ritmo simple erraba
+// 23 % en kilos al 5º hábil (peor mes 64 %). Gana la MEZCLA: el ritmo ponderado por cuánto
+// del mes pasó, más el promedio de los 3 meses anteriores por el resto:
+//     proyección = w · ritmo + (1 − w) · promedio últimos 3 meses,  w = hábiles pasados / hábiles del mes
+// Error medio en kilos: 15 % al 5º hábil, 9 % al 10º, 7 % al 15º (vs 23 / 11 / 7 del ritmo).
+// Perfil histórico de la primera semana, mismo mes del año anterior, estacionalidad y base de
+// 6 meses: ninguno mejoró (ver utils/calibracion-proyeccion.js).
 //
-// Por eso la proyección viaja con su PRECISIÓN HISTÓRICA: se hace la misma cuenta, al
-// mismo día hábil, sobre los meses cerrados que tiene el sistema, y se informa cuánto
-// erró. Con cada mes que se cierra, el rango se recalcula solo.
+// La PRECISIÓN ("entre A y B" y la etiqueta) sale de esa medición de 34 meses (tabla fija por
+// altura del mes) mientras el sistema no tenga 6+ meses cerrados propios; después se mide
+// sola con precisionHistorica, con el mismo método, y se recalcula con cada mes que cierra.
 function acumuladoPorHabil(envios, desde, hastaExcl) {
   // Para cada día hábil k (1..N) del mes, lo acumulado hasta ese día inclusive. Lo cargado
   // un sábado o un feriado se suma al día hábil anterior (o al primero si cae antes).
@@ -158,74 +161,107 @@ function acumuladoPorHabil(envios, desde, hastaExcl) {
 }
 
 function precisionHistorica(historia, habilesPasados, habilesMes) {
-  // historia: [{ mes, envios: [...] }] de meses CERRADOS. Solo cuentan meses "de verdad"
-  // (30 envíos o más): junio 2026, cuando se empezó a cargar en el sistema, tiene 22 y
-  // arrancó a mitad de mes.
+  // historia: [{ mes, envios: [...] }] de meses CERRADOS, en orden. Solo cuentan meses "de
+  // verdad" (30 envíos o más): junio 2026, cuando se empezó a cargar, tiene 22 y arrancó a
+  // mitad de mes. Se mide el método real (la mezcla), así que cada mes evaluado necesita
+  // los 3 anteriores completos para la base.
   const errores = { envios: [], kg_fact: [] };
   const meses = [];
-  for (const h of historia) {
-    if (!h.envios || h.envios.length < 30) continue;
+  const validos = historia.filter((h) => h.envios && h.envios.length >= 30);
+  const totalDe = (h) => acumuladoPorHabil(h.envios, primerDia(h.mes), primerDia(addMonths(h.mes, 1))).total;
+  for (let i = 3; i < validos.length; i++) {
+    const h = validos[i];
+    const base = validos.slice(i - 3, i);
+    // Los 3 anteriores tienen que ser los 3 meses inmediatamente previos (sin huecos).
+    if (base.some((b, j) => b.mes !== addMonths(h.mes, j - 3))) continue;
     const desde = primerDia(h.mes);
     const { cum, total } = acumuladoPorHabil(h.envios, desde, primerDia(addMonths(h.mes, 1)));
     if (!cum.length) continue;
-    // La misma ALTURA del mes, no el mismo número de día: 10 de 22 hábiles en septiembre
-    // es el 45 % del mes, que en agosto (20 hábiles) es el día 9.
     const frac = habilesMes ? habilesPasados / habilesMes : 1;
     const k = Math.max(1, Math.min(cum.length, Math.round(frac * cum.length)));
+    const w = k / cum.length;
+    const bases = base.map(totalDe);
     for (const campo of ['envios', 'kg_fact']) {
       if (!(total[campo] > 0)) continue;
-      const proy = (cum[k - 1][campo] / k) * cum.length;
+      const ritmo = (cum[k - 1][campo] / k) * cum.length;
+      const prom = bases.reduce((a, b) => a + b[campo], 0) / bases.length;
+      const proy = w * ritmo + (1 - w) * prom;
       errores[campo].push(r1(((proy - total[campo]) / total[campo]) * 100));
     }
     meses.push(h.mes);
   }
   if (!meses.length) return null;
   const rango = (l) => (l.length ? { min: Math.min(...l), max: Math.max(...l) } : null);
-  return { meses, envios: rango(errores.envios), kg_fact: rango(errores.kg_fact), errores };
+  return { meses, envios: rango(errores.envios), kg_fact: rango(errores.kg_fact), errores, origen: 'sistema' };
 }
 
 function proyectarMes(envios, desde, hasta, hoy, mesAnterior, historia = null) {
   const habilesMes = diasHabiles(desde, hasta);
   const habilesPasados = diasHabiles(desde, sumarDias(hoy, 1));
   if (!habilesMes || !habilesPasados) return null;
+  const w = Math.min(1, habilesPasados / habilesMes);
   const factor = habilesMes / habilesPasados;
   const acc = envios.reduce(sumar, acumulador());
-  const proj = (v) => r1(v * factor);
   const dia = Number(hoy.slice(8, 10));
   const ant = mesAnterior ? cerrar(mesAnterior.reduce(sumar, acumulador())) : null;
   const vs = (a, b) => (b ? r1(((a - b) / Math.abs(b)) * 100) : null);
-  const precision = historia ? precisionHistorica(historia, habilesPasados, habilesMes) : null;
-  // Confianza: la dice la historia (cuánto erró la proyección de KILOS a esta altura en los
-  // meses cerrados); sin historia, cuánto del mes pasó.
+  // Base: los 3 meses cerrados inmediatamente anteriores (con 30+ envíos). Sin los 3, la
+  // proyección es el ritmo solo (como antes) y se dice.
+  const cerrados = (historia || []).filter((h) => h.envios && h.envios.length >= 30);
+  const ultimos3 = cerrados.slice(-3);
+  const mesActual = desde.slice(0, 7);
+  const baseOk = ultimos3.length === 3 && ultimos3.every((h, j) => h.mes === addMonths(mesActual, j - 3));
+  const base = baseOk ? ultimos3.map((h) => cerrar(h.envios.reduce(sumar, acumulador()))) : null;
+  const prom = (campo) => base.reduce((a, b) => a + (Number(b[campo]) || 0), 0) / base.length;
+  const proyectar = (campo) => {
+    const ritmo = (Number(acc[campo]) || 0) * factor;
+    if (!base || w >= 1) return ritmo;
+    return w * ritmo + (1 - w) * prom(campo);
+  };
+  const metodo = base && w < 1 ? 'mezcla' : 'ritmo_habil';
+  // Precisión: la propia del sistema cuando ya midió 6+ meses; si no, la calibración fija
+  // de las planillas (34 meses).
+  const propia = historia ? precisionHistorica(historia, habilesPasados, habilesMes) : null;
+  const frac = habilesPasados / habilesMes;
+  const calib = metodo === 'mezcla' ? {
+    meses: [], n: CALIBRACION.meses, origen: 'planillas', desde: CALIBRACION.desde, hasta: CALIBRACION.hasta,
+    envios: bandaCalibrada('envios', frac), kg_fact: bandaCalibrada('kg_fact', frac), venta: bandaCalibrada('venta', frac),
+  } : null;
+  const precision = propia && propia.meses.length >= 6 ? propia : (calib || propia);
   let confianza;
   if (habilesPasados >= habilesMes) confianza = 'cerrado';
   else if (precision && precision.kg_fact) {
-    const peor = Math.max(Math.abs(precision.kg_fact.min), Math.abs(precision.kg_fact.max));
-    confianza = peor <= 10 ? 'alta' : peor <= 25 ? 'media' : 'baja';
+    // Con la calibración se usa el error medio; con la medición propia (pocos meses), el peor.
+    const medida = precision.kg_fact.mape != null ? precision.kg_fact.mape : Math.max(Math.abs(precision.kg_fact.min), Math.abs(precision.kg_fact.max));
+    confianza = medida <= 10 ? 'alta' : medida <= 25 ? 'media' : 'baja';
   } else confianza = habilesPasados >= 10 ? 'alta' : habilesPasados >= 5 ? 'media' : 'baja';
-  // Rango: si en los meses cerrados la proyección a esta altura erró entre −a % y +b %,
-  // el total real estuvo entre proy/(1+b) y proy/(1+a). Siempre incluye la proyección
-  // misma: con dos o tres meses de historia no hay base para "corregirla".
+  // Rango: si a esta altura la proyección erró entre −a % y +b %, el real estuvo entre
+  // proy/(1+b) y proy/(1+a). Siempre incluye la proyección misma.
   const rango = (valor, campo, dec) => {
     const p = precision && precision[campo];
     if (!p || confianza === 'cerrado') return null;
-    const f = (x) => (dec === 0 ? Math.round(x) : r1(x));
+    const f = (x) => (dec === 0 ? Math.round(x) : dec === 1 ? r1(x) : r2(x));
     const lo = valor / (1 + Math.max(p.max, 0) / 100);
     const hi = valor / (1 + Math.max(Math.min(p.min, 0), -90) / 100);
     return { min: f(lo), max: f(hi) };
   };
-  const envProy = Math.round(acc.envios * factor);
-  const kgProy = proj(acc.kg_fact);
+  const envProy = Math.round(proyectar('envios'));
+  const kgProy = r1(proyectar('kg_fact'));
+  const ventaProy = r2(proyectar('venta'));
+  const profitProy = r2(proyectar('profit'));
   return {
-    metodo: 'ritmo_habil', dia, habiles_pasados: habilesPasados, habiles_mes: habilesMes,
+    metodo, dia, habiles_pasados: habilesPasados, habiles_mes: habilesMes,
     avance_pct: r1((habilesPasados / habilesMes) * 100), confianza,
     actual: { envios: acc.envios, kg_fact: r1(acc.kg_fact), venta: r2(acc.venta), profit: r2(acc.profit) },
+    ritmo: { envios: Math.round(acc.envios * factor), kg_fact: r1(acc.kg_fact * factor), venta: r2(acc.venta * factor), profit: r2(acc.profit * factor) },
+    base: base ? { meses: ultimos3.map((h) => h.mes), envios: r1(prom('envios')), kg_fact: r1(prom('kg_fact')), venta: r2(prom('venta')), profit: r2(prom('profit')) } : null,
+    peso_ritmo_pct: r1(w * 100),
     sin_venta: acc.sin_venta_n,
-    envios: envProy, kg_fact: kgProy, venta: r2(acc.venta * factor), profit: r2(acc.profit * factor),
-    rango: { envios: rango(envProy, 'envios', 0), kg_fact: rango(kgProy, 'kg_fact', 1) },
+    envios: envProy, kg_fact: kgProy, venta: ventaProy, profit: profitProy,
+    rango: { envios: rango(envProy, 'envios', 0), kg_fact: rango(kgProy, 'kg_fact', 1), venta: rango(ventaProy, 'venta', 2) },
     precision,
     mes_anterior: ant ? { envios: ant.envios, kg_fact: ant.kg_fact, venta: ant.venta, profit: ant.profit } : null,
-    vs_mes_anterior: ant ? { envios: vs(acc.envios * factor, ant.envios), kg_fact: vs(acc.kg_fact * factor, ant.kg_fact), venta: vs(acc.venta * factor, ant.venta), profit: vs(acc.profit * factor, ant.profit) } : null,
+    vs_mes_anterior: ant ? { envios: vs(envProy, ant.envios), kg_fact: vs(kgProy, ant.kg_fact), venta: vs(ventaProy, ant.venta), profit: vs(profitProy, ant.profit) } : null,
   };
 }
 
@@ -351,9 +387,11 @@ async function analitica(q = {}) {
   let proyeccion = null;
   const mesHoy = mesDe(hoy);
   if (mismaAltura && desde <= primerDia(mesHoy) && hastaPeriodo >= primerDia(addMonths(mesHoy, 1))) {
-    const hist = await leerEnvios(db, primerDia(addMonths(mesHoy, -6)), primerDia(mesHoy), filtros);
+    // 10 meses atrás: los 3 últimos son la base de la mezcla, y para medir la precisión
+    // propia (6+ meses evaluados, cada uno con sus 3 anteriores) hacen falta 9.
+    const hist = await leerEnvios(db, primerDia(addMonths(mesHoy, -10)), primerDia(mesHoy), filtros);
     const historia = [];
-    for (let i = 6; i >= 1; i--) {
+    for (let i = 10; i >= 1; i--) {
       const m = addMonths(mesHoy, -i);
       historia.push({ mes: m, envios: hist.filter((e) => mesDe(e.fecha) === m) });
     }

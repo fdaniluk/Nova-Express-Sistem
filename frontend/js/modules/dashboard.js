@@ -214,11 +214,19 @@
       + item('venta', 'Venta', pr.venta, (v) => `USD ${fmtCorto(v)}`, sv ? 'solo con precio cargado' : '')
       + item('profit', 'Profit', pr.profit, (v) => `USD ${fmtCorto(v)}`, sv ? 'ídem' : '');
     const p = pr.precision;
-    let txt = 'Al ritmo por día hábil de lo que va del mes (feriados descontados). ';
+    const lista = (ms) => ms.map(mesNombre).join(', ').replace(/, ([^,]*)$/, ' y $1');
+    let txt;
+    if (pr.metodo === 'mezcla' && pr.base) {
+      txt = `Mezcla el ritmo por día hábil de lo que va del mes (pesa ${fmtN(pr.peso_ritmo_pct, 0)} %) con el promedio de ${lista(pr.base.meses)} (${fmtN(100 - pr.peso_ritmo_pct, 0)} %): `
+        + `al ritmo solo daría ${fmtN(pr.ritmo.kg_fact, 0)} kg, y el promedio de esos meses es ${fmtN(pr.base.kg_fact, 0)} kg. Cuanto más avanza el mes, más pesa lo real. `;
+    } else txt = 'Al ritmo por día hábil de lo que va del mes (feriados descontados); sin 3 meses cerrados antes no hay promedio con qué mezclar. ';
     if (pr.confianza === 'cerrado') txt += 'El mes ya no tiene días hábiles por delante.';
-    else if (p && p.kg_fact) {
-      const meses = p.meses.map(mesNombre).join(', ').replace(/, ([^,]*)$/, ' y $1');
-      txt += `En ${meses}, a esta altura del mes la proyección de kilos erró entre ${pctSigno(p.kg_fact.min)} y ${pctSigno(p.kg_fact.max)}`
+    else if (p && p.kg_fact && p.origen === 'planillas') {
+      txt += `Medido sobre ${p.n} meses de las planillas (${mesNombre(p.desde)} ${p.desde.slice(0, 4)} → ${mesNombre(p.hasta)} ${p.hasta.slice(0, 4)}): a esta altura del mes, en 8 de cada 10 meses la proyección de kilos erró entre ${pctSigno(p.kg_fact.min)} y ${pctSigno(p.kg_fact.max)}`
+        + (p.envios ? ` y la de envíos entre ${pctSigno(p.envios.min)} y ${pctSigno(p.envios.max)}` : '')
+        + '; de ahí sale el "entre".';
+    } else if (p && p.kg_fact) {
+      txt += `En ${lista(p.meses)}, a esta altura del mes la proyección de kilos erró entre ${pctSigno(p.kg_fact.min)} y ${pctSigno(p.kg_fact.max)}`
         + (p.envios ? ` y la de envíos entre ${pctSigno(p.envios.min)} y ${pctSigno(p.envios.max)}` : '')
         + '; de ahí sale el "entre". Con cada mes que se cierra, el cálculo suma un mes más.';
     } else txt += 'Todavía no hay meses cerrados para medir cuánto erra a esta altura.';
