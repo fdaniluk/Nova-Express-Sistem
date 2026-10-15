@@ -647,22 +647,11 @@
   //
   // Arrancan en el por defecto por si la grilla se dibuja antes de que conteste el servidor.
   //
-  // ⚠️ Estos NUEVE tienen que ser los mismos que `TRAMOS_POR_DEFECTO` de
-  // `backend/src/services/profit.service.js`. Están duplicados a mano: al tocar una lista,
-  // tocar la otra. Y no son los de 5 en 5 hasta 50 — esos son los SUGERIDOS, y llegan por
-  // `r.sugeridos`. Poner los finos acá dibujaría una grilla con tramos que el motor no
-  // resuelve, y la pantalla mostraría precios que el sistema no cobra.
-  let TARIFAS_BANDAS = [
-    { min: 0, max: 5 },
-    { min: 5, max: 10 },
-    { min: 10, max: 15 },
-    { min: 15, max: 20 },
-    { min: 20, max: 25 },
-    { min: 25, max: 30 },
-    { min: 30, max: 40 },
-    { min: 40, max: 50 },
-    { min: 50, max: null },
-  ];
+  // El juego por defecto viene de shared/cotizador/tramos.js, el MISMO archivo que usa el
+  // backend (antes estaba duplicado a mano acá). Es solo el arranque: lo que manda es lo
+  // que devuelve la API del cliente. No son los de 5 en 5 hasta 50 — esos son los
+  // SUGERIDOS, y llegan por `r.sugeridos`.
+  let TARIFAS_BANDAS = (window.NovaTramos && window.NovaTramos.TRAMOS_POR_DEFECTO || []).map((t) => ({ ...t }));
   let TARIFAS_SUGERIDOS = [];
   let tramosPropios = false;
   let pasoActual = 5;          // 5 | 1 | 0.5 | null (juego irregular, cargado a mano)

@@ -1,4 +1,5 @@
 const { Router } = require('express');
+const { numerarPorMes } = require('../../../shared/salidas/numeracion');
 const { getDb } = require('../db');
 const { buildPesos, calcularDesgloseAlCosto, calcularSeguroVenta } = require('../models/envio.model');
 const { pesoVolumetricoBulto } = require('../services/calculos.service');
@@ -156,35 +157,11 @@ async function listarSalidas({ desde, hasta } = {}) {
     .all();
   todosLosIds.forEach((r, i) => numSalPorEnvio.set(r.id, i + 1));
 
-  // Número de salida QUE VE LA OFICINA (`num_sal_mes`): correlativo 1..N POR MES, ordenado
-  // por fecha ASC y desempatado por id ASC. Los envíos "sin numerar" (num_sal_cero) reciben
-  // 0 y NO consumen número: el resto del mes se numera corrido como si no existieran.
-  //
-  // ⚠️ SE CALCULA SOBRE EL MES COMPLETO, no sobre las filas del filtro. Es la única forma
-  // de que el respaldo de UNA SEMANA muestre los números reales (27, 28, 29…) y no un
-  // 1, 2, 3 propio de la semana. El envío 27 es el 27 en la pantalla, en el Excel semanal
-  // y en el mensual — la oficina lo usa como identificador y lo dice en voz alta.
-  //
-  // La pantalla calcula esto mismo en el navegador (recomputeNumSalMes en salidas.js) para
-  // poder renumerar al vuelo cuando se edita un envío sin volver a pedir la lista. Son dos
-  // implementaciones de UNA regla: `test-cierre-excel` las compara sobre los mismos datos
-  // para que no se desvíen.
-  const numSalMesPorEnvio = new Map();
-  const porMes = new Map();
-  for (const r of todosLosIds) {
-    const mes = String(r.fecha || '').slice(0, 7);
-    if (!porMes.has(mes)) porMes.set(mes, []);
-    porMes.get(mes).push(r);
-  }
-  for (const lista of porMes.values()) {
-    lista.sort((a, b) => {
-      if (a.fecha < b.fecha) return -1;
-      if (a.fecha > b.fecha) return 1;
-      return (a.id || 0) - (b.id || 0);
-    });
-    let n = 0;
-    for (const r of lista) numSalMesPorEnvio.set(r.id, r.num_sal_cero ? 0 : ++n);
-  }
+  // Número de salida QUE VE LA OFICINA (`num_sal_mes`): correlativo 1..N por mes, regla
+  // única en shared/salidas/numeracion.js (la pantalla usa la misma). Se calcula sobre el
+  // mes completo, no sobre las filas del filtro: así el respaldo de UNA SEMANA muestra los
+  // números reales (27, 28, 29…) — la oficina los usa como identificador.
+  const numSalMesPorEnvio = numerarPorMes(todosLosIds);
 
   // Bultos por envío: una sola query (sin N+1) y se indexan en memoria por envio_id.
   const bultosPorEnvio = new Map();

@@ -228,26 +228,9 @@
   // 1..N por mes. Cada envío recibe e.num_sal_mes según su mes (e.fecha "YYYY-MM"), ordenado
   // por fecha ASC y desempatado por id ASC. Recalcular tras cualquier cambio en allData.
   function recomputeNumSalMes() {
-    const byMonth = {};
-    for (const e of allData) {
-      const mes = monthOf(e);
-      (byMonth[mes] || (byMonth[mes] = [])).push(e);
-    }
-    for (const mes of Object.keys(byMonth)) {
-      let n = 0;   // correlativo corrido del mes; los "sin numerar" NO lo consumen
-      byMonth[mes]
-        .sort((a, b) => {
-          if (a.fecha < b.fecha) return -1;
-          if (a.fecha > b.fecha) return 1;
-          return (a.id || 0) - (b.id || 0);
-        })
-        .forEach((e) => {
-          // Envío "sin numerar" (num_sal_cero): recibe 0 y no gasta número; el resto del
-          // mes se sigue numerando 1..N corrido, como si los cero no existieran. Como la
-          // columna #Sal ordena por num_sal_mes, los 0 quedan arriba de todos.
-          e.num_sal_mes = e.num_sal_cero ? 0 : ++n;
-        });
-    }
+    // Misma regla que el backend: shared/salidas/numeracion.js.
+    const nums = window.NovaNumeracion.numerarPorMes(allData);
+    for (const e of allData) e.num_sal_mes = nums.get(e.id);
   }
 
   // ── Solapas de meses (estilo Excel) ─────────────────────────────────────────

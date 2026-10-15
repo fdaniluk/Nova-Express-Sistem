@@ -22,10 +22,11 @@ const { aISO } = require('../src/utils/fecha');
     VALUES ('UPS', '0020-00075570', '31/08/2026', 2, 1, 1, 1030.00, 1000.00, 30.00, 'flete')`);
   await run(`INSERT INTO factura_guias (factura_id, numero_guia, pais, peso_facturado, costo_total, percepcion, encontrada) VALUES (?, '1Z000LIMP00000001', 'US', 10, 618.00, 18.00, 1)`, [f1.lastID]);
   await run(`INSERT INTO factura_guias (factura_id, numero_guia, pais, peso_facturado, costo_total, percepcion, encontrada) VALUES (?, '1Z000LIMP00000002', 'GB', 5, 412.00, 12.00, 0)`, [f1.lastID]);
-  // Factura de septiembre (posterior al corte) que cuadra, con percepción.
+  // Factura de septiembre (posterior al corte) que cuadra, con percepción. Desde el 05/10 la
+  // percepción de IIBB vive en la cabecera y NO dentro de la guía: total 515 = guía 500 + 15.
   const f2 = await run(`INSERT INTO facturas_cargadas (courier, numero_factura, fecha_factura, cantidad_guias, guias_cruzadas, guias_no_encontradas, total_declarado, subtotal_factura, percepciones, tipo)
     VALUES ('UPS', '0020-00075900', '15/09/2026', 1, 1, 0, 515.00, 500.00, 15.00, 'flete')`);
-  await run(`INSERT INTO factura_guias (factura_id, numero_guia, pais, peso_facturado, costo_total, percepcion, encontrada) VALUES (?, '1Z000LIMP00000003', 'US', 10, 515.00, 15.00, 1)`, [f2.lastID]);
+  await run(`INSERT INTO factura_guias (factura_id, numero_guia, pais, peso_facturado, costo_total, percepcion, encontrada) VALUES (?, '1Z000LIMP00000003', 'US', 10, 500.00, 15.00, 1)`, [f2.lastID]);
   // Factura de septiembre que NO cuadra de verdad (falta una guía por 40).
   const f3 = await run(`INSERT INTO facturas_cargadas (courier, numero_factura, fecha_factura, cantidad_guias, guias_cruzadas, guias_no_encontradas, total_declarado, subtotal_factura, percepciones, tipo)
     VALUES ('UPS', '0020-00075901', '2026-09-20', 1, 1, 0, 540.00, 540.00, NULL, 'flete')`);

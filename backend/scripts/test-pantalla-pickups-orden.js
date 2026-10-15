@@ -32,11 +32,11 @@ const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0
   const lunes = new Date(hoy); lunes.setDate(hoy.getDate() + ((8 - hoy.getDay()) % 7 || 7));
   const fecha = iso(lunes);
   const cli = (await J('POST', '/clientes', { nombre: 'ORDEN SA', tarifa_pct: 75, tipo_cobro: 'CC' })).body;
-  const crear = async (dir, hi, hf) => (await J('POST', '/pickups', { cliente_id: cli.id, direccion: dir, fecha, hora_inicio: hi, hora_fin: hf })).body;
+  const crear = async (dir, hi, hf) => (await J('POST', '/pickups', { cliente_id: cli.id, direccion: dir, fecha, hora_inicio: hi, hora_fin: hf, mostrar_en_operaciones: 1 })).body;
   const a = await crear('Nueve', '09:00', '10:00');
   const b = await crear('Once', '11:00', '12:00');
   const c = await crear('Catorce', '14:00', '15:00');
-  const pend = (await J('POST', '/pickups', { cliente_id: cli.id, direccion: 'Pendiente', fecha, horario_pendiente: 1 })).body;
+  const pend = (await J('POST', '/pickups', { cliente_id: cli.id, direccion: 'Pendiente', fecha, horario_pendiente: 1, mostrar_en_operaciones: 1 })).body;
   const ids = async () => (await J('GET', `/pickups?desde=${fecha}&hasta=${fecha}`)).body.map((p) => p.id);
 
   console.log('\n1. API\n');
@@ -58,6 +58,11 @@ const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0
   check('el "a confirmar" también se puede subir a mano (primero)', (await ids())[0] === pend.id, (await ids()).join());
   await J('PATCH', `/pickups/${pend.id}/orden`, { orden_manual: null });
   check('y con null vuelve al final', (await ids()).slice(-1)[0] === pend.id);
+  await J('PATCH', `/pickups/${c.id}/orden`, { orden_manual: 600 });
+  const ops = (await J('GET', `/operaciones?fecha=${fecha}`)).body;
+  const opsIds = (ops.pickups || []).map((p) => p.id);
+  check('Operaciones respeta el mismo orden a mano', opsIds.join() === (await ids()).join(), JSON.stringify(opsIds));
+  await J('PATCH', `/pickups/${c.id}/orden`, { orden_manual: null });
 
   console.log('\n2. Pantalla: arrastrar\n');
   const exe = ['/opt/pw-browsers/chromium/chrome-linux/chrome', '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'].find((p) => fs.existsSync(p));

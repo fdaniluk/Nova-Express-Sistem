@@ -46,36 +46,10 @@ const MODOS_TARIFA = ['porcentaje', 'por_kg'];
 // `test-datos-viejos.js` es el que sostiene esta regla: carga la matriz sobre los cortes
 // viejos, la resuelve con el código de hoy, y falla si algún peso cambia de valor.
 //
-// El cliente que no tiene tramos propios hereda estos.
-const TRAMOS_POR_DEFECTO = [
-  { min: 0, max: 5 },
-  { min: 5, max: 10 },
-  { min: 10, max: 15 },
-  { min: 15, max: 20 },
-  { min: 20, max: 25 },
-  { min: 25, max: 30 },
-  { min: 30, max: 40 },
-  { min: 40, max: 50 },
-  { min: 50, max: null },
-];
-
-// Los tramos de 5 en 5 hasta 50 que pidió Felipe el 12/08/2026. NO se aplican solos: son
-// los que ofrece la pantalla del cliente y los que la migración usa como base para armar
-// el juego de cada uno. Un cliente los tiene recién cuando quedaron escritos en
-// `cliente_tramos`.
-const TRAMOS_SUGERIDOS = [
-  { min: 0, max: 5 },
-  { min: 5, max: 10 },
-  { min: 10, max: 15 },
-  { min: 15, max: 20 },
-  { min: 20, max: 25 },
-  { min: 25, max: 30 },
-  { min: 30, max: 35 },
-  { min: 35, max: 40 },
-  { min: 40, max: 45 },
-  { min: 45, max: 50 },
-  { min: 50, max: null },
-];
+// El cliente que no tiene tramos propios hereda TRAMOS_POR_DEFECTO; TRAMOS_SUGERIDOS son
+// los de 5 en 5 hasta 50 que ofrece la pantalla. Los dos viven en shared/cotizador/tramos.js,
+// que también carga la pantalla del cliente: una sola fuente (15/10/2026).
+const { TRAMOS_POR_DEFECTO, TRAMOS_SUGERIDOS } = require('../../../shared/cotizador/tramos');
 
 // Nombre viejo. Se mantiene para no romper lo que ya lo importaba.
 const BANDAS = TRAMOS_POR_DEFECTO;

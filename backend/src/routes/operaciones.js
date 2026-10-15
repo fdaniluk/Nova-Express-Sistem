@@ -13,6 +13,8 @@ router.get('/', async (req, res, next) => {
 
     // Las entregas de importación (pickups.entrega_impo = 1) no pasan por acá: la caja
     // ya entró y solo hay que llevarla al cliente. Viven en Pickups nada más.
+    // Mismo orden que la pantalla de Pickups (15/10): por hora, salvo las tarjetas movidas a
+    // mano (orden_manual, una "posición en minutos"; ver pickups.routes.js).
     const pickups = await db
       .prepare(
         `SELECT id, cliente_id, cliente_nombre, direccion, fecha, hora_inicio, hora_fin, horario_pendiente, hora2_inicio, hora2_fin, estado, tipo_recoleccion, titulo,
@@ -22,7 +24,7 @@ router.get('/', async (req, res, next) => {
          WHERE fecha = ?
            AND (mostrar_en_operaciones = 1 OR mostrar_en_operaciones IS NULL)
            AND COALESCE(entrega_impo, 0) = 0
-         ORDER BY (hora_inicio IS NULL OR hora_inicio = '') ASC, hora_inicio ASC`
+         ORDER BY COALESCE(orden_manual, CASE WHEN hora_inicio IS NULL OR hora_inicio = '' THEN 100000 ELSE CAST(substr(hora_inicio, 1, 2) AS INTEGER) * 60 + CAST(substr(hora_inicio, 4, 2) AS INTEGER) END) ASC, hora_inicio ASC, id ASC`
       )
       .all(fecha);
 

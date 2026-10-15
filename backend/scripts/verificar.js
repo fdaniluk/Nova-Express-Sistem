@@ -130,7 +130,10 @@ for (const cadena of CADENAS) {
       continue;
     }
 
-    const m = salida.match(CUENTA);
+    // Las tandas viejas con assert (test-cargos-posteriores, test-entrantes, test-pagos,
+    // test-limpieza-cierre) no cuentan controles: terminan en "TODO OK" si pasaron, o
+    // revientan con código distinto de 0. Se leen como UNA tanda verde (15/10/2026).
+    const m = salida.match(CUENTA) || (r.status === 0 && /TODO OK\s*$/.test(salida.trim()) ? ['', '1', '0'] : null);
     const ok = m ? Number(m[1]) : 0;
     const fail = m ? Number(m[2]) : 0;
     totalOk += ok;

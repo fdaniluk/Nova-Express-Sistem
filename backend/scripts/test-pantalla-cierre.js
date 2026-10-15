@@ -291,17 +291,18 @@ async function main() {
   // Esperar a que la TABLA esté dibujada, no a que pasen 2,5 segundos. La lista de usuarios
   // se pide por fetch después de cargar la página: si se hace clic mientras se está
   // redibujando, la fila se reemplaza abajo del clic. Ver el comentario de `tildar()`.
-  await page.waitForSelector('input.cierre-check', { timeout: 10000 }).catch(() => {});
+  // Desde el 08/10 los permisos son chips (usuarios.js, PERMISOS): en la lista cada usuario
+  // tiene un botón por permiso que se prende y apaga con un clic.
+  await page.waitForSelector('.usr-mini[data-permiso="cerrar_mes"]', { timeout: 10000 }).catch(() => {});
   check('la pantalla de Usuarios cargó', page.url().includes('usuarios.html'), page.url());
-  check('la tabla tiene la columna Cierre',
-    /Cierre/.test(await page.textContent('thead')), await page.textContent('thead'));
+  check('la lista tiene el chip "Cierre" de los empleados (los admin no llevan chips)', (await page.$$('.usr-mini[data-permiso="cerrar_mes"]')).length >= 1);
   check('está la tilde en el alta de usuario', !!(await page.$('#u-cerrar-mes')));
 
-  const SEL_PEPE = `input.cierre-check[data-id="${pepe.id}"]`;
-  const tildePepe = await page.$(SEL_PEPE);
-  check('cada usuario tiene su tilde de cierre', !!tildePepe);
-  check('pepe arranca sin el permiso', !(await tildePepe.isChecked()));
-  await tildar(page, SEL_PEPE);
+  const SEL_PEPE = `.usr-mini[data-permiso="cerrar_mes"][data-id="${pepe.id}"]`;
+  const chipPepe = await page.$(SEL_PEPE);
+  check('pepe tiene su chip de cierre', !!chipPepe);
+  check('pepe arranca sin el permiso', !!chipPepe && !(await chipPepe.evaluate((el) => el.classList.contains('on'))));
+  if (chipPepe) await chipPepe.click();
   // Se espera a que el permiso esté GUARDADO, no a que pasen 1,8 segundos.
   await esperarQue(async () => {
     const [u] = await sql('SELECT cerrar_mes FROM usuarios WHERE id=?', [pepe.id]);

@@ -121,9 +121,13 @@ async function main() {
     document.getElementById('fuel_fuente').value = 'manual';
     document.getElementById('fuel').value = '35.25';
     document.getElementById('couriers').value = 'dhl';
-    // con valor declarado > 0 entra el seguro DHL (mínimo 17.50) y el total queda
-    // igual al del screenshot de la oficina.
-    document.getElementById('valor').value = '100';
+    // con valor declarado de USD 100 entra el seguro DHL (mínimo 17.50) y el total queda
+    // igual al del screenshot de la oficina. Se dispara 'input' como si se tipeara: desde
+    // el 09/10 el tilde "Asegurado" se marca solo al escribir 100 o más, y es el tilde
+    // el que manda (sin el evento quedaba destildado y el seguro en 0).
+    const valorEl = document.getElementById('valor');
+    valorEl.value = '100';
+    valorEl.dispatchEvent(new Event('input', { bubbles: true }));
   });
   // un bulto ya existe; se agregan los otros 21
   for (let i = 1; i < 22; i++) await page.click('.btn-add');
