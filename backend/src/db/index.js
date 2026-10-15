@@ -242,6 +242,10 @@ async function migratePickups() {
     ['horario_pendiente',     'INTEGER NOT NULL DEFAULT 0'],
     ['hora2_inicio',          'TEXT'],
     ['hora2_fin',             'TEXT'],
+    // 15/10: orden a mano dentro del día (arrastrar la tarjeta). NULL = por horario.
+    // Es una "posición en minutos" (ver pickups.routes.js): la tarjeta movida queda entre
+    // sus vecinas y las demás siguen ordenándose solas por la hora.
+    ['orden_manual',          'REAL'],
   ];
   for (const [col, def] of toAdd) {
     if (!cols.includes(col)) {

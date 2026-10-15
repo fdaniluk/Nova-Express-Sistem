@@ -272,8 +272,14 @@
   overflow: hidden;
 }
 
+.pickup-card-v2[draggable="true"] { cursor: grab; }
+.pickup-card-v2.arrastrando { opacity: .45; cursor: grabbing; outline: 2px dashed var(--color-primary, #2b3a67); }
+.pickup-cards-list.soltando .pickup-card-v2:not(.arrastrando) { transition: transform .12s; }
+.pin-orden { border: 0; background: transparent; cursor: pointer; font-size: 13px; padding: 0 2px; margin-left: 4px; line-height: 1; vertical-align: middle; opacity: .85; }
+.pin-orden:hover { opacity: 1; transform: scale(1.15); }
+
 .pickup-card-v2-content {
-  flex: 1;
+  flex: 1
   padding: 1rem 1.1rem;
   min-width: 0;
 }

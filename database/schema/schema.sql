@@ -467,7 +467,12 @@ CREATE TABLE IF NOT EXISTS pickups (
   titulo              TEXT,
   llevar_plata             INTEGER DEFAULT 0,
   mostrar_en_operaciones   INTEGER DEFAULT 1,
-  entrega_impo             INTEGER NOT NULL DEFAULT 0
+  entrega_impo             INTEGER NOT NULL DEFAULT 0,
+  horario_pendiente        INTEGER NOT NULL DEFAULT 0,
+  hora2_inicio             TEXT,
+  hora2_fin                TEXT,
+  -- 15/10: orden a mano dentro del día (NULL = por horario). Posición "en minutos".
+  orden_manual             REAL
 );
 
 -- Cuadrantes: "envíos manuales" que operaciones crea copiando el cliente de un

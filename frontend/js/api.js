@@ -275,6 +275,7 @@ api.pickups = {
   editar: (id, data) => api.put(`/pickups/${id}`, data),
   borrar: (id) => api.delete(`/pickups/${id}`),
   confirmar: (id, data) => api.patch(`/pickups/${id}`, data),
+  orden: (id, orden_manual) => api.patch(`/pickups/${id}/orden`, { orden_manual }),
 };
 
 api.operaciones = {

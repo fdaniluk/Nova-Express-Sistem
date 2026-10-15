@@ -18,6 +18,8 @@ router.get('/recolectores', (req, res) => {
   res.json(RECOLECTORES);
 });
 
+const POSICION = `COALESCE(p.orden_manual, CASE WHEN p.hora_inicio IS NULL OR p.hora_inicio = '' THEN 100000 ELSE CAST(substr(p.hora_inicio, 1, 2) AS INTEGER) * 60 + CAST(substr(p.hora_inicio, 4, 2) AS INTEGER) END)`;
+
 router.get('/', async (req, res, next) => {
   try {
     const db = getDb();
@@ -43,8 +45,12 @@ router.get('/', async (req, res, next) => {
         WHERE pickup_id IS NOT NULL
         GROUP BY pickup_id
       ) co ON co.pickup_id = p.id`;
-    // Los "a confirmar horario" (sin hora) van al final del día, no primeros por NULL.
-    const orderBy = " ORDER BY p.fecha ASC, (p.hora_inicio IS NULL OR p.hora_inicio = '') ASC, p.hora_inicio ASC";
+    // Orden del día (15/10): cada pickup tiene una "posición en minutos": la de su hora de
+    // inicio, salvo que se lo haya arrastrado a mano (orden_manual, que es un número en ese
+    // mismo espacio: entre las posiciones de sus dos vecinas). Así los demás siguen
+    // acomodándose solos por horario y el movido queda donde lo dejaron. Los "a confirmar"
+    // (sin hora) van al final del día.
+    const orderBy = ` ORDER BY p.fecha ASC, ${POSICION} ASC, p.hora_inicio ASC, p.id ASC`;
 
     // Las tarjetas 'ninguna' (envíos sin recolección, cargados desde Operaciones) nunca
     // aparecen en esta pantalla: acá se organiza a los choferes, y estos envíos no los
@@ -216,7 +222,7 @@ router.put('/:id', async (req, res, next) => {
          SET cliente_id=?, cliente_nombre=?, direccion=?, fecha=?, hora_inicio=?, hora_fin=?,
              notas=?, estado=?, courier=?, recolector=?, tiene_cobro=?, tipo_recoleccion=?,
              llevar_plata=?, mostrar_en_operaciones=?, entrega_impo=?,
-             horario_pendiente=?, hora2_inicio=?, hora2_fin=?
+             horario_pendiente=?, hora2_inicio=?, hora2_fin=?, orden_manual=?
          WHERE id=?`
       )
       .run(
@@ -238,11 +244,31 @@ router.put('/:id', async (req, res, next) => {
         horario_pendiente,
         hora2_inicio,
         hora2_fin,
+        // Si cambia la hora o el día, el orden a mano deja de tener sentido: vuelve al
+        // horario. Si no, se conserva.
+        (hora_inicio !== existing.hora_inicio || (fecha != null && fecha !== existing.fecha)) ? null : existing.orden_manual,
         id
       );
 
     const updated = await db.prepare('SELECT * FROM pickups WHERE id = ?').get(id);
     res.json(updated);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Orden a mano (15/10, pedido de Felipe): arrastrar una tarjeta del día a otra posición.
+// El frontend manda la posición ya calculada (entre las de sus vecinas) o null para
+// volver al orden por horario.
+router.patch('/:id/orden', async (req, res, next) => {
+  try {
+    const db = getDb();
+    const existing = await db.prepare('SELECT id FROM pickups WHERE id = ?').get(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Pickup no encontrado' });
+    const v = req.body.orden_manual;
+    if (v !== null && v !== undefined && !Number.isFinite(Number(v))) return res.status(400).json({ error: 'orden_manual tiene que ser un número o null' });
+    await db.prepare('UPDATE pickups SET orden_manual = ? WHERE id = ?').run(v == null ? null : Number(v), req.params.id);
+    res.json(await db.prepare('SELECT * FROM pickups WHERE id = ?').get(req.params.id));
   } catch (e) {
     next(e);
   }

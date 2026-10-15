@@ -117,7 +117,8 @@
     "test-consultas": "node scripts/test-consultas.js",
     "test-pantalla-consultas": "node scripts/test-pantalla-consultas.js",
     "test-pantalla-salidas-sesion": "node scripts/test-pantalla-salidas-sesion.js",
-    "test-pantalla-retomar-borrador": "node scripts/test-pantalla-retomar-borrador.js"
+    "test-pantalla-retomar-borrador": "node scripts/test-pantalla-retomar-borrador.js",
+    "test-pickups-orden": "node scripts/test-pantalla-pickups-orden.js"
   },
   "keywords": [
     "nova-express",

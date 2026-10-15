@@ -282,6 +282,94 @@
     list.querySelectorAll('[data-action="cargar-cobranza"]').forEach(btn => {
       btn.addEventListener('click', () => abrirModalCobranza(Number(btn.dataset.id)));
     });
+    list.querySelectorAll('[data-action="orden-auto"]').forEach(btn => {
+      btn.addEventListener('click', (e) => { e.stopPropagation(); guardarOrden(Number(btn.dataset.id), null); });
+    });
+    activarArrastre(list);
+  }
+
+  /* ── Orden a mano (15/10, pedido de Felipe) ─────────────────────────────────────
+     Las tarjetas del día se ordenan solas por el horario (eso se mantiene). Pero si hace
+     falta darle prioridad visual a un pickup, se lo agarra y se lo arrastra a donde uno
+     quiera: queda ahí (📌) y las demás siguen acomodándose por la hora. Cada tarjeta tiene
+     una "posición": la de su hora en minutos, o la que se le dio a mano; la movida recibe
+     una posición entre sus dos vecinas nuevas. El 📌 vuelve al orden por horario. Si se le
+     cambia la hora o el día, el servidor también vuelve al orden automático. */
+  function posicionDe(p) {
+    if (p.orden_manual != null) return Number(p.orden_manual);
+    if (!p.hora_inicio) return 100000;
+    return Number(p.hora_inicio.slice(0, 2)) * 60 + Number(p.hora_inicio.slice(3, 5));
+  }
+  async function guardarOrden(id, orden) {
+    try {
+      await NovaAPI.pickups.orden(id, orden);
+      await cargarPickups();
+      render();
+    } catch (e) {
+      NovaUtils.showAlert(alertBox, 'No se pudo cambiar el orden: ' + e.message);
+    }
+  }
+  /* La tarjeta que se está arrastrando vive acá afuera: la lista se vuelve a dibujar en
+     cada render y los listeners de la lista se cuelgan UNA sola vez (si no, cada render
+     sumaba otro par con su propia tarjeta "colgada" y una tarjeta vieja ya fuera del DOM
+     terminaba volviendo a la lista en el siguiente arrastre). */
+  let arrastrada = null;
+  function activarArrastre(list) {
+    const cards = [...list.querySelectorAll('.pickup-card-v2')];
+    arrastrada = null;
+    if (cards.length < 2) return;
+    cards.forEach((card) => {
+      card.setAttribute('draggable', 'true');
+      card.addEventListener('dragstart', (e) => {
+        arrastrada = card;
+        card.classList.add('arrastrando');
+        try { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', card.id); } catch (_) { /* sin dataTransfer */ }
+      });
+      card.addEventListener('dragend', () => { card.classList.remove('arrastrando'); arrastrada = null; list.classList.remove('soltando'); });
+    });
+    if (list.dataset.arrastre) return;
+    list.dataset.arrastre = '1';
+    list.addEventListener('dragover', (e) => {
+      if (!arrastrada || !arrastrada.isConnected) return;
+      e.preventDefault();
+      list.classList.add('soltando');
+      const sobre = e.target.closest('.pickup-card-v2');
+      if (!sobre || sobre === arrastrada) return;
+      const r = sobre.getBoundingClientRect();
+      const antes = e.clientY < r.top + r.height / 2;
+      if (antes) list.insertBefore(arrastrada, sobre); else list.insertBefore(arrastrada, sobre.nextSibling);
+    });
+    list.addEventListener('drop', (e) => {
+      if (!arrastrada || !arrastrada.isConnected) return;
+      e.preventDefault();
+      const card = arrastrada; arrastrada = null;
+      soltarEnPosicion(list, card);
+    });
+  }
+  function soltarEnPosicion(list, card) {
+    const id = Number(card.id.replace('pickup-card-', ''));
+    const orden = [...list.querySelectorAll('.pickup-card-v2')].map((c) => Number(c.id.replace('pickup-card-', '')));
+    const i = orden.indexOf(id);
+    const porId = Object.fromEntries(pickups.map((p) => [p.id, p]));
+    const prev = i > 0 ? porId[orden[i - 1]] : null;
+    const next = i < orden.length - 1 ? porId[orden[i + 1]] : null;
+    const kPrev = prev ? posicionDe(prev) : null;
+    const kNext = next ? posicionDe(next) : null;
+    const yo = posicionDe(porId[id]);
+    // Si ya está entre sus vecinas (la soltaron en el mismo lugar), no hay nada que guardar.
+    if ((kPrev == null || kPrev <= yo) && (kNext == null || yo <= kNext) && porId[id].orden_manual == null) return;
+    let nueva;
+    if (kPrev == null && kNext == null) return;
+    if (kPrev == null) nueva = kNext - 1;
+    else if (kNext == null) nueva = kPrev + 1;
+    else nueva = (kPrev + kNext) / 2;
+    // Dos vecinas con la misma posición (misma hora): se pone la movida justo después de
+    // la primera y la segunda se fija apenas más abajo para que el orden quede como se ve.
+    if (kPrev != null && kNext != null && kNext - kPrev < 0.001) {
+      nueva = kPrev + 0.01;
+      NovaAPI.pickups.orden(next.id, kPrev + 0.02).catch(() => {});
+    }
+    guardarOrden(id, nueva);
   }
 
   function buildPickupCard(p) {
@@ -383,7 +471,7 @@
         <div class="pickup-card-v2-header">
           <div class="pickup-header-top">
             <div class="pickup-avatar ${sc}">${escHtml(getInitials(p.cliente_nombre))}</div>
-            <div class="pickup-hora">${horarioHtml(p)}</div>
+            <div class="pickup-hora">${horarioHtml(p)}${p.orden_manual != null ? `<button type="button" class="pin-orden" data-action="orden-auto" data-id="${p.id}" title="Movido a mano — clic para volver al orden por horario">📌</button>` : ''}</div>
             <div class="pickup-header-badges">
               ${entregaBadgeHtml}
               ${courierBadgeHtml(p.courier)}
