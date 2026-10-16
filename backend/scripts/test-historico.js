@@ -93,6 +93,18 @@ function check(n, c, d) { if (c) { ok++; console.log(`  ✓ ${n}`); } else { fai
     const rU = await a.analitica({ periodo: 'rango', desde: '2025-03-01', hasta: '2025-03-31', courier: 'DHL' });
     check('filtro por courier también aplica a los históricos', rU.kpis.envios === 1 && rU.kpis.venta === 256.13, JSON.stringify(rU.kpis));
     check('Salidas no los ve (envios sigue con 1)', (await db.prepare('SELECT COUNT(*) AS n FROM envios').get()).n === 1);
+
+    console.log('\n4. --resto: los sin ficha van a un cliente comodín\n');
+    salida = correr(['--grabar', '--resto']);
+    const resto = await db.prepare("SELECT id FROM clientes WHERE nombre = 'Clientes históricos (sin ficha)'").get();
+    check('crea el cliente comodín', !!resto);
+    const hr = await db.prepare('SELECT * FROM envios_historicos WHERE numero_guia = ?').get('1Z0000000000000004');
+    check('"desconocido total" ahora entra, al comodín', hr && resto && hr.cliente_id === resto.id, JSON.stringify(hr));
+    check('total 4 históricos', (await db.prepare('SELECT COUNT(*) AS n FROM envios_historicos').get()).n === 4);
+    correr(['--grabar', '--resto']);
+    check('otra corrida no crea otro comodín', (await db.prepare("SELECT COUNT(*) AS n FROM clientes WHERE nombre = 'Clientes históricos (sin ficha)'").get()).n === 1);
+    const r4 = await a.analitica({ periodo: 'rango', desde: '2025-03-01', hasta: '2025-03-31' });
+    check('la analítica lo suma (5 envíos)', r4.kpis.envios === 5 && r4.top_clientes.some((c) => c.nombre === 'Clientes históricos (sin ficha)'), String(r4.kpis.envios));
   } finally {
     fs.writeFileSync(ALIAS, aliasOrig);
   }

@@ -11,6 +11,10 @@
  * había en envios_historicos y lo vuelve a cargar (la planilla es la verdad).
  *
  * Reglas (pedido de Felipe, 16/10/2026):
+ *   · Con --resto, los envíos cuyo cliente no está en el sistema van a un cliente comodín
+ *     "Clientes históricos (sin ficha)" (se crea si no existe): así los totales por mes quedan
+ *     completos y comparables con los del sistema (16/10: sin eso, los meses viejos quedaban
+ *     ~8 % abajo y el crecimiento se inflaba). Sin --resto quedan afuera.
  *   · Solo clientes que YA existen en el sistema. El nombre de la planilla (apodos, con
  *     errores de tipeo) se cruza con clientes.nombre / nombre_nova, y lo que no cierra solo
  *     se resuelve en scripts/historico-alias.json ("nombre de la planilla": id de cliente,
@@ -37,6 +41,8 @@ const ARCHIVO = args.archivo ? path.resolve(process.cwd(), String(args.archivo))
 const DESDE = args.desde ? `${args.desde}-01` : '2023-12-01';
 const HASTA_ARG = args.hasta ? String(args.hasta) : null; // YYYY-MM inclusive
 const GRABAR = !!args.grabar;
+const RESTO = !!args.resto;
+const NOMBRE_RESTO = 'Clientes históricos (sin ficha)';
 const ALIAS_PATH = path.join(__dirname, 'historico-alias.json');
 if (!ARCHIVO || !fs.existsSync(ARCHIVO)) { console.error('Falta --archivo=/ruta/SALIDAS.xlsx'); process.exit(1); }
 
@@ -177,6 +183,13 @@ function armarCruce(clientes, alias) {
   const hoy = new Date().toISOString().slice(0, 10);
   const { lista, duplicados, cargos, cargosSinEnvio } = leerPlanilla(ARCHIVO);
   const afuera = { fecha: 0, no_volo: 0, vacio: 0, en_sistema: 0, sin_cliente: new Map() };
+  let restoId = (clientes.find((c) => c.nombre === NOMBRE_RESTO) || {}).id || null;
+  if (RESTO && !restoId) {
+    if (GRABAR) {
+      const r = await db.prepare("INSERT INTO clientes (nombre, tipo_cobro) VALUES (?, 'D')").run(NOMBRE_RESTO);
+      restoId = r.lastInsertRowid; nombreDe.set(restoId, NOMBRE_RESTO);
+    } else { restoId = -1; nombreDe.set(-1, `${NOMBRE_RESTO} (se crea al grabar)`); }
+  }
   const aGrabar = [];
   const porCliente = new Map();
   for (const e of lista.sort((a, b) => (a.fecha < b.fecha ? -1 : 1))) {
@@ -185,11 +198,12 @@ function armarCruce(clientes, alias) {
     const compra = (e.flete || 0) - (e.descuento || 0) + (e.seguro || 0) + (e.fuel || 0) + (e.derechos || 0) + (e.adicionales || 0) + (e.otros || 0);
     if (!e.venta && !compra && !e.fact) { afuera.vacio++; continue; }
     if (e.guia && enSistema.has(e.guia)) { afuera.en_sistema++; continue; }
-    const { id, como } = cruzar(e.cliente_excel);
+    let { id, como } = cruzar(e.cliente_excel);
     if (!id) {
       const s = afuera.sin_cliente.get(e.cliente_excel) || { n: 0, venta: 0, como };
       s.n++; s.venta = r2(s.venta + e.venta); afuera.sin_cliente.set(e.cliente_excel, s);
-      continue;
+      if (!RESTO) continue;
+      id = restoId;
     }
     const pc = porCliente.get(id) || { n: 0, venta: 0, nombres: new Set() };
     pc.n++; pc.venta = r2(pc.venta + e.venta); pc.nombres.add(e.cliente_excel); porCliente.set(id, pc);
@@ -203,7 +217,7 @@ function armarCruce(clientes, alias) {
   console.log(`Afuera: ${afuera.fecha} fuera del período (o con fecha rota) · ${afuera.no_volo} NO VOLÓ · ${afuera.vacio} sin venta ni compra · ${afuera.en_sistema} ya en el sistema (misma guía)`);
   const sinCli = [...afuera.sin_cliente.entries()].sort((a, b) => b[1].n - a[1].n);
   const sinCliN = sinCli.reduce((s, [, v]) => s + v.n, 0);
-  console.log(`Sin cliente en el sistema: ${sinCliN} envíos en ${sinCli.length} nombres (quedan afuera):`);
+  console.log(`Sin cliente en el sistema: ${sinCliN} envíos en ${sinCli.length} nombres (${RESTO ? `van al cliente "${NOMBRE_RESTO}"` : 'quedan afuera; con --resto van a un cliente comodín'}):`);
   for (const [n, v] of sinCli.slice(0, 40)) console.log(`   ${String(v.n).padStart(4)}  ${n.padEnd(40)} venta ${v.venta}${v.como !== 'sin match' ? '  (' + v.como + ')' : ''}`);
   if (sinCli.length > 40) console.log(`   … y ${sinCli.length - 40} nombres más con pocos envíos`);
   console.log(`\nA grabar: ${aGrabar.length} envíos de ${porCliente.size} clientes`);
