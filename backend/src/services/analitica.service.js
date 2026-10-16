@@ -305,8 +305,14 @@ const SQL_HISTORICOS = `
   JOIN clientes c ON c.id = h.cliente_id
   WHERE h.fecha >= ? AND h.fecha < ?`;
 
+// Un envío del sistema SIN precio cuya guía está en la planilla con precio: para la analítica
+// manda la planilla (julio 2026 se cargó sin cotizaciones). Solo acá: en Salidas y en "plata
+// en la calle" el envío del sistema sigue siendo el que es.
+const SQL_SIN_REEMPLAZO = ` AND NOT (COALESCE(e.total_cobrado, 0) <= 0 AND e.numero_guia IS NOT NULL
+  AND EXISTS (SELECT 1 FROM envios_historicos h2 WHERE h2.numero_guia = UPPER(REPLACE(e.numero_guia, ' ', ''))))`;
+
 async function leerEnvios(db, desde, hasta, filtros) {
-  let sql = SQL_ENVIOS;
+  let sql = SQL_ENVIOS + SQL_SIN_REEMPLAZO;
   let sqlH = SQL_HISTORICOS;
   const params = [desde, hasta];
   if (filtros.courier) { sql += ' AND e.courier = ?'; sqlH += ' AND h.courier = ?'; params.push(filtros.courier); }

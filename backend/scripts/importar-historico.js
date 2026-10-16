@@ -172,17 +172,21 @@ function armarCruce(clientes, alias) {
   const clientes = await db.prepare('SELECT id, nombre, nombre_nova FROM clientes').all();
   const nombreDe = new Map(clientes.map((c) => [c.id, c.nombre]));
   const cruzar = armarCruce(clientes, alias);
-  const enSistema = new Set((await db.prepare("SELECT numero_guia FROM envios WHERE numero_guia IS NOT NULL AND numero_guia <> ''").all()).map((r) => guiaNorm(r.numero_guia)));
-
-  // Hasta dónde se importa: el mes anterior al primero en que el sistema ya tuvo 30+ envíos
-  // (de ahí en adelante la verdad es el sistema), salvo que se pida --hasta=YYYY-MM.
-  const mesesSistema = await db.prepare("SELECT substr(fecha,1,7) AS mes, COUNT(*) AS n FROM envios WHERE no_volo = 0 GROUP BY mes HAVING n >= 30 ORDER BY mes").all();
-  const primerMesSistema = mesesSistema.length ? mesesSistema[0].mes : null;
-  const HASTA = HASTA_ARG || (primerMesSistema ? `${primerMesSistema}-01` : '9999-12');
-  const hastaExcl = HASTA_ARG ? (() => { const [y, m] = HASTA_ARG.split('-').map(Number); return `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}-01`; })() : HASTA;
+  // Guías que el sistema ya tiene CON precio: mandan y la planilla no las importa. Las que el
+  // sistema tiene SIN precio (los envíos de julio 2026 se cargaron sin cotización: 135 de 172
+  // sin venta, 16/10) sí se importan de la planilla, y la analítica deja de contar el envío
+  // del sistema para esa guía (ver SQL_HISTORICOS / leerEnvios). Salidas no cambia.
+  const conPrecio = new Set(); const sinPrecio = new Set();
+  for (const r of await db.prepare("SELECT numero_guia, total_cobrado FROM envios WHERE numero_guia IS NOT NULL AND numero_guia <> '' AND no_volo = 0").all()) {
+    (Number(r.total_cobrado) > 0 ? conPrecio : sinPrecio).add(guiaNorm(r.numero_guia));
+  }
+  // Hasta dónde se importa: el mes pasado (el mes en curso es del sistema; en la planilla
+  // todavía no tiene los costos), salvo que se pida --hasta=YYYY-MM.
+  const mesPasado = (() => { const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 7); })();
+  const hastaExcl = (() => { const [y, m] = (HASTA_ARG || mesPasado).split('-').map(Number); return `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}-01`; })();
   const hoy = new Date().toISOString().slice(0, 10);
   const { lista, duplicados, cargos, cargosSinEnvio } = leerPlanilla(ARCHIVO);
-  const afuera = { fecha: 0, no_volo: 0, vacio: 0, en_sistema: 0, sin_cliente: new Map() };
+  const afuera = { fecha: 0, no_volo: 0, vacio: 0, en_sistema: 0, reemplaza: 0, sin_cliente: new Map() };
   let restoId = (clientes.find((c) => c.nombre === NOMBRE_RESTO) || {}).id || null;
   if (RESTO && !restoId) {
     if (GRABAR) {
@@ -197,7 +201,8 @@ function armarCruce(clientes, alias) {
     if (e.no_volo) { afuera.no_volo++; continue; }
     const compra = (e.flete || 0) - (e.descuento || 0) + (e.seguro || 0) + (e.fuel || 0) + (e.derechos || 0) + (e.adicionales || 0) + (e.otros || 0);
     if (!e.venta && !compra && !e.fact) { afuera.vacio++; continue; }
-    if (e.guia && enSistema.has(e.guia)) { afuera.en_sistema++; continue; }
+    if (e.guia && conPrecio.has(e.guia)) { afuera.en_sistema++; continue; }
+    if (e.guia && sinPrecio.has(e.guia)) afuera.reemplaza++;
     let { id, como } = cruzar(e.cliente_excel);
     if (!id) {
       const s = afuera.sin_cliente.get(e.cliente_excel) || { n: 0, venta: 0, como };
@@ -213,8 +218,9 @@ function armarCruce(clientes, alias) {
   // ── Vista previa ──
   console.log(`\nPlanilla: ${ARCHIVO}`);
   console.log(`Envíos leídos: ${lista.length} (bultos agrupados; ${duplicados} filas repetidas; ${cargos} cargos posteriores, ${cargosSinEnvio} sin envío)`);
-  console.log(`Período: desde ${DESDE} hasta ${hastaExcl} (exclusivo)${HASTA_ARG ? '' : primerMesSistema ? ` — el sistema tiene 30+ envíos por mes desde ${primerMesSistema}, de ahí en adelante manda el sistema` : ' — el sistema todavía no tiene un mes con 30+ envíos'}`);
-  console.log(`Afuera: ${afuera.fecha} fuera del período (o con fecha rota) · ${afuera.no_volo} NO VOLÓ · ${afuera.vacio} sin venta ni compra · ${afuera.en_sistema} ya en el sistema (misma guía)`);
+  console.log(`Período: desde ${DESDE} hasta ${hastaExcl} (exclusivo)${HASTA_ARG ? '' : ' — el mes en curso es del sistema'}`);
+  console.log(`Afuera: ${afuera.fecha} fuera del período (o con fecha rota) · ${afuera.no_volo} NO VOLÓ · ${afuera.vacio} sin venta ni compra · ${afuera.en_sistema} ya en el sistema con precio (manda el sistema)`);
+  console.log(`Reemplazan en el Dashboard a un envío del sistema SIN precio (misma guía): ${afuera.reemplaza}`);
   const sinCli = [...afuera.sin_cliente.entries()].sort((a, b) => b[1].n - a[1].n);
   const sinCliN = sinCli.reduce((s, [, v]) => s + v.n, 0);
   console.log(`Sin cliente en el sistema: ${sinCliN} envíos en ${sinCli.length} nombres (${RESTO ? `van al cliente "${NOMBRE_RESTO}"` : 'quedan afuera; con --resto van a un cliente comodín'}):`);
