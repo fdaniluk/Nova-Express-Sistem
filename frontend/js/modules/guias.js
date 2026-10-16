@@ -311,6 +311,7 @@
     $('d-contacto').value = d?.contacto || '';
     $('d-direccion1').value = d?.direccion1 || '';
     $('d-direccion2').value = d?.direccion2 || '';
+    $('d-direccion3').value = d?.direccion3 || '';
     $('d-ciudad').value = d?.ciudad || '';
     $('d-estado').value = d?.estado || '';
     $('d-cp').value = d?.codigo_postal || '';
@@ -359,6 +360,7 @@
       contacto: $('d-contacto').value.trim(),
       direccion1: $('d-direccion1').value.trim(),
       direccion2: $('d-direccion2').value.trim(),
+      direccion3: $('d-direccion3').value.trim(),
       ciudad: $('d-ciudad').value.trim(),
       estado: $('d-estado').value.trim().toUpperCase(),
       codigo_postal: $('d-cp').value.trim(),

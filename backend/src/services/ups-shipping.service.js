@@ -102,6 +102,23 @@ function taxIdParaUps(v) {
 function recortar(s, n) {
   return String(s ?? '').replace(/\s+/g, ' ').trim().slice(0, n);
 }
+// Una dirección larga partida en renglones de hasta `ancho` caracteres, cortando en los
+// espacios (UPS acepta hasta 3 AddressLine de 35). Antes el remitente iba en UN renglón
+// recortado a 35 y "Av. Pres. Hipólito Yrigoyen 12345, Lomas de Zamora" perdía la mitad
+// (16/10/2026). Una palabra más larga que el ancho se corta igual.
+function partirLineas(s, ancho = 35, max = 3) {
+  const palabras = recortar(s, ancho * max).split(' ').filter(Boolean);
+  const lineas = [];
+  let actual = '';
+  for (const w of palabras) {
+    if (!actual) actual = w;
+    else if ((actual + ' ' + w).length <= ancho) actual += ' ' + w;
+    else { lineas.push(actual); actual = w; }
+    while (actual.length > ancho && lineas.length < max - 1) { lineas.push(actual.slice(0, ancho)); actual = actual.slice(ancho); }
+  }
+  if (actual) lineas.push(actual);
+  return lineas.slice(0, max).map((l) => l.slice(0, ancho));
+}
 
 function soloDigitos(s) {
   return String(s ?? '').replace(/\D+/g, '');
@@ -208,7 +225,7 @@ function armarPedido({ remitente, destinatario, bultos, servicio, ddp, contenido
           Phone: { Number: soloDigitos(remitente.telefono || nova.telefono).slice(0, 15) },
           ShipperNumber: cuenta,
           Address: {
-            AddressLine: [recortar(remitente.direccion, 35)],
+            AddressLine: partirLineas(remitente.direccion),
             City: recortar(remitente.ciudad, 30),
             StateProvinceCode: nova.provincia,
             PostalCode: recortar(remitente.codigo_postal, 9),
@@ -221,7 +238,7 @@ function armarPedido({ remitente, destinatario, bultos, servicio, ddp, contenido
           AttentionName: recortar(remitente.contacto || remitente.nombre, 35),
           Phone: { Number: soloDigitos(remitente.telefono || nova.telefono).slice(0, 15) },
           Address: {
-            AddressLine: [recortar(remitente.direccion, 35)],
+            AddressLine: partirLineas(remitente.direccion),
             City: recortar(remitente.ciudad, 30),
             StateProvinceCode: nova.provincia,
             PostalCode: recortar(remitente.codigo_postal, 9),
@@ -348,6 +365,7 @@ async function anularGuia(numeroGuia) {
 
 module.exports = {
   repartirValorDeclarado,
+  partirLineas,
   taxIdParaUps,
   SERVICIO_CODIGO,
   SERVICIO_NOMBRE,

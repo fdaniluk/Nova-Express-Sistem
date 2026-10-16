@@ -136,6 +136,14 @@ async function main() {
   check('  seguro UPS: DeclaredValue en cada bulto y la suma es el FOB (400)', dv.every((v) => v > 0) && Math.abs(dv.reduce((a, b) => a + b, 0) - 400) < 0.005 && req.Shipment.Package[0].PackageServiceOptions.DeclaredValue.CurrencyCode === 'USD', JSON.stringify(dv));
   check('  la guía queda marcada como asegurada por 400', g.asegurada === true && g.valor_declarado_ups === 400, JSON.stringify({ a: g.asegurada, v: g.valor_declarado_ups }));
   const upsSvc = require('../src/services/ups-shipping.service');
+  // 16/10: la dirección del remitente se parte en renglones de 35 (hasta 3) en vez de
+  // cortarse a 35; la del destinatario ya iba en sus tres líneas.
+  const pl = upsSvc.partirLineas('Av. Pres. Hipólito Yrigoyen 12345, Lomas de Zamora, Buenos Aires');
+  check('partirLineas: una dirección larga va en 2 renglones de hasta 35 sin cortar palabras', pl.length === 2 && pl[0] === 'Av. Pres. Hipólito Yrigoyen 12345,' && pl[1] === 'Lomas de Zamora, Buenos Aires' && pl.every((l) => l.length <= 35), JSON.stringify(pl));
+  check('  una corta queda en 1', JSON.stringify(upsSvc.partirLineas('Ruta 8 km 40')) === '["Ruta 8 km 40"]');
+  check('  nunca más de 3 renglones', upsSvc.partirLineas('a '.repeat(80)).length <= 3);
+  const pedLargo = upsSvc.armarPedido({ remitente: { nombre: 'X', contacto: 'X', telefono: '1', direccion: 'Av. Pres. Hipólito Yrigoyen 12345, Lomas de Zamora, Buenos Aires', ciudad: 'c', codigo_postal: '1' }, destinatario: { nombre: 'Y', contacto: 'Y', telefono: '1', direccion1: 'd1', direccion2: 'd2', direccion3: 'd3', ciudad: 'c', codigo_postal: '1', pais: 'Estados Unidos' }, bultos: [{ peso_real: 2 }], servicio: 'UPS_SAV', ddp: false, contenido: 'Cueros', fob: 100, referencia: 't', asegurar: false });
+  check('  el pedido lleva el remitente en 2 AddressLine y el destinatario en 3', pedLargo.ShipmentRequest.Shipment.Shipper.Address.AddressLine.length === 2 && pedLargo.ShipmentRequest.Shipment.ShipFrom.Address.AddressLine.length === 2 && JSON.stringify(pedLargo.ShipmentRequest.Shipment.ShipTo.Address.AddressLine) === '["d1","d2","d3"]', JSON.stringify([pedLargo.ShipmentRequest.Shipment.Shipper.Address.AddressLine, pedLargo.ShipmentRequest.Shipment.ShipTo.Address.AddressLine]));
   const pedSin = upsSvc.armarPedido({ remitente: { nombre: 'X', contacto: 'X', telefono: '1', direccion: 'd', ciudad: 'c', codigo_postal: '1' }, destinatario: { nombre: 'Y', contacto: 'Y', telefono: '1', direccion1: 'd', ciudad: 'c', codigo_postal: '1', pais: 'Estados Unidos' }, bultos: [{ peso_real: 2 }], servicio: 'UPS_SAV', ddp: false, contenido: 'Cueros', fob: 100, referencia: 't', asegurar: false });
   check('  destildado (asegurar: false) → el pedido sale sin DeclaredValue', !pedSin.ShipmentRequest.Shipment.Package[0].PackageServiceOptions);
   const { repartirValorDeclarado } = require('../src/services/ups-shipping.service');
@@ -490,6 +498,9 @@ async function main() {
     await page.click('#g-dest-nuevo');
     await page.fill('#d-nombre', 'BERLIN GMBH');
     await page.fill('#d-direccion1', 'Unter den Linden 1');
+    // 16/10: tercera línea de dirección (la oficina la usa para piso/depto/referencia).
+    await page.fill('#d-direccion2', 'Haus 2');
+    await page.fill('#d-direccion3', '3. Stock, Büro 12');
     await page.fill('#d-ciudad', 'Berlin');
     await page.fill('#d-cp', '10117');
     await page.selectOption('#d-pais', 'Alemania');
@@ -497,6 +508,9 @@ async function main() {
     await page.click('#modal-dest-guardar');
     await esperar(600);
     check('  el modal crea un destinatario y lo deja elegido', await page.evaluate(() => document.getElementById('modal-dest').classList.contains('hidden') && /BERLIN GMBH/.test(document.getElementById('g-dest-ficha').textContent)), await page.evaluate(() => document.getElementById('g-dest-ficha').textContent));
+    check('  la ficha muestra las tres líneas de dirección', await page.evaluate(() => /Unter den Linden 1, Haus 2, 3\. Stock, Büro 12/.test(document.getElementById('g-dest-ficha').textContent)), await page.evaluate(() => document.getElementById('g-dest-ficha').textContent));
+    const dBerlin = (await j(await get(`/api/clientes/${cli.id}/destinatarios`))).find((x) => x.nombre === 'BERLIN GMBH');
+    check('  y la tercera línea quedó guardada', !!dBerlin && dBerlin.direccion3 === '3. Stock, Büro 12', JSON.stringify(dBerlin && [dBerlin.direccion1, dBerlin.direccion2, dBerlin.direccion3]));
     await page.fill('#g-contenido', 'Cueros');
     await page.fill('#g-items [data-f="descripcion"]', 'Leather hides');
     await page.fill('#g-items [data-f="cantidad"]', '3');
