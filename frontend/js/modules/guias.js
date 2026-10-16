@@ -319,6 +319,7 @@
     $('d-telefono').value = d?.telefono || '';
     $('d-email').value = d?.email || '';
     $('d-taxid').value = d?.tax_id || '';
+    armarListaEstados(); pintarEstadoHint();
     $('d-errores').classList.add('hidden');
     $('modal-dest-borrar').classList.toggle('hidden', !d);
     $('modal-dest').classList.remove('hidden');
@@ -339,6 +340,12 @@
     $('modal-dest-close').addEventListener('click', cerrarModalDest);
     $('modal-dest-cancelar').addEventListener('click', cerrarModalDest);
     $('modal-dest-guardar').addEventListener('click', guardarDest);
+    // Estado / provincia (16/10): como en la página de UPS, se escribe "Texas" y queda TX.
+    // Mientras se escribe se ofrecen los nombres (datalist) y al salir del campo se
+    // convierte; el aviso de abajo dice qué entendió.
+    $('d-estado').addEventListener('input', pintarEstadoHint);
+    $('d-estado').addEventListener('change', normalizarEstado);
+    $('d-pais').addEventListener('change', () => { armarListaEstados(); pintarEstadoHint(); });
     $('modal-dest-borrar').addEventListener('click', async () => {
       if (!destEditando) return;
       if (!window.confirm(`¿Sacar a "${destEditando.nombre}" de la libreta? Las guías ya emitidas lo siguen viendo.`)) return;
@@ -354,6 +361,37 @@
     $('g-cliente').addEventListener('change', onClienteChange);
   }
 
+  function isoDestino() {
+    const p = String($('d-pais').value || '');
+    if (/^Estados Unidos$/i.test(p)) return 'US';
+    if (/^Canad[aá]$/i.test(p)) return 'CA';
+    return null;
+  }
+  function armarListaEstados() {
+    const dl = $('d-estado-lista');
+    if (!dl || !window.NovaEstados) return;
+    const iso = isoDestino();
+    dl.innerHTML = iso ? window.NovaEstados.listaDeEstados(iso).map((e) => `<option value="${esc(e.nombre)}">${e.codigo}</option>`).join('') : '';
+    $('d-estado').maxLength = iso ? 40 : 5;
+    $('d-estado').placeholder = iso ? 'Texas, Florida, Ontario…' : 'Solo EE.UU. y Canadá lo exigen';
+  }
+  function pintarEstadoHint() {
+    const hint = $('d-estado-hint');
+    if (!hint || !window.NovaEstados) return;
+    const iso = isoDestino(); const v = $('d-estado').value.trim();
+    if (!iso || !v) { hint.textContent = ''; hint.className = 'gui-hint'; return; }
+    const cod = window.NovaEstados.codigoDeEstado(v, iso);
+    if (cod) { hint.textContent = `${window.NovaEstados.nombreDeEstado(cod, iso)} → ${cod} (lo que va a UPS)`; hint.className = 'gui-hint ok'; }
+    else { hint.textContent = `No reconozco "${v}": escribí el nombre (Texas) o el código (TX)`; hint.className = 'gui-hint mal'; }
+  }
+  function normalizarEstado() {
+    const iso = isoDestino();
+    if (!iso || !window.NovaEstados) return;
+    const cod = window.NovaEstados.codigoDeEstado($('d-estado').value, iso);
+    if (cod) $('d-estado').value = cod;
+    pintarEstadoHint();
+  }
+
   async function guardarDest() {
     const data = {
       nombre: $('d-nombre').value.trim(),
@@ -362,7 +400,7 @@
       direccion2: $('d-direccion2').value.trim(),
       direccion3: $('d-direccion3').value.trim(),
       ciudad: $('d-ciudad').value.trim(),
-      estado: $('d-estado').value.trim().toUpperCase(),
+      estado: (() => { const iso = isoDestino(); const v = $('d-estado').value.trim(); const cod = iso && window.NovaEstados ? window.NovaEstados.codigoDeEstado(v, iso) : null; return cod || v.toUpperCase(); })(),
       codigo_postal: $('d-cp').value.trim(),
       pais: $('d-pais').value,
       telefono: $('d-telefono').value.trim(),
@@ -375,6 +413,8 @@
     if (!data.ciudad) faltan.push('la ciudad');
     if (!data.pais) faltan.push('el país');
     if (!data.telefono) faltan.push('el teléfono (UPS lo exige)');
+    const isoD = isoDestino();
+    if (isoD && data.estado && window.NovaEstados && !window.NovaEstados.codigoDeEstado(data.estado, isoD)) faltan.push(`un estado válido ("${data.estado}" no lo reconozco: escribí Texas o TX)`);
     const errBox = $('d-errores');
     if (faltan.length) {
       errBox.innerHTML = `Falta ${esc(faltan.join(', '))}.`;

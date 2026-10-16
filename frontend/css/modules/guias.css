@@ -68,6 +68,8 @@
 .gui-grid-3 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .gui-col-2 { grid-column: span 2; }
 .gui-hint { font-size: 0.8rem; color: var(--color-muted); }
+.gui-hint.ok { color: var(--color-success, #166534); }
+.gui-hint.mal { color: var(--color-danger, #b91c1c); }
 
 /* Servicio + DDP en una fila */
 .gui-servicio {

@@ -17,6 +17,7 @@
 // UPS_SHIPPING_MOCK=1 (tests): no llama a UPS, devuelve una respuesta inventada con la
 // forma real. Nunca se activa en producción (server.js no lo setea).
 const { isoDePais } = require('../utils/paisesIso');
+const { codigoDeEstado } = require('../../../shared/guias/estados');
 
 const HOSTS = {
   test: 'https://wwwcie.ups.com',
@@ -146,6 +147,9 @@ function validar({ cliente, remitente, destinatario, bultos, servicio, contenido
     if (!soloDigitos(destinatario.telefono)) faltan.push('El destinatario no tiene teléfono (UPS lo exige)');
     const iso = isoDePais(destinatario.pais);
     if ((iso === 'US' || iso === 'CA') && !destinatario.estado) faltan.push('Para Estados Unidos y Canadá UPS exige el estado/provincia (código de 2 letras)');
+    // 16/10: el estado se acepta por nombre ("Texas") o código ("TX"); lo que no se reconoce
+    // se frena acá con un mensaje claro, en vez de que UPS rechace la guía.
+    else if ((iso === 'US' || iso === 'CA') && !codigoDeEstado(destinatario.estado, iso)) faltan.push(`No reconozco el estado/provincia "${destinatario.estado}" para ${iso === 'US' ? 'Estados Unidos' : 'Canadá'}: escribí el nombre (Texas) o el código (TX)`);
     if ((iso === 'US' || iso === 'CA') && !destinatario.codigo_postal) faltan.push('Para Estados Unidos y Canadá UPS exige el código postal');
   }
   if (!Array.isArray(bultos) || !bultos.length) faltan.push('Cargá al menos un bulto');
@@ -198,7 +202,12 @@ function armarPedido({ remitente, destinatario, bultos, servicio, ddp, contenido
       CountryCode: iso,
     },
   };
-  if (destinatario.estado) shipTo.Address.StateProvinceCode = recortar(destinatario.estado, 5).toUpperCase();
+  if (destinatario.estado) {
+    // Nombre o código → código de 2 letras (UPS exige el código). Para otros países va tal cual.
+    const iso = isoDePais(destinatario.pais);
+    const cod = (iso === 'US' || iso === 'CA') ? codigoDeEstado(destinatario.estado, iso) : null;
+    shipTo.Address.StateProvinceCode = cod || recortar(destinatario.estado, 5).toUpperCase();
+  }
   if (destinatario.email) shipTo.EMailAddress = recortar(destinatario.email, 50);
   if (destinatario.tax_id) shipTo.TaxIdentificationNumber = taxIdParaUps(destinatario.tax_id);
 

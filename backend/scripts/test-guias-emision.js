@@ -144,6 +144,13 @@ async function main() {
   check('  nunca más de 3 renglones', upsSvc.partirLineas('a '.repeat(80)).length <= 3);
   const pedLargo = upsSvc.armarPedido({ remitente: { nombre: 'X', contacto: 'X', telefono: '1', direccion: 'Av. Pres. Hipólito Yrigoyen 12345, Lomas de Zamora, Buenos Aires', ciudad: 'c', codigo_postal: '1' }, destinatario: { nombre: 'Y', contacto: 'Y', telefono: '1', direccion1: 'd1', direccion2: 'd2', direccion3: 'd3', ciudad: 'c', codigo_postal: '1', pais: 'Estados Unidos' }, bultos: [{ peso_real: 2 }], servicio: 'UPS_SAV', ddp: false, contenido: 'Cueros', fob: 100, referencia: 't', asegurar: false });
   check('  el pedido lleva el remitente en 2 AddressLine y el destinatario en 3', pedLargo.ShipmentRequest.Shipment.Shipper.Address.AddressLine.length === 2 && pedLargo.ShipmentRequest.Shipment.ShipFrom.Address.AddressLine.length === 2 && JSON.stringify(pedLargo.ShipmentRequest.Shipment.ShipTo.Address.AddressLine) === '["d1","d2","d3"]', JSON.stringify([pedLargo.ShipmentRequest.Shipment.Shipper.Address.AddressLine, pedLargo.ShipmentRequest.Shipment.ShipTo.Address.AddressLine]));
+  // 16/10: el estado por nombre. "Texas" → TX en el pedido; uno inválido se frena en validar.
+  const E = require('../../shared/guias/estados');
+  check('estados: Texas/tejas/tx/TX → TX; Nueva York → NY; Ontario → ON; "Córdoba" en US → null', E.codigoDeEstado('Texas', 'US') === 'TX' && E.codigoDeEstado('tejas', 'US') === 'TX' && E.codigoDeEstado('tx', 'US') === 'TX' && E.codigoDeEstado('Nueva York', 'US') === 'NY' && E.codigoDeEstado('Ontario', 'CA') === 'ON' && E.codigoDeEstado('Córdoba', 'US') === null);
+  const pedTX = upsSvc.armarPedido({ remitente: { nombre: 'X', contacto: 'X', telefono: '1', direccion: 'd', ciudad: 'c', codigo_postal: '1' }, destinatario: { nombre: 'Y', contacto: 'Y', telefono: '1', direccion1: 'd', ciudad: 'Houston', codigo_postal: '77001', estado: 'Texas', pais: 'Estados Unidos' }, bultos: [{ peso_real: 2 }], servicio: 'UPS_SAV', ddp: false, contenido: 'Cueros', fob: 100, referencia: 't', asegurar: false });
+  check('  el pedido a UPS lleva StateProvinceCode TX aunque se haya escrito "Texas"', pedTX.ShipmentRequest.Shipment.ShipTo.Address.StateProvinceCode === 'TX', JSON.stringify(pedTX.ShipmentRequest.Shipment.ShipTo.Address));
+  const faltaEst = upsSvc.validar({ servicio: 'UPS_SAV', cliente: { id: 1 }, remitente: { nombre: 'X', direccion: 'd', ciudad: 'c', codigo_postal: '1', telefono: '1' }, destinatario: { nombre: 'Y', telefono: '1', direccion1: 'd', ciudad: 'c', codigo_postal: '1', estado: 'Cordoba', pais: 'Estados Unidos' }, bultos: [{ peso_real: 2 }], contenido: 'Cueros' });
+  check('  un estado que no existe en EE.UU. se frena antes de ir a UPS', faltaEst.some((m) => /No reconozco el estado/.test(m)), JSON.stringify(faltaEst));
   const pedSin = upsSvc.armarPedido({ remitente: { nombre: 'X', contacto: 'X', telefono: '1', direccion: 'd', ciudad: 'c', codigo_postal: '1' }, destinatario: { nombre: 'Y', contacto: 'Y', telefono: '1', direccion1: 'd', ciudad: 'c', codigo_postal: '1', pais: 'Estados Unidos' }, bultos: [{ peso_real: 2 }], servicio: 'UPS_SAV', ddp: false, contenido: 'Cueros', fob: 100, referencia: 't', asegurar: false });
   check('  destildado (asegurar: false) → el pedido sale sin DeclaredValue', !pedSin.ShipmentRequest.Shipment.Package[0].PackageServiceOptions);
   const { repartirValorDeclarado } = require('../src/services/ups-shipping.service');
@@ -497,6 +504,15 @@ async function main() {
     // Nuevo destinatario desde el modal
     await page.click('#g-dest-nuevo');
     await page.fill('#d-nombre', 'BERLIN GMBH');
+    // 16/10: estado por nombre. Con EE.UU. elegido, "Texas" se convierte a TX al salir del campo.
+    await page.selectOption('#d-pais', 'Estados Unidos');
+    await page.fill('#d-estado', 'Texas');
+    await page.dispatchEvent('#d-estado', 'change');
+    check('  escribir "Texas" con EE.UU. deja TX y lo dice abajo', await page.inputValue('#d-estado') === 'TX' && /Texas → TX/.test(await page.textContent('#d-estado-hint')), (await page.inputValue('#d-estado')) + ' | ' + (await page.textContent('#d-estado-hint')));
+    await page.fill('#d-estado', 'Cordoba');
+    await page.dispatchEvent('#d-estado', 'input');
+    check('  uno que no existe avisa en rojo', /No reconozco/.test(await page.textContent('#d-estado-hint')));
+    await page.fill('#d-estado', '');
     await page.fill('#d-direccion1', 'Unter den Linden 1');
     // 16/10: tercera línea de dirección (la oficina la usa para piso/depto/referencia).
     await page.fill('#d-direccion2', 'Haus 2');

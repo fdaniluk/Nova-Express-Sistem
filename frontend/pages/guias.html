@@ -6,7 +6,7 @@
   <title>Guías – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260929a">
-  <link rel="stylesheet" href="../css/modules/guias.css?v=20260915a">
+  <link rel="stylesheet" href="../css/modules/guias.css?v=20261016a">
 </head>
 <body>
 <div class="app-layout">
@@ -414,7 +414,9 @@
         </div>
         <div class="form-group">
           <label for="d-estado">Estado / provincia</label>
-          <input type="text" id="d-estado" maxlength="5" placeholder="FL, CA… (EE.UU. y Canadá)">
+          <input type="text" id="d-estado" maxlength="40" list="d-estado-lista" placeholder="Texas, Florida, Ontario…" autocomplete="off">
+          <datalist id="d-estado-lista"></datalist>
+          <small class="gui-hint" id="d-estado-hint"></small>
         </div>
         <div class="form-group">
           <label for="d-cp">Código postal</label>
@@ -515,7 +517,8 @@
 <script src="../js/api.js?v=20261015b"></script>
 <script src="../js/main.js?v=20260929a"></script>
 <script src="/shared/cotizador/cotizador-core.js?v=20261009a"></script>
+<script src="/shared/guias/estados.js?v=20261016a"></script>
 <script src="../js/termica.js?v=20260915a"></script>
-<script src="../js/modules/guias.js?v=20261016a"></script>
+<script src="../js/modules/guias.js?v=20261016b"></script>
 </body>
 </html>
