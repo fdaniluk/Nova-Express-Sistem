@@ -94,6 +94,8 @@ async function listarSalidas({ desde, hasta } = {}) {
       e.porcentaje,
       e.observaciones,
       e.estado_revision,
+      e.destinatario_nombre,
+      d.nombre              AS destinatario_libreta,
       e.costo_facturado,
       e.peso_facturado,
       e.courier_facturado,
@@ -121,6 +123,7 @@ async function listarSalidas({ desde, hasta } = {}) {
       cp.cargos_ddp         AS cargos_ddp
     FROM envios e
     JOIN clientes c ON c.id = e.cliente_id
+    LEFT JOIN destinatarios d ON d.id = e.destinatario_id
     -- Venta congelada de la liquidación confirmada (total_usd = total_cobrado + adicional
     -- manual). La consume deriveProfit para la rama de costo real: cuando el envío está
     -- liquidado, el costo real se resta contra ESTA venta (la completa), no contra
@@ -290,6 +293,8 @@ async function listarSalidas({ desde, hasta } = {}) {
     courier: row.courier,
     fecha: row.fecha,
     numero_guia: row.numero_guia,
+    destinatario_nombre: row.destinatario_nombre ?? null,
+    destinatario_libreta: row.destinatario_libreta ?? null,
     tracking_estado: row.tracking_estado ?? null,
     tracking_detalle: row.tracking_detalle ?? null,
     tracking_fecha: row.tracking_fecha ?? null,

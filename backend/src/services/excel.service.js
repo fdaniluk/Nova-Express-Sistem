@@ -411,11 +411,16 @@ function setCellStyle(cell, { fill, font, numFmt, alignment } = {}) {
   if (alignment) cell.alignment = alignment;
 }
 
-function autoFitColumns(worksheet, fromRow, toRow) {
-  for (let c = 1; c <= COL_COUNT; c++) {
-    let maxLen = COL_HEADERS[c - 1].length;
+function autoFitColumns(worksheet, fromRow, toRow, headers = COL_HEADERS) {
+  for (let c = 1; c <= headers.length; c++) {
+    let maxLen = headers[c - 1].length;
     for (let r = fromRow; r <= toRow; r++) {
       const cell = worksheet.getRow(r).getCell(c);
+      // Una celda combinada (los renglones ↳ del formato detallado) devuelve el valor del
+      // master en todas sus columnas: no cuenta para el ancho de las que no son el master.
+      if (cell.isMerged && cell.master && cell.master !== cell) continue;
+      // Y el master tampoco: su texto se reparte en todo el combinado.
+      if (cell.isMerged && cell.master === cell) continue;
       let text = '';
       if (cell.value instanceof Date) {
         text = formatFechaDisplay(cell.value);
@@ -440,6 +445,15 @@ function conceptoCargoAnterior(c) {
 }
 
 async function exportarLiquidacion(liquidacion) {
+  // Formato (16/10/2026, pedido de un cliente): 'estandar' es el de siempre; 'detallado'
+  // suma la columna DESTINATARIO después del Nº de envío y pone los extracargos de cada
+  // envío debajo de su renglón (en vez de la sección "Detalle de adicionales" al pie).
+  // Se elige por liquidación (liquidaciones.formato), con el preferido del cliente de base.
+  const detallado = liquidacion.formato === 'detallado';
+  const off = detallado ? 1 : 0;
+  const k = (c) => (c >= 3 ? c + off : c);          // columna "lógica" → columna real
+  const NCOL = COL_COUNT + off;
+  const headers = detallado ? [COL_HEADERS[0], COL_HEADERS[1], 'DESTINATARIO', ...COL_HEADERS.slice(2)] : COL_HEADERS;
   const wb = new ExcelJS.Workbook();
   wb.creator = 'Nova Express';
   const ws = wb.addWorksheet('Liquidacion', {
@@ -457,14 +471,14 @@ async function exportarLiquidacion(liquidacion) {
   }
   for (let r = 1; r <= 4; r++) ws.getRow(r).height = 18;
 
-  ws.mergeCells(1, 4, 1, COL_COUNT);
+  ws.mergeCells(1, 4, 1, NCOL);
   const titleCell = ws.getCell(1, 4);
   titleCell.value = `LIQUIDACIÓN ${tipoLabel}`;
   titleCell.font = STYLES.title.font;
   titleCell.alignment = { vertical: 'middle', horizontal: 'left' };
   ws.getRow(1).height = 26;
 
-  ws.mergeCells(2, 4, 2, COL_COUNT);
+  ws.mergeCells(2, 4, 2, NCOL);
   ws.getCell(2, 4).value = 'Nova Express · Courier internacional';
   ws.getCell(2, 4).font = STYLES.subtitle.font;
 
@@ -481,19 +495,19 @@ async function exportarLiquidacion(liquidacion) {
   ws.getCell(3, 10).value = 'Fecha';
   ws.getCell(3, 10).font = STYLES.meta.font;
   ws.getCell(3, 10).alignment = { horizontal: 'right' };
-  ws.mergeCells(3, 11, 3, COL_COUNT);
+  ws.mergeCells(3, 11, 3, NCOL);
   ws.getCell(3, 11).value = formatFechaDisplay(liquidacion.fecha);
   ws.getCell(3, 11).font = STYLES.metaStrong.font;
   ws.getCell(4, 10).value = 'Cobro';
   ws.getCell(4, 10).font = STYLES.meta.font;
   ws.getCell(4, 10).alignment = { horizontal: 'right' };
-  ws.mergeCells(4, 11, 4, COL_COUNT);
+  ws.mergeCells(4, 11, 4, NCOL);
   ws.getCell(4, 11).value = tipoLabel.charAt(0) + tipoLabel.slice(1).toLowerCase();
   ws.getCell(4, 11).font = STYLES.metaStrong.font;
 
   // Línea coral fina debajo de la cabecera.
   ws.getRow(5).height = 6;
-  for (let c = 1; c <= COL_COUNT; c++) {
+  for (let c = 1; c <= NCOL; c++) {
     ws.getCell(5, c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: NOVA_CORAL } };
   }
   ws.getRow(6).height = 8;
@@ -501,7 +515,7 @@ async function exportarLiquidacion(liquidacion) {
   // ── Tabla principal ──
   const headerRowNum = 7;
   const headerRow = ws.getRow(headerRowNum);
-  COL_HEADERS.forEach((label, i) => {
+  headers.forEach((label, i) => {
     const cell = headerRow.getCell(i + 1);
     cell.value = label;
     cell.fill = STYLES.headerFill;
@@ -512,7 +526,7 @@ async function exportarLiquidacion(liquidacion) {
   headerRow.height = 24;
 
   const totals = { peso: 0, fob: 0, flete: 0, fuel: 0, seguro: 0, adicional: 0, total_usd: 0 };
-  const NUM_COLS = [7, 8, 9, 11, 12, 13];
+  const NUM_COLS = [7, 8, 9, 11, 12, 13].map(k);
 
   let dataRowNum = headerRowNum + 1;
   for (let idx = 0; idx < liquidacion.items.length; idx++) {
@@ -523,9 +537,10 @@ async function exportarLiquidacion(liquidacion) {
     const fechaCell = row.getCell(1);
     fechaCell.value = parseFechaExcel(item.fecha);
     row.getCell(2).value = item.numero_guia || '';
-    row.getCell(3).value = item.pais_destino || '';
-    row.getCell(4).value = item.zona || '';
-    row.getCell(5).value = tipoEnvioLabel(item.tipo_envio);
+    if (detallado) row.getCell(3).value = item.destinatario_nombre || '';
+    row.getCell(k(3)).value = item.pais_destino || '';
+    row.getCell(k(4)).value = item.zona || '';
+    row.getCell(k(5)).value = tipoEnvioLabel(item.tipo_envio);
 
     const peso = Number(item.peso_facturable) || 0;
     const fob = Number(item.fob) || 0;
@@ -535,25 +550,25 @@ async function exportarLiquidacion(liquidacion) {
     const adicional = Number(item.adicional) || 0;
     const totalUsd = Number(item.total_usd) || 0;
 
-    row.getCell(6).value = peso;
-    row.getCell(7).value = fob;
-    row.getCell(8).value = flete;
-    row.getCell(9).value = fuel;
-    row.getCell(10).value = '';
-    row.getCell(11).value = seguro;
-    row.getCell(12).value = adicional;
-    row.getCell(13).value = totalUsd;
+    row.getCell(k(6)).value = peso;
+    row.getCell(k(7)).value = fob;
+    row.getCell(k(8)).value = flete;
+    row.getCell(k(9)).value = fuel;
+    row.getCell(k(10)).value = '';
+    row.getCell(k(11)).value = seguro;
+    row.getCell(k(12)).value = adicional;
+    row.getCell(k(13)).value = totalUsd;
 
-    for (let c = 1; c <= COL_COUNT; c++) {
+    for (let c = 1; c <= NCOL; c++) {
       const cell = row.getCell(c);
       setCellStyle(cell, { fill: rowFill, font: STYLES.rowFont });
       cell.border = BORDES;
-      cell.alignment = { vertical: 'middle', horizontal: [1, 4, 5].includes(c) ? 'center' : (c === 2 || c === 3) ? 'left' : 'right' };
+      cell.alignment = { vertical: 'middle', horizontal: [1, k(4), k(5)].includes(c) ? 'center' : (c === 2 || c === 3 || c === k(3)) ? 'left' : 'right' };
     }
     fechaCell.numFmt = FMT_DATE;
-    row.getCell(6).numFmt = FMT_PESO;
+    row.getCell(k(6)).numFmt = FMT_PESO;
     for (const col of NUM_COLS) row.getCell(col).numFmt = FMT_MONEY;
-    row.getCell(13).font = { ...STYLES.rowFont, bold: true };
+    row.getCell(k(13)).font = { ...STYLES.rowFont, bold: true };
     row.height = 17;
 
     totals.peso += peso;
@@ -565,43 +580,62 @@ async function exportarLiquidacion(liquidacion) {
     totals.total_usd += totalUsd;
 
     dataRowNum++;
+
+    // Formato detallado: los extracargos del envío, uno por renglón, debajo del envío.
+    if (detallado && Array.isArray(item.adicional_detalle) && item.adicional_detalle.length) {
+      for (const d of item.adicional_detalle) {
+        const sub = ws.getRow(dataRowNum);
+        ws.mergeCells(dataRowNum, 2, dataRowNum, k(11));
+        sub.getCell(2).value = '      ↳ ' + d.label;
+        sub.getCell(k(12)).value = Number(d.monto) || 0;
+        sub.getCell(k(12)).numFmt = FMT_MONEY;
+        for (let c = 1; c <= NCOL; c++) {
+          const cell = sub.getCell(c);
+          setCellStyle(cell, { fill: rowFill, font: { ...STYLES.rowFont, italic: true, size: 9.5, color: { argb: NOVA_GRIS } } });
+          cell.border = { ...BORDES, top: { style: 'hair', color: { argb: 'FFC4BDD3' } } };
+          cell.alignment = { vertical: 'middle', horizontal: c === k(12) ? 'right' : 'left' };
+        }
+        sub.height = 15;
+        dataRowNum++;
+      }
+    }
   }
 
   if (!liquidacion.items.length) {
     // Liquidación solo de cargos (05/10): la tabla de envíos queda con una línea que lo diga.
-    ws.mergeCells(dataRowNum, 1, dataRowNum, COL_COUNT);
+    ws.mergeCells(dataRowNum, 1, dataRowNum, NCOL);
     ws.getCell(dataRowNum, 1).value = 'Sin envíos en este período · ver "Cargos de envíos anteriores" más abajo.';
     setCellStyle(ws.getCell(dataRowNum, 1), { fill: STYLES.rowWhite, font: { ...STYLES.rowFont, italic: true } });
     ws.getCell(dataRowNum, 1).alignment = { horizontal: 'center', vertical: 'middle' };
-    for (let c = 1; c <= COL_COUNT; c++) ws.getCell(dataRowNum, c).border = BORDES;
+    for (let c = 1; c <= NCOL; c++) ws.getCell(dataRowNum, c).border = BORDES;
     ws.getRow(dataRowNum).height = 17;
     dataRowNum++;
   }
   const totalRow = ws.getRow(dataRowNum);
-  ws.mergeCells(dataRowNum, 1, dataRowNum, 5);
+  ws.mergeCells(dataRowNum, 1, dataRowNum, k(5));
   totalRow.getCell(1).value = 'TOTAL';
-  totalRow.getCell(6).value = totals.peso;
-  totalRow.getCell(7).value = totals.fob;
-  totalRow.getCell(8).value = totals.flete;
-  totalRow.getCell(9).value = totals.fuel;
-  totalRow.getCell(10).value = '';
-  totalRow.getCell(11).value = totals.seguro;
-  totalRow.getCell(12).value = totals.adicional;
-  totalRow.getCell(13).value = totals.total_usd;
-  for (let c = 1; c <= COL_COUNT; c++) {
+  totalRow.getCell(k(6)).value = totals.peso;
+  totalRow.getCell(k(7)).value = totals.fob;
+  totalRow.getCell(k(8)).value = totals.flete;
+  totalRow.getCell(k(9)).value = totals.fuel;
+  totalRow.getCell(k(10)).value = '';
+  totalRow.getCell(k(11)).value = totals.seguro;
+  totalRow.getCell(k(12)).value = totals.adicional;
+  totalRow.getCell(k(13)).value = totals.total_usd;
+  for (let c = 1; c <= NCOL; c++) {
     const cell = totalRow.getCell(c);
     setCellStyle(cell, { fill: STYLES.totalFill, font: STYLES.totalFont });
     cell.alignment = { vertical: 'middle', horizontal: c === 1 ? 'center' : 'right' };
-    if (c === 6) cell.numFmt = FMT_PESO;
+    if (c === k(6)) cell.numFmt = FMT_PESO;
     if (NUM_COLS.includes(c)) cell.numFmt = FMT_MONEY;
   }
   totalRow.height = 20;
 
-  autoFitColumns(ws, headerRowNum, dataRowNum);
+  autoFitColumns(ws, headerRowNum, dataRowNum, headers);
   // La columna de guía y la de país necesitan aire propio (el autofit las deja justas).
   ws.getColumn(2).width = Math.max(ws.getColumn(2).width || 0, 20);
-  ws.getColumn(3).width = Math.max(ws.getColumn(3).width || 0, 16);
-  ws.getColumn(13).width = Math.max(ws.getColumn(13).width || 0, 13);
+  ws.getColumn(k(3)).width = Math.max(ws.getColumn(k(3)).width || 0, 16);
+  ws.getColumn(k(13)).width = Math.max(ws.getColumn(k(13)).width || 0, 13);
 
   // ── Cargos de envíos anteriores (25/09/2026) ──
   // Extracargos o impuestos DDP que llegaron DESPUÉS de que el envío ya estaba liquidado:
@@ -612,12 +646,12 @@ async function exportarLiquidacion(liquidacion) {
   if (anteriores.length) {
     totalRow.getCell(1).value = 'TOTAL ENVÍOS';
     let ra = dataRowNum + 2;
-    ws.mergeCells(ra, 1, ra, COL_COUNT);
+    ws.mergeCells(ra, 1, ra, NCOL);
     ws.getCell(ra, 1).value = 'CARGOS DE ENVÍOS ANTERIORES';
     ws.getCell(ra, 1).font = STYLES.subtitle.font;
     ws.getRow(ra).height = 18;
     ra++;
-    ws.mergeCells(ra, 1, ra, COL_COUNT);
+    ws.mergeCells(ra, 1, ra, NCOL);
     ws.getCell(ra, 1).value = liquidacion.items.length
       ? 'Cargos que el courier informó después de liquidado el envío (impuestos de destino, sobrepeso, área remota, etc.).'
       : 'Esta liquidación no incluye envíos: son únicamente cargos que el courier informó después de liquidado cada envío (impuestos de destino, sobrepeso, área remota, etc.).';
@@ -637,44 +671,44 @@ async function exportarLiquidacion(liquidacion) {
     let totalAnt = 0;
     anteriores.forEach((c, i) => {
       const fill = i % 2 === 0 ? STYLES.rowWhite : STYLES.rowAlt;
-      ws.mergeCells(ra, 2, ra, 4);
-      ws.mergeCells(ra, 5, ra, 11);
-      ws.mergeCells(ra, 12, ra, 13);
+      ws.mergeCells(ra, 2, ra, k(4));
+      ws.mergeCells(ra, k(5), ra, k(11));
+      ws.mergeCells(ra, k(12), ra, k(13));
       ws.getCell(ra, 1).value = parseFechaExcel(c.envio_fecha);
       ws.getCell(ra, 1).numFmt = FMT_DATE;
       ws.getCell(ra, 2).value = c.numero_guia || '';
       // Concepto completo (05/10): qué cargo, cuándo lo informó el courier y en qué
       // liquidación se había cobrado el envío. La guía y la fecha del envío van en sus columnas.
-      ws.getCell(ra, 5).value = conceptoCargoAnterior(c);
-      ws.getCell(ra, 12).value = Number(c.monto) || 0;
-      ws.getCell(ra, 12).numFmt = FMT_MONEY;
-      for (let col = 1; col <= COL_COUNT; col++) {
+      ws.getCell(ra, k(5)).value = conceptoCargoAnterior(c);
+      ws.getCell(ra, k(12)).value = Number(c.monto) || 0;
+      ws.getCell(ra, k(12)).numFmt = FMT_MONEY;
+      for (let col = 1; col <= NCOL; col++) {
         setCellStyle(ws.getCell(ra, col), { fill, font: col === 2 ? { ...STYLES.rowFont, bold: true } : STYLES.rowFont });
         ws.getCell(ra, col).border = BORDES;
       }
       ws.getCell(ra, 1).alignment = { horizontal: 'center', vertical: 'middle' };
-      ws.getCell(ra, 12).alignment = { horizontal: 'right', vertical: 'middle' };
+      ws.getCell(ra, k(12)).alignment = { horizontal: 'right', vertical: 'middle' };
       ws.getRow(ra).height = 16;
       totalAnt += Number(c.monto) || 0;
       ra++;
     });
-    ws.mergeCells(ra, 1, ra, 11);
-    ws.mergeCells(ra, 12, ra, 13);
+    ws.mergeCells(ra, 1, ra, k(11));
+    ws.mergeCells(ra, k(12), ra, k(13));
     ws.getCell(ra, 1).value = 'TOTAL CARGOS DE ENVÍOS ANTERIORES';
-    ws.getCell(ra, 12).value = Math.round(totalAnt * 100) / 100;
-    ws.getCell(ra, 12).numFmt = FMT_MONEY;
-    for (let col = 1; col <= COL_COUNT; col++) {
+    ws.getCell(ra, k(12)).value = Math.round(totalAnt * 100) / 100;
+    ws.getCell(ra, k(12)).numFmt = FMT_MONEY;
+    for (let col = 1; col <= NCOL; col++) {
       setCellStyle(ws.getCell(ra, col), { fill: STYLES.totalFill, font: STYLES.totalFont });
       ws.getCell(ra, col).alignment = { vertical: 'middle', horizontal: col === 1 ? 'right' : 'right' };
     }
     ws.getRow(ra).height = 18;
     ra++;
-    ws.mergeCells(ra, 1, ra, 11);
-    ws.mergeCells(ra, 12, ra, 13);
+    ws.mergeCells(ra, 1, ra, k(11));
+    ws.mergeCells(ra, k(12), ra, k(13));
     ws.getCell(ra, 1).value = 'TOTAL LIQUIDACIÓN';
-    ws.getCell(ra, 12).value = Math.round((totals.total_usd + totalAnt) * 100) / 100;
-    ws.getCell(ra, 12).numFmt = FMT_MONEY;
-    for (let col = 1; col <= COL_COUNT; col++) {
+    ws.getCell(ra, k(12)).value = Math.round((totals.total_usd + totalAnt) * 100) / 100;
+    ws.getCell(ra, k(12)).numFmt = FMT_MONEY;
+    for (let col = 1; col <= NCOL; col++) {
       setCellStyle(ws.getCell(ra, col), { fill: STYLES.totalFill, font: { ...STYLES.totalFont, size: (STYLES.totalFont.size || 10) + 1 } });
       ws.getCell(ra, col).alignment = { vertical: 'middle', horizontal: 'right' };
     }
@@ -685,10 +719,11 @@ async function exportarLiquidacion(liquidacion) {
   // ── Detalle de adicionales (07/09): qué compone la columna ADICIONAL, guía por guía ──
   // Surge (con su fuel), GoGreen, manejo, remota, derechos, extras manuales… Solo se dibuja
   // si alguna guía tiene algo que desglosar.
-  const conDetalle = liquidacion.items.filter((it) => Array.isArray(it.adicional_detalle) && it.adicional_detalle.length);
+  // En el formato detallado ya están debajo de cada envío: la sección no se dibuja.
+  const conDetalle = detallado ? [] : liquidacion.items.filter((it) => Array.isArray(it.adicional_detalle) && it.adicional_detalle.length);
   let r = dataRowNum + 2;
   if (conDetalle.length) {
-    ws.mergeCells(r, 1, r, COL_COUNT);
+    ws.mergeCells(r, 1, r, NCOL);
     ws.getCell(r, 1).value = 'DETALLE DE ADICIONALES';
     ws.getCell(r, 1).font = STYLES.subtitle.font;
     ws.getRow(r).height = 18;
@@ -714,15 +749,15 @@ async function exportarLiquidacion(liquidacion) {
       const inicio = r;
       let subtotal = 0;
       lineas.forEach((d, i) => {
-        ws.mergeCells(r, 2, r, 4);
-        ws.mergeCells(r, 5, r, 11);
-        ws.mergeCells(r, 12, r, 13);
+        ws.mergeCells(r, 2, r, k(4));
+        ws.mergeCells(r, k(5), r, k(11));
+        ws.mergeCells(r, k(12), r, k(13));
         ws.getCell(r, 2).value = i === 0 ? (it.numero_guia || '') : '';
-        ws.getCell(r, 5).value = d.label;
-        ws.getCell(r, 12).value = Number(d.monto) || 0;
-        ws.getCell(r, 12).numFmt = FMT_MONEY;
-        ws.getCell(r, 12).alignment = { horizontal: 'right' };
-        for (let c = 2; c <= COL_COUNT; c++) {
+        ws.getCell(r, k(5)).value = d.label;
+        ws.getCell(r, k(12)).value = Number(d.monto) || 0;
+        ws.getCell(r, k(12)).numFmt = FMT_MONEY;
+        ws.getCell(r, k(12)).alignment = { horizontal: 'right' };
+        for (let c = 2; c <= NCOL; c++) {
           setCellStyle(ws.getCell(r, c), { fill, font: i === 0 && c === 2 ? { ...STYLES.rowFont, bold: true } : STYLES.rowFont });
           ws.getCell(r, c).border = BORDES;
         }
@@ -731,23 +766,23 @@ async function exportarLiquidacion(liquidacion) {
         r++;
       });
       if (lineas.length > 1) {
-        ws.mergeCells(r, 2, r, 4);
-        ws.mergeCells(r, 5, r, 11);
-        ws.mergeCells(r, 12, r, 13);
-        ws.getCell(r, 5).value = 'Subtotal guía ' + (it.numero_guia || '');
-        ws.getCell(r, 12).value = Math.round(subtotal * 100) / 100;
-        ws.getCell(r, 12).numFmt = FMT_MONEY;
-        ws.getCell(r, 12).alignment = { horizontal: 'right' };
-        for (let c = 2; c <= COL_COUNT; c++) {
+        ws.mergeCells(r, 2, r, k(4));
+        ws.mergeCells(r, k(5), r, k(11));
+        ws.mergeCells(r, k(12), r, k(13));
+        ws.getCell(r, k(5)).value = 'Subtotal guía ' + (it.numero_guia || '');
+        ws.getCell(r, k(12)).value = Math.round(subtotal * 100) / 100;
+        ws.getCell(r, k(12)).numFmt = FMT_MONEY;
+        ws.getCell(r, k(12)).alignment = { horizontal: 'right' };
+        for (let c = 2; c <= NCOL; c++) {
           setCellStyle(ws.getCell(r, c), { fill, font: { ...STYLES.rowFont, bold: true, color: { argb: NOVA_VIOLETA } } });
           ws.getCell(r, c).border = BORDES;
         }
-        ws.getCell(r, 5).alignment = { horizontal: 'right' };
+        ws.getCell(r, k(5)).alignment = { horizontal: 'right' };
         ws.getRow(r).height = 16;
         r++;
       }
       // Línea gruesa arriba del bloque y abajo del último renglón de la guía.
-      for (let c = 2; c <= COL_COUNT; c++) {
+      for (let c = 2; c <= NCOL; c++) {
         ws.getCell(inicio, c).border = { ...ws.getCell(inicio, c).border, top: BORDE_FUERTE };
         ws.getCell(r - 1, c).border = { ...ws.getCell(r - 1, c).border, bottom: BORDE_FUERTE };
       }
@@ -756,7 +791,7 @@ async function exportarLiquidacion(liquidacion) {
     r++;
   }
 
-  ws.mergeCells(r, 1, r, COL_COUNT);
+  ws.mergeCells(r, 1, r, NCOL);
   ws.getCell(r, 1).value = 'Importes en dólares estadounidenses. Gracias por confiar en Nova Express.';
   ws.getCell(r, 1).font = STYLES.noteFont;
   ws.getCell(r, 1).alignment = { horizontal: 'center' };

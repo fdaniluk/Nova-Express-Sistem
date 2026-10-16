@@ -478,6 +478,11 @@
         cotizaciones,
       });
       lastPreview = { cliente_id, envio_ids, cargos, cotizaciones, preview };
+      // Formato del Excel: arranca con el preferido del cliente; si la persona ya lo tocó en
+      // esta pantalla, se respeta lo que eligió.
+      const chkFmt = document.getElementById('liq-formato-detallado');
+      if (chkFmt && !chkFmt.dataset.tocado) chkFmt.checked = preview.formato_sugerido === 'detallado';
+      aplicarFormatoPreview();
 
       const tbody = document.getElementById('liq-preview-body');
       // Desglose de cara al cliente: solo lo que pagó. NO se muestran % Profit ni Utilidad
@@ -488,13 +493,15 @@
       tbody.innerHTML = (preview.items.length ? preview.items : []).map((i) => `
         <tr>
           <td><span class="guia-num">${i.envio?.numero_guia || i.envio_id}</span></td>
+          <td class="liq-col-remitente hidden">${NovaUtils.escapeHtml ? NovaUtils.escapeHtml(i.envio?.destinatario_nombre || '') : String(i.envio?.destinatario_nombre || '').replace(/</g, '&lt;')}</td>
           <td class="n">${NovaUtils.formatMoney(i.flete)}</td>
           <td class="n">${NovaUtils.formatMoney(i.fuel)}</td>
           <td class="n">${NovaUtils.formatMoney(i.seguro)}</td>
           <td class="n">${NovaUtils.formatMoney(i.adicional)}${adicDetalleHtml(i.adicional_detalle)}</td>
           <td class="n">${NovaUtils.formatMoney(i.total_usd)}</td>
           <td class="liq-interno">${profitInternoHtml(i)}</td>
-        </tr>`).join('') || '<tr><td colspan="7" class="empty">Sin envíos: esta liquidación es solo de cargos de envíos anteriores (abajo).</td></tr>';
+        </tr>`).join('') || '<tr><td colspan="8" class="empty">Sin envíos: esta liquidación es solo de cargos de envíos anteriores (abajo).</td></tr>';
+      aplicarFormatoPreview();
 
       // Con cargos de envíos anteriores, el pie de la tabla es "Total envíos" y el total
       // general lo cierra la sección de abajo (igual que el Excel).
@@ -538,7 +545,7 @@
         // Se manda la selección que se está viendo: si no coincide con el borrador, el
         // backend corta con 409 en vez de confirmar otra cosa (defensa en profundidad;
         // con la invalidación de arriba no debería pasar nunca).
-        liq = await NovaAPI.liquidaciones.confirmar(lastLiquidacionId, getSelectedEnvios().envio_ids);
+        liq = await NovaAPI.liquidaciones.confirmar(lastLiquidacionId, getSelectedEnvios().envio_ids, formatoElegido());
       } else {
         const { cliente_id, envio_ids, cargos, cotizaciones } = lastPreview;
         liq = await crearConAviso({
@@ -549,6 +556,7 @@
           cargos,
           cotizaciones,
           confirmar: true,
+          formato: formatoElegido(),
         });
         lastLiquidacionId = liq.id;
       }
@@ -594,10 +602,28 @@
       cargos,
       cotizaciones,
       confirmar: false,
+      formato: formatoElegido(),
     });
     lastLiquidacionId = liq.id;
     return liq.id;
   }
+
+  // Formato del Excel (16/10): 'detallado' o 'estandar' según el tilde del paso 3.
+  function formatoElegido() {
+    const chk = document.getElementById('liq-formato-detallado');
+    return chk && chk.checked ? 'detallado' : 'estandar';
+  }
+  function aplicarFormatoPreview() {
+    const on = formatoElegido() === 'detallado';
+    document.querySelectorAll('.liq-col-remitente').forEach((el) => el.classList.toggle('hidden', !on));
+    const tf = document.querySelector('#liq-preview tfoot td[colspan]');
+    if (tf) tf.setAttribute('colspan', on ? '6' : '5');
+  }
+  (function bindFormato() {
+    const chk = document.getElementById('liq-formato-detallado');
+    if (!chk) return;
+    chk.addEventListener('change', () => { chk.dataset.tocado = '1'; aplicarFormatoPreview(); });
+  }());
 
   // RETOMAR UN BORRADOR (09/10/2026, pedido de la oficina). Antes, si alguien armaba la
   // liquidación, bajaba el Excel para revisar y salía sin confirmar, el borrador quedaba

@@ -187,8 +187,10 @@ async function preview({ cliente_id, envio_ids = [], cargos = [], cotizaciones =
   const placeholders = envio_ids.map(() => '?').join(',');
   const envios = envio_ids.length ? await db
     .prepare(
-      `SELECT * FROM envios
-       WHERE id IN (${placeholders}) AND cliente_id = ? AND liquidado = 0 AND no_volo = 0`
+      `SELECT e.*, COALESCE(d.nombre, e.destinatario_nombre) AS destinatario_nombre
+       FROM envios e
+       LEFT JOIN destinatarios d ON d.id = e.destinatario_id
+       WHERE e.id IN (${placeholders}) AND e.cliente_id = ? AND e.liquidado = 0 AND e.no_volo = 0`
     )
     .all(...envio_ids, cliente_id) : [];
 
@@ -239,9 +241,12 @@ async function preview({ cliente_id, envio_ids = [], cargos = [], cotizaciones =
   const utilidadTotal = redondear2(items.reduce((s, i) => s + (i.utilidad_usd || 0), 0));
   // Pendiente 52: la vista previa avisa si alguno de estos envíos ya está en otro borrador.
   const en_borrador = await borradoresConEnvios(envio_ids);
+  const cliFmt = await db.prepare('SELECT liquidacion_formato FROM clientes WHERE id = ?').get(cliente_id);
   return {
     items, total, total_envios, cargos_anteriores, total_cargos_anteriores,
     utilidad_total: utilidadTotal, cantidad: items.length, en_borrador,
+    // Formato preferido del cliente (16/10): la pantalla lo usa para pre-tildar "detallado".
+    formato_sugerido: (cliFmt && cliFmt.liquidacion_formato) || 'estandar',
     // Interno: ids de envio_cargos que esta vista previa metió en los ítems (crear los ata).
     _cargos_envios_ids: cargosEnviosIds,
   };
@@ -249,7 +254,7 @@ async function preview({ cliente_id, envio_ids = [], cargos = [], cotizaciones =
 
 async function crear({
   cliente_id, periodo_desde, periodo_hasta, envio_ids, cargos = [], cotizaciones = [], confirmar = false,
-  reemplazar_borradores = [], permitir_duplicado = false, usuario = null,
+  reemplazar_borradores = [], permitir_duplicado = false, usuario = null, formato = null,
 }) {
   await migrarColumnas();
   // Pendiente 52: si algún envío ya está en OTRO borrador, no se arma un segundo en
@@ -281,15 +286,17 @@ async function crear({
   const id = await db.transaction(async () => {
     const liqResult = await db
       .prepare(
-        `INSERT INTO liquidaciones (cliente_id, periodo_desde, periodo_hasta, total, estado)
-         VALUES (?, ?, ?, ?, ?)`
+        `INSERT INTO liquidaciones (cliente_id, periodo_desde, periodo_hasta, total, estado, formato)
+         VALUES (?, ?, ?, ?, ?, ?)`
       )
       .run(
         cliente_id,
         periodo_desde,
         periodo_hasta,
         previewData.total,
-        confirmar ? 'confirmada' : 'borrador'
+        confirmar ? 'confirmada' : 'borrador',
+        // Formato del Excel (16/10): el que pidió la pantalla; si no, el preferido del cliente.
+        formato === 'detallado' || formato === 'estandar' ? formato : ((await db.prepare('SELECT liquidacion_formato FROM clientes WHERE id = ?').get(cliente_id)) || {}).liquidacion_formato || 'estandar'
       );
     const liquidacionId = liqResult.lastInsertRowid;
 
@@ -382,7 +389,7 @@ function validarSinCeros(items) {
 // se confirmaba no era lo que se estaba viendo. Ahora la pantalla manda su selección y,
 // si no coincide con los ítems del borrador, esto corta con 409 en vez de confirmar otra
 // cosa. Sin el parámetro (API vieja, scripts) se confirma como siempre.
-async function confirmar(id, envioIdsEsperados = null, usuario = null) {
+async function confirmar(id, envioIdsEsperados = null, usuario = null, formato = null) {
   const db = getDb();
   const liq = await buscarPorId(id);
   if (!liq) return null;
@@ -460,9 +467,10 @@ async function confirmar(id, envioIdsEsperados = null, usuario = null) {
   await db.transaction(async () => {
     await db.prepare(
       `UPDATE liquidaciones SET estado = 'confirmada', fecha_confirmacion = ?,
+       formato = COALESCE(?, formato),
        updated_at = datetime('now', 'localtime')
        WHERE id = ?`
-    ).run(fecha, id);
+    ).run(fecha, formato === 'detallado' || formato === 'estandar' ? formato : null, id);
     await envioModel.marcarLiquidados(envioIds, id, fecha);
     // Cuenta corriente: la liquidación confirmada es el débito del libro del cliente.
     await ccModel.registrarDebitoLiquidacion(db, id, { usuario });
@@ -487,9 +495,11 @@ async function buscarPorId(id) {
       `SELECT li.*, e.numero_guia, e.fecha, e.pais_destino, e.zona, e.tipo_envio,
               e.peso_facturable, e.fob, e.courier, e.total_cobrado,
               e.extras_json, e.adicionales AS envio_adicionales, e.derechos AS envio_derechos,
-              e.otros AS envio_otros, e.seguro AS envio_seguro, e.seguro_venta AS envio_seguro_venta
+              e.otros AS envio_otros, e.seguro AS envio_seguro, e.seguro_venta AS envio_seguro_venta,
+              COALESCE(d.nombre, e.destinatario_nombre) AS destinatario_nombre
        FROM liquidacion_items li
        JOIN envios e ON e.id = li.envio_id
+       LEFT JOIN destinatarios d ON d.id = e.destinatario_id
        WHERE li.liquidacion_id = ?
        ORDER BY e.fecha, e.numero_guia`
     )

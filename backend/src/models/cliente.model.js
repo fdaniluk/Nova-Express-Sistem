@@ -222,6 +222,7 @@ async function actualizar(id, data) {
         modo_tarifa         = COALESCE(?, modo_tarifa),
         ${plazoProvisto ? 'plazo_pago_dias = ?' : 'plazo_pago_dias = COALESCE(?, plazo_pago_dias)'},
         tipo_cambio         = COALESCE(?, tipo_cambio),
+        liquidacion_formato = COALESCE(?, liquidacion_formato),
         ${fuelClausula},
         ${seguroClausulas.join(',\n        ')},
         updated_at          = datetime('now', 'localtime')
@@ -239,6 +240,8 @@ async function actualizar(id, data) {
       modoProvisto ? data.modo_tarifa : null,
       plazoValor,
       txt(data.tipo_cambio),
+      // Formato preferido del Excel de liquidación (16/10): 'estandar' | 'detallado'.
+      data.liquidacion_formato === 'detallado' || data.liquidacion_formato === 'estandar' ? data.liquidacion_formato : null,
       fuelValor,
       ...seguroValores,
       id

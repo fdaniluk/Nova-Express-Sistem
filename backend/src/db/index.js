@@ -305,6 +305,9 @@ async function migrateEnvios() {
     // Código postal de destino (21/09/2026): con él se consulta la tabla ups_areas y se
     // marca sola la zona de entrega (extendida / remota).
     ['cp_destino',       'TEXT'],
+    // 16/10: nombre del destinatario tipeado en Cargar envío (opcional). Cuando el envío
+    // viene de una guía, manda destinatarios.nombre vía destinatario_id.
+    ['destinatario_nombre', 'TEXT'],
     // Descuento especial sobre el flete de venta, en % (02/10/2026). Viene de la
     // cotización guardada (o se tipea en Cargar envío) y se conserva al recotizar.
     ['descuento_venta_pct', 'REAL'],
@@ -531,6 +534,8 @@ async function migrateGuias() {
   const cols = (await dbApi.prepare('PRAGMA table_info(clientes)').all()).map((c) => c.name);
   if (!cols.includes('telefono')) await dbApi.exec('ALTER TABLE clientes ADD COLUMN telefono TEXT');
   if (!cols.includes('provincia')) await dbApi.exec('ALTER TABLE clientes ADD COLUMN provincia TEXT');
+  // 16/10: formato preferido de sus liquidaciones ('estandar' | 'detallado').
+  if (!cols.includes('liquidacion_formato')) await dbApi.exec("ALTER TABLE clientes ADD COLUMN liquidacion_formato TEXT NOT NULL DEFAULT 'estandar'");
 }
 
 async function migrateEnvioBultos() {
@@ -926,6 +931,9 @@ async function migrateLiquidacionesCC() {
     ['moneda',             "TEXT NOT NULL DEFAULT 'USD'"],
     ['numero_factura',     'TEXT'],
     ['fecha_confirmacion', 'TEXT'],
+    // 16/10: formato del Excel ('estandar' | 'detallado': columna DESTINATARIO y extracargos
+    // debajo de cada envío). Se elige al liquidar; el cliente tiene su preferido.
+    ['formato',            "TEXT NOT NULL DEFAULT 'estandar'"],
   ];
   for (const [col, def] of toAdd) {
     if (!cols.includes(col)) await dbApi.exec(`ALTER TABLE liquidaciones ADD COLUMN ${col} ${def}`);

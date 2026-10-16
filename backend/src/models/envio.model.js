@@ -313,8 +313,8 @@ async function crear(data) {
           numero_salida, bulto, tipo_paquete, asegurado, ddp, proteccion_doc, residencial, remota, entrega,
           flete, descuento, seguro, fuel, fuel_pct, fuel_origen, derechos, adicionales, otros, profit, porcentaje,
           extras_json, servicio_ups, num_sal_cero, seguro_venta, tarifa_50,
-          destinatario_id, contenido, proforma_numero, guia_id, remitente_id, cp_destino, descuento_venta_pct
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+          destinatario_id, contenido, proforma_numero, guia_id, remitente_id, cp_destino, descuento_venta_pct, destinatario_nombre
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         data.cliente_id,
@@ -378,7 +378,8 @@ async function crear(data) {
         guiaId,
         data.remitente_id || null,
         data.cp_destino ? String(data.cp_destino).trim() : null,
-        descuentoDe(data.descuento_venta_pct)
+        descuentoDe(data.descuento_venta_pct),
+        data.destinatario_nombre ? String(data.destinatario_nombre).trim().slice(0, 80) || null : null
       );
     const envioId = result.lastInsertRowid;
     if (hasBultos) await saveBultos(envioId, data.bultos);
@@ -518,6 +519,7 @@ async function actualizar(id, data) {
         destinatario_id = ?, contenido = ?, proforma_numero = ?, remitente_id = ?,
         cp_destino = ?,
         descuento_venta_pct = ?,
+        destinatario_nombre = ?,
         ${costoSet},
         updated_at = datetime('now', 'localtime')
        WHERE id = ?`
@@ -559,6 +561,7 @@ async function actualizar(id, data) {
       data.remitente_id !== undefined ? (data.remitente_id || null) : actual.remitente_id,
       data.cp_destino !== undefined ? (String(data.cp_destino ?? '').trim() || null) : actual.cp_destino,
       data.descuento_venta_pct !== undefined ? descuentoDe(data.descuento_venta_pct) : actual.descuento_venta_pct,
+      data.destinatario_nombre !== undefined ? (String(data.destinatario_nombre ?? '').trim().slice(0, 80) || null) : actual.destinatario_nombre,
       // Los nueve de abajo son siempre los mismos parámetros; lo que cambia es el SQL de
       // arriba. Sin recálculo van todos NULL y el COALESCE deja la columna como estaba;
       // con el envío sin pesar, esos mismos NULL la vacían.

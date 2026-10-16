@@ -108,7 +108,7 @@ const api = {
     cotizar: (data) => api.post('/liquidaciones/cotizar', data),
     // `envio_ids` es la selección que la pantalla está mostrando: el backend la compara
     // con el borrador y rechaza con 409 si difieren (el "borrador pegado").
-    confirmar: (id, envio_ids) => request(`/liquidaciones/${id}/confirmar`, { method: 'PATCH', body: envio_ids ? { envio_ids } : undefined }),
+    confirmar: (id, envio_ids, formato) => request(`/liquidaciones/${id}/confirmar`, { method: 'PATCH', body: (envio_ids || formato) ? { ...(envio_ids ? { envio_ids } : {}), ...(formato ? { formato } : {}) } : undefined }),
     eliminarBorrador: (id) => api.delete(`/liquidaciones/${id}`),
     obtener: (id) => api.get(`/liquidaciones/${id}`),
     listar: (params) => {

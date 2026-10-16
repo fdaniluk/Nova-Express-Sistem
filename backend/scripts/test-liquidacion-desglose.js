@@ -211,16 +211,22 @@ async function main() {
       const tr = [...document.querySelectorAll('#liq-preview-body tr')].find((t) => t.textContent.includes(guia));
       if (!tr) return null;
       const tds = [...tr.querySelectorAll('td')];
+      // 16/10: la columna Destinatario (segunda) existe pero va oculta en el formato estándar.
       return {
         cols: tds.length,
-        profit: tds[6]?.textContent.trim(),
-        adic: tds[4]?.textContent.trim(),
+        remitenteOculto: tds[1]?.classList.contains('liq-col-remitente') && tds[1]?.classList.contains('hidden'),
+        profit: tr.querySelector('td.liq-interno')?.textContent.trim(),
+        adic: tds[5]?.textContent.trim(),
         detalle: tr.querySelector('.liq-adic-detalle')?.textContent.trim() || '',
         th: [...document.querySelectorAll('#liq-preview thead th')].map((t) => t.textContent.trim()),
       };
     }, '1Z000DESG000000004');
     check('la fila del envío está en la vista previa', !!filaPrev, JSON.stringify(filaPrev));
     check('hay columna "Profit (interno)"', filaPrev && filaPrev.th.includes('Profit (interno)'), filaPrev && filaPrev.th.join(' | '));
+    check('la columna Destinatario está pero oculta (formato estándar)', filaPrev && filaPrev.remitenteOculto === true, JSON.stringify(filaPrev));
+    await page.check('#liq-formato-detallado');
+    check('con "Formato detallado" tildado se muestra la columna Destinatario', await page.evaluate(() => [...document.querySelectorAll('#liq-preview-body td.liq-col-remitente')].every((td) => !td.classList.contains('hidden')) && /Destinatario/.test([...document.querySelectorAll('#liq-preview thead th')].find((t) => t.classList.contains('liq-col-remitente'))?.textContent || '')));
+    await page.uncheck('#liq-formato-detallado');
     check('el profit del envío se muestra como % · US$', filaPrev && /\d+(\.\d+)?% · US?\$/.test(filaPrev.profit), filaPrev && filaPrev.profit);
     check('el Adicional trae el desglose debajo (surge con fuel + manejo)', filaPrev && /Surge fee \(con fuel\)/.test(filaPrev.detalle) && /Manejo adicional/.test(filaPrev.detalle), filaPrev && filaPrev.detalle);
     const totalProfit = await page.evaluate(() => document.getElementById('liq-profit-total')?.textContent.trim());
@@ -229,6 +235,59 @@ async function main() {
     await browser.close();
     void e3;
   }
+
+  console.log('\n5. Formato DETALLADO (16/10): columna DESTINATARIO y extracargos debajo de cada envío\n');
+  const cli3 = await j(await fetch(BASE + '/api/clientes', { method: 'POST', headers: H, body: JSON.stringify({ nombre: 'DESGLOSE DETALLADO SA', tarifa_pct: 75, tipo_cobro: 'CC' }) }));
+  const dest = await j(await fetch(BASE + `/api/clientes/${cli3.id}/destinatarios`, { method: 'POST', headers: H, body: JSON.stringify({ nombre: 'ACME MIAMI LLC', direccion1: '1000 NW 57th Ct', ciudad: 'Miami', estado: 'FL', codigo_postal: '33126', pais: 'Estados Unidos', telefono: '305 555 0100' }) }));
+  check('destinatario de la libreta creado', !!dest.id, JSON.stringify(dest).slice(0, 120));
+  const e5a = await j(await fetch(BASE + '/api/envios', { method: 'POST', headers: H, body: JSON.stringify({
+    cliente_id: cli3.id, fecha: hoy, courier: 'UPS', tipo_envio: 'exportacion', servicio_ups: 'UPS_EXP', destinatario_id: dest.id,
+    numero_guia: '1Z000DESG000000005', pais_destino: 'Estados Unidos', fob: 120, total_cobrado: 400,
+    bultos: [{ peso_real: 30, largo: 60, ancho: 50, alto: 50 }] }) }));
+  const e5b = await j(await fetch(BASE + '/api/envios', { method: 'POST', headers: H, body: JSON.stringify({
+    cliente_id: cli3.id, fecha: hoy, courier: 'DHL', tipo_envio: 'exportacion',
+    numero_guia: 'DHLDESG000000006', pais_destino: 'Estados Unidos', fob: 120, total_cobrado: 250,
+    bultos: [{ peso_real: 5, largo: 30, ancho: 20, alto: 20 }] }) }));
+  // Destinatario tipeado a mano (16/10): el envío sin libreta lo lleva en destinatario_nombre,
+  // editable por PUT y visible en el listado de Salidas; con libreta manda la libreta.
+  const e5c = await j(await fetch(BASE + '/api/envios', { method: 'POST', headers: H, body: JSON.stringify({
+    cliente_id: cli3.id, fecha: hoy, courier: 'DHL', tipo_envio: 'exportacion', destinatario_nombre: '  Tienda del Centro  ',
+    numero_guia: 'DHLDESG000000007', pais_destino: 'Chile', fob: 50, total_cobrado: 100,
+    bultos: [{ peso_real: 2, largo: 20, ancho: 20, alto: 20 }] }) }));
+  check('el alta guarda el destinatario tipeado (recortado)', e5c.destinatario_nombre === 'Tienda del Centro', JSON.stringify(e5c.destinatario_nombre));
+  const e5cPut = await j(await fetch(BASE + `/api/envios/${e5c.id}`, { method: 'PUT', headers: H, body: JSON.stringify({ destinatario_nombre: 'Tienda del Sur' }) }));
+  check('   y el PUT lo cambia', e5cPut.destinatario_nombre === 'Tienda del Sur', JSON.stringify(e5cPut.destinatario_nombre));
+  const salList = await j(await fetch(BASE + `/api/salidas?desde=${hoy}&hasta=${hoy}`, { headers: H }));
+  const salA = salList.find((x) => x.id === e5a.id); const salC = salList.find((x) => x.id === e5c.id);
+  check('   Salidas lista el de la libreta y el tipeado por separado', salA && salA.destinatario_libreta === 'ACME MIAMI LLC' && salC && salC.destinatario_nombre === 'Tienda del Sur' && !salC.destinatario_libreta, JSON.stringify([salA && [salA.destinatario_libreta, salA.destinatario_nombre], salC && [salC.destinatario_libreta, salC.destinatario_nombre]]));
+  const prev5 = await j(await fetch(BASE + '/api/liquidaciones/preview', { method: 'POST', headers: H, body: JSON.stringify({ cliente_id: cli3.id, envio_ids: [e5a.id, e5b.id, e5c.id] }) }));
+  check('la vista previa trae el destinatario de cada envío (libreta, tipeado, o vacío) y el formato sugerido', prev5.formato_sugerido === 'estandar' && prev5.items.find((i) => i.envio_id === e5a.id).envio.destinatario_nombre === 'ACME MIAMI LLC' && prev5.items.find((i) => i.envio_id === e5c.id).envio.destinatario_nombre === 'Tienda del Sur' && prev5.items.find((i) => i.envio_id === e5b.id).envio.destinatario_nombre == null, JSON.stringify(prev5.items.map((i) => i.envio.destinatario_nombre)));
+  const liq5 = await j(await fetch(BASE + '/api/liquidaciones', { method: 'POST', headers: H, body: JSON.stringify({ cliente_id: cli3.id, periodo_desde: hoy, periodo_hasta: hoy, envio_ids: [e5a.id, e5b.id, e5c.id], cargos: [{ envio_id: e5a.id, descripcion: 'Embalaje', monto: 12 }], confirmar: true, formato: 'detallado' }) }));
+  check('la liquidación guarda el formato pedido', liq5.id && (await j(await fetch(BASE + `/api/liquidaciones/${liq5.id}`, { headers: H }))).formato === 'detallado');
+  const rx5 = await fetch(BASE + `/api/liquidaciones/${liq5.id}/export`, { headers: { Cookie: `nova_session=${TOKEN}` } });
+  const buf5 = Buffer.from(await rx5.arrayBuffer());
+  const out5 = process.env.XLSX_OUT ? process.env.XLSX_OUT.replace(/\.xlsx$/, '-detallado.xlsx') : path.join(require('os').tmpdir(), 'liquidacion-detallado-test.xlsx');
+  fs.writeFileSync(out5, buf5);
+  const wb5 = new ExcelJS.Workbook(); await wb5.xlsx.load(buf5);
+  const ws5 = wb5.getWorksheet('Liquidacion');
+  const cab5 = []; ws5.getRow(7).eachCell((c) => cab5.push(String(c.value)));
+  check('la cabecera tiene DESTINATARIO como tercera columna y 14 columnas', cab5[2] === 'DESTINATARIO' && cab5.length === 14 && cab5[13] === 'TOTAL USD', cab5.join('|'));
+  const filas5 = []; ws5.eachRow((row, n) => { if (n >= 8) filas5.push([n, String(row.getCell(2).value ?? ''), String(row.getCell(3).value ?? ''), row.getCell(13).value, row.getCell(14).value]); });
+  const fUps = filas5.find((f) => f[1] === '1Z000DESG000000005');
+  const fDhl = filas5.find((f) => f[1] === 'DHLDESG000000006');
+  const fChi = filas5.find((f) => f[1] === 'DHLDESG000000007');
+  check('cada envío muestra su destinatario (libreta, tipeado, o vacío)', fUps && fUps[2] === 'ACME MIAMI LLC' && fChi && fChi[2] === 'Tienda del Sur' && fDhl && fDhl[2] === '', JSON.stringify([fUps, fChi, fDhl]));
+  // Los renglones ↳ que siguen al envío UPS, hasta el próximo envío.
+  const subFilas = []; for (let i = filas5.indexOf(fUps) + 1; i < filas5.length && /^\s*↳ /.test(filas5[i][1]); i++) subFilas.push(filas5[i]);
+  const despuesUps = subFilas.map((f) => f[1]);
+  check('debajo del UPS van sus extracargos (surge, manejo, procesamiento, embalaje) con ↳', despuesUps.length === 4 && despuesUps.some((t) => /Embalaje/.test(t)) && despuesUps.some((t) => /Surge/.test(t)) && despuesUps.some((t) => /Manejo/.test(t)), JSON.stringify(despuesUps));
+  const subUps = subFilas.reduce((s, f) => s + (Number(f[3]) || 0), 0);
+  check('  y sus montos suman la columna ADICIONAL del envío', Math.abs(subUps - Number(fUps[3])) < 0.011, `${subUps} vs ${fUps[3]}`);
+  const textos5 = []; ws5.eachRow((row) => row.eachCell((c) => { if (c.value != null) textos5.push(String(c.value)); }));
+  check('ya no hay sección "DETALLE DE ADICIONALES" al pie', !textos5.includes('DETALLE DE ADICIONALES'));
+  const totalRow5 = filas5.find((f) => String(ws5.getRow(f[0]).getCell(1).value) === 'TOTAL');
+  check('la fila TOTAL cierra en la columna 14', totalRow5 && Math.abs(Number(totalRow5[4]) - (400 + 12 + 250 + 100)) < 0.011, JSON.stringify(totalRow5));
+  console.log(`   (Excel detallado de muestra en ${out5})`);
 
   matarSrv();
   console.log('\n' + '─'.repeat(60));

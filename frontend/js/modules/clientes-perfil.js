@@ -141,6 +141,9 @@
     { key: 'tarifa_pct',           label: '% Tarifa general',      type: 'number' },
     { key: 'plazo_pago_dias',      label: 'Plazo de pago (días)',  type: 'number', vacioTxt: 'sin definir' },
     { key: 'tipo_cambio',          label: 'Tipo de cambio',        type: 'select', opts: ['venta','promedio'], labels: ['Nación venta','Nación promedio'] },
+    // 16/10: formato del Excel de liquidación. El detallado suma la columna Destinatario y pone
+    // los extracargos debajo de cada envío (lo pidió un cliente; se puede cambiar al liquidar).
+    { key: 'liquidacion_formato',  label: 'Formato de liquidación', type: 'select', opts: ['estandar','detallado'], labels: ['Estándar','Detallado (destinatario + extracargos por envío)'] },
     { sec: 'Contacto y recolección' },
     { key: 'contacto',             label: 'Contacto',              type: 'text' },
     { key: 'whatsapp',             label: 'WhatsApp',              type: 'text' },

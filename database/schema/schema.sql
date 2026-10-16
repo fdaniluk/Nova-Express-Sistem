@@ -134,6 +134,8 @@ CREATE TABLE IF NOT EXISTS liquidaciones (
   moneda             TEXT NOT NULL DEFAULT 'USD',
   numero_factura     TEXT,
   fecha_confirmacion TEXT,
+  -- 16/10/2026: formato del Excel ('estandar' | 'detallado').
+  formato            TEXT NOT NULL DEFAULT 'estandar',
   FOREIGN KEY (cliente_id) REFERENCES clientes(id)
 );
 
@@ -267,6 +269,8 @@ CREATE TABLE IF NOT EXISTS envios (
   proforma_numero      TEXT,
   guia_id              INTEGER,
   remitente_id         INTEGER,
+  -- 16/10/2026: destinatario tipeado a mano en Cargar envío (opcional); si hay destinatario_id, manda la libreta.
+  destinatario_nombre  TEXT,
   FOREIGN KEY (cliente_id) REFERENCES clientes(id),
   FOREIGN KEY (liquidacion_id) REFERENCES liquidaciones(id)
 );

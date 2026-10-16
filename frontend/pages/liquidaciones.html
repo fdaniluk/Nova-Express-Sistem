@@ -6,7 +6,7 @@
   <title>Liquidaciones – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260929a">
-  <link rel="stylesheet" href="../css/modules/liquidaciones.css?v=20261009a">
+  <link rel="stylesheet" href="../css/modules/liquidaciones.css?v=20261016a">
 </head>
 <body>
 <div class="app-layout">
@@ -233,11 +233,17 @@
               </div>
               <div class="liq-paso-cuerpo">
                 <div id="liq-preview" class="liq-preview hidden">
+                  <!-- Formato del Excel (16/10/2026, pedido de un cliente): el detallado suma la columna
+                       Destinatario y pone los extracargos debajo de cada envío. Arranca con el preferido
+                       del cliente (ficha) y se puede cambiar para esta liquidación. -->
+                  <label class="liq-formato" id="liq-formato-wrap" title="Suma la columna Destinatario y pone los extracargos de cada envío debajo del envío, en vez de la sección al pie">
+                    <input type="checkbox" id="liq-formato-detallado"> Formato detallado <small>(destinatario por envío · extracargos debajo de cada envío)</small>
+                  </label>
                   <div class="liq-tabla-wrap">
                     <table class="liq-tabla">
                       <thead>
                         <tr>
-                          <th>Guía</th><th class="n">Flete</th><th class="n">Fuel</th><th class="n">Seguro</th>
+                          <th>Guía</th><th class="liq-col-remitente hidden">Destinatario</th><th class="n">Flete</th><th class="n">Fuel</th><th class="n">Seguro</th>
                           <th class="n">Adicional</th><th class="n">Total USD</th>
                           <th class="liq-interno" title="Dato interno: no va al Excel del cliente">Profit (interno)</th>
                         </tr>
@@ -323,8 +329,8 @@
 </div>
 
 <script src="/js/auth-guard.js?v=20260924b"></script>
-<script src="../js/api.js?v=20261015b"></script>
+<script src="../js/api.js?v=20261016a"></script>
 <script src="../js/main.js?v=20260929a"></script>
-<script src="../js/modules/liquidaciones.js?v=20261009b"></script>
+<script src="../js/modules/liquidaciones.js?v=20261016a"></script>
 </body>
 </html>

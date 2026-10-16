@@ -2445,6 +2445,10 @@
                 <label>País destino *</label>
                 <select id="saled-pais-destino"></select>
               </div>
+              <div class="form-group" style="grid-column:span 2">
+                <label>Destinatario <small>(opcional)</small></label>
+                <input type="text" id="saled-destinatario" maxlength="80" placeholder="Nombre o empresa que recibe">
+              </div>
               <div class="form-group">
                 <label>Bulto</label>
                 <input type="text" id="saled-bulto">
@@ -2735,6 +2739,12 @@
     document.getElementById('saled-guia').value = envio.numero_guia ?? '';
     document.getElementById('saled-numero-salida').value = envio.numero_salida ?? '';
     document.getElementById('saled-bulto').value = envio.bulto ?? '';
+    // Destinatario (16/10): si el envío vino de una guía manda la libreta (solo lectura).
+    const dnM = document.getElementById('saled-destinatario');
+    const dnLibreta = envio.destinatario_libreta || (envio.destinatario && envio.destinatario.nombre) || '';
+    dnM.value = dnLibreta || envio.destinatario_nombre || '';
+    dnM.readOnly = !!dnLibreta;
+    dnM.title = dnM.readOnly ? 'Viene de la guía emitida: se cambia desde Guías' : '';
     document.getElementById('saled-tipo-paquete').value = envio.tipo_paquete ?? '';
     document.getElementById('saled-direccion').value = envio.direccion || 'expo';
     document.getElementById('saled-asegurado').checked = Boolean(envio.asegurado);
@@ -3927,6 +3937,7 @@
       numero_guia:    guia,
       numero_salida:  document.getElementById('saled-numero-salida').value !== '' ? Number(document.getElementById('saled-numero-salida').value) : null,
       bulto:          document.getElementById('saled-bulto').value.trim() || null,
+      destinatario_nombre: document.getElementById('saled-destinatario').readOnly ? undefined : (document.getElementById('saled-destinatario').value.trim() || null),
       tipo_paquete:   document.getElementById('saled-tipo-paquete').value || null,
       direccion:      document.getElementById('saled-direccion').value,
       asegurado:      document.getElementById('saled-asegurado').checked ? 1 : 0,

@@ -840,6 +840,7 @@
         num_sal_cero: document.getElementById('sin_numerar').checked ? 1 : 0,
         entrega: document.getElementById('entrega').value,
         cp_destino: document.getElementById('cp_destino').value.trim() || null,
+        destinatario_nombre: document.getElementById('destinatario_nombre').value.trim() || null,
         // `remota` se sigue guardando por compatibilidad: hay pantallas y consultas que
         // lo leen, y los envíos viejos solo tienen ese flag.
         remota: document.getElementById('entrega').value !== 'normal' ? 1 : 0,
@@ -882,6 +883,7 @@
     precargaActual = null;
     document.getElementById('guia-id').value = '';
     document.getElementById('form-envio').reset();
+    const dnR = document.getElementById('destinatario_nombre'); if (dnR) { dnR.readOnly = false; dnR.title = ''; }
     updatePaisLabel();
     profitTocado = false;
     seguroTocado = false;
@@ -958,6 +960,11 @@
     // Envío viejo: solo tiene el flag `remota`, que equivalía a la tarifa de extendida.
     document.getElementById('entrega').value = envio.entrega || (envio.remota ? 'extendida' : 'normal');
     document.getElementById('cp_destino').value = envio.cp_destino || '';
+    // Destinatario: si vino de una guía manda el de la libreta (solo lectura); si no, lo tipeado.
+    const dn = document.getElementById('destinatario_nombre');
+    dn.value = (envio.destinatario && envio.destinatario.nombre) || envio.destinatario_nombre || '';
+    dn.readOnly = !!(envio.destinatario && envio.destinatario.nombre);
+    dn.title = dn.readOnly ? 'Viene de la guía emitida: se cambia desde Guías' : '';
     document.getElementById('total_cobrado').value = envio.total_cobrado;
     document.getElementById('descuento_venta_pct').value = envio.descuento_venta_pct || '';
     document.getElementById('observaciones').value = envio.observaciones || '';

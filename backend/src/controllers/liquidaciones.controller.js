@@ -35,7 +35,7 @@ async function crear(req, res, next) {
   try {
     const {
       cliente_id, periodo_desde, periodo_hasta, envio_ids, cargos, cotizaciones, confirmar,
-      reemplazar_borradores, permitir_duplicado,
+      reemplazar_borradores, permitir_duplicado, formato,
     } = req.body;
     if (!cliente_id || !periodo_desde || !periodo_hasta || !Array.isArray(envio_ids)) {
       return res
@@ -53,6 +53,7 @@ async function crear(req, res, next) {
       reemplazar_borradores: Array.isArray(reemplazar_borradores) ? reemplazar_borradores : [],
       permitir_duplicado: Boolean(permitir_duplicado),
       usuario: req.usuario ? req.usuario.usuario : null,
+      formato: formato || null,
     });
     res.status(201).json(liq);
   } catch (e) {
@@ -68,7 +69,7 @@ async function confirmar(req, res, next) {
     // La pantalla manda su selección actual y el modelo la compara con el borrador: si
     // difieren, 409 (el borrador pegado — sospecha 6 de AUDITORIA-NUMEROS.md).
     const esperados = Array.isArray(req.body && req.body.envio_ids) ? req.body.envio_ids : null;
-    const liq = await liquidacionModel.confirmar(req.params.id, esperados, req.usuario ? req.usuario.usuario : null);
+    const liq = await liquidacionModel.confirmar(req.params.id, esperados, req.usuario ? req.usuario.usuario : null, req.body && req.body.formato);
     if (!liq) return res.status(404).json({ error: 'Liquidación no encontrada' });
     res.json(liq);
   } catch (e) {
