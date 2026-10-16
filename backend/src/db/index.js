@@ -1516,8 +1516,44 @@ async function initSchema() {
   await migrateBotCanales();
   await migrateConsultas();
   await migrateCostos();
+  await migrateHistorico();
   await migrateIndices();
   await seedIfEmpty();
+}
+
+// Envíos HISTÓRICOS (16/10/2026): lo que está en las planillas SALIDAS de antes del sistema
+// (dic-2023 en adelante), cargado con scripts/importar-historico.js para que el Dashboard
+// muestre más de tres meses. Es una tabla APARTE a propósito: Salidas, Cobranzas,
+// Liquidaciones, Facturas y Operaciones no la ven ni la tocan (ya están liquidados y
+// cobrados en el mundo viejo). Solo la lee analitica.service.js, que los suma como si
+// fueran envíos (misma venta, compra estimada y profit que un envío sin factura cruzada).
+// Un envío de la planilla cuya guía ya está en `envios` no se importa: manda el sistema.
+async function migrateHistorico() {
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS envios_historicos (
+      id               INTEGER PRIMARY KEY AUTOINCREMENT,
+      cliente_id       INTEGER NOT NULL REFERENCES clientes(id),
+      fecha            TEXT NOT NULL,
+      courier          TEXT NOT NULL,
+      tipo_envio       TEXT NOT NULL DEFAULT 'exportacion',
+      numero_guia      TEXT,
+      pais_destino     TEXT,
+      tipo_cobro       TEXT,
+      cantidad_bultos  INTEGER NOT NULL DEFAULT 1,
+      peso_real        REAL,
+      peso_volumetrico REAL,
+      peso_facturable  REAL,
+      total_cobrado    REAL NOT NULL DEFAULT 0,
+      flete            REAL, descuento REAL, seguro REAL, fuel REAL, derechos REAL, adicionales REAL, otros REAL,
+      cargos_post      REAL NOT NULL DEFAULT 0,
+      cliente_excel    TEXT,
+      hoja             TEXT,
+      importado_at     TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      UNIQUE (numero_guia, fecha)
+    );
+    CREATE INDEX IF NOT EXISTS idx_hist_fecha ON envios_historicos(fecha);
+    CREATE INDEX IF NOT EXISTS idx_hist_cliente ON envios_historicos(cliente_id);
+  `);
 }
 
 async function seedIfEmpty() {

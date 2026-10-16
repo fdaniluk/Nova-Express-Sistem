@@ -283,12 +283,36 @@ const SQL_ENVIOS = `
   LEFT JOIN (${SUBQUERY_CARGOS}) cp ON cp.envio_id = e.id
   WHERE e.fecha >= ? AND e.fecha < ? AND e.no_volo = 0`;
 
+// HISTÓRICOS (16/10/2026): los envíos de las planillas de antes del sistema
+// (envios_historicos, cargados con scripts/importar-historico.js) entran a la analítica con
+// la misma forma que un envío sin factura cruzada: venta = total_cobrado, compra = desglose
+// estimado, profit derivado. id negativo para que no choque con un envío real; liquidado = 1
+// (en el mundo viejo ya se cobraron) y sin fecha de liquidación (no entran en "días hasta
+// liquidar"). "Plata en la calle" NO los mira: es lo que hay que resolver hoy.
+const SQL_HISTORICOS = `
+  SELECT
+    -h.id AS id, h.fecha, h.courier, h.tipo_envio, h.pais_destino, h.cliente_id, h.numero_guia,
+    c.nombre AS cliente_nombre, c.nombre_nova AS cliente_nombre_nova,
+    h.cantidad_bultos, h.peso_real, h.peso_volumetrico, h.peso_facturable, NULL AS peso_facturado,
+    h.total_cobrado AS total,
+    h.flete, h.descuento, h.seguro, h.fuel, h.derechos, h.adicionales, h.otros,
+    NULL AS profit, NULL AS porcentaje,
+    NULL AS estado_revision, NULL AS costo_facturado, NULL AS fecha_facturado,
+    1 AS liquidado, NULL AS fecha_liquidacion, h.importado_at AS created_at,
+    NULL AS utilidad_liq, NULL AS venta_liq, h.cargos_post AS cargos_post, 0 AS cargos_ddp,
+    1 AS historico
+  FROM envios_historicos h
+  JOIN clientes c ON c.id = h.cliente_id
+  WHERE h.fecha >= ? AND h.fecha < ?`;
+
 async function leerEnvios(db, desde, hasta, filtros) {
   let sql = SQL_ENVIOS;
+  let sqlH = SQL_HISTORICOS;
   const params = [desde, hasta];
-  if (filtros.courier) { sql += ' AND e.courier = ?'; params.push(filtros.courier); }
-  if (filtros.tipo) { sql += ' AND e.tipo_envio = ?'; params.push(filtros.tipo); }
-  return db.prepare(sql).all(...params);
+  if (filtros.courier) { sql += ' AND e.courier = ?'; sqlH += ' AND h.courier = ?'; params.push(filtros.courier); }
+  if (filtros.tipo) { sql += ' AND e.tipo_envio = ?'; sqlH += ' AND h.tipo_envio = ?'; params.push(filtros.tipo); }
+  const [propios, historicos] = await Promise.all([db.prepare(sql).all(...params), db.prepare(sqlH).all(...params)]);
+  return historicos.length ? propios.concat(historicos) : propios;
 }
 
 // ── Agregación ─────────────────────────────────────────────────────────────────
@@ -543,7 +567,14 @@ async function analitica(q = {}) {
   // Cliente nuevo = su PRIMER envío (que voló) cae en el período. Antes se miraba la fecha
   // de alta de la ficha, y la carga masiva de tarifarios del 28/09 creó ~100 fichas de
   // golpe: septiembre decía "102 clientes nuevos" (14/10).
-  const SQL_NUEVOS = `SELECT COUNT(*) AS n FROM (SELECT cliente_id, MIN(fecha) AS primera FROM envios WHERE no_volo = 0 GROUP BY cliente_id) WHERE primera >= ? AND primera < ?`;
+  // Los históricos cuentan: si no, cuando se cargan las planillas todos los clientes de
+  // siempre parecen nuevos en el mes en que el sistema arrancó.
+  const SQL_NUEVOS = `SELECT COUNT(*) AS n FROM (
+      SELECT cliente_id, MIN(fecha) AS primera FROM (
+        SELECT cliente_id, fecha FROM envios WHERE no_volo = 0
+        UNION ALL SELECT cliente_id, fecha FROM envios_historicos
+      ) GROUP BY cliente_id
+    ) WHERE primera >= ? AND primera < ?`;
   const nuevos = await db.prepare(SQL_NUEVOS).get(desde, hasta);
   const nuevosAnt = await db.prepare(SQL_NUEVOS).get(comp.desde, comp.hasta);
   const ritmo = { ...ritmoDe(envios, desde, hasta), clientes_nuevos: nuevos.n || 0, ant: { ...ritmoDe(enviosAnt, comp.desde, comp.hasta), clientes_nuevos: nuevosAnt.n || 0 } };
@@ -602,6 +633,7 @@ async function detalle(q = {}) {
       compra: r2(compra), compra_origen: e.costo_facturado != null ? 'real' : 'estimado',
       profit: profit == null ? null : r2(profit), margen_pct: profit != null && compra > 0 ? r1((profit / compra) * 100) : null,
       liquidado: !!e.liquidado, dias: diasEntre(e.fecha, hoy),
+      historico: !!e.historico,
     };
   };
   const porCourier = {};

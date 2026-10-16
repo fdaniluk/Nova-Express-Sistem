@@ -660,7 +660,8 @@
     const celda = (f, [c, , fmt]) => {
       const v = f[c];
       if (fmt === 'fecha') return `<td>${fmtDia(v)}</td>`;
-      if (fmt === 'guia') return `<td><a href="pages/salidas.html?buscar=${encodeURIComponent(v || '')}" title="Abrir en Salidas">${esc(v || '—')}</a></td>`;
+      // Histórico (planillas de antes del sistema, 16/10): no está en Salidas, no se linkea.
+      if (fmt === 'guia') return f.historico ? `<td title="Envío de la planilla de antes del sistema">${esc(v || '—')} <small class="hist">planilla</small></td>` : `<td><a href="pages/salidas.html?buscar=${encodeURIComponent(v || '')}" title="Abrir en Salidas">${esc(v || '—')}</a></td>`;
       if (fmt === 'cliente') return `<td><a href="pages/clientes-perfil.html?id=${f.cliente_id}">${esc(v)}</a></td>`;
       if (fmt === 'tipo') return `<td>${v === 'importacion' ? 'Impo' : 'Expo'}</td>`;
       if (fmt === 'origen') return `<td><span class="orig${v === 'real' ? ' real' : ''}">${v === 'real' ? 'Real' : 'Estimado'}</span></td>`;
