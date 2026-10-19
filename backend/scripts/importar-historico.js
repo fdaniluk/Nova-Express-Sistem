@@ -20,7 +20,8 @@
  *     se resuelve en scripts/historico-alias.json ("nombre de la planilla": id de cliente,
  *     o null para dejarlo afuera a propósito). Lo que no está en ningún lado queda afuera y
  *     se lista en la vista previa.
- *   · Una guía que ya está en `envios` (el sistema) no se importa: manda el sistema.
+ *   · Una guía que también está en `envios` (el sistema) se importa igual: en el Dashboard manda
+ *     la planilla; el resto del sistema no cambia.
  *   · NO VOLÓ queda afuera. Filas sin venta y sin compra quedan afuera.
  *   · Los cargos posteriores (sección de arriba de cada hoja: "ddp 25,76", "residential 6")
  *     se suman al envío de esa guía como cargos_post (al costo, sin profit).
@@ -56,76 +57,104 @@ const num = (v) => {
 };
 const txt = (v) => (v == null ? '' : String(v).trim());
 const esFecha = (v) => v instanceof Date && !Number.isNaN(v.getTime());
-// La fecha de la celda viene como Date local; se toma el día que muestra la planilla.
-const iso = (d) => { const x = new Date(d.getTime() + 12 * 3600 * 1000); return `${x.getUTCFullYear()}-${String(x.getUTCMonth() + 1).padStart(2, '0')}-${String(x.getUTCDate()).padStart(2, '0')}`; };
+// La fecha de la celda viene como Date en la zona del proceso (xlsx la arma así): se toma el
+// día local tal cual, sin pasar por UTC.
+const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const normalizar = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
   .replace(/\b(sin cargo|s\/c|srl|s\.r\.l\.?|sa|s\.a\.?)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
 const guiaNorm = (g) => txt(g).toUpperCase().replace(/\s+/g, '');
 
 // ── Leer la planilla ───────────────────────────────────────────────────────────
+// La planilla es la verdad (Felipe, 19/10/2026): lo que suma la oficina por hoja tiene que
+// dar igual en el Dashboard. Por eso:
+//   · el MES del envío es el de la HOJA (la fila con fecha 2025 en la hoja MAYO 2026 es un
+//     año mal tipeado; la de marzo en la hoja ABRIL la oficina la cuenta en abril);
+//   · los kilos facturables son la columna de la planilla tal cual (si está vacía, se
+//     calculan por bulto);
+//   · NO VOLÓ se busca en cualquier celda de la fila;
+//   · los bultos de una guía se juntan aunque "2 de 2" venga antes que "1 de 2" (pasaba y
+//     el envío quedaba sin venta).
+const MESES = { ENERO: 1, FEBRERO: 2, MARZO: 3, ABRIL: 4, MAYO: 5, JUNIO: 6, JULIO: 7, AGOSTO: 8, SEPTIEMBRE: 9, SETIEMBRE: 9, OCTUBRE: 10, NOVIEMBRE: 11, DICIEMBRE: 12 };
+function mesDeHoja(nombre) {
+  const m = nombre.trim().toUpperCase().match(/^([A-ZÑ]+)\s+(\d{4})$/);
+  if (!m || !MESES[m[1]]) return null;
+  return `${m[2]}-${String(MESES[m[1]]).padStart(2, '0')}`;
+}
+const ultimoDia = (ym) => { const [y, m] = ym.split('-').map(Number); return new Date(Date.UTC(y, m, 0)).getUTCDate(); };
+
 function leerPlanilla(archivo) {
   const wb = XLSX.readFile(archivo, { cellDates: true });
-  const envios = new Map(); // guia|fecha → envío
+  const envios = new Map(); // guia|mes → envío
   const cargos = [];        // { guia, monto, detalle }
-  let duplicados = 0;
+  let duplicados = 0, sinDatos = 0;
   for (const nombre of wb.SheetNames) {
-    if (nombre.trim() === 'Hoja1') continue;
+    const mesHoja = mesDeHoja(nombre);
+    if (!mesHoja) continue;
     const filas = XLSX.utils.sheet_to_json(wb.Sheets[nombre], { header: 1, raw: true, defval: null });
     const conFecha = filas.filter((r) => esFecha(r[2]));
-    const datos = conFecha.filter((r) => COURIERS[txt(r[1]).toUpperCase()] && (num(r[8]) != null || num(r[9]) != null));
-    if (!datos.length) continue;
-    // Sección de arriba de la hoja: cargos posteriores de guías ya despachadas ("ddp 25,76",
-    // "residential 6"), con o sin courier y sin kilos. El monto es el número final del texto.
-    for (const r of conFecha) {
-      if (datos.includes(r)) continue;
-      const guia = guiaNorm(r[3]);
-      const detalle = [txt(r[6]), txt(r[5]), txt(r[7])].find((t) => /\d\s*$/.test(t) && !/^\d+\s*de\s*\d+$/i.test(t)) || '';
-      const m = detalle.match(/(-?\d+(?:[.,]\d+)?)\s*$/);
-      if (guia && m) cargos.push({ guia, monto: num(m[1]) || 0, detalle });
-    }
+    const conCourier = conFecha.filter((r) => COURIERS[txt(r[1]).toUpperCase()]);
+    if (!conCourier.length) continue;
     // Layout nuevo (col E = tipo de cobro) o viejo (sin esa columna): corre todo una columna.
-    const conTipo = datos.filter((r) => TIPOS_COBRO.has(txt(r[4]).toUpperCase())).length;
-    const o = conTipo > datos.length / 2 ? 1 : 0;
+    const conTipo = conCourier.filter((r) => TIPOS_COBRO.has(txt(r[4]).toUpperCase())).length;
+    const o = conTipo > conCourier.length / 2 ? 1 : 0;
     const I = { cliente: 4 + o, pais: 5 + o, bulto: 6 + o, real: 8 + o, vol: 12 + o, fact: 13 + o };
     // FLETE por cabecera; la venta está dos columnas a la izquierda.
     let flete = null;
     for (const r of filas) { const j = r.findIndex((c) => typeof c === 'string' && c.trim().toUpperCase() === 'FLETE'); if (j >= 0) { flete = j; break; } }
     const I_VENTA = flete != null ? flete - 2 : 19;
     const I_COSTO = flete != null ? flete : 21;
-    let actual = null;
-    for (const r of datos) {
+    for (const r of conFecha) {
       const guia = guiaNorm(r[3]);
-      const fecha = iso(r[2]);
-      const real = num(r[I.real]); const vol = num(r[I.vol]);
+      const real = num(r[I.real]); const vol = num(r[I.vol]); const fact = num(r[I.fact]);
+      const venta = num(r[I_VENTA]);
+      const esEnvio = COURIERS[txt(r[1]).toUpperCase()] && (real != null || vol != null || fact != null || venta != null);
+      if (!esEnvio) {
+        // Sección de arriba de la hoja: cargos posteriores de guías ya despachadas ("ddp 25,76",
+        // "residential 6"), con o sin courier y sin kilos. El monto es el número final del texto.
+        const detalle = [txt(r[6]), txt(r[5]), txt(r[7])].find((t) => /\d\s*$/.test(t) && !/^\d+\s*de\s*\d+$/i.test(t)) || '';
+        const m = detalle.match(/(-?\d+(?:[.,]\d+)?)\s*$/);
+        if (guia && m) cargos.push({ guia, monto: num(m[1]) || 0, detalle });
+        else sinDatos++;
+        continue;
+      }
+      // Fecha: el mes de la hoja con el día de la fila.
+      const d = iso(r[2]);
+      const dia = Math.min(Number(d.slice(8, 10)), ultimoDia(mesHoja));
+      const fecha = `${mesHoja}-${String(dia).padStart(2, '0')}`;
       const bulto = txt(r[I.bulto]).toLowerCase();
       const mb = bulto.match(/(\d+)\s*de\s*(\d+)/);
-      const k = mb ? Number(mb[1]) : 1;
-      const estado = r.slice(16, 20).filter((x) => typeof x === 'string').join(' ').toUpperCase();
-      if (k === 1 || !actual || actual.guia !== guia) {
-        const clave = `${guia}|${fecha}`;
-        if (envios.has(clave) && k === 1) { duplicados++; actual = envios.get(clave); actual._dup = true; continue; }
-        const costo = (j) => num(r[I_COSTO + j]);
-        actual = {
-          guia, fecha, courier: COURIERS[txt(r[1]).toUpperCase()], hoja: nombre.trim(),
-          tipo_cobro: o ? txt(r[4]).toUpperCase() || null : null,
-          cliente_excel: txt(r[I.cliente]).toLowerCase().replace(/\s+/g, ' '),
-          pais: txt(r[I.pais]).toLowerCase(),
-          fact_col: num(r[I.fact]), fact_sum: 0, real: 0, vol: 0, bultos: 0,
-          venta: num(r[I_VENTA]) || 0,
-          flete: costo(0), descuento: costo(1), seguro: costo(2), fuel: costo(3), derechos: costo(4), adicionales: costo(5), otros: costo(6),
-          no_volo: /NO VOL[OÓ]/.test(estado), cargos_post: 0,
-        };
-        envios.set(clave, actual);
+      const cabecera = !mb || Number(mb[1]) === 1;
+      const noVolo = r.slice(0, 36).some((c) => typeof c === 'string' && /NO VOL[OÓ]/i.test(c));
+      const clave = `${guia || 'SINGUIA-' + fecha + '-' + txt(r[I.cliente])}|${mesHoja}`;
+      let e = envios.get(clave);
+      if (e && cabecera && e.tiene_cabecera) { duplicados++; continue; }
+      if (!e) {
+        e = { guia, fecha, mes: mesHoja, courier: COURIERS[txt(r[1]).toUpperCase()], hoja: nombre.trim(), tiene_cabecera: false,
+          tipo_cobro: null, cliente_excel: '', pais: '', fact_col: null, fact_sum: 0, real: 0, vol: 0, bultos: 0, venta: 0,
+          flete: null, descuento: null, seguro: null, fuel: null, derechos: null, adicionales: null, otros: null, no_volo: false, cargos_post: 0 };
+        envios.set(clave, e);
       }
-      if (actual._dup) continue;
-      actual.real += real || 0; actual.vol += vol || 0;
-      actual.fact_sum += Math.ceil(Math.max(real || 0, vol || 0) * 2) / 2;
-      actual.bultos += 1;
+      if (cabecera || !e.cliente_excel) {
+        const costo = (j) => num(r[I_COSTO + j]);
+        Object.assign(e, {
+          fecha, tiene_cabecera: e.tiene_cabecera || cabecera,
+          tipo_cobro: o ? txt(r[4]).toUpperCase() || null : null,
+          cliente_excel: txt(r[I.cliente]).toLowerCase().replace(/\s+/g, ' ') || e.cliente_excel,
+          pais: txt(r[I.pais]).toLowerCase() || e.pais,
+          fact_col: fact != null ? fact : e.fact_col, venta: venta != null ? venta : e.venta,
+          flete: costo(0), descuento: costo(1), seguro: costo(2), fuel: costo(3), derechos: costo(4), adicionales: costo(5), otros: costo(6),
+        });
+      }
+      if (noVolo) e.no_volo = true;
+      e.real += real || 0; e.vol += vol || 0;
+      e.fact_sum += Math.ceil(Math.max(real || 0, vol || 0) * 2) / 2;
+      e.bultos += 1;
     }
   }
   const lista = [...envios.values()].map((e) => {
     delete e._dup;
-    e.fact = e.fact_col && e.fact_col > 0 && e.fact_col >= e.fact_sum * 0.5 ? e.fact_col : e.fact_sum;
+    delete e.tiene_cabecera;
+    e.fact = e.fact_col != null && e.fact_col > 0 ? e.fact_col : e.fact_sum;
     return e;
   });
   // Cargos posteriores → al envío de esa guía (el más reciente si la guía se repite).
@@ -133,7 +162,7 @@ function leerPlanilla(archivo) {
   for (const e of lista) if (e.guia) { const p = porGuia.get(e.guia); if (!p || p.fecha < e.fecha) porGuia.set(e.guia, e); }
   let cargosSinEnvio = 0;
   for (const c of cargos) { const e = porGuia.get(c.guia); if (e) e.cargos_post = r2(e.cargos_post + c.monto); else cargosSinEnvio++; }
-  return { lista, duplicados, cargos: cargos.length, cargosSinEnvio };
+  return { lista, duplicados, sinDatos, cargos: cargos.length, cargosSinEnvio };
 }
 
 // ── Cruce de clientes ──────────────────────────────────────────────────────────
@@ -172,21 +201,18 @@ function armarCruce(clientes, alias) {
   const clientes = await db.prepare('SELECT id, nombre, nombre_nova FROM clientes').all();
   const nombreDe = new Map(clientes.map((c) => [c.id, c.nombre]));
   const cruzar = armarCruce(clientes, alias);
-  // Guías que el sistema ya tiene CON precio: mandan y la planilla no las importa. Las que el
-  // sistema tiene SIN precio (los envíos de julio 2026 se cargaron sin cotización: 135 de 172
-  // sin venta, 16/10) sí se importan de la planilla, y la analítica deja de contar el envío
-  // del sistema para esa guía (ver SQL_HISTORICOS / leerEnvios). Salidas no cambia.
-  const conPrecio = new Set(); const sinPrecio = new Set();
-  for (const r of await db.prepare("SELECT numero_guia, total_cobrado FROM envios WHERE numero_guia IS NOT NULL AND numero_guia <> '' AND no_volo = 0").all()) {
-    (Number(r.total_cobrado) > 0 ? conPrecio : sinPrecio).add(guiaNorm(r.numero_guia));
-  }
+  // Guías que también están en el sistema: se importan igual, y para el Dashboard manda la
+  // planilla (19/10/2026, Felipe: "las salidas son la biblia"); el envío del sistema con esa
+  // guía deja de contarse en la analítica (SQL_SIN_REEMPLAZO en analitica.service.js). Salidas,
+  // Liquidaciones y Cobranzas no cambian. Acá solo se informa cuántas son.
+  const enSistema = new Set((await db.prepare("SELECT numero_guia FROM envios WHERE numero_guia IS NOT NULL AND numero_guia <> '' AND no_volo = 0").all()).map((r) => guiaNorm(r.numero_guia)));
   // Hasta dónde se importa: el mes pasado (el mes en curso es del sistema; en la planilla
   // todavía no tiene los costos), salvo que se pida --hasta=YYYY-MM.
-  const mesPasado = (() => { const d = new Date(); d.setDate(1); return d.toISOString().slice(0, 7); })();
+  const mesPasado = (() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; })();
   const hastaExcl = (() => { const [y, m] = (HASTA_ARG || mesPasado).split('-').map(Number); return `${m === 12 ? y + 1 : y}-${String(m === 12 ? 1 : m + 1).padStart(2, '0')}-01`; })();
   const hoy = new Date().toISOString().slice(0, 10);
-  const { lista, duplicados, cargos, cargosSinEnvio } = leerPlanilla(ARCHIVO);
-  const afuera = { fecha: 0, no_volo: 0, vacio: 0, en_sistema: 0, reemplaza: 0, sin_cliente: new Map() };
+  const { lista, duplicados, sinDatos, cargos, cargosSinEnvio } = leerPlanilla(ARCHIVO);
+  const afuera = { fecha: 0, no_volo: 0, vacio: 0, reemplaza: 0, sin_cliente: new Map() };
   let restoId = (clientes.find((c) => c.nombre === NOMBRE_RESTO) || {}).id || null;
   if (RESTO && !restoId) {
     if (GRABAR) {
@@ -197,12 +223,11 @@ function armarCruce(clientes, alias) {
   const aGrabar = [];
   const porCliente = new Map();
   for (const e of lista.sort((a, b) => (a.fecha < b.fecha ? -1 : 1))) {
-    if (e.fecha < DESDE || e.fecha >= hastaExcl || e.fecha > hoy) { afuera.fecha++; continue; }
+    if (e.fecha < DESDE || e.fecha >= hastaExcl) { afuera.fecha++; continue; }
     if (e.no_volo) { afuera.no_volo++; continue; }
     const compra = (e.flete || 0) - (e.descuento || 0) + (e.seguro || 0) + (e.fuel || 0) + (e.derechos || 0) + (e.adicionales || 0) + (e.otros || 0);
     if (!e.venta && !compra && !e.fact) { afuera.vacio++; continue; }
-    if (e.guia && conPrecio.has(e.guia)) { afuera.en_sistema++; continue; }
-    if (e.guia && sinPrecio.has(e.guia)) afuera.reemplaza++;
+    if (e.guia && enSistema.has(e.guia)) afuera.reemplaza++;
     let { id, como } = cruzar(e.cliente_excel);
     if (!id) {
       const s = afuera.sin_cliente.get(e.cliente_excel) || { n: 0, venta: 0, como };
@@ -217,10 +242,10 @@ function armarCruce(clientes, alias) {
 
   // ── Vista previa ──
   console.log(`\nPlanilla: ${ARCHIVO}`);
-  console.log(`Envíos leídos: ${lista.length} (bultos agrupados; ${duplicados} filas repetidas; ${cargos} cargos posteriores, ${cargosSinEnvio} sin envío)`);
+  console.log(`Envíos leídos: ${lista.length} (bultos agrupados; ${duplicados} filas repetidas; ${cargos} cargos posteriores, ${cargosSinEnvio} sin envío; ${sinDatos} filas sin datos)`);
   console.log(`Período: desde ${DESDE} hasta ${hastaExcl} (exclusivo)${HASTA_ARG ? '' : ' — el mes en curso es del sistema'}`);
-  console.log(`Afuera: ${afuera.fecha} fuera del período (o con fecha rota) · ${afuera.no_volo} NO VOLÓ · ${afuera.vacio} sin venta ni compra · ${afuera.en_sistema} ya en el sistema con precio (manda el sistema)`);
-  console.log(`Reemplazan en el Dashboard a un envío del sistema SIN precio (misma guía): ${afuera.reemplaza}`);
+  console.log(`Afuera: ${afuera.fecha} fuera del período · ${afuera.no_volo} NO VOLÓ · ${afuera.vacio} sin venta ni compra`);
+  console.log(`También están en el sistema (misma guía): ${afuera.reemplaza} — en el Dashboard manda la planilla`);
   const sinCli = [...afuera.sin_cliente.entries()].sort((a, b) => b[1].n - a[1].n);
   const sinCliN = sinCli.reduce((s, [, v]) => s + v.n, 0);
   console.log(`Sin cliente en el sistema: ${sinCliN} envíos en ${sinCli.length} nombres (${RESTO ? `van al cliente "${NOMBRE_RESTO}"` : 'quedan afuera; con --resto van a un cliente comodín'}):`);

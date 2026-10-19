@@ -298,17 +298,20 @@ const SQL_HISTORICOS = `
     h.flete, h.descuento, h.seguro, h.fuel, h.derechos, h.adicionales, h.otros,
     NULL AS profit, NULL AS porcentaje,
     NULL AS estado_revision, NULL AS costo_facturado, NULL AS fecha_facturado,
-    1 AS liquidado, NULL AS fecha_liquidacion, h.importado_at AS created_at,
+    COALESCE(e2.liquidado, 1) AS liquidado, e2.fecha_liquidacion AS fecha_liquidacion, h.importado_at AS created_at,
     NULL AS utilidad_liq, NULL AS venta_liq, h.cargos_post AS cargos_post, 0 AS cargos_ddp,
     1 AS historico
   FROM envios_historicos h
   JOIN clientes c ON c.id = h.cliente_id
+  LEFT JOIN envios e2 ON e2.id = (SELECT MIN(x.id) FROM envios x WHERE x.no_volo = 0 AND UPPER(REPLACE(x.numero_guia, ' ', '')) = h.numero_guia)
   WHERE h.fecha >= ? AND h.fecha < ?`;
 
-// Un envío del sistema SIN precio cuya guía está en la planilla con precio: para la analítica
-// manda la planilla (julio 2026 se cargó sin cotizaciones). Solo acá: en Salidas y en "plata
-// en la calle" el envío del sistema sigue siendo el que es.
-const SQL_SIN_REEMPLAZO = ` AND NOT (COALESCE(e.total_cobrado, 0) <= 0 AND e.numero_guia IS NOT NULL
+// Un envío del sistema cuya guía está en la planilla: para la analítica manda la planilla
+// (19/10/2026, Felipe: las salidas son la biblia y el Dashboard tiene que dar igual que los
+// resúmenes de la oficina). Solo acá: en Salidas y en "plata en la calle" el envío del sistema
+// sigue siendo el que es. El histórico hereda liquidado/fecha_liquidacion del envío del sistema
+// (SQL_HISTORICOS), así "sin liquidar" sigue diciendo la verdad.
+const SQL_SIN_REEMPLAZO = ` AND NOT (e.numero_guia IS NOT NULL
   AND EXISTS (SELECT 1 FROM envios_historicos h2 WHERE h2.numero_guia = UPPER(REPLACE(e.numero_guia, ' ', ''))))`;
 
 async function leerEnvios(db, desde, hasta, filtros) {
