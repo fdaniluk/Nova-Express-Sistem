@@ -76,12 +76,20 @@
     return q.toString();
   }
 
+  // Cada carga lleva un número: si el usuario toca dos botones seguidos y la respuesta vieja
+  // llega después de la nueva, se descarta (19/10/2026: "Últimos 12 meses" y "Este año"
+  // mostraban el mismo número, era la respuesta del otro botón pisando a la última).
+  let cargaN = 0;
   async function cargar() {
     const hint = $('dash-hint');
     hint.textContent = 'Cargando…';
+    const n = ++cargaN;
     try {
-      datos = await NovaAPI.dashboard.analitica(query());
+      const resp = await NovaAPI.dashboard.analitica(query());
+      if (n !== cargaN) return;
+      datos = resp;
     } catch (err) {
+      if (n !== cargaN) return;
       NovaUtils.showAlert(alertBox, 'No se pudo cargar el dashboard: ' + err.message, 'error');
       hint.textContent = 'Sin datos';
       return;
