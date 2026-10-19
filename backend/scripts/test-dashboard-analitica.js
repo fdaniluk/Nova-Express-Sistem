@@ -272,7 +272,8 @@ async function main() {
   dd = await det('compra');
   check('compra: de mayor a menor, con el origen del costo y el resumen real/estimado', dd.filas.every((f, i) => i === 0 || dd.filas[i - 1].compra >= f.compra) && dd.filas.every((f) => ['real', 'estimado'].includes(f.compra_origen)) && dd.totales.compra_real && typeof dd.totales.compra_real.n === 'number', JSON.stringify([dd.filas.map((f) => [f.compra, f.compra_origen]), dd.totales.compra_real]));
   dd = await det('venta');
-  check('venta: de mayor a menor, cobrado y cargos posteriores separados', dd.filas.every((f, i) => i === 0 || dd.filas[i - 1].venta >= f.venta) && dd.filas.every((f) => 'total' in f && 'cargos_post' in f && cerca(f.total + f.cargos_post, f.venta)), JSON.stringify(dd.filas.map((f) => [f.total, f.cargos_post, f.venta])));
+  // 19/10: la venta va SIN cargos posteriores (como la planilla); el total con cargos va aparte.
+  check('venta: de mayor a menor, sin cargos posteriores, y el total con cargos aparte', dd.filas.every((f, i) => i === 0 || dd.filas[i - 1].venta >= f.venta) && dd.filas.every((f) => 'cargos_post' in f && cerca(f.venta + f.cargos_post, f.venta_total)), JSON.stringify(dd.filas.map((f) => [f.venta, f.cargos_post, f.venta_total])));
   dd = await det('profit');
   check('profit: de mayor a menor, con el % por envío', dd.filas.every((f, i) => i === 0 || dd.filas[i - 1].profit >= f.profit) && dd.filas.every((f) => f.compra > 0 ? cerca(f.margen_pct, Math.round((f.profit / f.compra) * 1000) / 10) : f.margen_pct === null), JSON.stringify(dd.filas.map((f) => [f.profit, f.compra, f.margen_pct])));
   dd = await det('envios');

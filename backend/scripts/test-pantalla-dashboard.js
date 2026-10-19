@@ -167,7 +167,7 @@ async function main() {
   const hCompra = await cabeceras('compra'); const hVenta = await cabeceras('venta'); const hProfit = await cabeceras('profit'); const hKg = await cabeceras('kg_fact');
   check('Compra, Venta y Profit abren tablas distintas', hCompra.join() !== hVenta.join() && hVenta.join() !== hProfit.join() && hCompra.join() !== hProfit.join(), [hCompra, hVenta, hProfit].map((h) => h.join('|')).join(' // '));
   check('   Compra: costo con origen Real/Estimado', hCompra.includes('Costo') && hCompra.includes('Compra USD'));
-  check('   Venta: cobrado y cargos posteriores en columnas separadas', hVenta.includes('Cobrado USD') && hVenta.includes('Cargos post.') && hVenta.includes('Venta USD'));
+  check('   Venta: venta sin cargos, cargos posteriores y total con cargos en columnas separadas', hVenta.includes('Venta USD') && hVenta.includes('Cargos post.') && hVenta.includes('Total c/ cargos'));
   check('   Profit: venta, compra, profit y %', hProfit.includes('Profit USD') && hProfit.includes('%'));
   check('   Kg facturables: kg real, vol y facturable', hKg.includes('Kg real') && hKg.includes('Kg vol') && hKg.includes('Kg facturable'));
   await page.click('.dash-kpi[data-kpi="kg_fact"]'); await esperar(1000);

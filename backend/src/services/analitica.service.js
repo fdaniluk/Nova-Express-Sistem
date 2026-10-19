@@ -15,7 +15,7 @@
 //   · La venta es la de la liquidación confirmada si existe (venta_liq), si no
 //     total_cobrado.
 const { getDb } = require('../db');
-const { deriveProfit, profitDoble, costoEstimado, utilidadEnvio, ventaEnvio, compraEnvio, cargosDdp, SUBQUERY_LIQUIDACION, SUBQUERY_CARGOS } = require('../utils/profit');
+const { deriveProfit, profitDoble, costoEstimado, utilidadEnvio, ventaEnvio, compraEnvio, cargosPost, cargosDdp, SUBQUERY_LIQUIDACION, SUBQUERY_CARGOS } = require('../utils/profit');
 const { hoyLocal } = require('../utils/fecha');
 const { esHabil, habilesEntre } = require('../utils/habiles');
 const { bandaCalibrada, CALIBRACION } = require('../utils/calibracion-proyeccion');
@@ -325,19 +325,26 @@ async function leerEnvios(db, desde, hasta, filtros) {
 }
 
 // ── Agregación ─────────────────────────────────────────────────────────────────
-// Venta completa del envío (lo cobrado + cargos posteriores): utils/profit.js, la misma de
-// Salidas y del Dashboard viejo.
-function ventaDe(e) { return ventaEnvio(e); }
+// VENTA y COMPRA del Dashboard van SIN los cargos posteriores (19/10/2026, Felipe: tiene que
+// dar igual que el resumen de la oficina, que suma la columna de venta y la de compra de la
+// planilla). Los cargos (manejo, sobrepeso, impuestos DDP…) se cobran al cliente y se pagan
+// al courier por el mismo monto: el profit no cambia, y se informan aparte (cargos_post).
+// Salidas sigue mostrando la Venta Total con cargos (utils/profit.js no cambia).
+function ventaDe(e) { return r2(ventaEnvio(e) - cargosPost(e)); }
+// La venta COMPLETA, con cargos: es lo que hay que cobrar (sin liquidar, plata en la calle).
+function ventaConCargos(e) { return ventaEnvio(e); }
 
 // Profit "oficial" de un envío (misma precedencia que el dashboard viejo).
 // La misma de Dashboard, Comisiones y el perfil del cliente (utils/profit.js).
 function profitOficial(e) {
   return Number(utilidadEnvio(e)) || 0;
 }
-// Compra "oficial": la real aprobada si existe, si no la estimada.
-function compraOficial(e) { return compraEnvio(e); }
+// Compra "oficial": la real aprobada si existe, si no la estimada; sin los cargos posteriores
+// (compraEnvio los trae adentro en las dos ramas: en la estimada vía costoEstimado y en la real
+// porque la factura del courier los incluye y los DDP se suman aparte).
+function compraOficial(e) { return r2(compraEnvio(e) - cargosPost(e)); }
 
-function acumulador() { return { envios: 0, bultos: 0, kg_fact: 0, kg_real: 0, venta: 0, compra: 0, profit: 0, sin_venta_n: 0, sin_venta_compra: 0 }; }
+function acumulador() { return { envios: 0, bultos: 0, kg_fact: 0, kg_real: 0, venta: 0, compra: 0, profit: 0, cargos: 0, sin_venta_n: 0, sin_venta_compra: 0 }; }
 // Un envío SIN precio de venta cargado (total 0) cuenta en envíos y kilos, pero su compra
 // va aparte (29/09/2026): antes sumaba a Compra y no a Venta ni a Profit, y el dashboard
 // mostraba una compra mayor que la venta con un profit positivo (sept-2026: 63 envíos sin
@@ -349,7 +356,11 @@ function sumar(acc, e) {
   acc.kg_real += Number(e.peso_real) || 0;
   const venta = ventaDe(e);
   const compra = compraOficial(e);
-  if (venta > 0) {
+  acc.cargos += cargosPost(e);
+  // Un histórico (planilla) sin venta es un envío sin cargo de verdad (cortesía, reenvío):
+  // su compra y su profit negativo cuentan, como en la planilla y en el resumen de la
+  // oficina. "Sin precio afuera" es solo para envíos del sistema cargados sin cotizar todavía.
+  if (venta > 0 || e.historico) {
     acc.venta += venta;
     acc.compra += compra;
     acc.profit += profitOficial(e);
@@ -364,6 +375,7 @@ function cerrar(acc) {
     envios: acc.envios, bultos: acc.bultos,
     kg_fact: r1(acc.kg_fact), kg_real: r1(acc.kg_real),
     venta: r2(acc.venta), compra: r2(acc.compra), profit: r2(acc.profit),
+    cargos_post: r2(acc.cargos),
     margen_pct: acc.compra > 0 ? r1((acc.profit / acc.compra) * 100) : null,
     sin_venta: { n: acc.sin_venta_n, compra: r2(acc.sin_venta_compra) },
   };
@@ -440,7 +452,7 @@ async function analitica(q = {}) {
   const sinLiquidar = envios.filter((e) => !e.liquidado);
   kpis.sin_liquidar = {
     n: sinLiquidar.length,
-    usd: r2(sinLiquidar.reduce((s, e) => s + ventaDe(e), 0)),
+    usd: r2(sinLiquidar.reduce((s, e) => s + ventaConCargos(e), 0)),
     mas_30: sinLiquidar.filter((e) => diasEntre(e.fecha, hoy) > 30).length,
   };
   const variaciones = {};
@@ -461,7 +473,7 @@ async function analitica(q = {}) {
     meses,
     meses_ant: mesesAnt,
     kg: serie(porMes, meses, 'kg_fact'), envios: serie(porMes, meses, 'envios'),
-    venta: serie(porMes, meses, 'venta'), profit: serie(porMes, meses, 'profit'), compra: serie(porMes, meses, 'compra'),
+    venta: serie(porMes, meses, 'venta'), profit: serie(porMes, meses, 'profit'), compra: serie(porMes, meses, 'compra'), cargos: serie(porMes, meses, 'cargos'),
     kg_ant: serie(porMesAnt, mesesAnt, 'kg_fact'), envios_ant: serie(porMesAnt, mesesAnt, 'envios'),
     venta_ant: serie(porMesAnt, mesesAnt, 'venta'), profit_ant: serie(porMesAnt, mesesAnt, 'profit'),
   };
@@ -552,7 +564,7 @@ async function analitica(q = {}) {
   const corte = await configuracionModel.obtenerFechaCorte();
   const sinFactura = todos.filter((e) => e.costo_facturado == null && e.courier === 'UPS' && e.fecha >= corte && diasEntre(e.fecha, hoy) > 45);
   const plata = {
-    sin_liquidar: { n: sinLiqTodos.length, usd: r2(sinLiqTodos.reduce((s, e) => s + ventaDe(e), 0)) },
+    sin_liquidar: { n: sinLiqTodos.length, usd: r2(sinLiqTodos.reduce((s, e) => s + ventaConCargos(e), 0)) },
     desvios_sin_revisar: { n: desvios.length, usd: r2(desvios.reduce((s, e) => s + (Number(e.costo_facturado) + cargosDdp(e) - costoEstimado(e)), 0)) },
     disputa: { n: disputa.length, usd: r2(disputa.reduce((s, e) => s + (Number(e.costo_facturado) + cargosDdp(e) - costoEstimado(e)), 0)) },
     sin_factura: { n: sinFactura.length, usd: r2(sinFactura.reduce((s, e) => s + costoEstimado(e), 0)) },
@@ -638,7 +650,7 @@ async function detalle(q = {}) {
       id: e.id, fecha: e.fecha, guia: e.numero_guia, cliente: e.cliente_nombre, cliente_id: e.cliente_id,
       courier: e.courier, tipo: e.tipo_envio, destino: normalizarPais(e.pais_destino).nombre, bultos: Number(e.cantidad_bultos) || 1,
       kg_fact: r1(Number(e.peso_facturable) || 0), kg_real: r1(Number(e.peso_real) || 0), kg_vol: r1(Number(e.peso_volumetrico) || 0),
-      total: r2(Number(e.total) || 0), cargos_post: r2(Number(e.cargos_post) || 0), venta: r2(venta),
+      total: r2(Number(e.total) || 0), cargos_post: r2(cargosPost(e)), venta: r2(venta), venta_total: r2(ventaConCargos(e)),
       compra: r2(compra), compra_origen: e.costo_facturado != null ? 'real' : 'estimado',
       profit: profit == null ? null : r2(profit), margen_pct: profit != null && compra > 0 ? r1((profit / compra) * 100) : null,
       liquidado: !!e.liquidado, dias: diasEntre(e.fecha, hoy),

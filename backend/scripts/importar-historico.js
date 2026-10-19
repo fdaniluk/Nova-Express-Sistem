@@ -63,6 +63,8 @@ const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0
 const normalizar = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '')
   .replace(/\b(sin cargo|s\/c|srl|s\.r\.l\.?|sa|s\.a\.?)\b/g, ' ').replace(/[^a-z0-9]+/g, ' ').trim();
 const guiaNorm = (g) => txt(g).toUpperCase().replace(/\s+/g, '');
+// Courier por el formato de la guía: 1Z… es UPS, 10 dígitos es DHL, 12 dígitos es FedEx.
+const courierPorGuia = (g) => (/^1Z/.test(g) ? 'UPS' : /^\d{10}$/.test(g) ? 'DHL' : /^\d{12}$/.test(g) ? 'FEDEX' : 'UPS');
 
 // ── Leer la planilla ───────────────────────────────────────────────────────────
 // La planilla es la verdad (Felipe, 19/10/2026): lo que suma la oficina por hoja tiene que
@@ -73,7 +75,7 @@ const guiaNorm = (g) => txt(g).toUpperCase().replace(/\s+/g, '');
 //     calculan por bulto);
 //   · NO VOLÓ se busca en cualquier celda de la fila;
 //   · los bultos de una guía se juntan aunque "2 de 2" venga antes que "1 de 2" (pasaba y
-//     el envío quedaba sin venta).
+//     el envío quedaba sin venta), y venta/kg/costos se suman entre todas sus filas.
 const MESES = { ENERO: 1, FEBRERO: 2, MARZO: 3, ABRIL: 4, MAYO: 5, JUNIO: 6, JULIO: 7, AGOSTO: 8, SEPTIEMBRE: 9, SETIEMBRE: 9, OCTUBRE: 10, NOVIEMBRE: 11, DICIEMBRE: 12 };
 function mesDeHoja(nombre) {
   const m = nombre.trim().toUpperCase().match(/^([A-ZÑ]+)\s+(\d{4})$/);
@@ -107,7 +109,9 @@ function leerPlanilla(archivo) {
       const guia = guiaNorm(r[3]);
       const real = num(r[I.real]); const vol = num(r[I.vol]); const fact = num(r[I.fact]);
       const venta = num(r[I_VENTA]);
-      const esEnvio = COURIERS[txt(r[1]).toUpperCase()] && (real != null || vol != null || fact != null || venta != null);
+      // Es un envío si tiene kilos o venta, aunque le falte el courier (julio 2026: una fila
+      // de Fagliano sin "UPS" en la columna; el courier se deduce de la guía).
+      const esEnvio = real != null || vol != null || fact != null || venta != null;
       if (!esEnvio) {
         // Sección de arriba de la hoja: cargos posteriores de guías ya despachadas ("ddp 25,76",
         // "residential 6"), con o sin courier y sin kilos. El monto es el número final del texto.
@@ -127,24 +131,31 @@ function leerPlanilla(archivo) {
       const noVolo = r.slice(0, 36).some((c) => typeof c === 'string' && /NO VOL[OÓ]/i.test(c));
       const clave = `${guia || 'SINGUIA-' + fecha + '-' + txt(r[I.cliente])}|${mesHoja}`;
       let e = envios.get(clave);
-      if (e && cabecera && e.tiene_cabecera) { duplicados++; continue; }
+      // Una segunda fila "1 de 2" de la misma guía no se descarta: la planilla la suma (abril
+      // 2026, zappala: la venta está dos veces y el resumen de la oficina la cuenta dos veces).
+      if (e && cabecera && e.tiene_cabecera) duplicados++;
       if (!e) {
-        e = { guia, fecha, mes: mesHoja, courier: COURIERS[txt(r[1]).toUpperCase()], hoja: nombre.trim(), tiene_cabecera: false,
+        e = { guia, fecha, mes: mesHoja, courier: COURIERS[txt(r[1]).toUpperCase()] || courierPorGuia(guia), hoja: nombre.trim(), tiene_cabecera: false,
           tipo_cobro: null, cliente_excel: '', pais: '', fact_col: null, fact_sum: 0, real: 0, vol: 0, bultos: 0, venta: 0,
           flete: null, descuento: null, seguro: null, fuel: null, derechos: null, adicionales: null, otros: null, no_volo: false, cargos_post: 0 };
         envios.set(clave, e);
       }
       if (cabecera || !e.cliente_excel) {
-        const costo = (j) => num(r[I_COSTO + j]);
         Object.assign(e, {
           fecha, tiene_cabecera: e.tiene_cabecera || cabecera,
           tipo_cobro: o ? txt(r[4]).toUpperCase() || null : null,
           cliente_excel: txt(r[I.cliente]).toLowerCase().replace(/\s+/g, ' ') || e.cliente_excel,
           pais: txt(r[I.pais]).toLowerCase() || e.pais,
-          fact_col: fact != null ? fact : e.fact_col, venta: venta != null ? venta : e.venta,
-          flete: costo(0), descuento: costo(1), seguro: costo(2), fuel: costo(3), derechos: costo(4), adicionales: costo(5), otros: costo(6),
         });
       }
+      // Venta, kilos facturables y costos se SUMAN entre todas las filas de la guía, no solo
+      // la cabecera: la planilla a veces reparte la venta o el flete entre los bultos (abril
+      // 2026: tres envíos con venta en la fila "2 de 2"; agosto: un DHL de 14 bultos con
+      // flete en las dos primeras filas), y el resumen de la oficina suma la columna entera.
+      if (venta != null) e.venta = r2(e.venta + venta);
+      if (fact != null) e.fact_col = r2((e.fact_col || 0) + fact);
+      const COSTOS = ['flete', 'descuento', 'seguro', 'fuel', 'derechos', 'adicionales', 'otros'];
+      COSTOS.forEach((campo, j) => { const v = num(r[I_COSTO + j]); if (v != null) e[campo] = r2((e[campo] || 0) + v); });
       if (noVolo) e.no_volo = true;
       e.real += real || 0; e.vol += vol || 0;
       e.fact_sum += Math.ceil(Math.max(real || 0, vol || 0) * 2) / 2;

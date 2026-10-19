@@ -87,10 +87,12 @@ function check(n, c, d) { if (c) { ok++; console.log(`  ✓ ${n}`); } else { fai
     const a = require('../src/services/analitica.service');
     const r = await a.analitica({ periodo: 'rango', desde: '2025-03-01', hasta: '2025-03-31' });
     check('KPI envíos = 7: los 7 de la planilla; los 2 del sistema con esas guías no se cuentan dos veces', r.kpis.envios === 7, String(r.kpis.envios));
-    const ventaEsp = Math.round((1121.35 + 26.5 + 256.13 + 90 + 500 + 200 + 100 + 300) * 100) / 100;
-    check('venta suma la de la planilla (con cargos post.) + la del sistema', r.kpis.venta === ventaEsp, `${r.kpis.venta} vs ${ventaEsp}`);
-    const compraEsp = Math.round((296.93 + 20.3 + 24 + 26.5 + 86.48 + 17.5 + 28.32 + 9.31 + 50 + 5 + 300 + 120 + 60 + 150) * 100) / 100;
-    check('compra = desglose estimado de la planilla', r.kpis.compra === compraEsp, `${r.kpis.compra} vs ${compraEsp}`);
+    const ventaEsp = Math.round((1121.35 + 256.13 + 90 + 500 + 200 + 100 + 300) * 100) / 100;
+    check('venta = columna venta de la planilla, sin cargos posteriores', r.kpis.venta === ventaEsp, `${r.kpis.venta} vs ${ventaEsp}`);
+    const compraEsp = Math.round((296.93 + 20.3 + 24 + 86.48 + 17.5 + 28.32 + 9.31 + 50 + 5 + 300 + 120 + 60 + 150) * 100) / 100;
+    check('compra = desglose estimado de la planilla, sin cargos posteriores', r.kpis.compra === compraEsp, `${r.kpis.compra} vs ${compraEsp}`);
+    check('los cargos posteriores se informan aparte (26,50)', r.kpis.cargos_post === 26.5, String(r.kpis.cargos_post));
+    check('el profit no cambia por los cargos (venta − compra)', Math.abs(r.kpis.profit - (ventaEsp - compraEsp)) < 0.02, `${r.kpis.profit} vs ${ventaEsp - compraEsp}`);
     check('kg facturables (columna FACT de la planilla tal cual)', r.kpis.kg_fact === 89 + 9 + 2 + 10 + 5 + 3 + 20, String(r.kpis.kg_fact));
     check('sin venta: 0 (el del sistema sin precio ya no cuenta)', r.kpis.sin_venta.n === 0, JSON.stringify(r.kpis.sin_venta));
     check('top clientes: Cueros primero por venta', r.top_clientes[0].nombre === 'CUEROS SANTA CRUZ' && r.top_clientes[0].envios === 2, JSON.stringify(r.top_clientes.map((c) => c.nombre)));

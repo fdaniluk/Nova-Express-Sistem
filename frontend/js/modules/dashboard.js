@@ -277,7 +277,10 @@
     const signo = (x) => (x == null ? '' : x > 0 ? 'up' : x < 0 ? 'dn' : '');
     set('envios', fmtN(k.envios), deltaHtml(v.envios, comp), signo(v.envios), s.envios, COL.p);
     set('kg_fact', `${fmtN(k.kg_fact, 0)} <small>kg</small>`, deltaHtml(v.kg_fact, comp), signo(v.kg_fact), s.kg, COL.p);
-    set('venta', `USD ${fmtCorto(k.venta)}`, deltaHtml(v.venta, comp), signo(v.venta), s.venta, COL.p);
+    // Venta y Compra van sin los cargos posteriores (19/10: como el resumen de la oficina y la
+    // planilla); los cargos se avisan acá porque no cambian el profit (se cobran y se pagan igual).
+    const avisoCargos = k.cargos_post ? ` <span class="sin-venta" title="Cargos posteriores (manejo, sobrepeso, impuestos DDP…) de los envíos del período: se cobran al cliente y se pagan al courier por el mismo monto. No entran en Venta ni en Compra y no cambian el Profit.">· + USD ${fmtCorto(k.cargos_post)} de cargos post.</span>` : '';
+    set('venta', `USD ${fmtCorto(k.venta)}`, deltaHtml(v.venta, comp) + avisoCargos, signo(v.venta), s.venta, COL.p);
     // La compra que sube más que la venta es mala noticia: se pinta al revés.
     const compraMal = v.compra != null && v.venta != null && v.compra > v.venta;
     // Envíos sin precio de venta: su compra queda afuera de los tres números (si no, la
@@ -560,8 +563,8 @@
   const QUE_ES = {
     envios: ['Envíos', 'Envíos con fecha en el período, sin los NO VOLÓ. Un envío de varios bultos cuenta una vez. Los que no tienen precio de venta cargado también entran acá (pero no en Venta, Compra ni Profit).'],
     kg_fact: ['Kg facturables', 'Suma del peso facturable de los envíos del período: el mayor entre el peso real y el volumétrico, que es lo que cobra el courier. La lista va del más pesado al más liviano.'],
-    compra: ['Compra', 'Lo que nos cuesta el courier por esos envíos: el costo real de la factura cuando ya está aprobada en Facturas ("Real"); si no, el estimado al cargar el envío (flete + fuel + extras). Solo envíos con precio de venta cargado. De mayor a menor.'],
-    venta: ['Venta', 'Lo que se le cobra al cliente: el total del envío más los cargos posteriores (en columnas separadas). Los envíos sin precio cargado no entran (están en "sin precio afuera"). De mayor a menor.'],
+    compra: ['Compra', 'Lo que nos cuesta el courier por esos envíos: el costo real de la factura cuando ya está aprobada en Facturas ("Real"); si no, el estimado al cargar el envío (flete + fuel + extras). Sin los cargos posteriores, que se cobran y se pagan por el mismo monto. Solo envíos con precio de venta cargado. De mayor a menor.'],
+    venta: ['Venta', 'Lo que se le cobra al cliente por el envío, sin los cargos posteriores (van en su propia columna y se suman en "Total c/ cargos"): es la misma venta que suma la planilla de salidas. Los envíos sin precio cargado no entran (están en "sin precio afuera"). De mayor a menor.'],
     profit: ['Profit', 'Venta menos compra, envío por envío, solo de los que tienen precio. El % es profit ÷ compra (margen sobre el costo). Los negativos en rojo. De mayor a menor.'],
     sin_liquidar: ['Sin liquidar', 'Envíos del período que todavía no están en una liquidación confirmada. "+30 días" son los que llevan más de un mes cargados sin liquidar. Se liquidan desde Liquidaciones → Pendientes.'],
     sin_venta: ['Sin precio de venta', 'Envíos cargados sin precio de venta: no entran en Venta, Compra ni Profit hasta que se les cargue. Se arregla en Salidas abriendo el envío y tocando "Calcular venta" (o cargando el total a mano).'],
@@ -573,7 +576,7 @@
     envios: [...C_BASE, ['tipo', 'Tipo', 'tipo'], ['bultos', 'Bultos', 'n0'], ['kg_fact', 'Kg fact.', 'n1']],
     kg_fact: [...C_BASE, ['kg_real', 'Kg real', 'n1'], ['kg_vol', 'Kg vol', 'n1'], ['kg_fact', 'Kg facturable', 'n1b']],
     compra: [...C_BASE, ['kg_fact', 'Kg', 'n1'], ['compra', 'Compra USD', 'n2b'], ['compra_origen', 'Costo', 'origen']],
-    venta: [...C_BASE, ['kg_fact', 'Kg', 'n1'], ['total', 'Cobrado USD', 'n2'], ['cargos_post', 'Cargos post.', 'n2'], ['venta', 'Venta USD', 'n2b']],
+    venta: [...C_BASE, ['kg_fact', 'Kg', 'n1'], ['venta', 'Venta USD', 'n2b'], ['cargos_post', 'Cargos post.', 'n2'], ['venta_total', 'Total c/ cargos', 'n2']],
     profit: [...C_BASE, ['venta', 'Venta', 'n2'], ['compra', 'Compra', 'n2'], ['profit', 'Profit USD', 'profit'], ['margen_pct', '%', 'pct']],
     sin_liquidar: [...C_BASE, ['kg_fact', 'Kg', 'n1'], ['venta', 'Venta USD', 'n2b'], ['dias', 'Días', 'dias']],
     sin_venta: [...C_BASE, ['kg_fact', 'Kg', 'n1'], ['compra', 'Compra est.', 'n2'], ['liquidado', 'Liq.', 'liq']],

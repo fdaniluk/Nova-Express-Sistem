@@ -28,6 +28,7 @@ async function armar(d) {
     { i: 'Kg facturables', p: k.kg_fact, c: a.kg_fact, v: d.variaciones.kg_fact },
     { i: 'Venta USD', p: k.venta, c: a.venta, v: d.variaciones.venta },
     { i: 'Compra USD', p: k.compra, c: a.compra, v: d.variaciones.compra },
+    { i: 'Cargos posteriores USD (fuera de Venta y Compra, al costo)', p: k.cargos_post, c: a.cargos_post, v: '' },
     { i: 'Profit USD', p: k.profit, c: a.profit, v: d.variaciones.profit },
     { i: 'Margen %', p: k.margen_pct, c: a.margen_pct, v: d.variaciones.margen_pts },
     { i: 'Sin liquidar (envíos)', p: k.sin_liquidar.n, c: '', v: '' },
