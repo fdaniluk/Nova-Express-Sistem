@@ -52,7 +52,9 @@
     const pct = Number(c.tarifa_pct) || 0;
     const celdas = Number(c.matriz_celdas) || 0;
     const kg = Number(c.kg_celdas) || 0;
-    if (c.modo_tarifa === 'por_kg' || kg > 0) return { texto: 'por kilo', clase: 'kg' };
+    // Solo si tiene precios por kilo CARGADOS: el modo del cliente es una marca vieja que
+    // no cobra nada (Arenasa decía "por kilo" sin tener ninguno, 20/10).
+    if (kg > 0) return { texto: 'por kilo', clase: 'kg' };
     if (celdas > 0) return { texto: `${pct} % + matriz`, clase: 'matriz' };
     if (pct > 0) return { texto: `Margen ${pct} %`, clase: 'cobro' };
     return { texto: 'sin margen', clase: 'sin-margen' };

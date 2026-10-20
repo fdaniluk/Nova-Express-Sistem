@@ -55,7 +55,8 @@
     const pct = Number(c.tarifa_pct) || 0;
     const celdas = Number(c.matriz_celdas) || 0;
     const kg = Number(c.kg_celdas) || 0;
-    if (c.modo_tarifa === 'por_kg' || kg > 0) {
+    // Solo si tiene precios por kilo CARGADOS (el modo del cliente es una marca vieja).
+    if (kg > 0) {
       return { texto: 'por kilo', clase: 'kg', sin: false, titulo: `${kg} precio(s) por kilo cargado(s)${celdas ? ` · ${celdas} celda(s) de % para lo que no cubre` : ''}` };
     }
     if (celdas > 0) {
