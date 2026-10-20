@@ -1,5 +1,6 @@
 const cotizacionService = require('../services/cotizacion.service');
 const profitService = require('../services/profit.service');
+const aumentoService = require('../services/aumento-tarifa.service');
 
 // GET /api/clientes/:id/profit-matrix?servicio=X&tipo=Y
 async function getMatrix(req, res, next) {
@@ -238,7 +239,50 @@ async function putMatrizMasiva(req, res, next) {
   }
 }
 
+// ── Aumento de tarifa (20/10/2026) ───────────────────────────────────────────
+// POST /api/clientes/:id/tarifa-aumento/preview  { pct, general, kg, tablas } → qué cambiaría
+// POST /api/clientes/:id/tarifa-aumento           idem, aplica y registra
+// GET  /api/clientes/:id/tarifa-aumento           historial
+// POST /api/clientes/:id/tarifa-aumento/:aid/revertir
+async function aumentoPreview(req, res, next) {
+  try {
+    const prev = await aumentoService.previsualizar(req.params.id, req.body || {});
+    if (!prev) return res.status(404).json({ error: 'Cliente no encontrado' });
+    res.json(prev);
+  } catch (e) {
+    if (e.status === 400) return res.status(400).json({ error: e.message });
+    next(e);
+  }
+}
+async function aumentoAplicar(req, res, next) {
+  try {
+    const out = await aumentoService.aplicar(req.params.id, req.body || {}, req.usuario);
+    if (!out) return res.status(404).json({ error: 'Cliente no encontrado' });
+    res.json(out);
+  } catch (e) {
+    if (e.status === 400) return res.status(400).json({ error: e.message });
+    next(e);
+  }
+}
+async function aumentoHistorial(req, res, next) {
+  try {
+    if (!(await profitService.clienteExiste(req.params.id))) return res.status(404).json({ error: 'Cliente no encontrado' });
+    res.json(await aumentoService.historial(req.params.id));
+  } catch (e) { next(e); }
+}
+async function aumentoRevertir(req, res, next) {
+  try {
+    const out = await aumentoService.revertir(req.params.id, req.params.aid, req.usuario);
+    if (!out) return res.status(404).json({ error: 'Aumento no encontrado' });
+    res.json(out);
+  } catch (e) {
+    if (e.status === 400) return res.status(400).json({ error: e.message });
+    next(e);
+  }
+}
+
 module.exports = {
+  aumentoPreview, aumentoAplicar, aumentoHistorial, aumentoRevertir,
   putPasoTramos,
   putMatrizMasiva,
   getMatrix,

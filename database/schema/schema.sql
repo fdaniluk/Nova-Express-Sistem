@@ -1179,3 +1179,22 @@ CREATE TABLE IF NOT EXISTS costos_meses (
   tc_fuente      TEXT,
   actualizado_en TEXT NOT NULL DEFAULT (datetime('now', 'localtime'))
 );
+
+-- ============================================================================
+-- Aumentos de tarifa por cliente (20/10/2026). Ver db/index.js migrateTarifaAumentos() y
+-- services/aumento-tarifa.service.js: un % aplicado al general, a las celdas de las tres
+-- matrices y a los precios por kilo, con la foto de antes/después para deshacer.
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS tarifa_aumentos (
+  id            INTEGER PRIMARY KEY AUTOINCREMENT,
+  cliente_id    INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+  pct           REAL NOT NULL,
+  cambios       INTEGER NOT NULL DEFAULT 0,
+  usuario_id    INTEGER REFERENCES usuarios(id),
+  usuario       TEXT,
+  detalle       TEXT NOT NULL,
+  creado_en     TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+  revertido_en  TEXT,
+  revertido_por TEXT
+);
+CREATE INDEX IF NOT EXISTS idx_tarifa_aumentos_cliente ON tarifa_aumentos(cliente_id, id);

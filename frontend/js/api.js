@@ -227,6 +227,16 @@ api.clientes.profit = {
   },
 };
 
+// Aumento de tarifa en bloque (20/10/2026): un % sobre el general, las celdas de las tres
+// matrices y los precios por kilo. preview no escribe; aplicar graba y registra; revertir
+// deshace el último.
+api.clientes.aumento = {
+  preview: (id, body) => api.post(`/clientes/${id}/tarifa-aumento/preview`, body),
+  aplicar: (id, body) => api.post(`/clientes/${id}/tarifa-aumento`, body),
+  historial: (id) => api.get(`/clientes/${id}/tarifa-aumento`),
+  revertir: (id, aid) => api.post(`/clientes/${id}/tarifa-aumento/${aid}/revertir`, {}),
+};
+
 // Tarifa en USD por kilo, para los clientes con modo_tarifa = 'por_kg'.
 api.clientes.tarifaKg = {
   matriz: (id, servicio, tipo) => {

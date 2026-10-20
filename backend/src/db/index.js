@@ -1517,8 +1517,30 @@ async function initSchema() {
   await migrateConsultas();
   await migrateCostos();
   await migrateHistorico();
+  await migrateTarifaAumentos();
   await migrateIndices();
   await seedIfEmpty();
+}
+
+// Aumentos de tarifa por cliente (20/10/2026): cada vez que se aplica un % a todo lo que
+// define el precio del cliente (general + matrices + precio por kilo) queda la foto de antes
+// y después, para auditar y para deshacer. Ver services/aumento-tarifa.service.js.
+async function migrateTarifaAumentos() {
+  await dbApi.exec(`
+    CREATE TABLE IF NOT EXISTS tarifa_aumentos (
+      id            INTEGER PRIMARY KEY AUTOINCREMENT,
+      cliente_id    INTEGER NOT NULL REFERENCES clientes(id) ON DELETE CASCADE,
+      pct           REAL NOT NULL,
+      cambios       INTEGER NOT NULL DEFAULT 0,
+      usuario_id    INTEGER REFERENCES usuarios(id),
+      usuario       TEXT,
+      detalle       TEXT NOT NULL,
+      creado_en     TEXT NOT NULL DEFAULT (datetime('now','localtime')),
+      revertido_en  TEXT,
+      revertido_por TEXT
+    );
+    CREATE INDEX IF NOT EXISTS idx_tarifa_aumentos_cliente ON tarifa_aumentos(cliente_id, id);
+  `);
 }
 
 // Envíos HISTÓRICOS (16/10/2026): lo que está en las planillas SALIDAS de antes del sistema

@@ -19,6 +19,11 @@ router.put('/:id/profit-matrix', profitCtrl.putOverride);
 router.delete('/:id/profit-matrix/todo', profitCtrl.vaciarMatriz);
 router.delete('/:id/profit-matrix', profitCtrl.deleteOverride);
 router.get('/:id/profit-resolve', profitCtrl.resolve);
+// Aumento de tarifa en bloque (20/10/2026): general + matrices + precio por kilo, con deshacer.
+router.post('/:id/tarifa-aumento/preview', profitCtrl.aumentoPreview);
+router.post('/:id/tarifa-aumento/:aid/revertir', profitCtrl.aumentoRevertir);
+router.post('/:id/tarifa-aumento', profitCtrl.aumentoAplicar);
+router.get('/:id/tarifa-aumento', profitCtrl.aumentoHistorial);
 
 // Tarifa en USD por kilo, para los clientes con modo_tarifa = 'por_kg'.
 router.get('/:id/tarifa-kg', profitCtrl.getMatrixKg);

@@ -33,6 +33,7 @@
       bindDirecciones();
       bindRazones();
       bindTarifas();
+      bindAumento();
       bindTarifario();
       bindLinks();
       bindCotizaciones();
@@ -1418,6 +1419,162 @@
     },
     libre: { ayuda: 'Todo a mano.', aplicar: () => {} },
   };
+
+  // ── Aumento de tarifa (20/10/2026) ────────────────────────────────────────
+  // Un % sobre el PRECIO DE VENTA, aplicado de una vez al % general, a las celdas de las tres
+  // matrices (export e import) y a los precios por kilo. Nada se graba hasta "Aplicar"; la
+  // vista previa lista cada valor antes → después. El último aumento se puede deshacer.
+  const NOMBRE_SERV = { DHL: 'DHL', UPS_EXP: 'UPS Expedited', UPS_SAVER: 'UPS Saver' };
+  const NOMBRE_TIPO = { export: 'Exportación', import: 'Importación' };
+  async function cargarUltimoAumento() {
+    const cont = document.getElementById('tarifas-ultimo-aumento');
+    if (!cont) return;
+    try {
+      const h = await NovaAPI.clientes.aumento.historial(clienteId);
+      const vivo = h.find((x) => !x.revertido_en);
+      const ultimo = h[0];
+      if (!ultimo) { cont.innerHTML = ''; return; }
+      const f = (d) => NovaUtils.formatDate ? NovaUtils.formatDate(String(d).slice(0, 10)) : String(d).slice(0, 10);
+      if (vivo && vivo.id === ultimo.id) {
+        cont.innerHTML = `Último aumento: <b>${vivo.pct > 0 ? '+' : ''}${esc(vivo.pct)} %</b> sobre ${vivo.cambios} valor(es), el ${f(vivo.creado_en)}${vivo.usuario ? ' por ' + esc(vivo.usuario) : ''}.<button class="btn btn-sm btn-outline" id="btn-deshacer-aumento" title="Vuelve cada valor a lo que era antes de ese aumento">Deshacer</button>`;
+        document.getElementById('btn-deshacer-aumento').addEventListener('click', async () => {
+          if (!window.confirm(`¿Deshacer el aumento de ${vivo.pct > 0 ? '+' : ''}${vivo.pct} % del ${f(vivo.creado_en)}? Cada valor vuelve a lo que era antes.`)) return;
+          try {
+            await NovaAPI.clientes.aumento.revertir(clienteId, vivo.id);
+            NovaUtils.showAlert(alertBox, 'Aumento deshecho: las tarifas volvieron a lo de antes.', 'success');
+            tarifasCargado = true;
+            await cargarMatriz();
+            await cargarUltimoAumento();
+          } catch (e) { NovaUtils.showAlert(alertBox, e.message, 'error'); }
+        });
+      } else {
+        cont.innerHTML = `Último aumento (${ultimo.pct > 0 ? '+' : ''}${esc(ultimo.pct)} %, ${f(ultimo.creado_en)}) fue deshecho el ${f(ultimo.revertido_en)}.`;
+      }
+    } catch (_) { cont.innerHTML = ''; }
+  }
+
+  function bindAumento() {
+    const $ = (id) => document.getElementById(id);
+    const modal = $('aumento-modal');
+    const btn = $('btn-aumentar-tarifa');
+    if (!modal || !btn) return;
+    const inPct = $('aumento-pct');
+    const que = $('aumento-que');
+    const prevEl = $('aumento-preview');
+    const totalEl = $('aumento-total');
+    const btnAplicar = $('aumento-aplicar');
+    let incluir = { general: true, kg: true, tablas: {} }; // tablas: 'SERV|tipo' → bool
+    let preview = null;
+    let timer = null;
+    let pidiendo = 0;
+    const fmt2 = (n) => Number(n).toLocaleString('es-AR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    const coord = (f) => `${f.zona != null ? 'zona ' + f.zona : 'todas las zonas'} · ${f.peso_min != null ? (f.peso_max != null ? `${f.peso_min}–${f.peso_max} kg` : `${f.peso_min}+ kg`) : 'todos los pesos'}`;
+
+    const pedidoActual = () => {
+      const pct = Number(String(inPct.value).replace(',', '.'));
+      const tablas = Object.keys(incluir.tablas).filter((k) => incluir.tablas[k]).map((k) => { const [servicio, tipo] = k.split('|'); return { servicio, tipo }; });
+      return { pct, general: incluir.general, kg: incluir.kg, tablas };
+    };
+
+    function renderQue(p) {
+      // Tildes: general, cada tabla con lo que tiene, precio por kilo.
+      const gen = p.general;
+      const partes = [];
+      partes.push(`<label class="${gen.antes ? '' : 'vacia'}"><input type="checkbox" data-que="general" ${incluir.general ? 'checked' : ''} ${gen.antes ? '' : 'disabled'}> % general${gen.antes ? ` (${esc(gen.antes)} %)` : ' (no tiene)'}</label>`);
+      for (const t of p.por_tabla) {
+        const k = `${t.servicio}|${t.tipo}`;
+        const n = t.celdas_pct + t.celdas_kg;
+        if (incluir.tablas[k] === undefined) incluir.tablas[k] = true;
+        partes.push(`<label class="${n ? '' : 'vacia'}"><input type="checkbox" data-que="tabla" data-k="${k}" ${incluir.tablas[k] ? 'checked' : ''} ${n ? '' : 'disabled'}> ${NOMBRE_SERV[t.servicio]} ${NOMBRE_TIPO[t.tipo].toLowerCase()}${n ? ` (${t.celdas_pct ? t.celdas_pct + ' %' : ''}${t.celdas_pct && t.celdas_kg ? ' + ' : ''}${t.celdas_kg ? t.celdas_kg + ' por kilo' : ''})` : ' (vacía)'}</label>`);
+      }
+      const totKg = p.por_tabla.reduce((s, t) => s + t.celdas_kg, 0);
+      partes.push(`<label class="${totKg ? '' : 'vacia'}"><input type="checkbox" data-que="kg" ${incluir.kg ? 'checked' : ''} ${totKg ? '' : 'disabled'}> precios por kilo</label>`);
+      que.innerHTML = partes.join('');
+      que.querySelectorAll('input[type=checkbox]').forEach((cb) => cb.addEventListener('change', () => {
+        if (cb.dataset.que === 'general') incluir.general = cb.checked;
+        else if (cb.dataset.que === 'kg') incluir.kg = cb.checked;
+        else incluir.tablas[cb.dataset.k] = cb.checked;
+        pedirPreview();
+      }));
+    }
+
+    function renderPreview(p) {
+      const pct = p.pct;
+      const clase = pct < 0 ? 'despues baja' : 'despues';
+      let html = '';
+      if (p.general.incluido && p.general.antes) {
+        html += `<h4>% general del cliente</h4><table><thead><tr><th>Qué</th><th class="n">Hoy</th><th class="n">Después</th></tr></thead><tbody><tr><td>Ganancia sobre el flete</td><td class="n">${fmt2(p.general.antes)} %</td><td class="n ${clase}">${fmt2(p.general.despues)} %</td></tr></tbody></table>`;
+      }
+      const grupos = new Map();
+      for (const f of p.filas_pct) { const k = `${f.servicio}|${f.tipo}`; if (!grupos.has(k)) grupos.set(k, { pct: [], kg: [] }); grupos.get(k).pct.push(f); }
+      for (const f of p.filas_kg) { const k = `${f.servicio}|${f.tipo}`; if (!grupos.has(k)) grupos.set(k, { pct: [], kg: [] }); grupos.get(k).kg.push(f); }
+      for (const [k, g] of grupos) {
+        const [servicio, tipo] = k.split('|');
+        html += `<h4>${esc(NOMBRE_SERV[servicio])} · ${esc(NOMBRE_TIPO[tipo])}</h4><table><thead><tr><th>Celda</th><th>Tipo</th><th class="n">Hoy</th><th class="n">Después</th></tr></thead><tbody>`;
+        for (const f of g.pct) html += `<tr><td>${esc(coord(f))}</td><td>% ganancia</td><td class="n">${fmt2(f.antes)} %</td><td class="n ${clase}">${fmt2(f.despues)} %</td></tr>`;
+        for (const f of g.kg) html += `<tr><td>${esc(coord(f))}</td><td>USD por kilo</td><td class="n">${fmt2(f.antes)}</td><td class="n ${clase}">${fmt2(f.despues)}</td></tr>`;
+        html += '</tbody></table>';
+      }
+      if (!html) html = '<p class="tarifas-hint">Con lo tildado no hay nada que cambiar.</p>';
+      prevEl.innerHTML = html;
+      totalEl.textContent = p.total_cambios ? `${p.total_cambios} valor(es) van a cambiar. El precio de venta ${pct > 0 ? 'sube' : 'baja'} ${Math.abs(pct)} %.` : '';
+      btnAplicar.disabled = !p.total_cambios;
+    }
+
+    function pedirPreview() {
+      clearTimeout(timer);
+      const { pct } = pedidoActual();
+      if (!Number.isFinite(pct) || pct === 0) { prevEl.innerHTML = '<p class="tarifas-hint">Escribí el porcentaje para ver qué cambiaría.</p>'; totalEl.textContent = ''; btnAplicar.disabled = true; preview = null; return; }
+      timer = setTimeout(async () => {
+        const n = ++pidiendo;
+        try {
+          const p = await NovaAPI.clientes.aumento.preview(clienteId, pedidoActual());
+          if (n !== pidiendo) return;
+          preview = p;
+          renderQue(p);
+          renderPreview(p);
+        } catch (e) {
+          if (n !== pidiendo) return;
+          preview = null; btnAplicar.disabled = true; totalEl.textContent = '';
+          prevEl.innerHTML = `<p class="tarifas-hint" style="color:#b71c1c">${esc(e.message)}</p>`;
+        }
+      }, 250);
+    }
+
+    btn.addEventListener('click', async () => {
+      incluir = { general: true, kg: true, tablas: {} };
+      inPct.value = '';
+      preview = null; btnAplicar.disabled = true; totalEl.textContent = '';
+      prevEl.innerHTML = '<p class="tarifas-hint">Escribí el porcentaje para ver qué cambiaría.</p>';
+      modal.classList.remove('hidden');
+      // Los tildes se arman con una previa a +1 % (solo para contar qué tiene el cliente).
+      try { renderQue(await NovaAPI.clientes.aumento.preview(clienteId, { pct: 1 })); } catch (_) { que.innerHTML = ''; }
+      inPct.focus();
+    });
+    inPct.addEventListener('input', pedirPreview);
+    $('aumento-cerrar').addEventListener('click', () => modal.classList.add('hidden'));
+    modal.addEventListener('click', (e) => { if (e.target === modal) modal.classList.add('hidden'); });
+    document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && !modal.classList.contains('hidden')) modal.classList.add('hidden'); });
+
+    btnAplicar.addEventListener('click', async () => {
+      if (!preview || !preview.total_cambios) return;
+      const pct = preview.pct;
+      if (!window.confirm(`¿Aplicar ${pct > 0 ? '+' : ''}${pct} % a ${preview.total_cambios} valor(es) de ${preview.cliente.nombre}? El precio de venta ${pct > 0 ? 'sube' : 'baja'} ${Math.abs(pct)} %. Se puede deshacer desde la tarjeta de tarifas.`)) return;
+      btnAplicar.disabled = true;
+      try {
+        const out = await NovaAPI.clientes.aumento.aplicar(clienteId, pedidoActual());
+        modal.classList.add('hidden');
+        NovaUtils.showAlert(alertBox, `Tarifa ${pct > 0 ? 'aumentada' : 'bajada'} ${Math.abs(pct)} %: ${out.total_cambios} valor(es) actualizados.`, 'success');
+        tarifasCargado = true;
+        await cargarMatriz();
+        await cargarUltimoAumento();
+      } catch (e) {
+        btnAplicar.disabled = false;
+        NovaUtils.showAlert(alertBox, 'No se aplicó: ' + e.message, 'error');
+      }
+    });
+    cargarUltimoAumento();
+  }
 
   function bindTarifario() {
     const modal = document.getElementById('tarifario-modal');

@@ -6,7 +6,7 @@
   <title>Perfil de cliente – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20260929a">
-  <link rel="stylesheet" href="../css/modules/clientes.css?v=20261009a">
+  <link rel="stylesheet" href="../css/modules/clientes.css?v=20261020a">
   <!-- Las fuentes del cuadro de la cotización (el mismo que dibuja el cotizador). -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500;600&display=swap">
 </head>
@@ -169,10 +169,12 @@
             <div class="per-card-cab">
               <div><h2>Matriz de tarifas</h2><p>Lo que se le cobra, por servicio, zona y peso. "Editar tarifas" abre la grilla.</p></div>
               <button class="btn btn-outline btn-sm" id="btn-armar-tarifario">Armar tarifario</button>
+              <button class="btn btn-outline btn-sm" id="btn-aumentar-tarifa" title="Sube (o baja) un % el precio de venta: el % general, las celdas de las matrices y los precios por kilo, de una sola vez">Aumentar tarifa</button>
               <button class="btn btn-outline btn-sm" id="btn-editar-tarifas">Editar tarifas</button>
             </div>
             <div class="per-card-cuerpo">
               <div class="tarifas-resumen" id="tarifas-resumen"></div>
+              <div class="tarifas-ultimo-aumento" id="tarifas-ultimo-aumento"></div>
               <div class="tarifas-extra" id="tarifas-extra"></div>
 
         <div id="tarifas-panel" class="hidden">
@@ -380,6 +382,31 @@
 
   La vista previa es un iframe con la MISMA página que después se imprime.
 -->
+<!-- Aumento de tarifa (20/10/2026): un % que sube el PRECIO DE VENTA del cliente en todo lo
+     que lo define. La vista previa muestra cada valor antes → después; nada se graba hasta
+     "Aplicar". El último aumento se puede deshacer desde la tarjeta de tarifas. -->
+<div class="tarifario-modal hidden" id="aumento-modal">
+  <div class="tarifario-caja aumento-caja">
+    <header>
+      <h2>Aumentar tarifa</h2>
+      <button class="btn btn-secondary btn-sm" id="aumento-cerrar">Cerrar</button>
+    </header>
+    <div class="aumento-cuerpo">
+      <div class="aumento-controles">
+        <label for="aumento-pct"><b>Subir el precio de venta</b></label>
+        <input type="number" id="aumento-pct" step="0.5" min="-50" max="200" placeholder="10" style="width:90px"> <span>%</span>
+        <span class="tarifas-hint">Negativo = bajar. Se aplica al precio: un 50 % de ganancia con +10 % pasa a 65 % (flete × 1,50 × 1,10); un precio por kilo de 12,00 pasa a 13,20.</span>
+      </div>
+      <div class="aumento-que" id="aumento-que"></div>
+      <div class="aumento-preview" id="aumento-preview"><p class="tarifas-hint">Escribí el porcentaje para ver qué cambiaría.</p></div>
+    </div>
+    <footer class="aumento-pie">
+      <span id="aumento-total" class="tarifas-hint"></span>
+      <button class="btn btn-primary" id="aumento-aplicar" disabled>Aplicar aumento</button>
+    </footer>
+  </div>
+</div>
+
 <div class="tarifario-modal hidden" id="tarifario-modal">
   <div class="tarifario-caja">
     <header>
@@ -499,11 +526,11 @@
 </div>
 
 <script src="/js/auth-guard.js?v=20260924b"></script>
-<script src="../js/api.js?v=20261016a"></script>
+<script src="../js/api.js?v=20261020a"></script>
 <script src="../js/main.js?v=20260929a"></script>
 <script src="../js/vendor/chart.umd.js?v=20260915a"></script>
 <script src="/shared/cotizador/tramos.js?v=20261015a"></script>
 <script src="../js/cotizacion-imagen.js?v=20261015b"></script>
-<script src="../js/modules/clientes-perfil.js?v=20261016a"></script>
+<script src="../js/modules/clientes-perfil.js?v=20261020a"></script>
 </body>
 </html>

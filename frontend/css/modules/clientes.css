@@ -494,3 +494,24 @@ td.tarifa-cell.cero .cell-val { color: #d03b3b; font-weight: 650; }
 .tarifas-saltos { background: #fee2e2; border: 1px solid #fca5a5; border-radius: 10px; padding: .6rem .9rem; margin: .5rem 0 .75rem; font-size: .86rem; color: #7f1d1d; line-height: 1.5; }
 .tarifas-saltos ul { margin: .3rem 0 0; padding-left: 1.2rem; }
 td.tarifa-cell.salto { background: #fee2e2 !important; color: #b91c1c !important; box-shadow: inset 0 0 0 2px #fca5a5; }
+
+/* ── Aumento de tarifa (20/10/2026) ─────────────────────────────────────────── */
+.aumento-caja { max-width: 860px; height: auto; max-height: 92vh; }
+.aumento-cuerpo { flex: 1; min-height: 0; overflow-y: auto; padding: 0.9rem 1.1rem; }
+.aumento-controles { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; margin-bottom: 0.7rem; }
+.aumento-controles input { padding: 0.35rem 0.5rem; border: 1px solid #c9cdd8; border-radius: 6px; font-size: 1rem; }
+.aumento-que { display: flex; flex-wrap: wrap; gap: 0.4rem 1rem; margin-bottom: 0.8rem; font-size: 0.88rem; }
+.aumento-que label { display: inline-flex; align-items: center; gap: 0.3rem; cursor: pointer; }
+.aumento-que label.vacia { color: #999; }
+.aumento-preview table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+.aumento-preview th, .aumento-preview td { padding: 3px 6px; border-bottom: 1px solid #eef0f4; text-align: left; }
+.aumento-preview th { background: #f3f4f8; color: #2A3661; font-size: 0.78rem; }
+.aumento-preview td.n, .aumento-preview th.n { text-align: right; font-variant-numeric: tabular-nums; }
+.aumento-preview td.despues { font-weight: 700; color: #1f7a3a; }
+.aumento-preview td.baja { color: #b71c1c; }
+.aumento-preview h4 { margin: 0.8rem 0 0.3rem; font-size: 0.9rem; color: #2A3661; }
+.aumento-pie .btn { white-space: nowrap; }
+.aumento-pie { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.7rem 1.1rem; border-top: 1px solid #e5e8ee; }
+.tarifas-ultimo-aumento { font-size: 0.84rem; color: #555; margin-top: 0.4rem; }
+.tarifas-ultimo-aumento:empty { display: none; }
+.tarifas-ultimo-aumento button { margin-left: 0.5rem; }
