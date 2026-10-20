@@ -394,6 +394,9 @@ async function migrateEnvios() {
     ['proforma_numero',   'TEXT'],
     ['guia_id',           'INTEGER'],    //   remitente_id     perfil de remitente elegido (tabla remitentes); NULL = la ficha
     ['remitente_id',      'INTEGER'],
+    // Posición a mano dentro del mes para el #Sal (20/10/2026): clave de orden, ver
+    // shared/salidas/numeracion.js. NULL = orden automático por fecha e id.
+    ['orden_salida',      'REAL'],
   ];
   for (const [col, def] of toAdd) {
     if (!cols.includes(col)) {

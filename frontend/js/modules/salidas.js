@@ -1029,6 +1029,10 @@
   function getSortVal(e, col, today) {
     if (col === 'estado') return e.liquidado ? 0 : diffDias(e.fecha, today);
     if (col === 'numero_salida') return e.num_sal_mes;  // #Sal ordena por el correlativo del mes
+    // Fecha (el orden de siempre): con la misma clave que numera el mes, así un envío movido a
+    // mano con "Nro. Salida" aparece en ESA fila y no donde lo deja su fecha (20/10: Felipe le
+    // puso un número y la tabla no lo reubicaba).
+    if (col === 'fecha') return window.NovaNumeracion ? NovaNumeracion.claveDe(e) : e.fecha;
     if (col === 'peso') return e.peso;
     return e[col] ?? null;
   }
@@ -2415,8 +2419,8 @@
                 <input type="text" id="saled-guia">
               </div>
               <div class="form-group">
-                <label>Nro. Salida</label>
-                <input type="number" id="saled-numero-salida" step="1" min="0">
+                <label title="El correlativo del mes (#Sal). Si escribís otro número, el envío pasa a esa posición y los demás se corren. Cambiar la fecha lo devuelve al orden por fecha.">Nro. Salida (#Sal)</label>
+                <input type="number" id="saled-numero-salida" step="1" min="1" title="Escribí el número que querés que tenga este envío en su mes: se acomoda ahí y los demás se corren.">
               </div>
               <div class="form-group">
                 <label>Fecha *</label>
@@ -4065,10 +4069,15 @@
         bultosAgregados = false;
         await loadData();
       }
+      // Posición a mano del #Sal (20/10): el servidor devuelve la clave de orden nueva (o
+      // null si el envío volvió al orden automático); con eso la renumeración en pantalla da
+      // lo mismo que el servidor sin volver a pedir la lista.
+      if (idx !== -1 && resp && Object.prototype.hasOwnProperty.call(resp, 'orden_salida')) allData[idx].orden_salida = resp.orden_salida;
       // Renumerar y reordenar con los datos nuevos. Si la fecha movió el envío a otro mes,
       // saltar la solapa activa a ese mes para que el usuario vea dónde quedó en vez de que
       // le "desaparezca" de pantalla.
       recomputeNumSalMes();
+      if (idx !== -1) allData[idx].numero_salida = allData[idx].num_sal_mes;
       const mesNuevo = (payload.fecha || '').slice(0, 7);
       if (mesNuevo && mesNuevo !== prevMes) selectedMonth = mesNuevo;
 

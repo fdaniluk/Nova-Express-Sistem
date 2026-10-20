@@ -1,5 +1,5 @@
 const { Router } = require('express');
-const { numerarPorMes } = require('../../../shared/salidas/numeracion');
+const { numerarPorMes, claveParaNumero } = require('../../../shared/salidas/numeracion');
 const { getDb } = require('../db');
 const { buildPesos, calcularDesgloseAlCosto, calcularSeguroVenta } = require('../models/envio.model');
 const { pesoVolumetricoBulto } = require('../services/calculos.service');
@@ -53,6 +53,7 @@ async function listarSalidas({ desde, hasta } = {}) {
     SELECT
       e.id,
       e.numero_salida,
+      e.orden_salida,
       e.courier,
       e.fecha,
       e.numero_guia,
@@ -156,7 +157,7 @@ async function listarSalidas({ desde, hasta } = {}) {
   // solos sin huecos en el próximo request.
   const numSalPorEnvio = new Map();
   const todosLosIds = await db
-    .prepare('SELECT id, fecha, num_sal_cero FROM envios ORDER BY id ASC')
+    .prepare('SELECT id, fecha, num_sal_cero, orden_salida FROM envios ORDER BY id ASC')
     .all();
   todosLosIds.forEach((r, i) => numSalPorEnvio.set(r.id, i + 1));
 
@@ -289,7 +290,10 @@ async function listarSalidas({ desde, hasta } = {}) {
     num_sal: numSalPorEnvio.get(row.id),
     // El correlativo del mes, que es el número que la oficina llama "el envío 27".
     num_sal_mes: numSalMesPorEnvio.get(row.id),
-    numero_salida: row.numero_salida,
+    // El "Nro. Salida" del modal ES el correlativo del mes (20/10): lo que se escribe ahí
+    // mueve el envío a esa posición. La columna numero_salida vieja ya no se muestra.
+    numero_salida: numSalMesPorEnvio.get(row.id),
+    orden_salida: row.orden_salida,
     courier: row.courier,
     fecha: row.fecha,
     numero_guia: row.numero_guia,
@@ -1016,6 +1020,29 @@ router.patch('/:id', async (req, res, next) => {
     // El save persiste lo recibido: NO recalcula el motor ni pisa los costos del payload
     // (el usuario pudo ajustarlos a mano tras Recalcular). El único derivado es el
     // peso_volumetrico por bulto, geometría pura (mismo cálculo que saveBultos del alta).
+    // NÚMERO DE SALIDA A MANO (20/10/2026, pedido de la oficina): "Nro. Salida" = N mueve el
+    // envío a la posición N de su mes y los demás se corren (shared/salidas/numeracion.js).
+    // Cambiar la fecha, o marcarlo "sin numerar", lo devuelve al orden automático, salvo que
+    // en la misma edición venga también el número. La columna numero_salida no se persiste.
+    const quiereNumero = Object.prototype.hasOwnProperty.call(picked, 'numero_salida') && picked.numero_salida != null && Number(picked.numero_salida) >= 1;
+    const pedido = quiereNumero ? Math.floor(Number(picked.numero_salida)) : null;
+    delete picked.numero_salida;
+    const fechaFinal = Object.prototype.hasOwnProperty.call(picked, 'fecha') ? picked.fecha : existing.fecha;
+    const ceroFinal = Object.prototype.hasOwnProperty.call(picked, 'num_sal_cero') ? picked.num_sal_cero : existing.num_sal_cero;
+    const cambiaFecha = String(fechaFinal) !== String(existing.fecha);
+    let ordenSalida;
+    if (quiereNumero && !ceroFinal) {
+      const delMes = await db.prepare("SELECT id, fecha, num_sal_cero, orden_salida FROM envios WHERE substr(fecha, 1, 7) = substr(?, 1, 7)").all(fechaFinal);
+      const sinEste = delMes.filter((e) => e.id !== id);
+      const yo = { id, fecha: fechaFinal, num_sal_cero: 0, orden_salida: null };
+      const nums = numerarPorMes([...sinEste, { ...yo, orden_salida: cambiaFecha ? null : existing.orden_salida }]);
+      // Si ya tiene ese número no se toca nada (editar otro campo no lo mueve).
+      ordenSalida = nums.get(id) === pedido ? undefined : claveParaNumero(yo, [...sinEste, yo], pedido);
+    } else if (cambiaFecha || ceroFinal) {
+      ordenSalida = null;
+    }
+    if (ordenSalida !== undefined) picked.orden_salida = ordenSalida;
+
     await db.transaction(async () => {
       if (Object.keys(picked).length > 0) {
         const setClauses = Object.keys(picked).map((f) => `${f} = ?`).join(', ');
@@ -1066,6 +1093,7 @@ router.patch('/:id', async (req, res, next) => {
     });
 
     const respuesta = { ok: true };
+    if (ordenSalida !== undefined) respuesta.orden_salida = ordenSalida;
     if (avisoZona) respuesta.aviso_zona = avisoZona;
     res.json(respuesta);
   } catch (err) {
