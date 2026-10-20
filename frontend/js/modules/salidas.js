@@ -203,6 +203,9 @@
     try {
       allData = await NovaAPI.salidas.listar();
       recomputeNumSalMes();
+      // El servidor manda por fecha; acá se ordena con la clave del mes para que un envío con
+      // Nro. Salida a mano quede en SU fila (20/10). Antes la lista se mostraba tal cual llegaba.
+      sortData();
       ensureSelectedMonth();
       // ?buscar=<guía> (08/10/2026): llegar desde Facturas directo al envío. Se carga en el
       // buscador y se abre la solapa del mes donde está, si no es la actual.
@@ -4078,6 +4081,7 @@
       // le "desaparezca" de pantalla.
       recomputeNumSalMes();
       if (idx !== -1) allData[idx].numero_salida = allData[idx].num_sal_mes;
+      sortData();
       const mesNuevo = (payload.fecha || '').slice(0, 7);
       if (mesNuevo && mesNuevo !== prevMes) selectedMonth = mesNuevo;
 

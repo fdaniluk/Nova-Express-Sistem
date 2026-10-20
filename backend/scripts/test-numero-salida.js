@@ -98,31 +98,33 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
   const numsPantalla = () => page.$$eval('.salidas-table tbody tr', (trs) => Object.fromEntries(trs.filter((tr) => /NUMSAL/.test(tr.innerText)).map((tr) => { const g = tr.innerText.match(/1Z0000NUMSAL00000(\d)/); return [g ? g[1] : '?', tr.querySelector('td[data-col="numero_salida"]').innerText.trim()]; })));
   let np = await numsPantalla();
   check('la pantalla muestra noviembre como el servidor: a=1, b=2, d=3', np['1'] === '1' && np['2'] === '2' && np['4'] === '3', JSON.stringify(np));
-  // Abrir el envío b (#2) y pedirle el 1.
+  // Abrir el envío d (#3, el MÁS NUEVO: por fecha ya está arriba de todo) y pedirle el 1. Si
+  // la tabla solo cambiara el número y no la fila, d seguiría arriba: es lo que vio Felipe
+  // el 20/10 (Cliente Demo con el 75 primero de la lista).
+  const filasAntes = await page.$$eval('.salidas-table tbody tr', (trs) => trs.map((tr) => (tr.innerText.match(/1Z0000NUMSAL00000(\d)/) || [])[1]).filter(Boolean).join(''));
+  check('de entrada las filas van por fecha, la más nueva arriba: d, b, a → "421"', filasAntes === '421', filasAntes);
   const trs = await page.$$('.salidas-table tbody tr');
-  let trB = null;
-  for (const tr of trs) { if ((await tr.innerText()).includes('1Z0000NUMSAL000002')) { trB = tr; break; } }
-  check('encuentra la fila de b', !!trB);
-  await (await trB.$('td[data-col="numero_guia"]') || trB).click();
+  let trD = null;
+  for (const tr of trs) { if ((await tr.innerText()).includes('1Z0000NUMSAL000004')) { trD = tr; break; } }
+  check('encuentra la fila de d', !!trD);
+  await (await trD.$('td[data-col="numero_guia"]') || trD).click();
   await esperar(1200);
   const abierto = await page.$('#saled-numero-salida');
-  check('se abre el modal con el Nro. Salida = 2', abierto && (await page.inputValue('#saled-numero-salida')) === '2', abierto ? await page.inputValue('#saled-numero-salida') : 'sin modal');
+  check('se abre el modal con el Nro. Salida = 3', abierto && (await page.inputValue('#saled-numero-salida')) === '3', abierto ? await page.inputValue('#saled-numero-salida') : 'sin modal');
+  const ordenFilas = () => page.$$eval('.salidas-table tbody tr', (trs) => trs.map((tr) => (tr.innerText.match(/1Z0000NUMSAL00000(\d)/) || [])[1]).filter(Boolean).join(''));
   if (abierto) {
     await page.fill('#saled-numero-salida', '1');
     await page.click('#sal-modal-save');
     await esperar(2000);
     np = await numsPantalla();
-    check('al guardar, la tabla se reacomoda sin recargar: b=1, a=2, d=3', np['2'] === '1' && np['1'] === '2' && np['4'] === '3', JSON.stringify(np));
-    // La FILA también se mueve (orden por fecha de siempre = fecha DESC): b, que tiene la fecha
-    // más vieja, tiene que quedar abajo de a y d como si fuera el primero del mes.
-    const ordenFilas = () => page.$$eval('.salidas-table tbody tr', (trs) => trs.map((tr) => (tr.innerText.match(/1Z0000NUMSAL00000(\d)/) || [])[1]).filter(Boolean).join(''));
-    check('   y la fila de b se reubica (de abajo hacia arriba: b, a, d → "421")', (await ordenFilas()) === '421', await ordenFilas());
-    check('   y el servidor dice lo mismo', JSON.stringify(await lista()) === JSON.stringify({ 1: 2, 2: 1, 3: 1, 4: 3, 5: 2 }), JSON.stringify(await lista()));
+    check('al guardar, la tabla renumera sin recargar: d=1, a=2, b=3', np['4'] === '1' && np['1'] === '2' && np['2'] === '3', JSON.stringify(np));
+    check('   y la FILA de d baja al final (b, a, d → "214"), aunque su fecha sea la más nueva', (await ordenFilas()) === '214', await ordenFilas());
+    check('   y el servidor dice lo mismo', JSON.stringify(await lista()) === JSON.stringify({ 1: 2, 2: 3, 3: 1, 4: 1, 5: 2 }), JSON.stringify(await lista()));
     await page.reload(); await esperar(3000);
     await irAlMes('2026-11');
     np = await numsPantalla();
-    check('después de recargar sigue igual', np['2'] === '1' && np['1'] === '2', JSON.stringify(np));
-    check('   también el orden de las filas', (await ordenFilas()) === '421', await ordenFilas());
+    check('después de recargar sigue igual (números)', np['4'] === '1' && np['1'] === '2' && np['2'] === '3', JSON.stringify(np));
+    check('   y el orden de las filas también', (await ordenFilas()) === '214', await ordenFilas());
   }
   check('ningún error en la pantalla', errores.length === 0, errores.slice(0, 3).join(' | '));
 
