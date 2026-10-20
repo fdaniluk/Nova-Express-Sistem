@@ -1510,9 +1510,14 @@
       for (const f of p.filas_kg) { const k = `${f.servicio}|${f.tipo}`; if (!grupos.has(k)) grupos.set(k, { pct: [], kg: [] }); grupos.get(k).kg.push(f); }
       for (const [k, g] of grupos) {
         const [servicio, tipo] = k.split('|');
-        html += `<h4>${esc(NOMBRE_SERV[servicio])} · ${esc(NOMBRE_TIPO[tipo])}</h4><table><thead><tr><th>Celda</th><th>Tipo</th><th class="n">Hoy</th><th class="n">Después</th></tr></thead><tbody>`;
-        for (const f of g.pct) html += `<tr><td>${esc(coord(f))}</td><td>% ganancia</td><td class="n">${fmt2(f.antes)} %</td><td class="n ${clase}">${fmt2(f.despues)} %</td></tr>`;
-        for (const f of g.kg) html += `<tr><td>${esc(coord(f))}</td><td>USD por kilo</td><td class="n">${fmt2(f.antes)}</td><td class="n ${clase}">${fmt2(f.despues)}</td></tr>`;
+        // Una matriz de paso 0,5 kg tiene miles de celdas (Cavalier: 3.606 por servicio): se
+        // listan las primeras y se dice cuántas más cambian igual.
+        const TOPE = 40;
+        html += `<h4>${esc(NOMBRE_SERV[servicio])} · ${esc(NOMBRE_TIPO[tipo])} <small style="font-weight:normal;color:#666">(${g.pct.length + g.kg.length} valores)</small></h4><table><thead><tr><th>Celda</th><th>Tipo</th><th class="n">Hoy</th><th class="n">Después</th></tr></thead><tbody>`;
+        for (const f of g.pct.slice(0, TOPE)) html += `<tr><td>${esc(coord(f))}</td><td>% ganancia</td><td class="n">${fmt2(f.antes)} %</td><td class="n ${clase}">${fmt2(f.despues)} %</td></tr>`;
+        for (const f of g.kg.slice(0, Math.max(0, TOPE - g.pct.length))) html += `<tr><td>${esc(coord(f))}</td><td>USD por kilo</td><td class="n">${fmt2(f.antes)}</td><td class="n ${clase}">${fmt2(f.despues)}</td></tr>`;
+        const resto = g.pct.length + g.kg.length - TOPE;
+        if (resto > 0) html += `<tr><td colspan="4" class="tarifas-hint">… y ${resto.toLocaleString('es-AR')} celda(s) más de esta tabla, todas × ${(1 + pct / 100).toLocaleString('es-AR', { maximumFractionDigits: 4 })} sobre el precio.</td></tr>`;
         html += '</tbody></table>';
       }
       if (!html) html = '<p class="tarifas-hint">Con lo tildado no hay nada que cambiar.</p>';
