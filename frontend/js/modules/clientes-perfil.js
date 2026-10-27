@@ -843,6 +843,7 @@
     const lbl = document.getElementById('paso-hasta-lbl');
     const fino = pasoActual === 1 || pasoActual === 0.5;
     hasta.classList.toggle('hidden', !fino); lbl.classList.toggle('hidden', !fino);
+    const uni = document.getElementById('paso-hasta-uni'); if (uni) uni.classList.toggle('hidden', !fino);
     if (fino) {
       const ultimo = TARIFAS_BANDAS[TARIFAS_BANDAS.length - 1];
       if (ultimo && ultimo.max === null) hasta.value = ultimo.min;

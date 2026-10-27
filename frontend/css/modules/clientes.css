@@ -202,20 +202,22 @@ a.btn, a.btn:hover { text-decoration:none; }
 
 /* Resumen de la matriz (lo que se cobra), arriba de la grilla de edicion */
 /* Tarjetas de resumen de Tarifas (rediseño 27/10): general, matriz, fuel, seguro. */
-.tarifas-resumen { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.6rem; margin-bottom:.6rem; }
-@media (max-width: 900px) { .tarifas-resumen { grid-template-columns:repeat(2,minmax(0,1fr)); } }
-.tarifas-serv { border:1px solid var(--color-border); border-radius:8px; padding:.55rem .75rem; font-size:.8rem; min-width:0; }
-.tarifas-serv b { display:block; font-size:.68rem; text-transform:uppercase; letter-spacing:.04em; color:var(--color-muted); margin-bottom:.15rem; }
-.tarifas-serv .v { display:block; font-size:1rem; font-weight:700; color:var(--color-primary); }
-.tarifas-serv small { display:block; color:var(--color-muted); margin-top:.1rem; font-size:.74rem; }
+#card-tarifas .per-card-cuerpo { container-type: inline-size; }
+.tarifas-resumen { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.5rem; margin-bottom:.5rem; }
+@container (max-width: 540px) { .tarifas-resumen { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+.tarifas-serv { border:1px solid var(--color-border); border-radius:8px; padding:.45rem .6rem; font-size:.78rem; min-width:0; }
+.tarifas-serv b { display:block; font-size:.64rem; text-transform:uppercase; letter-spacing:.04em; color:var(--color-muted); margin-bottom:.1rem; white-space:nowrap; }
+.tarifas-serv .v { display:block; font-size:.95rem; font-weight:700; color:var(--color-primary); white-space:nowrap; }
+.tarifas-serv small { display:block; color:var(--color-muted); margin-top:.1rem; font-size:.7rem; line-height:1.3; }
 .tarifas-serv .cli-chip { margin:0 0 0 .2rem; vertical-align:middle; }
-.per-card-acc { display:flex; gap:.4rem; flex-wrap:nowrap; }
+.per-card-acc { display:flex; gap:.35rem; flex-wrap:nowrap; }
+.per-card-acc .btn { white-space:nowrap; padding:.3rem .6rem; }
 /* La barra de fuel + seguro + paso, una sola línea. */
-.tarifas-barra { display:flex; align-items:center; gap:.6rem 1.4rem; flex-wrap:wrap; padding:.5rem .75rem; margin:.2rem 0 .3rem; background:#f8fafc; border:1px solid var(--color-border); border-radius:8px; }
-.tarifas-campo { display:flex; align-items:center; gap:.35rem; font-size:.8rem; }
+.tarifas-barra { display:flex; align-items:center; gap:.45rem 1rem; flex-wrap:wrap; padding:.45rem .65rem; margin:.2rem 0 .3rem; background:#f8fafc; border:1px solid var(--color-border); border-radius:8px; }
+.tarifas-campo { display:flex; align-items:center; gap:.3rem; font-size:.78rem; white-space:nowrap; }
 .tarifas-campo label { font-weight:600; color:var(--color-text); white-space:nowrap; text-transform:none; font-size:.78rem; letter-spacing:0; margin:0; }
 .tarifas-campo label.sub { font-weight:500; color:var(--color-muted); }
-.tarifas-campo input { width:70px !important; font-size:.8rem; padding:.25rem .4rem; }
+.tarifas-campo input { width:58px !important; font-size:.78rem; padding:.2rem .35rem; }
 .tarifas-campo .uni { color:var(--color-muted); font-size:.76rem; }
 .btn.btn-xs { padding:.2rem .55rem; font-size:.72rem; }
 .tarifas-hints { display:flex; gap:1.2rem; flex-wrap:wrap; margin-bottom:.4rem; }
@@ -532,6 +534,6 @@ td.tarifa-cell.salto { background: #fee2e2 !important; color: #b91c1c !important
 .aumento-preview h4 { margin: 0.8rem 0 0.3rem; font-size: 0.9rem; color: #2A3661; }
 .aumento-pie .btn { white-space: nowrap; }
 .aumento-pie { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: 0.7rem 1.1rem; border-top: 1px solid #e5e8ee; }
-.tarifas-ultimo-aumento { font-size: 0.84rem; color: #555; margin-top: 0.4rem; }
+.tarifas-ultimo-aumento { font-size: 0.8rem; color: #555; margin: 0 0 .4rem; display:flex; align-items:center; gap:.5rem; flex-wrap:wrap; }
 .tarifas-ultimo-aumento:empty { display: none; }
-.tarifas-ultimo-aumento button { margin-left: 0.5rem; }
+.tarifas-ultimo-aumento button { margin:0; padding:.15rem .5rem; font-size:.72rem; }
