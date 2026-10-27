@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Salidas – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
-  <link rel="stylesheet" href="../css/main.css?v=20260929a">
-  <link rel="stylesheet" href="../css/modules/salidas.css?v=20261009a">
+  <link rel="stylesheet" href="../css/main.css?v=20261027a">
+  <link rel="stylesheet" href="../css/modules/salidas.css?v=20261027a">
   <!-- Acá se cargaba la librería xlsx desde un CDN, para el viejo botón "Exportar Excel".
        Se fue con el botón el 06/08/2026: la planilla del cierre la arma el servidor, así
        que esta pantalla ya no le pide nada a internet. Si alguna vez vuelve a hacer falta
@@ -192,7 +192,7 @@
                 <th class="thg thg-medidas" colspan="6">Medidas y pesos</th>
                 <th class="thg thg-venta" colspan="3">Venta</th>
                 <th class="thg thg-costos" colspan="9">Costos (USD)</th>
-                <th class="thg thg-resultado" colspan="2">Resultado</th>
+                <th class="thg thg-resultado" colspan="2" title="Profit y % calculados por nosotros (venta − compra estimada). El real contra la factura está en el bloque Factura UPS.">Resultado estimado</th>
                 <th class="thg thg-ups ups-col" colspan="7">Factura UPS</th>
                 <th class="thg thg-estado" colspan="2">Estado</th>
               </tr>
@@ -234,8 +234,8 @@
                 <!-- La doble vista (31/08): el profit contra la factura REAL del courier, al lado
                      del estimado de siempre. Ninguno pisa al otro. -->
                 <th class="num ups-col" style="width:80px"><div class="th-inner">Profit Real</div></th>
-                <th data-col="peso_facturado" class="num ups-col" style="width:70px"><div class="th-inner">Peso UPS<span class="sort-icon"></span></div></th>
-                <th class="num ups-col" style="width:62px"><div class="th-inner">Dif Peso</div></th>
+                <th data-col="peso_facturado" class="num ups-col" style="width:70px" title="Kilos que facturó UPS. En rojo cuando pesó de más de lo tolerado; el % va en el tooltip de la celda"><div class="th-inner">Peso UPS<span class="sort-icon"></span></div></th>
+                <th class="num ups-col" style="width:70px" title="Nuestro peso facturable (el mismo P.Fact de la izquierda), puesto acá para compararlo con el de UPS"><div class="th-inner">Peso Nova</div></th>
                 <th class="ups-col" style="width:70px"><div class="th-inner">Revisión<button class="filter-btn" data-filter="revision" title="Filtrar">▼</button></div></th>
                 <th data-col="estado" style="width:100px"><div class="th-inner">Estado<button class="filter-btn" data-filter="estado" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
                 <th style="width:140px">Observaciones</th>
@@ -271,12 +271,12 @@
 
 <script src="/js/auth-guard.js?v=20260924b"></script>
 <script src="../js/api.js?v=20261016a"></script>
-<script src="../js/main.js?v=20260929a"></script>
+<script src="../js/main.js?v=20261027a"></script>
 <script src="/shared/cotizador/cotizador-core.js?v=20261009a"></script>
 <script src="/shared/guias/validar-guia.js?v=20260915a"></script>
 <script src="/shared/salidas/numeracion.js?v=20261020a"></script>
 <script src="../js/cotizaciones-recientes.js?v=20261002a"></script>
 <script src="../js/finde.js?v=20260922b"></script>
-<script src="../js/modules/salidas.js?v=20261020c"></script>
+<script src="../js/modules/salidas.js?v=20261027a"></script>
 </body>
 </html>

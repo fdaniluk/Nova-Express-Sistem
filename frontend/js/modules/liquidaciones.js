@@ -28,6 +28,10 @@
     bindHistorial();
     setDefaultDates();
     loadPendientes();
+    // Salidas (27/10) manda acá con ?retomar=<id> desde el badge "Borrador #N" de la
+    // columna Estado: se abre ese borrador directo en Crear liquidación.
+    const retomar = new URLSearchParams(window.location.search).get('retomar');
+    if (retomar && /^\d+$/.test(retomar)) retomarBorrador(retomar);
   }
 
   function setDefaultDates() {

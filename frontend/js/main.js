@@ -63,3 +63,39 @@ window.NovaUtils = {
   showAlert,
   tipoCobroLabel,
 };
+
+// ── Menú plegable (27/10/2026) ───────────────────────────────────────────────
+// Pliega la barra de módulos a solo íconos para que las tablas anchas (Salidas) tengan más
+// lugar. El estado se guarda por navegador (localStorage nova_menu = 'plegado'). El botón
+// se inserta acá y no en cada HTML para que valga en las 20 pantallas a la vez.
+(function menuPlegable() {
+  const layout = document.querySelector('.app-layout');
+  const sidebar = layout && layout.querySelector('.sidebar');
+  if (!sidebar) return;
+  const KEY = 'nova_menu';
+  let plegado = false;
+  try { plegado = localStorage.getItem(KEY) === 'plegado'; } catch {}
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'sidebar-toggle'; btn.id = 'sidebar-toggle';
+  const pintar = () => {
+    layout.classList.toggle('sb-colapsado', plegado);
+    btn.innerHTML = plegado
+      ? '<span class="st-ico" aria-hidden="true">›</span>'
+      : '<span class="st-txt">Plegar menú</span><span class="st-ico" aria-hidden="true">‹</span>';
+    btn.title = plegado ? 'Desplegar el menú' : 'Plegar el menú (deja solo los íconos)';
+    btn.setAttribute('aria-expanded', plegado ? 'false' : 'true');
+    // Con el menú plegado, el nombre del módulo queda como tooltip del ícono.
+    sidebar.querySelectorAll('.nav-item').forEach((a) => {
+      const txt = a.querySelector('span:last-child');
+      if (txt) a.title = plegado ? txt.textContent.trim() : '';
+    });
+  };
+  btn.addEventListener('click', () => {
+    plegado = !plegado;
+    try { localStorage.setItem(KEY, plegado ? 'plegado' : 'abierto'); } catch {}
+    pintar();
+  });
+  const brand = sidebar.querySelector('.sidebar-brand');
+  if (brand) brand.insertAdjacentElement('afterend', btn); else sidebar.prepend(btn);
+  pintar();
+})();

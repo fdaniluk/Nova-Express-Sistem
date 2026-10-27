@@ -82,7 +82,7 @@
   const GRID_MAX_COL = 39;   // 40 columnas fijas → índices 0..39; navegables 1..39 (06/10: + Flete+Fuel y Flete+Fuel UPS)
   let activeCell = null;
 
-  // ── Bloque desplegable de columnas UPS (Costo UPS, % Real, Profit Real, Peso UPS, Dif Peso, Revisión)
+  // ── Bloque desplegable de columnas UPS (Costo UPS, % Real, Profit Real, Peso UPS, Peso Nova, Revisión)
   // Cinco columnas contiguas (índices 30..34) que solo importan al cruzar facturas. Se ocultan
   // con la clase .ups-collapsed en la tabla (CSS: .ups-col{display:none}). Frontend puro: la
   // exportación a Excel las incluye SIEMPRE, este el bloque plegado o no.
@@ -621,7 +621,7 @@
       <td data-col="tipo_cobro">${env(cobroBadge(e.tipo_cobro))}</td>
       <td data-col="cliente_nombre">${env(`<a href="clientes-perfil.html?id=${e.cliente_id}">${esc(e.cliente_nombre)}</a>`)}</td>
       <td data-col="destino">${env(esc(e.destino))}</td>
-      <td class="bulto-cell">${bultoCellHtml(e, b, numBulto, totalBultos, isFirst)}</td>
+      <td class="bulto-cell ${semaforoCellClass(b)}">${bultoCellHtml(e, b, numBulto, totalBultos, isFirst)}</td>
       <td>${env(tipoBadge(e.tipo_paquete))}</td>
       <td>${env(dirBadge(e.direccion))}</td>
       <td class="num">${fmtDim(largo)}</td>
@@ -648,8 +648,8 @@
       <td class="num ups-col${difFF.rojo ? ' cell-desvio-rojo' : ''}" data-col="flete_fuel_ups"${difFF.title ? ` title="${escAttr(difFF.title)}"` : ''}>${fleteFuelUpsCellHtml(e, isFirst)}</td>
       <td class="num ups-col" data-col="porcentaje_real">${pctRealCellHtml(e, isFirst)}</td>
       <td class="num ups-col" data-col="profit_real">${profitRealCellHtml(e, isFirst)}</td>
-      <td class="num ups-col" data-col="peso_ups">${pesoUpsCellHtml(e, isFirst)}</td>
-      <td class="num ups-col${difPeso.rojo ? ' cell-desvio-rojo' : ''}" data-col="dif_peso">${difPeso.html}</td>
+      <td class="num ups-col${difPeso.rojo ? ' cell-desvio-rojo' : ''}" data-col="peso_ups"${difPeso.title ? ` title="${escAttr(difPeso.title)}"` : ''}>${pesoUpsCellHtml(e, isFirst)}</td>
+      <td class="num ups-col" data-col="peso_nova">${pesoNovaCellHtml(e, isFirst)}</td>
       <td class="revision-cell ups-col">${revisionCellHtml(e, isFirst)}</td>
       <td>${env(estadoBadge(e, today))}</td>
       <td class="obs-cell" title="${isFirst ? escAttr(e.observaciones) : ''}">${obsCell(e.observaciones, isFirst)}</td>
@@ -748,11 +748,21 @@
     return fmtCell(e.costo_facturado) + chip;
   }
 
-  // Celda "Peso UPS": el peso que facturó el courier (e.peso_facturado).
+  // Celda "Peso UPS": el peso que facturó el courier (e.peso_facturado). Se pinta en rojo
+  // cuando UPS pesó de más (fuera de tolerancia); el % va en el tooltip (27/10: antes
+  // había una columna "Dif Peso" con el %, la oficina prefirió ver el peso nuestro al lado).
   function pesoUpsCellHtml(e, isFirst) {
     if (!isFirst) return '';
     if (e.costo_facturado == null) return '<span class="em">—</span>';
     return fmtKg(e.peso_facturado);
+  }
+  // Celda "Peso Nova": nuestro peso facturable, repetido acá al lado del de UPS para
+  // comparar sin ir a buscarlo a la izquierda. Solo cuando hay factura (si no, la
+  // comparación no existe y la celda queda con guión como el resto del bloque).
+  function pesoNovaCellHtml(e, isFirst) {
+    if (!isFirst) return '';
+    if (e.costo_facturado == null) return '<span class="em">—</span>';
+    return fmtKg(e.peso_facturable);
   }
 
   // Evalúa el desvío de una métrica facturada por el courier vs. la nuestra. Dos medidas:
@@ -782,7 +792,7 @@
     // alerta: se pinta en rojo la celda "Costo UPS" y el porcentaje va en el tooltip.
     const title = tipo === 'costo'
       ? `Contra nuestra compra estimada: ${sign}${pct.toFixed(1)}% (${sign}${abs.toFixed(2)} USD)${rojo ? ' · supera la tolerancia' : ''}`
-      : '';
+      : `UPS facturó ${Number(facturado).toFixed(2)} kg contra ${Number(base).toFixed(2)} kg nuestros: ${sign}${pct.toFixed(1)}% (${sign}${abs.toFixed(2)} kg)${rojo ? ' · supera la tolerancia' : ''}`;
     return { html: `${sign}${pct.toFixed(1)}%`, rojo, title };
   }
 
@@ -951,7 +961,7 @@
     if (e.no_volo) return 'NO VOLÓ';
     if (e.liquidado) return 'Liquidado';
     const dias = diffDias(e.fecha, today);
-    if (dias >= DIAS_ALERTA_ROJO) return `Pendiente · ${dias}d`;
+    if (e.borrador_id) return `En borrador · ${dias}d`;
     return `Pendiente · ${dias}d`;
   }
 
@@ -966,6 +976,13 @@
     }
     const dias = diffDias(e.fecha, today);
     const cls = dias >= DIAS_ALERTA_ROJO ? 'badge-pend-alert' : 'badge-pend-ok';
+    // En borrador (27/10): el envío ya está en una liquidación sin confirmar. El badge es
+    // un link que abre ESE borrador en Liquidaciones (?retomar=id).
+    if (e.borrador_id) {
+      return `<a class="badge badge-borrador" href="liquidaciones.html?retomar=${e.borrador_id}" `
+        + `title="Este envío está en el borrador de liquidación #${e.borrador_id} (sin confirmar). Clic para abrirlo.">`
+        + `📝 Borrador #${e.borrador_id} · ${dias}d</a>`;
+    }
     return `<span class="badge ${cls}">Pendiente · ${dias}d</span>`;
   }
 
@@ -2375,6 +2392,13 @@
     });
   }
 
+  // Clase para pintar la celda ENTERA del bulto con el color del semáforo (27/10, pedido
+  // de la oficina: el punto solo se veía poco). El punto se mantiene para el tooltip.
+  function semaforoCellClass(b) {
+    const info = ESTADO_CAJA_INFO[b && b.estado_caja] || ESTADO_CAJA_INFO.rojo;
+    return 'sem-' + info.cls.replace('estado-', '');
+  }
+
   // Punto de color para la celda de bulto. Cualquier valor no reconocido (incl. null) → rojo.
   // Si el semáforo automático ya miró este envío (envios.tracking_*), el tooltip cuenta
   // qué dijo UPS y cuándo se consultó — así un estado viejo o un error de rastreo nunca
@@ -2890,7 +2914,7 @@
   const MODAL_FIELD_BY_COL = {
     peso_facturable: 'saled-peso-facturable',
     peso_ups:        'saled-peso-facturable',
-    dif_peso:        'saled-peso-facturable',
+    peso_nova:       'saled-peso-facturable',
     flete:      'saled-flete',
     descuento:  'saled-descuento',
     seguro:     'saled-seguro',
@@ -4864,7 +4888,7 @@
   // agrega una columna en el medio, esto sigue valiendo.
   const UNIDAD_POR_ROTULO = {
     'Largo': 'cm', 'Ancho': 'cm', 'Alto': 'cm',
-    'P.Balanza': 'kg', 'P.Volumétrico': 'kg', 'P.Fact': 'kg', 'Peso UPS': 'kg', 'Dif Peso': 'kg',
+    'P.Balanza': 'kg', 'P.Volumétrico': 'kg', 'P.Fact': 'kg', 'Peso UPS': 'kg', 'Peso Nova': 'kg',
     'FOB': 'USD', 'Venta Total': 'USD', 'Flete': 'USD', 'Dscto': 'USD', 'Seguro': 'USD',
     'Fuel': 'USD', 'Derechos': 'USD', 'Adic': 'USD', 'Otros': 'USD', 'Compra Total': 'USD',
     'Profit': 'USD', 'Costo UPS': 'USD', 'Profit Real': 'USD',

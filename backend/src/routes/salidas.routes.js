@@ -116,6 +116,11 @@ async function listarSalidas({ desde, hasta } = {}) {
       e.fecha_liquidacion,
       e.liquidacion_id,
       e.created_at,
+      -- Borrador de liquidación que ya incluye este envío (27/10): la columna Estado lo
+      -- muestra como "En borrador #N" y el clic lo abre en Liquidaciones. El más nuevo si
+      -- hubiera varios (misma subconsulta que listarPendientesPorCliente).
+      (SELECT l.id FROM liquidacion_items li JOIN liquidaciones l ON l.id = li.liquidacion_id
+        WHERE li.envio_id = e.id AND l.estado = 'borrador' ORDER BY l.id DESC LIMIT 1) AS borrador_id,
       c.id                  AS cliente_id,
       COALESCE(NULLIF(c.nombre_nova,''), c.nombre) AS cliente_nombre,
       c.tipo_cobro,
@@ -362,6 +367,7 @@ async function listarSalidas({ desde, hasta } = {}) {
     // Datos de lo que el courier facturó por este envío (módulo Control de Facturas).
     // Los escalares viven en la propia fila de envios; recargos_facturados es el desglose
     // de la factura MÁS RECIENTE cruzada a este envío (array vacío si no hay factura).
+    borrador_id: row.liquidado ? null : (row.borrador_id ?? null),
     costo_facturado: row.costo_facturado ?? null,
     peso_facturado: row.peso_facturado ?? null,
     courier_facturado: row.courier_facturado ?? null,

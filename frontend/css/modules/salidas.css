@@ -479,6 +479,9 @@ th:not(.sort-asc):not(.sort-desc) .sort-icon::after { content: '⇅'; }
 .badge-liq    { background: #d1fae5; color: #065f46; }
 .badge-pend-ok  { background: #fef3c7; color: #92400e; }
 .badge-pend-alert { background: #fee2e2; color: #991b1b; }
+/* Envío dentro de un borrador de liquidación (27/10): es un link al borrador. */
+a.badge-borrador { background: #e0e7ff; color: #3730a3; text-decoration: none; cursor: pointer; }
+a.badge-borrador:hover { background: #c7d2fe; text-decoration: underline; }
 
 /* ── Alert row indicators ── */
 .row-alert-rojo td:first-child { border-left: 3px solid #dc2626; }
@@ -795,6 +798,14 @@ td.detail-expandable { cursor: pointer; }
 .bulto-estado-dot.estado-rojo     { background: #E24B4A; }
 .bulto-estado-dot.estado-amarillo { background: #EF9F27; }
 .bulto-estado-dot.estado-verde    { background: #1D9E75; }
+/* La celda entera del bulto pintada con el semáforo (27/10): fondo suave + borde
+   izquierdo fuerte, para que se vea de lejos sin tapar el número de bulto. */
+.salidas-table td.bulto-cell.sem-rojo     { background: #fde8e8; box-shadow: inset 4px 0 0 #E24B4A; }
+.salidas-table td.bulto-cell.sem-amarillo { background: #fdf0d5; box-shadow: inset 4px 0 0 #EF9F27; }
+.salidas-table td.bulto-cell.sem-verde    { background: #dcf5ea; box-shadow: inset 4px 0 0 #1D9E75; }
+.salidas-table tr:hover td.bulto-cell.sem-rojo     { background: #fbd5d5; }
+.salidas-table tr:hover td.bulto-cell.sem-amarillo { background: #fbe3b3; }
+.salidas-table tr:hover td.bulto-cell.sem-verde    { background: #c4ecd9; }
 
 /* Sección "Estado de la caja" del modal: una fila (1 bulto) o varias (multi-bulto). */
 .saled-estado-caja {

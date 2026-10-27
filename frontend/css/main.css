@@ -479,10 +479,41 @@ tr:hover td {
 }
 
 
+/* ── Menú plegable (27/10/2026, pedido de la oficina) ────────────────────────
+   El botón ‹ › bajo el logo pliega la barra a 54 px (solo íconos) para que Salidas y las
+   tablas anchas tengan más lugar. Se recuerda por navegador (localStorage nova_menu).
+   En celular (≤700 px) la barra ya va plegada siempre; el botón no cambia eso. */
+.sidebar-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.4rem;
+  width: 100%;
+  padding: 0.3rem 0.8rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: #94a3b8;
+  font: inherit;
+  font-size: 0.72rem;
+  cursor: pointer;
+}
+.sidebar-toggle:hover { color: #fff; background: rgba(255, 255, 255, 0.08); }
+.sidebar-toggle .st-ico { font-size: 0.95rem; line-height: 1; }
+.app-layout.sb-colapsado .sidebar { width: 54px; }
+.app-layout.sb-colapsado .sidebar-brand { justify-content: center; padding: 0.8rem 0.4rem; }
+.app-layout.sb-colapsado .sidebar-title,
+.app-layout.sb-colapsado .sidebar-subtitle,
+.app-layout.sb-colapsado .sidebar-toggle .st-txt,
+.app-layout.sb-colapsado .nav-item span:last-child { display: none; }
+.app-layout.sb-colapsado .sidebar-toggle { justify-content: center; padding: 0.3rem 0; }
+.app-layout.sb-colapsado .nav-item { justify-content: center; padding: 0.7rem; }
+
 @media (max-width: 700px) {
   .sidebar {
     width: 54px;
   }
+  .sidebar-toggle { display: none; }
 
   .sidebar-title,
   .sidebar-subtitle,
