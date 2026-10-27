@@ -88,6 +88,19 @@
   // Resumen de la matriz, arriba de la grilla: "75 % general · 6 celdas propias" por
   // servicio. La grilla completa se abre con "Editar tarifas" (pedido de Felipe: que el
   // número de arriba no mienta cuando la matriz dice otra cosa).
+  // Aviso al cambiar el % general de un cliente con matriz (27/10). Mismo texto que en
+  // Clientes (clientes.js confirmarCambioGeneral).
+  function confirmarCambioGeneral(c, nuevoPct) {
+    if (!c) return true;
+    const actual = Number(c.tarifa_pct) || 0;
+    if (Number(nuevoPct) === actual) return true;
+    const celdas = Number(c.matriz_celdas) || 0;
+    const kg = Number(c.kg_celdas) || 0;
+    if (!celdas && !kg) return true;
+    const que = [celdas ? `${celdas} celda(s) de %` : null, kg ? `${kg} precio(s) por kilo` : null].filter(Boolean).join(' y ');
+    return window.confirm(`OJO: vas a cambiar el % general de ${c.nombre} de ${actual} % a ${nuevoPct} %.\n\nEste cliente tiene ${que} cargados. Desde ahora manda lo último que se carga: el ${nuevoPct} % va a pisar TODAS esas tarifas (se cobra ${nuevoPct} % en todo) hasta que vuelvas a cargar una celda o un precio por kilo, que ahí vuelve a mandar esa celda.\n\nLas celdas no se borran. ¿Seguir?`);
+  }
+
   function renderResumenTarifas(c) {
     const cont = document.getElementById('tarifas-resumen');
     const extra = document.getElementById('tarifas-extra');
@@ -383,9 +396,13 @@
           else data[campo.key] = val;
         });
 
+        // Cambiar el % general pisa toda la matriz (27/10: manda lo último que se cargó).
+        if (!confirmarCambioGeneral(clienteData, data.tarifa_pct)) return;
         const updated = await NovaAPI.clientes.actualizar(clienteId, data);
         clienteData = updated;
         NovaUtils.showAlert(alertBox, 'Datos actualizados correctamente', 'success');
+        // Si cambió el general, la grilla de "lo que se cobra" cambia entera: se redibuja.
+        if (tarifasCargado) renderGrid();
 
         enEdicion = false;
         document.querySelectorAll('.info-field').forEach((f) => f.classList.remove('editing'));
@@ -701,22 +718,51 @@
     return m ? m.overrides.find((o) => o.zona === zona && o.peso_min === null) || null : null;
   }
 
-  // Valor efectivo dentro de una matriz, con la precedencia del backend:
+  // Valor efectivo dentro de una matriz, con la precedencia clásica del backend:
   // celda → banda → zona → general de tabla. Sólo la celda cuenta como "propio".
   function efectivoEn(m, campo, zona, banda) {
     const c = overrideCelda(m, zona, banda.min);
-    if (c) return { val: c[campo], propio: true };
+    if (c) return { val: c[campo], propio: true, desde: c.vigente_desde || null, nivel: 'celda' };
     const b = overrideBanda(m, banda.min);
-    if (b) return { val: b[campo], propio: false };
+    if (b) return { val: b[campo], propio: false, desde: b.vigente_desde || null, nivel: 'banda' };
     const z = overrideZona(m, zona);
-    if (z) return { val: z[campo], propio: false };
-    if (m && m.general_tabla) return { val: m.general_tabla[campo], propio: false, general: true };
+    if (z) return { val: z[campo], propio: false, desde: z.vigente_desde || null, nivel: 'zona' };
+    if (m && m.general_tabla) return { val: m.general_tabla[campo], propio: false, general: true, desde: m.general_tabla.vigente_desde || null, nivel: 'tabla' };
     return { val: null, propio: false };
   }
 
-  // LA CELDA MUESTRA UN SOLO NÚMERO. En la VISTA es lo que se cobra: el precio por kilo
-  // si el cliente cobra por kilo y hay precio; si no, el porcentaje. En EDICIÓN es el
-  // valor crudo de la tabla que se está editando ('—' si no hay nada). Pedido de Felipe
+  // Los candidatos que aplican a una zona + tramo, con su fecha de carga, en el MISMO orden
+  // de especificidad que el motor (profit.service candidatosKg/candidatosProfit).
+  function candidatosDe(m, zona, banda) {
+    const out = [];
+    const push = (tabla, campo, unidad, base) => {
+      if (!tabla) return;
+      const c = overrideCelda(tabla, zona, banda.min); if (c) out.push({ val: c[campo], unidad, prio: base + 1, desde: c.vigente_desde || null, nivel: 'celda' });
+      const b = overrideBanda(tabla, banda.min);       if (b) out.push({ val: b[campo], unidad, prio: base + 2, desde: b.vigente_desde || null, nivel: 'banda' });
+      const z = overrideZona(tabla, zona);             if (z) out.push({ val: z[campo], unidad, prio: base + 3, desde: z.vigente_desde || null, nivel: 'zona' });
+      if (tabla.general_tabla) out.push({ val: tabla.general_tabla[campo], unidad, prio: base + 4, desde: tabla.general_tabla.vigente_desde || null, nivel: 'tabla' });
+    };
+    push(m.kg, 'precio_kg', 'kg', 0);
+    push(m.pct, 'profit_pct', 'pct', 4);
+    out.push({ val: clienteData && clienteData.tarifa_pct != null ? clienteData.tarifa_pct : 0, unidad: 'pct', prio: 9, desde: (clienteData && clienteData.tarifa_pct_desde) || null, nivel: 'cliente' });
+    return out;
+  }
+  // La MISMA regla que el motor (profit.service elegirCandidato, 27/10): entre los que
+  // tienen fecha gana el más nuevo (empate: el más específico); sin fechas, el más específico.
+  function elegirCandidato(cands) {
+    const conFecha = cands.filter((c) => c.desde);
+    const pool = conFecha.length ? conFecha.slice() : cands.slice();
+    pool.sort((a, b) => {
+      if (conFecha.length && a.desde !== b.desde) return a.desde < b.desde ? 1 : -1;
+      return a.prio - b.prio;
+    });
+    return pool[0];
+  }
+
+  // LA CELDA MUESTRA UN SOLO NÚMERO. En la VISTA es lo que se cobra: el candidato que
+  // manda según la regla de arriba. En EDICIÓN es el valor crudo de la tabla que se está
+  // editando ('—' si no hay nada); si ese valor está PISADO por algo más nuevo (un % general
+  // cargado después, un precio por kilo más nuevo), la celda lo dice. Pedido de Felipe
   // (13/08): "o dice 70 o dice 5,50", nada de dos números en la misma celda.
   function valorEfectivo(serv, tipo, zona, banda) {
     const m = matrices[claveM(serv, tipo)] || {};
@@ -724,20 +770,25 @@
     const pct = efectivoEn(m.pct, 'profit_pct', zona, banda);
     const pctConCliente = pct.val !== null ? pct.val
       : (clienteData && clienteData.tarifa_pct != null ? clienteData.tarifa_pct : 0);
+    const gana = elegirCandidato(candidatosDe(m, zona, banda));
+    const pisadaPor = (unidadEditada, ef) => {
+      if (ef.val === null || !gana) return '';
+      if (gana.unidad === unidadEditada && gana.nivel === ef.nivel) return '';
+      if (gana.nivel === 'cliente') return `Pisada por el % general del cliente (${gana.val} %), cargado después. Volvé a cargarla y manda de nuevo.`;
+      return `Pisada por ${gana.unidad === 'kg' ? 'un precio por kilo' : 'un %'} (${formatoValor(gana.val, gana.unidad)}, ${gana.nivel === 'celda' ? 'esta celda' : gana.nivel === 'banda' ? 'la fila "Todas"' : gana.nivel === 'zona' ? 'la zona' : 'la tabla'}) cargado después. Volvé a cargarla y manda de nuevo.`;
+    };
 
     if (editando === 'kg') {
-      return { val: kg.val, propio: kg.propio, cero: kg.val === 0, unidad: 'kg' };
+      return { val: kg.val, propio: kg.propio, cero: kg.val === 0, unidad: 'kg', pisada: pisadaPor('kg', kg) };
     }
     if (editando === 'pct') {
-      return { val: pct.val !== null ? pct.val : pctConCliente, propio: pct.propio, unidad: 'pct' };
+      return { val: pct.val !== null ? pct.val : pctConCliente, propio: pct.propio, unidad: 'pct', pisada: pisadaPor('pct', pct) };
     }
-    // Vista: EL PRECIO POR KILO DONDE HAY, EL PORCENTAJE DONDE NO. Es exactamente lo que
-    // cobra el motor desde el 13/08: el precio por kilo cargado se cobra siempre, sin
-    // importar el modo del cliente (pedido de Felipe).
-    if (kg.val !== null) {
-      return { val: kg.val, propio: false, cero: kg.val === 0, unidad: 'kg' };
+    // Vista: lo que cobra el motor.
+    if (gana && gana.unidad === 'kg') {
+      return { val: gana.val, propio: false, cero: gana.val === 0, unidad: 'kg' };
     }
-    return { val: pctConCliente, propio: false, unidad: 'pct', porPct: esPorKg() };
+    return { val: gana ? gana.val : pctConCliente, propio: false, unidad: 'pct', porPct: esPorKg() };
   }
 
   // Cómo se muestra un valor según su unidad.
@@ -827,8 +878,8 @@
         ? (pasoActual ? `Este cliente tiene su tarifa con tramos de ${pasoActual === 0.5 ? '0,5' : pasoActual} kg (${TARIFAS_BANDAS.length} tramos).` : 'Este cliente tiene tramos de peso propios, negociados con él: no son los que usa el resto.')
         : 'Los tramos de peso son los generales (de 5 kg).';
       // Corta (27/10): la explicación larga queda en el tooltip (?), no en la pantalla.
-      ayuda.textContent = `Cada celda muestra lo que se cobra: el precio por kilo gana en su cuadrante, el % cubre el resto. Para cambiar algo, Editar % o Editar precio por kilo.`;
-      ayuda.title = `${deQuienSonLosTramos} Lo que se carga es lo que se cobra. Las celdas rayadas heredan el valor de "Todas" o el general; las vacías caen al % general.`;
+      ayuda.textContent = `Cada celda muestra lo que se cobra: manda lo último que se cargó (% general, celda de % o precio por kilo). Para cambiar algo, Editar % o Editar precio por kilo.`;
+      ayuda.title = `${deQuienSonLosTramos} Desde el 27/10 entre el % general, las celdas de % y los precios por kilo gana el que se cargó último: un % general nuevo pisa toda la matriz; una celda cargada después vuelve a mandar en su lugar. Las tarifas cargadas antes de esa fecha se cobran como siempre (precio por kilo > celda > general). Las celdas rayadas heredan el valor de "Todas" o el general; las vacías caen al % general.`;
     }
 
     renderSeguro();
@@ -1006,13 +1057,14 @@
         let cls = ef.propio ? 'tarifa-cell propio' : 'tarifa-cell heredado';
         if (ef.porPct) cls += ' por-pct';
         if (ef.cero) cls += ' cero';
+        if (ef.pisada) cls += ' pisada';
         if (!ef.propio && ef.val === null) cls += ' sin-valor';
         const del = ef.propio && editando !== null ? '<span class="cell-del" title="Quitar override">✕</span>' : '';
         const title = editando === null
           ? (ef.porPct ? 'Sin precio por kilo: este peso se cobra con este porcentaje.'
             : (ef.cero ? 'PRECIO CERO: esta zona vende el flete a USD 0,00.'
               : 'Lo que se cobra en esta zona y este tramo. Para cambiarlo, botón Editar.'))
-          : 'Hacé clic para cambiar el valor de esta zona';
+          : (ef.pisada ? ef.pisada + ' Clic para cambiarla.' : 'Hacé clic para cambiar el valor de esta zona');
         if (banda.vieja) cls = cls.replace('tarifa-cell', 'celda-vieja');
         if (saltoEn.has(`${zona}|${banda.max === null ? `${banda.min}+` : `${banda.min}-${banda.max}`}`)) cls += ' salto';
         html += `<td class="${cls}" ${dataST} data-zona="${zona}" data-min="${banda.min}" data-max="${maxAttr}"`

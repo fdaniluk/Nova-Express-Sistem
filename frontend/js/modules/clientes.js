@@ -363,6 +363,9 @@
       e.preventDefault();
       const data = getFormData();
       const btn = document.getElementById('btn-guardar-cliente');
+      // Cambiar el % general pisa toda la matriz del cliente (27/10: manda lo último que se
+      // cargó). Se avisa antes, con lo que tiene cargado.
+      if (modoEdicion && !confirmarCambioGeneral(clientes.find((x) => x.id === Number(clienteIdInput.value)), data.tarifa_pct)) return;
       btn.disabled = true;
       try {
         if (modoEdicion) {
@@ -459,6 +462,21 @@
       direccion_recoleccion: v('f-direccion_recoleccion'),
     };
   }
+
+  // Aviso al cambiar el % general de un cliente con matriz (27/10): desde ese momento el %
+  // nuevo manda sobre TODAS las celdas y precios por kilo cargados antes. Devuelve false si
+  // la persona se arrepiente.
+  function confirmarCambioGeneral(c, nuevoPct) {
+    if (!c) return true;
+    const actual = Number(c.tarifa_pct) || 0;
+    if (Number(nuevoPct) === actual) return true;
+    const celdas = Number(c.matriz_celdas) || 0;
+    const kg = Number(c.kg_celdas) || 0;
+    if (!celdas && !kg) return true;
+    const que = [celdas ? `${celdas} celda(s) de %` : null, kg ? `${kg} precio(s) por kilo` : null].filter(Boolean).join(' y ');
+    return window.confirm(`OJO: vas a cambiar el % general de ${c.nombre} de ${actual} % a ${nuevoPct} %.\n\nEste cliente tiene ${que} cargados. Desde ahora manda lo último que se carga: el ${nuevoPct} % va a pisar TODAS esas tarifas (se cobra ${nuevoPct} % en todo) hasta que vuelvas a cargar una celda o un precio por kilo, que ahí vuelve a mandar esa celda.\n\nLas celdas no se borran. ¿Seguir?`);
+  }
+  window.NovaConfirmarCambioGeneral = confirmarCambioGeneral;
 
   function limpiarForm() {
     formCliente.reset();

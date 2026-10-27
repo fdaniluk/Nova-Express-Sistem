@@ -59,6 +59,30 @@ const BANDAS = TRAMOS_POR_DEFECTO;
  * @param {Array<{min:number,max:number|null}>} tramos juego del cliente.
  * @returns {{min:number, max:number|null}|null} tramo, o null si el peso no es válido.
  */
+// ── "Manda lo último que se cargó" (27/10/2026) ────────────────────────────────────
+// Cada valor de tarifa (celda de %, precio por kilo, % general del cliente) lleva la fecha
+// en que se cargó. Para un envío, entre todos los valores que le aplican gana EL MÁS NUEVO:
+//   · si la oficina carga un % general después de la matriz, ese % pisa todo;
+//   · si después toca una celda (o una fila "Todas"), esa celda vuelve a mandar en su lugar;
+//   · un precio por kilo cargado después de un % lo pisa, y al revés también.
+// Nada se borra: la celda pisada sigue guardada y vuelve a regir si se la vuelve a cargar.
+// Las filas SIN fecha son anteriores a la regla y se resuelven como siempre (por kilo >
+// celda > fila > zona > tabla > general): las tarifas ya armadas no cambian. Un valor con
+// fecha siempre le gana a uno sin fecha (lo nuevo manda). Empate de fecha (carga masiva,
+// mismo instante): manda el más específico, como antes.
+const ahoraTarifa = () => new Date().toISOString();
+function elegirCandidato(cands) {
+  const lista = cands.filter(Boolean);
+  if (!lista.length) return null;
+  const conFecha = lista.filter((c) => c.desde);
+  const pool = conFecha.length ? conFecha : lista;
+  pool.sort((a, b) => {
+    if (conFecha.length && a.desde !== b.desde) return a.desde < b.desde ? 1 : -1;
+    return a.prio - b.prio;
+  });
+  return pool[0];
+}
+
 function derivarTramo(tramos, pesoFacturable) {
   const pf = Number(pesoFacturable);
   if (!Number.isFinite(pf) || pf < 0) return null;
@@ -242,62 +266,56 @@ async function clienteExiste(clienteId) {
  *   5. cliente → clientes.tarifa_pct
  * @returns {Promise<{profitPct:number, origen:string}|null>} null si el cliente no existe.
  */
-async function resolverProfit({ clienteId, servicio, tipo, zona, pesoFacturable }) {
+async function candidatosProfit({ clienteId, servicio, tipo, zona, pesoFacturable }) {
   const db = getDb();
-
   const cliente = await db
-    .prepare('SELECT id, tarifa_pct FROM clientes WHERE id = ?')
+    .prepare('SELECT id, tarifa_pct, tarifa_pct_desde FROM clientes WHERE id = ?')
     .get(clienteId);
   if (!cliente) return null;
 
   const banda = derivarTramo(await obtenerTramos(clienteId), pesoFacturable);
   const zonaNum =
     zona === null || zona === undefined || zona === '' ? null : Number(zona);
+  const cands = [];
+  const q = (sql, ...p) => db.prepare(sql).get(clienteId, servicio, tipo, ...p);
 
   // 1. celda: zona + banda concretas.
   if (zonaNum !== null && banda) {
-    const row = await db
-      .prepare(
-        `SELECT profit_pct FROM profit_overrides
-         WHERE cliente_id = ? AND servicio = ? AND tipo = ? AND zona = ? AND peso_min = ?`
-      )
-      .get(clienteId, servicio, tipo, zonaNum, banda.min);
-    if (row) return { profitPct: row.profit_pct, origen: 'celda' };
+    const row = await q(`SELECT profit_pct, vigente_desde FROM profit_overrides
+         WHERE cliente_id = ? AND servicio = ? AND tipo = ? AND zona = ? AND peso_min = ?`, zonaNum, banda.min);
+    if (row) cands.push({ profitPct: row.profit_pct, origen: 'celda', prio: 5, desde: row.vigente_desde });
   }
-
   // 2. banda entera: misma banda, cualquier zona.
   if (banda) {
-    const row = await db
-      .prepare(
-        `SELECT profit_pct FROM profit_overrides
-         WHERE cliente_id = ? AND servicio = ? AND tipo = ? AND zona IS NULL AND peso_min = ?`
-      )
-      .get(clienteId, servicio, tipo, banda.min);
-    if (row) return { profitPct: row.profit_pct, origen: 'banda' };
+    const row = await q(`SELECT profit_pct, vigente_desde FROM profit_overrides
+         WHERE cliente_id = ? AND servicio = ? AND tipo = ? AND zona IS NULL AND peso_min = ?`, banda.min);
+    if (row) cands.push({ profitPct: row.profit_pct, origen: 'banda', prio: 6, desde: row.vigente_desde });
   }
-
   // 3. zona entera: misma zona, cualquier banda.
   if (zonaNum !== null) {
-    const row = await db
-      .prepare(
-        `SELECT profit_pct FROM profit_overrides
-         WHERE cliente_id = ? AND servicio = ? AND tipo = ? AND zona = ? AND peso_min IS NULL`
-      )
-      .get(clienteId, servicio, tipo, zonaNum);
-    if (row) return { profitPct: row.profit_pct, origen: 'zona' };
+    const row = await q(`SELECT profit_pct, vigente_desde FROM profit_overrides
+         WHERE cliente_id = ? AND servicio = ? AND tipo = ? AND zona = ? AND peso_min IS NULL`, zonaNum);
+    if (row) cands.push({ profitPct: row.profit_pct, origen: 'zona', prio: 7, desde: row.vigente_desde });
   }
-
   // 4. general de la tabla: servicio + tipo.
-  const tablaRow = await db
-    .prepare(
-      `SELECT profit_pct FROM profit_overrides
-       WHERE cliente_id = ? AND servicio = ? AND tipo = ? AND zona IS NULL AND peso_min IS NULL`
-    )
-    .get(clienteId, servicio, tipo);
-  if (tablaRow) return { profitPct: tablaRow.profit_pct, origen: 'tabla' };
+  const tablaRow = await q(`SELECT profit_pct, vigente_desde FROM profit_overrides
+       WHERE cliente_id = ? AND servicio = ? AND tipo = ? AND zona IS NULL AND peso_min IS NULL`);
+  if (tablaRow) cands.push({ profitPct: tablaRow.profit_pct, origen: 'tabla', prio: 8, desde: tablaRow.vigente_desde });
+  // 5. general del cliente (siempre existe).
+  cands.push({ profitPct: cliente.tarifa_pct ?? 0, origen: 'cliente', prio: 9, desde: cliente.tarifa_pct_desde });
+  return cands;
+}
 
-  // 5. general del cliente.
-  return { profitPct: cliente.tarifa_pct ?? 0, origen: 'cliente' };
+/**
+ * Resuelve el profit (%) aplicable: el valor más nuevo entre los que aplican, y entre los
+ * sin fecha el más específico (celda → banda → zona → tabla → cliente). Ver elegirCandidato.
+ * @returns {Promise<{profitPct:number, origen:string}|null>} null si el cliente no existe.
+ */
+async function resolverProfit(args) {
+  const cands = await candidatosProfit(args);
+  if (!cands) return null;
+  const c = elegirCandidato(cands);
+  return { profitPct: c.profitPct, origen: c.origen, desde: c.desde || null };
 }
 
 /**
@@ -309,7 +327,7 @@ async function obtenerMatriz(clienteId, servicio, tipo) {
 
   const rows = await db
     .prepare(
-      `SELECT id, zona, peso_min, peso_max, profit_pct
+      `SELECT id, zona, peso_min, peso_max, profit_pct, vigente_desde
        FROM profit_overrides
        WHERE cliente_id = ? AND servicio = ? AND tipo = ?
        ORDER BY zona IS NOT NULL, zona, peso_min IS NOT NULL, peso_min`
@@ -325,13 +343,14 @@ async function obtenerMatriz(clienteId, servicio, tipo) {
       peso_min: r.peso_min,
       peso_max: r.peso_max,
       profit_pct: r.profit_pct,
+      vigente_desde: r.vigente_desde || null,
       nivel: r.zona !== null && r.peso_min !== null ? 'celda' : r.peso_min !== null ? 'banda' : 'zona',
     }));
 
   return {
     servicio,
     tipo,
-    general_tabla: tablaRow ? { id: tablaRow.id, profit_pct: tablaRow.profit_pct } : null,
+    general_tabla: tablaRow ? { id: tablaRow.id, profit_pct: tablaRow.profit_pct, vigente_desde: tablaRow.vigente_desde || null } : null,
     overrides,
   };
 }
@@ -370,17 +389,17 @@ async function upsertOverride(clienteId, body) {
 
   if (existente) {
     await db
-      .prepare('UPDATE profit_overrides SET peso_max = ?, profit_pct = ? WHERE id = ?')
-      .run(peso_max, profitPct, existente.id);
+      .prepare('UPDATE profit_overrides SET peso_max = ?, profit_pct = ?, vigente_desde = ? WHERE id = ?')
+      .run(peso_max, profitPct, ahoraTarifa(), existente.id);
     return { id: existente.id, servicio, tipo, zona, peso_min, peso_max, profit_pct: profitPct };
   }
 
   const result = await db
     .prepare(
-      `INSERT INTO profit_overrides (cliente_id, servicio, tipo, zona, peso_min, peso_max, profit_pct)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO profit_overrides (cliente_id, servicio, tipo, zona, peso_min, peso_max, profit_pct, vigente_desde)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(clienteId, servicio, tipo, zona, peso_min, peso_max, profitPct);
+    .run(clienteId, servicio, tipo, zona, peso_min, peso_max, profitPct, ahoraTarifa());
 
   return {
     id: result.lastInsertRowid,
@@ -546,7 +565,7 @@ async function obtenerModoCliente(clienteId) {
  * @returns {Promise<{precioKg:number, origen:string, peso_min, peso_max}|null>}
  *          null si el cliente no tiene ninguna tarifa por kilo que aplique.
  */
-async function resolverTarifaKg({ clienteId, servicio, tipo, zona, pesoFacturable }) {
+async function candidatosKg({ clienteId, servicio, tipo, zona, pesoFacturable }) {
   const db = getDb();
   const pf = Number(pesoFacturable);
   const zonaNum = zona === null || zona === undefined || zona === '' ? null : Number(zona);
@@ -582,52 +601,60 @@ async function resolverTarifaKg({ clienteId, servicio, tipo, zona, pesoFacturabl
     );
     return candidatos.sort((a, b) => b.peso_min - a.peso_min)[0];
   };
+  const cands = [];
+  const mk = (hit, origen, prio) => ({ precioKg: hit.precio_kg, origen, prio, desde: hit.vigente_desde, peso_min: hit.peso_min, peso_max: hit.peso_max });
 
   // 1. celda: zona + rango.
   if (zonaNum !== null && Number.isFinite(pf)) {
     const rows = await db
       .prepare(
-        `SELECT peso_min, peso_max, precio_kg FROM tarifa_kg_overrides
+        `SELECT peso_min, peso_max, precio_kg, vigente_desde FROM tarifa_kg_overrides
          WHERE cliente_id = ? AND servicio = ? AND tipo = ? AND zona = ? AND peso_min IS NOT NULL`
       )
       .all(clienteId, servicio, tipo, zonaNum);
     const hit = enRango(rows);
-    if (hit) return { precioKg: hit.precio_kg, origen: 'celda', peso_min: hit.peso_min, peso_max: hit.peso_max };
+    if (hit) cands.push(mk(hit, 'celda', 1));
   }
-
   // 2. rango para todas las zonas.
   if (Number.isFinite(pf)) {
     const rows = await db
       .prepare(
-        `SELECT peso_min, peso_max, precio_kg FROM tarifa_kg_overrides
+        `SELECT peso_min, peso_max, precio_kg, vigente_desde FROM tarifa_kg_overrides
          WHERE cliente_id = ? AND servicio = ? AND tipo = ? AND zona IS NULL AND peso_min IS NOT NULL`
       )
       .all(clienteId, servicio, tipo);
     const hit = enRango(rows);
-    if (hit) return { precioKg: hit.precio_kg, origen: 'banda', peso_min: hit.peso_min, peso_max: hit.peso_max };
+    if (hit) cands.push(mk(hit, 'banda', 2));
   }
-
   // 3. zona entera, cualquier peso.
   if (zonaNum !== null) {
     const row = await db
       .prepare(
-        `SELECT peso_min, peso_max, precio_kg FROM tarifa_kg_overrides
+        `SELECT peso_min, peso_max, precio_kg, vigente_desde FROM tarifa_kg_overrides
          WHERE cliente_id = ? AND servicio = ? AND tipo = ? AND zona = ? AND peso_min IS NULL`
       )
       .get(clienteId, servicio, tipo, zonaNum);
-    if (row) return { precioKg: row.precio_kg, origen: 'zona', peso_min: null, peso_max: null };
+    if (row) cands.push({ ...mk(row, 'zona', 3), peso_min: null, peso_max: null });
   }
-
   // 4. general de la tabla.
   const tablaRow = await db
     .prepare(
-      `SELECT peso_min, peso_max, precio_kg FROM tarifa_kg_overrides
+      `SELECT peso_min, peso_max, precio_kg, vigente_desde FROM tarifa_kg_overrides
        WHERE cliente_id = ? AND servicio = ? AND tipo = ? AND zona IS NULL AND peso_min IS NULL`
     )
     .get(clienteId, servicio, tipo);
-  if (tablaRow) return { precioKg: tablaRow.precio_kg, origen: 'tabla', peso_min: null, peso_max: null };
+  if (tablaRow) cands.push({ ...mk(tablaRow, 'tabla', 4), peso_min: null, peso_max: null });
+  return cands;
+}
 
-  return null;
+/**
+ * Resuelve el precio por kilo aplicable (solo entre los precios por kilo): el más nuevo, y
+ * entre los sin fecha el más específico. null si no hay ninguno que aplique.
+ * @returns {Promise<{precioKg:number, origen:string, peso_min, peso_max}|null>}
+ */
+async function resolverTarifaKg(args) {
+  const c = elegirCandidato(await candidatosKg(args));
+  return c ? { precioKg: c.precioKg, origen: c.origen, peso_min: c.peso_min, peso_max: c.peso_max, desde: c.desde || null } : null;
 }
 
 /**
@@ -663,7 +690,15 @@ async function resolverTarifaVenta({
   // `modo_tarifa` sigue existiendo para una sola cosa: el AVISO. Un cliente en por_kg
   // que cae al porcentaje probablemente tiene un agujero de carga y hay que decirlo; en
   // un cliente en porcentaje, caer al porcentaje es lo normal y no se avisa.
-  const kg = await resolverTarifaKg({ clienteId, servicio, tipo, zona, pesoFacturable });
+  // Desde el 27/10 la decisión es UNA: entre los precios por kilo y los % que aplican a
+  // este envío gana el que se cargó último (elegirCandidato). Sin fechas (tarifas viejas)
+  // se mantiene la regla del 13/08: el precio por kilo cargado se cobra siempre.
+  const [cKg, cPct] = await Promise.all([
+    candidatosKg({ clienteId, servicio, tipo, zona, pesoFacturable }),
+    candidatosProfit({ clienteId, servicio, tipo, zona, pesoFacturable }),
+  ]);
+  const ganador = elegirCandidato([...cKg, ...(cPct || [])]);
+  const kg = ganador && ganador.precioKg !== undefined ? ganador : null;
   if (kg) {
     return {
       modo: 'por_kg',
@@ -672,6 +707,7 @@ async function resolverTarifaVenta({
       origen: kg.origen,
       peso_min: kg.peso_min,
       peso_max: kg.peso_max,
+      desde: kg.desde || null,
       advertencia: null,
     };
   }
@@ -740,7 +776,7 @@ async function resolverFuelPropio(clienteId) {
 async function obtenerMatrizKg(clienteId, servicio, tipo) {
   const rows = await getDb()
     .prepare(
-      `SELECT id, zona, peso_min, peso_max, precio_kg
+      `SELECT id, zona, peso_min, peso_max, precio_kg, vigente_desde
        FROM tarifa_kg_overrides
        WHERE cliente_id = ? AND servicio = ? AND tipo = ?
        ORDER BY zona IS NOT NULL, zona, peso_min IS NOT NULL, peso_min`
@@ -756,6 +792,7 @@ async function obtenerMatrizKg(clienteId, servicio, tipo) {
       peso_min: r.peso_min,
       peso_max: r.peso_max,
       precio_kg: r.precio_kg,
+      vigente_desde: r.vigente_desde || null,
       nivel:
         r.zona !== null && r.peso_min !== null ? 'celda' : r.peso_min !== null ? 'banda' : 'zona',
     }));
@@ -763,7 +800,7 @@ async function obtenerMatrizKg(clienteId, servicio, tipo) {
   return {
     servicio,
     tipo,
-    general_tabla: tablaRow ? { id: tablaRow.id, precio_kg: tablaRow.precio_kg } : null,
+    general_tabla: tablaRow ? { id: tablaRow.id, precio_kg: tablaRow.precio_kg, vigente_desde: tablaRow.vigente_desde || null } : null,
     overrides,
   };
 }
@@ -801,17 +838,17 @@ async function upsertOverrideKg(clienteId, body) {
 
   if (existente) {
     await db
-      .prepare('UPDATE tarifa_kg_overrides SET peso_max = ?, precio_kg = ? WHERE id = ?')
-      .run(peso_max, precioKg, existente.id);
+      .prepare('UPDATE tarifa_kg_overrides SET peso_max = ?, precio_kg = ?, vigente_desde = ? WHERE id = ?')
+      .run(peso_max, precioKg, ahoraTarifa(), existente.id);
     return { id: existente.id, servicio, tipo, zona, peso_min, peso_max, precio_kg: precioKg };
   }
 
   const result = await db
     .prepare(
-      `INSERT INTO tarifa_kg_overrides (cliente_id, servicio, tipo, zona, peso_min, peso_max, precio_kg)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
+      `INSERT INTO tarifa_kg_overrides (cliente_id, servicio, tipo, zona, peso_min, peso_max, precio_kg, vigente_desde)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     )
-    .run(clienteId, servicio, tipo, zona, peso_min, peso_max, precioKg);
+    .run(clienteId, servicio, tipo, zona, peso_min, peso_max, precioKg, ahoraTarifa());
 
   return {
     id: result.lastInsertRowid,
@@ -980,8 +1017,8 @@ async function cambiarPasoTramos(clienteId, { paso, hasta } = {}) {
   const viejos = await obtenerTramos(clienteId);
   // El % que regía en el juego viejo para un peso dado: el de su tramo, por
   // servicio/tipo/zona. Se lee TODO de una vez y se indexa.
-  const filasPct = await db.prepare(`SELECT servicio, tipo, zona, peso_min, peso_max, profit_pct AS valor FROM profit_overrides WHERE cliente_id = ? AND peso_min IS NOT NULL`).all(clienteId);
-  const filasKg = await db.prepare(`SELECT servicio, tipo, zona, peso_min, peso_max, precio_kg AS valor FROM tarifa_kg_overrides WHERE cliente_id = ? AND peso_min IS NOT NULL`).all(clienteId);
+  const filasPct = await db.prepare(`SELECT servicio, tipo, zona, peso_min, peso_max, profit_pct AS valor, vigente_desde FROM profit_overrides WHERE cliente_id = ? AND peso_min IS NOT NULL`).all(clienteId);
+  const filasKg = await db.prepare(`SELECT servicio, tipo, zona, peso_min, peso_max, precio_kg AS valor, vigente_desde FROM tarifa_kg_overrides WHERE cliente_id = ? AND peso_min IS NOT NULL`).all(clienteId);
   const clave = (f) => `${f.servicio}|${f.tipo}|${f.zona === null ? '' : f.zona}`;
   const agrupar = (filas) => {
     const g = new Map();
@@ -994,10 +1031,15 @@ async function cambiarPasoTramos(clienteId, { paso, hasta } = {}) {
     const vMax = v.max === null ? Infinity : v.max; const nMax = nuevo.max === null ? Infinity : nuevo.max;
     return v.min < nMax && nuevo.min < vMax;
   });
+  // Cambiar el paso no es "cargar": cada tramo nuevo hereda el valor Y la fecha de carga
+  // del tramo viejo (la más nueva si abarca varios), así la regla de "manda lo último" no se
+  // altera por reordenar los tramos.
   const heredar = (porTramo, nuevo) => {
-    const vals = solapan(nuevo).map((v) => porTramo.get(v.min)).filter(Boolean).map((f) => f.valor);
-    if (!vals.length) return null;
-    return Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100;
+    const filas = solapan(nuevo).map((v) => porTramo.get(v.min)).filter(Boolean);
+    if (!filas.length) return null;
+    const vals = filas.map((f) => f.valor);
+    const fechas = filas.map((f) => f.vigente_desde).filter(Boolean).sort();
+    return { valor: Math.round((vals.reduce((a, b) => a + b, 0) / vals.length) * 100) / 100, desde: fechas.length ? fechas[fechas.length - 1] : null };
   };
   let celdasPct = 0; let celdasKg = 0; let cambiaron = 0;
   await db.transaction(async () => {
@@ -1010,22 +1052,22 @@ async function cambiarPasoTramos(clienteId, { paso, hasta } = {}) {
     for (const [k, porTramo] of gPct) {
       const [servicio, tipo, zona] = k.split('|');
       for (const t of nuevos) {
-        const v = heredar(porTramo, t);
-        if (v === null) continue;
+        const h = heredar(porTramo, t);
+        if (h === null) continue;
         const exacto = solapan(t).length === 1;
         if (!exacto) cambiaron++;
-        await db.prepare(`INSERT INTO profit_overrides (cliente_id, servicio, tipo, zona, peso_min, peso_max, profit_pct) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-          .run(clienteId, servicio, tipo, zona === '' ? null : Number(zona), t.min, t.max, v);
+        await db.prepare(`INSERT INTO profit_overrides (cliente_id, servicio, tipo, zona, peso_min, peso_max, profit_pct, vigente_desde) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+          .run(clienteId, servicio, tipo, zona === '' ? null : Number(zona), t.min, t.max, h.valor, h.desde);
         celdasPct++;
       }
     }
     for (const [k, porTramo] of gKg) {
       const [servicio, tipo, zona] = k.split('|');
       for (const t of nuevos) {
-        const v = heredar(porTramo, t);
-        if (v === null) continue;
-        await db.prepare(`INSERT INTO tarifa_kg_overrides (cliente_id, servicio, tipo, zona, peso_min, peso_max, precio_kg) VALUES (?, ?, ?, ?, ?, ?, ?)`)
-          .run(clienteId, servicio, tipo, zona === '' ? null : Number(zona), t.min, t.max, v);
+        const h = heredar(porTramo, t);
+        if (h === null) continue;
+        await db.prepare(`INSERT INTO tarifa_kg_overrides (cliente_id, servicio, tipo, zona, peso_min, peso_max, precio_kg, vigente_desde) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`)
+          .run(clienteId, servicio, tipo, zona === '' ? null : Number(zona), t.min, t.max, h.valor, h.desde);
         celdasKg++;
       }
     }
@@ -1052,12 +1094,13 @@ async function cargarMatrizMasiva(clienteId, { servicio, tipo, celdas, reemplaza
     return { ...coord, profit_pct: pct };
   });
   let n = 0;
+  const fecha = ahoraTarifa(); // la misma para toda la carga: empatan entre sí y manda el más específico
   await db.transaction(async () => {
     if (reemplazar) await db.prepare('DELETE FROM profit_overrides WHERE cliente_id = ? AND servicio = ? AND tipo = ? AND peso_min IS NOT NULL').run(clienteId, servicio, tipo);
     for (const c of normalizadas) {
       const ex = await db.prepare(`SELECT id FROM profit_overrides WHERE cliente_id = ? AND servicio = ? AND tipo = ? AND zona IS ? AND peso_min IS ?`).get(clienteId, servicio, tipo, c.zona, c.peso_min);
-      if (ex) await db.prepare('UPDATE profit_overrides SET profit_pct = ?, peso_max = ? WHERE id = ?').run(c.profit_pct, c.peso_max, ex.id);
-      else await db.prepare(`INSERT INTO profit_overrides (cliente_id, servicio, tipo, zona, peso_min, peso_max, profit_pct) VALUES (?, ?, ?, ?, ?, ?, ?)`).run(clienteId, servicio, tipo, c.zona, c.peso_min, c.peso_max, c.profit_pct);
+      if (ex) await db.prepare('UPDATE profit_overrides SET profit_pct = ?, peso_max = ?, vigente_desde = ? WHERE id = ?').run(c.profit_pct, c.peso_max, fecha, ex.id);
+      else await db.prepare(`INSERT INTO profit_overrides (cliente_id, servicio, tipo, zona, peso_min, peso_max, profit_pct, vigente_desde) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(clienteId, servicio, tipo, c.zona, c.peso_min, c.peso_max, c.profit_pct, fecha);
       n++;
     }
   });
@@ -1121,6 +1164,7 @@ async function detectarSaltos(clienteId, servicio, tipo = 'export') {
 }
 
 module.exports = {
+  elegirCandidato, candidatosProfit, candidatosKg,
   detectarSaltos,
   PASOS,
   HASTA_POR_DEFECTO,

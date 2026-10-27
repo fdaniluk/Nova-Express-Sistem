@@ -261,6 +261,9 @@ table.tarifas-grid td.banda-label { background: #f8fafc; font-weight: 600; color
 td.tarifa-cell { cursor: pointer; position: relative; }
 td.tarifa-cell.heredado { color: var(--color-muted); }
 td.tarifa-cell.propio { color: var(--color-text); font-weight: 600; background: #eff6ff; }
+/* Celda pisada por algo cargado después (27/10): se ve, pero no se cobra. */
+td.tarifa-cell.pisada { color: var(--color-muted); background: repeating-linear-gradient(135deg, #fff 0 5px, #f3f4f6 5px 10px); }
+td.tarifa-cell.pisada .cell-val { text-decoration: line-through; text-decoration-color: #c0392b; }
 td.tarifa-cell .cell-del { position: absolute; top: 1px; right: 2px; font-size: 0.7rem; color: var(--color-muted); cursor: pointer; line-height: 1; }
 td.tarifa-cell .cell-del:hover { color: var(--color-danger); }
 td.tarifa-cell input { width: 60px; font-size: 0.8rem; padding: 0.1rem; text-align: center; }

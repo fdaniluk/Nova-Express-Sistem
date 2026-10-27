@@ -643,6 +643,15 @@ async function migrateTarifaKg() {
   await dbApi.exec(
     'CREATE INDEX IF NOT EXISTS idx_tarifa_kg_cliente ON tarifa_kg_overrides(cliente_id)'
   );
+  /* "Manda lo último que se cargó" (27/10/2026, pedido de Felipe): cada valor de tarifa
+     guarda CUÁNDO se cargó (vigente_desde) y el motor elige el más nuevo entre los que
+     aplican (% general del cliente, celda de %, precio por kilo). Las filas sin fecha son
+     las cargadas antes de esta regla y se resuelven como siempre (por kilo > celda de % >
+     general). Ver profit.service elegirCandidato. */
+  for (const [tabla, col] of [['profit_overrides', 'vigente_desde'], ['tarifa_kg_overrides', 'vigente_desde'], ['clientes', 'tarifa_pct_desde']]) {
+    const cols = (await dbApi.prepare(`PRAGMA table_info(${tabla})`).all()).map((c) => c.name);
+    if (!cols.includes(col)) await dbApi.exec(`ALTER TABLE ${tabla} ADD COLUMN ${col} TEXT`);
+  }
 }
 
 // Tramos de peso PROPIOS de un cliente (12/08/2026).

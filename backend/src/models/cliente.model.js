@@ -84,6 +84,8 @@ function validar(data, { alta = false } = {}) {
 /* Texto que puede quedar vacío: '' o solo espacios → NULL. */
 const txt = (v) => (v === undefined || v === null ? null : (String(v).trim() || null));
 
+const TARIFA_PCT_DEFAULT = 150;
+
 async function crear(data) {
   validar(data, { alta: true });
   const db = getDb();
@@ -111,7 +113,9 @@ async function crear(data) {
       txt(data.codigo_postal),
       txt(data.localidad),
       txt(data.tipo_facturacion) || 'Responsable inscripto',
-      data.tarifa_pct === '' || data.tarifa_pct == null ? 0 : Number(data.tarifa_pct),
+      // 27/10: un cliente nuevo sin % general queda en 150 % (nunca en 0: que no se nos
+      // escape un cliente vendiendo al costo). La pantalla de alta lo trae precargado.
+      data.tarifa_pct === '' || data.tarifa_pct == null ? TARIFA_PCT_DEFAULT : Number(data.tarifa_pct),
       txt(data.telefono),
       txt(data.provincia),
       data.plazo_pago_dias === '' || data.plazo_pago_dias == null ? null : Number(data.plazo_pago_dias),
@@ -132,6 +136,12 @@ async function actualizar(id, data) {
   const db = getDb();
   const actual = await buscarPorId(id);
   if (!actual) return null;
+  // "Manda lo último que se cargó" (27/10): si el % general CAMBIA, se fecha
+  // (tarifa_pct_desde) y desde ese momento pisa las celdas y precios por kilo más viejos.
+  // Guardar el mismo valor no lo fecha: el resto de la ficha se puede editar sin tocar las
+  // tarifas.
+  const pctProvisto = data.tarifa_pct !== undefined && data.tarifa_pct !== '' && data.tarifa_pct !== null;
+  const cambiaPct = pctProvisto && Number(data.tarifa_pct) !== Number(actual.tarifa_pct);
   const textoClausulas = [];
   const textoValores = [];
   for (const col of TEXTO_VACIABLE) {
@@ -219,6 +229,7 @@ async function actualizar(id, data) {
         ${textoClausulas.join(',\n        ')},
         tipo_facturacion    = COALESCE(?, tipo_facturacion),
         tarifa_pct          = COALESCE(?, tarifa_pct),
+        ${cambiaPct ? "tarifa_pct_desde = strftime('%Y-%m-%dT%H:%M:%fZ','now')," : ''}
         modo_tarifa         = COALESCE(?, modo_tarifa),
         ${plazoProvisto ? 'plazo_pago_dias = ?' : 'plazo_pago_dias = COALESCE(?, plazo_pago_dias)'},
         tipo_cambio         = COALESCE(?, tipo_cambio),
