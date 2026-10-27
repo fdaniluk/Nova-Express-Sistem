@@ -6,7 +6,7 @@
   <title>Perfil de cliente – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20261027a">
-  <link rel="stylesheet" href="../css/modules/clientes.css?v=20261020a">
+  <link rel="stylesheet" href="../css/modules/clientes.css?v=20261027a">
   <!-- Las fuentes del cuadro de la cotización (el mismo que dibuja el cotizador). -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500;600&display=swap">
 </head>
@@ -164,39 +164,60 @@
             </div>
           </div>
 
-          <!-- Matriz de tarifas (profit) -->
+          <!-- Tarifas del cliente (rediseño 27/10/2026, pedido de la oficina): resumen en
+               cuatro tarjetas, y al editar UNA barra con fuel + seguro + paso, los servicios
+               con la leyenda al lado, y el conmutador de vista sobre las grillas. Los ids no
+               cambiaron: los tests y el JS los siguen encontrando. -->
           <div class="per-card" id="card-tarifas">
             <div class="per-card-cab">
-              <div><h2>Matriz de tarifas</h2><p>Lo que se le cobra, por servicio, zona y peso. "Editar tarifas" abre la grilla.</p></div>
-              <button class="btn btn-outline btn-sm" id="btn-armar-tarifario">Armar tarifario</button>
-              <button class="btn btn-outline btn-sm" id="btn-aumentar-tarifa" title="Sube (o baja) un % el precio de venta: el % general, las celdas de las matrices y los precios por kilo, de una sola vez">Aumentar tarifa</button>
-              <button class="btn btn-outline btn-sm" id="btn-editar-tarifas">Editar tarifas</button>
+              <div><h2>Tarifas</h2><p>Lo que se le cobra a este cliente: % general, matriz por servicio / zona / peso, precios por kilo, fuel y seguro propios.</p></div>
+              <div class="per-card-acc">
+                <button class="btn btn-outline btn-sm" id="btn-armar-tarifario">Armar tarifario</button>
+                <button class="btn btn-outline btn-sm" id="btn-aumentar-tarifa" title="Sube (o baja) un % el precio de venta: el % general, las celdas de las matrices y los precios por kilo, de una sola vez">Aumentar tarifa</button>
+                <button class="btn btn-primary btn-sm" id="btn-editar-tarifas">Editar tarifas</button>
+              </div>
             </div>
             <div class="per-card-cuerpo">
               <div class="tarifas-resumen" id="tarifas-resumen"></div>
               <div class="tarifas-ultimo-aumento" id="tarifas-ultimo-aumento"></div>
-              <div class="tarifas-extra" id="tarifas-extra"></div>
+              <div class="tarifas-extra hidden" id="tarifas-extra"></div>
 
         <div id="tarifas-panel" class="hidden">
-          <!-- Modo de tarifa y fuel propio: valen para TODAS las tablas del cliente -->
           <!-- Sin selector de "modo de tarifa" desde el 13/08: lo que se carga es lo que
                se cobra, cuadrante por cuadrante. El precio por kilo gana donde esta; el
-               porcentaje cubre el resto. No hay nada que elegir a nivel cliente. -->
-          <div class="tarifas-modo">
-            <label for="tarifas-fuel-input">Fuel propio (%)</label>
-            <input type="text" inputmode="decimal" id="tarifas-fuel-input" placeholder="usa Configuracion">
-            <button class="btn btn-primary btn-sm" id="btn-guardar-fuel">Guardar fuel</button>
-            <button class="btn btn-secondary btn-sm hidden" id="btn-borrar-fuel">Quitar fuel propio</button>
+               porcentaje cubre el resto. -->
+          <!-- La barra: fuel propio, seguro propio y paso de la tarifa, en una sola línea. -->
+          <div class="tarifas-barra">
+            <div class="tarifas-campo tarifas-modo">
+              <label for="tarifas-fuel-input">Fuel propio</label>
+              <input type="text" inputmode="decimal" id="tarifas-fuel-input" placeholder="Config."><span class="uni">%</span>
+              <button class="btn btn-primary btn-xs" id="btn-guardar-fuel" title="Guardar el fuel propio">Guardar</button>
+              <button class="btn btn-secondary btn-xs hidden" id="btn-borrar-fuel" title="Volver al fuel de Configuración">✕</button>
+            </div>
+            <div class="tarifas-campo">
+              <label for="tarifas-seguro-pct">Seguro propio</label>
+              <input type="number" id="tarifas-seguro-pct" min="0" step="0.1" placeholder="courier"><span class="uni">%</span>
+              <label for="tarifas-seguro-min" class="sub">mín. USD</label>
+              <input type="number" id="tarifas-seguro-min" min="0" step="0.5" placeholder="—">
+              <button class="btn btn-primary btn-xs" id="btn-guardar-seguro" title="Guardar el seguro propio">Guardar</button>
+              <button class="btn btn-secondary btn-xs hidden" id="btn-borrar-seguro" title="Volver al seguro del courier">✕</button>
+            </div>
+            <!-- Paso de la tarifa (29/09/2026): tramos de 5 kg (los generales), 1 kg o 0,5 kg.
+                 Cambiar el paso rearma la matriz heredando los valores. -->
+            <div class="tarifas-campo tarifas-paso" id="tarifas-paso">
+              <label>Paso</label>
+              <div class="paso-seg" id="paso-seg">
+                <button type="button" data-paso="5" title="Los tramos generales del sistema: 0-5, 5-10 … 40-50, 50+">5 kg</button>
+                <button type="button" data-paso="1" title="Un tramo por cada kilo hasta el tope">1 kg</button>
+                <button type="button" data-paso="0.5" title="Un tramo por cada medio kilo hasta el tope (como los tarifarios viejos)">0,5 kg</button>
+              </div>
+              <label for="paso-hasta" id="paso-hasta-lbl" class="sub">hasta</label>
+              <input type="number" id="paso-hasta" min="5" max="300" step="1" value="70" title="Tope: de ahí en adelante rige un solo tramo"><span class="uni">kg</span>
+            </div>
           </div>
-          <!-- Seguro negociado del cliente. Vale para DHL y para UPS por igual. -->
-          <div class="tarifas-modo">
-            <label for="tarifas-seguro-pct">Seguro propio (%)</label>
-            <input type="number" id="tarifas-seguro-pct" min="0" step="0.1" placeholder="usa el del courier">
-            <label for="tarifas-seguro-min">Minimo (USD)</label>
-            <input type="number" id="tarifas-seguro-min" min="0" step="0.5" placeholder="sin minimo">
-            <button class="btn btn-primary btn-sm" id="btn-guardar-seguro">Guardar seguro</button>
-            <button class="btn btn-secondary btn-sm hidden" id="btn-borrar-seguro">Quitar seguro propio</button>
+          <div class="tarifas-hints">
             <span class="tarifas-hint" id="tarifas-seguro-hint"></span>
+            <span class="tarifas-hint" id="paso-hint"></span>
           </div>
           <!-- Barra fija: los botones LLEVAN a cada servicio, no ocultan nada. Toda la
                matriz del cliente esta en la misma pagina, un servicio debajo del otro. -->
@@ -204,25 +225,12 @@
             <button class="tab active" data-serv="DHL">DHL</button>
             <button class="tab" data-serv="UPS_EXP">UPS Expedited</button>
             <button class="tab" data-serv="UPS_SAVER">UPS Saver</button>
-            <span class="sep"></span>
-            <span class="tarifas-key"><span class="dot p"></span> propio</span>
-            <span class="tarifas-key"><span class="dot h"></span> heredado</span>
-            <span class="tarifas-key"><span class="dot v"></span> vacío → porcentaje</span>
-            <span class="tarifas-key"><span class="dot z"></span> USD 0,00 · flete gratis</span>
-          </div>
-          <!-- Paso de la tarifa (29/09/2026, pedido de Felipe): tramos de 5 kg (los generales),
-               1 kg o 0,5 kg. Cambiar el paso rearma la matriz heredando los valores: de grueso
-               a fino no se mueve ningún precio. -->
-          <div class="tarifas-modo tarifas-paso" id="tarifas-paso">
-            <label>Paso de la tarifa</label>
-            <div class="paso-seg" id="paso-seg">
-              <button type="button" data-paso="5" title="Los tramos generales del sistema: 0-5, 5-10 … 40-50, 50+">5 kg</button>
-              <button type="button" data-paso="1" title="Un tramo por cada kilo hasta el tope">1 kg</button>
-              <button type="button" data-paso="0.5" title="Un tramo por cada medio kilo hasta el tope (como los tarifarios viejos)">0,5 kg</button>
-            </div>
-            <label for="paso-hasta" id="paso-hasta-lbl">hasta</label>
-            <input type="number" id="paso-hasta" min="5" max="300" step="1" value="70" title="Tope: de ahí en adelante rige un solo tramo">
-            <span class="tarifas-hint" id="paso-hint"></span>
+            <span class="tarifas-leg">
+              <span class="tarifas-key"><span class="dot p"></span> propio</span>
+              <span class="tarifas-key"><span class="dot h"></span> heredado</span>
+              <span class="tarifas-key"><span class="dot v"></span> vacío → %</span>
+              <span class="tarifas-key"><span class="dot z"></span> USD 0 · gratis</span>
+            </span>
           </div>
           <span class="tarifas-hint" id="tarifas-grid-ayuda"></span>
           <div class="tarifas-alerta" id="tarifas-alerta"></div>
@@ -531,6 +539,6 @@
 <script src="../js/vendor/chart.umd.js?v=20260915a"></script>
 <script src="/shared/cotizador/tramos.js?v=20261015a"></script>
 <script src="../js/cotizacion-imagen.js?v=20261015b"></script>
-<script src="../js/modules/clientes-perfil.js?v=20261020c"></script>
+<script src="../js/modules/clientes-perfil.js?v=20261027a"></script>
 </body>
 </html>

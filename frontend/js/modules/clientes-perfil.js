@@ -96,13 +96,18 @@
     const celdas = Number(c.matriz_celdas) || 0;
     const kg = Number(c.kg_celdas) || 0;
     const tramos = Number(c.tramos_propios) || 0;
-    const chip = kg ? `<span class="cli-chip kg">${kg} precio(s) por kilo</span>`
-      : (celdas ? `<span class="cli-chip matriz">${celdas} celda(s) propia(s)</span>` : `<span class="cli-chip ${pct ? 'cobro' : 'sin-margen'}">${pct ? 'solo el general' : 'sin margen'}</span>`);
-    cont.innerHTML = `<div class="tarifas-serv"><b>General</b>${pct ? `${pct} % sobre el flete` : 'sin % general'}${chip}</div>
-      <div class="tarifas-serv"><b>Matriz</b>${celdas ? `${celdas} celda(s) de % por servicio / zona / peso` : 'sin celdas propias'}${kg ? `<br>${kg} precio(s) por kilo` : ''}${tramos ? '<span class="cli-chip cobro">tramos propios</span>' : ''}</div>`;
     const vacio = (v) => v === null || v === undefined || v === '';
-    extra.innerHTML = `<span>Fuel propio: <b>${vacio(c.fuel_pct_propio) ? 'usa Configuración' : esc(c.fuel_pct_propio) + ' %'}</b></span>
-      <span>Seguro propio: <b>${vacio(c.seguro_pct_propio) ? 'el del courier' : esc(c.seguro_pct_propio) + ' %' + (vacio(c.seguro_min_propio) ? '' : ' · mín. USD ' + Number(c.seguro_min_propio).toFixed(2))}</b></span>`;
+    // Cuatro tarjetas (27/10): general, matriz, fuel propio y seguro propio. Los textos
+    // "X % sobre el flete" y "N celda(s) propia(s)" los leen las tandas de pantalla.
+    const matrizTxt = kg
+      ? `${kg} precio(s) por kilo${celdas ? ` · ${celdas} celda(s) propia(s)` : ''}`
+      : (celdas ? `${celdas} celda(s) propia(s)` : 'sin celdas propias');
+    cont.innerHTML = `
+      <div class="tarifas-serv"><b>General</b><span class="v">${pct ? `${pct} %` : '—'}</span><small>${pct ? `${pct} % sobre el flete` : 'sin % general'}</small></div>
+      <div class="tarifas-serv"><b>Matriz</b><span class="v">${kg ? `${kg} por kilo` : (celdas ? `${celdas} celdas` : '—')}</span><small>${matrizTxt}${tramos ? ' <span class="cli-chip cobro">tramos propios</span>' : ''}${!kg && !celdas ? (pct ? ' <span class="cli-chip cobro">solo el general</span>' : ' <span class="cli-chip sin-margen">sin margen</span>') : ''}</small></div>
+      <div class="tarifas-serv"><b>Fuel propio</b><span class="v">${vacio(c.fuel_pct_propio) ? '—' : esc(c.fuel_pct_propio) + ' %'}</span><small>${vacio(c.fuel_pct_propio) ? 'usa Configuración' : 'en vez del de Configuración'}</small></div>
+      <div class="tarifas-serv"><b>Seguro propio</b><span class="v">${vacio(c.seguro_pct_propio) ? '—' : esc(c.seguro_pct_propio) + ' %'}</span><small>${vacio(c.seguro_pct_propio) ? 'el del courier' : (vacio(c.seguro_min_propio) ? 'sin mínimo' : 'mín. USD ' + Number(c.seguro_min_propio).toFixed(2))}</small></div>`;
+    if (extra) extra.innerHTML = '';
   }
 
   // Libretas de Guías (17/09): cuántos remitentes y destinatarios tiene el cliente y a
@@ -821,7 +826,9 @@
       const deQuienSonLosTramos = tramosPropios
         ? (pasoActual ? `Este cliente tiene su tarifa con tramos de ${pasoActual === 0.5 ? '0,5' : pasoActual} kg (${TARIFAS_BANDAS.length} tramos).` : 'Este cliente tiene tramos de peso propios, negociados con él: no son los que usa el resto.')
         : 'Los tramos de peso son los generales (de 5 kg).';
-      ayuda.textContent = `Lo que se carga es lo que se cobra: el precio por kilo gana en su cuadrante, el porcentaje cubre el resto. ${deQuienSonLosTramos} Para cambiar precios: Editar porcentaje o Editar precio por kilo.`;
+      // Corta (27/10): la explicación larga queda en el tooltip (?), no en la pantalla.
+      ayuda.textContent = `Cada celda muestra lo que se cobra: el precio por kilo gana en su cuadrante, el % cubre el resto. Para cambiar algo, Editar % o Editar precio por kilo.`;
+      ayuda.title = `${deQuienSonLosTramos} Lo que se carga es lo que se cobra. Las celdas rayadas heredan el valor de "Todas" o el general; las vacías caen al % general.`;
     }
 
     renderSeguro();
@@ -954,7 +961,11 @@
     const saltoEn = new Set();
     saltos.forEach((x) => { saltoEn.add(`${x.zona}|${x.tramo}`); saltoEn.add(`${x.zona}|${x.tramo_siguiente}`); });
     if (saltos.length) {
-      html += `<div class="tarifas-saltos" data-serv="${serv}" data-tipo="${tipo}"><strong>⚠ La tarifa baja al subir de peso</strong> en ${saltos.length === 1 ? 'un tramo' : `${saltos.length} tramos`}: un envío más pesado sale más barato que uno más liviano. Revisá el % de esos tramos.<ul>${saltos.slice(0, 8).map((x) => `<li>Zona ${x.zona}: a los ${x.peso} kg pasa de ${x.desde_pct} % (${x.tramo} kg) a ${x.hasta_pct} % (${x.tramo_siguiente} kg): USD ${x.precio_antes.toFixed(2)} → ${x.precio_despues.toFixed(2)}</li>`).join('')}${saltos.length > 8 ? `<li>… y ${saltos.length - 8} más</li>` : ''}</ul></div>`;
+      // Plegado en una línea (27/10); "Ver cuáles" abre el detalle. Si el % es el mismo a los
+      // dos lados, el salto no viene del %: viene del costo del tramo siguiente (DHL 50+ se
+      // cotiza por la cuenta +50, más barata), y se dice.
+      const mismoPct = saltos.every((x) => x.desde_pct === x.hasta_pct);
+      html += `<details class="tarifas-saltos" data-serv="${serv}" data-tipo="${tipo}"><summary>⚠ <strong>La tarifa baja al subir de peso</strong> en ${saltos.length === 1 ? 'un tramo' : `${saltos.length} tramos`}${mismoPct ? ' (mismo %: baja el costo del tramo siguiente, p. ej. la cuenta +50 de DHL)' : ': revisá el % de esos tramos'}.<span class="ver">Ver cuáles ▸</span></summary><ul>${saltos.slice(0, 8).map((x) => `<li>Zona ${x.zona}: a los ${x.peso} kg pasa de ${x.desde_pct} % (${x.tramo} kg) a ${x.hasta_pct} % (${x.tramo_siguiente} kg): USD ${x.precio_antes.toFixed(2)} → ${x.precio_despues.toFixed(2)}</li>`).join('')}${saltos.length > 8 ? `<li>… y ${saltos.length - 8} más</li>` : ''}</ul></details>`;
     }
     html += `<div class="tarifas-grid-wrap${largo ? ' largo' : ''}"><table class="tarifas-grid"><thead><tr><th></th><th class="col-todas">Todas</th>`;
     TARIFAS_ZONAS.forEach((z) => { html += `<th>Zona ${z}</th>`; });
@@ -1025,10 +1036,7 @@
       <button class="vista-btn ${editando === null ? 'on' : ''}" data-vista="cobra">Lo que se cobra</button>
       <button class="vista-btn ${editando === 'pct' ? 'on' : ''}" data-vista="pct">Editar porcentaje</button>
       <button class="vista-btn ${editando === 'kg' ? 'on' : ''}" data-vista="kg">Editar precio por kilo</button>
-      <span class="tarifas-hint" style="flex-basis:auto">${editando === null
-        ? 'Cada celda muestra lo que se cobra. Para cambiar algo, Editar.'
-        : (editando === 'kg' ? 'Editando los PRECIOS POR KILO. Clic en una celda; la ✕ quita ese precio.'
-          : 'Editando los PORCENTAJES. Clic en una celda; la ✕ quita ese valor.')}</span>
+      ${editando === null ? '' : `<span class="tarifas-hint" style="flex-basis:auto">${editando === 'kg' ? 'Editando los PRECIOS POR KILO: clic en una celda; la ✕ quita ese precio.' : 'Editando los PORCENTAJES: clic en una celda; la ✕ quita ese valor.'}</span>`}
     </div>`;
     for (const s of SERVICIOS_MATRIZ) {
       html += `<div class="tarifa-seccion" id="sec-${s.serv}">`;
@@ -1291,9 +1299,6 @@
       const abrir = panel.classList.contains('hidden');
       panel.classList.toggle('hidden');
       btnEditar.textContent = abrir ? 'Ocultar tarifas' : 'Editar tarifas';
-      // Con la grilla abierta el fuel y el seguro se editan ahí mismo: la línea resumen sobra.
-      const extra = document.getElementById('tarifas-extra');
-      if (extra) extra.classList.toggle('hidden', abrir);
       if (abrir && !tarifasCargado) {
         tarifasCargado = true;
         cargarMatriz();

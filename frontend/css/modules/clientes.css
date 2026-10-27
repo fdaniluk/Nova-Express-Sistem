@@ -201,10 +201,27 @@ a.btn, a.btn:hover { text-decoration:none; }
 #link-form .lbl-check { font-size:.82rem; display:flex; align-items:center; gap:5px; padding-bottom:.45rem; text-transform:none; letter-spacing:0; color:var(--color-text); }
 
 /* Resumen de la matriz (lo que se cobra), arriba de la grilla de edicion */
-.tarifas-resumen { display:grid; grid-template-columns:repeat(auto-fit,minmax(180px,1fr)); gap:.6rem; margin-bottom:.8rem; }
-.tarifas-serv { border:1px solid var(--color-border); border-radius:8px; padding:.6rem .75rem; font-size:.82rem; }
-.tarifas-serv b { display:block; color:var(--color-primary); }
-.tarifas-serv .cli-chip { margin-top:.3rem; }
+/* Tarjetas de resumen de Tarifas (rediseño 27/10): general, matriz, fuel, seguro. */
+.tarifas-resumen { display:grid; grid-template-columns:repeat(4,minmax(0,1fr)); gap:.6rem; margin-bottom:.6rem; }
+@media (max-width: 900px) { .tarifas-resumen { grid-template-columns:repeat(2,minmax(0,1fr)); } }
+.tarifas-serv { border:1px solid var(--color-border); border-radius:8px; padding:.55rem .75rem; font-size:.8rem; min-width:0; }
+.tarifas-serv b { display:block; font-size:.68rem; text-transform:uppercase; letter-spacing:.04em; color:var(--color-muted); margin-bottom:.15rem; }
+.tarifas-serv .v { display:block; font-size:1rem; font-weight:700; color:var(--color-primary); }
+.tarifas-serv small { display:block; color:var(--color-muted); margin-top:.1rem; font-size:.74rem; }
+.tarifas-serv .cli-chip { margin:0 0 0 .2rem; vertical-align:middle; }
+.per-card-acc { display:flex; gap:.4rem; flex-wrap:nowrap; }
+/* La barra de fuel + seguro + paso, una sola línea. */
+.tarifas-barra { display:flex; align-items:center; gap:.6rem 1.4rem; flex-wrap:wrap; padding:.5rem .75rem; margin:.2rem 0 .3rem; background:#f8fafc; border:1px solid var(--color-border); border-radius:8px; }
+.tarifas-campo { display:flex; align-items:center; gap:.35rem; font-size:.8rem; }
+.tarifas-campo label { font-weight:600; color:var(--color-text); white-space:nowrap; text-transform:none; font-size:.78rem; letter-spacing:0; margin:0; }
+.tarifas-campo label.sub { font-weight:500; color:var(--color-muted); }
+.tarifas-campo input { width:70px !important; font-size:.8rem; padding:.25rem .4rem; }
+.tarifas-campo .uni { color:var(--color-muted); font-size:.76rem; }
+.btn.btn-xs { padding:.2rem .55rem; font-size:.72rem; }
+.tarifas-hints { display:flex; gap:1.2rem; flex-wrap:wrap; margin-bottom:.4rem; }
+.tarifas-hints .tarifas-hint { flex-basis:auto; }
+.tarifas-hints .tarifas-hint:empty { display:none; }
+.tarifas-leg { margin-left:auto; display:inline-flex; gap:.7rem; }
 .tarifas-extra { display:flex; gap:1.25rem; flex-wrap:wrap; font-size:.82rem; color:var(--color-muted); }
 .tarifas-extra b { color:var(--color-text); }
 
@@ -246,9 +263,7 @@ td.tarifa-cell .cell-del { position: absolute; top: 1px; right: 2px; font-size: 
 td.tarifa-cell .cell-del:hover { color: var(--color-danger); }
 td.tarifa-cell input { width: 60px; font-size: 0.8rem; padding: 0.1rem; text-align: center; }
 /* Modo de tarifa (porcentaje / precio por kilo) y fuel propio del cliente */
-.tarifas-modo { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; flex-wrap: wrap; }
-.tarifas-modo label { font-size: 0.8rem; font-weight: 600; color: var(--color-muted); }
-.tarifas-modo input { width: 150px; }
+.tarifas-modo { display: flex; align-items: center; gap: 0.35rem; }
 .tarifas-hint { font-size: 0.78rem; color: var(--color-muted); flex-basis: 100%; }
 .tarifas-rangos { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.9rem; flex-wrap: wrap; }
 .tarifas-rangos label { font-size: 0.8rem; font-weight: 600; color: var(--color-muted); }
@@ -470,6 +485,7 @@ td.tarifa-cell.cero .cell-val { color: #d03b3b; font-weight: 650; }
 
 /* ── Paso de la tarifa (29/09/2026) ─────────────────────────────────────────────── */
 .tarifas-paso { align-items: center; }
+.tarifas-paso .paso-seg button { padding: .25rem .6rem; font-size: .76rem; }
 .paso-seg { display: inline-flex; border: 1.5px solid var(--color-border); border-radius: 999px; overflow: hidden; }
 .paso-seg button { border: none; background: #fff; padding: .35rem .8rem; font: inherit; font-size: .82rem; font-weight: 600; color: var(--color-muted); cursor: pointer; }
 .paso-seg button + button { border-left: 1.5px solid var(--color-border); }
@@ -491,8 +507,12 @@ td.tarifa-cell.cero .cell-val { color: #d03b3b; font-weight: 650; }
 .rs-mover select { flex: 1; min-width: 0; }
 
 /* Escalones al revés en la tarifa (09/10/2026): aviso arriba de la grilla y celdas en rojo. */
-.tarifas-saltos { background: #fee2e2; border: 1px solid #fca5a5; border-radius: 10px; padding: .6rem .9rem; margin: .5rem 0 .75rem; font-size: .86rem; color: #7f1d1d; line-height: 1.5; }
-.tarifas-saltos ul { margin: .3rem 0 0; padding-left: 1.2rem; }
+.tarifas-saltos { background: #fff1f2; border: 1px solid #fecdd3; border-radius: 8px; padding: .4rem .8rem; margin: .4rem 0 .6rem; font-size: .8rem; color: #9f1239; line-height: 1.5; }
+.tarifas-saltos summary { cursor: pointer; list-style: none; display: flex; align-items: center; gap: .4rem; }
+.tarifas-saltos summary::-webkit-details-marker { display: none; }
+.tarifas-saltos summary .ver { margin-left: auto; font-weight: 600; white-space: nowrap; }
+.tarifas-saltos[open] summary .ver { visibility: hidden; }
+.tarifas-saltos ul { margin: .3rem 0 .2rem; padding-left: 1.2rem; }
 td.tarifa-cell.salto { background: #fee2e2 !important; color: #b91c1c !important; box-shadow: inset 0 0 0 2px #fca5a5; }
 
 /* ── Aumento de tarifa (20/10/2026) ─────────────────────────────────────────── */
