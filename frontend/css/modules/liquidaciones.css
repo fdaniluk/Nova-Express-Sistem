@@ -245,3 +245,19 @@ th.liq-interno { color: #166534; font-size: .7rem; }
 /* Formato del Excel (16/10/2026): tilde arriba del desglose. */
 .liq-formato { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600; color: var(--color-primary); margin: 0 0 10px; cursor: pointer; }
 .liq-formato small { font-weight: 400; color: var(--color-muted); }
+
+/* Otros conceptos (28/10/2026): filas concepto + monto, al costo. */
+.liq-conceptos { margin-top: .9rem; border: 1px dashed #c9d1dc; border-radius: 10px; padding: .7rem .9rem; background: #fafbfd; }
+.liq-conceptos-head { display: flex; flex-direction: column; gap: .15rem; margin-bottom: .5rem; }
+.liq-conceptos-head strong { color: var(--color-primary); }
+.liq-conceptos .liq-hint { margin: 0; }
+.liq-conceptos-lista { display: flex; flex-direction: column; gap: .4rem; margin-bottom: .5rem; }
+.liq-conceptos-lista:empty { margin-bottom: 0; }
+.liq-concepto-row { display: grid; grid-template-columns: 1fr 120px auto; gap: .5rem; align-items: center; }
+.liq-concepto-row input { width: 100%; padding: .45rem .6rem; border: 1px solid #cbd5e1; border-radius: 6px; font: inherit; font-size: .88rem; }
+.liq-concepto-row .liq-concepto-quitar { border: 1px solid #cbd5e1; background: #fff; border-radius: 6px; width: 32px; height: 32px; cursor: pointer; color: #64748b; }
+.liq-concepto-row .liq-concepto-quitar:hover { border-color: #fca5a5; color: #dc2626; background: #fef2f2; }
+.liq-conceptos-prev { border: 1px solid #c9d1dc; border-left: 4px solid var(--color-primary); border-radius: 10px; padding: .7rem .9rem; background: #fafbfd; margin-top: .8rem; }
+.liq-conceptos-prev[hidden] { display: none; }
+.liq-conceptos-prev .liq-cargos-ant-head strong { color: var(--color-primary); }
+@media (max-width: 640px) { .liq-concepto-row { grid-template-columns: 1fr 90px auto; } }

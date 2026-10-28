@@ -287,6 +287,11 @@ async function listarSalidas({ desde, hasta } = {}) {
     return vd;
   };
   const r2 = (n) => Math.round(n * 100) / 100;
+  const profitFleteDe = (row) => {
+    const vd = ventaDesgloseDe(row);
+    if (!vd || row.flete == null) return null;
+    return r2(vd.flete - ((Number(row.flete) || 0) - (Number(row.descuento) || 0)));
+  };
 
   // Profit/porcentaje/compra_total derivados AL VUELO por deriveProfit (utils/profit.js),
   // la MISMA función que agrega el Dashboard, para que coincidan al centavo.
@@ -358,6 +363,11 @@ async function listarSalidas({ desde, hasta } = {}) {
     cargos_total: cargosPost(row),
     venta_total: r2((Number(row.total) || 0) + cargosPost(row)),
     venta_desglose: ventaDesgloseDe(row),
+    // Profit flete (28/10, pedido de Felipe): lo que deja SOLO el flete, sin fuel, seguro,
+    // surge ni ningún otro concepto = flete de venta (el que ve el cliente en el desglose)
+    // − flete de tabla del courier (neto del descuento de costo). Estimado siempre: la
+    // factura del courier no separa el flete por concepto con esa precisión.
+    profit_flete: profitFleteDe(row),
     ...deriveProfit(row),
     // La doble vista de la oficina (31/08): el estimado SIEMPRE y el real cuando hay
     // factura, cada uno en su campo. Ninguno pisa al otro; deriveProfit queda igual.

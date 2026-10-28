@@ -9,8 +9,16 @@ function mapCliente(c) {
    mostraba `tarifa_pct` pelado y para saber si el cliente tenía celdas propias o precio por
    kilo hacían falta 12 pedidos. Con esto la pantalla puede decir "75 %", "75 % + matriz" o
    "por kilo" sin preguntar nada más. */
+/* matriz_distintas (28/10/2026, pedido de Felipe): cuántas de esas celdas COBRAN DISTINTO
+   del % general y están vigentes con la regla de "manda lo último" (una celda más vieja que
+   el general está pisada y no cuenta). Es lo que decide si la pantalla dice "+ matriz": un
+   cliente con todas las celdas iguales al general cobra un solo %, y decirle "matriz" confunde. */
 const RESUMEN_TARIFAS_SQL = `
   (SELECT COUNT(*) FROM profit_overrides    po WHERE po.cliente_id = c.id) AS matriz_celdas,
+  (SELECT COUNT(*) FROM profit_overrides    po WHERE po.cliente_id = c.id
+     AND po.profit_pct != COALESCE(c.tarifa_pct, 0)
+     AND ((po.vigente_desde IS NULL AND c.tarifa_pct_desde IS NULL)
+       OR (po.vigente_desde IS NOT NULL AND (c.tarifa_pct_desde IS NULL OR po.vigente_desde >= c.tarifa_pct_desde)))) AS matriz_distintas,
   (SELECT COUNT(*) FROM tarifa_kg_overrides tk WHERE tk.cliente_id = c.id) AS kg_celdas,
   (SELECT COUNT(*) FROM cliente_tramos      ct WHERE ct.cliente_id = c.id) AS tramos_propios`;
 

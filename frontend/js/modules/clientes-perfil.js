@@ -50,7 +50,9 @@
 
   function margenDe(c) {
     const pct = Number(c.tarifa_pct) || 0;
-    const celdas = Number(c.matriz_celdas) || 0;
+    // "+ matriz" solo si alguna celda cobra DISTINTO del general y está vigente (28/10):
+    // con todas las celdas iguales al general el cliente cobra un solo %.
+    const celdas = Number(c.matriz_distintas) || 0;
     const kg = Number(c.kg_celdas) || 0;
     // Solo si tiene precios por kilo CARGADOS: el modo del cliente es una marca vieja que
     // no cobra nada (Arenasa decía "por kilo" sin tener ninguno, 20/10).
@@ -112,9 +114,11 @@
     const vacio = (v) => v === null || v === undefined || v === '';
     // Cuatro tarjetas (27/10): general, matriz, fuel propio y seguro propio. Los textos
     // "X % sobre el flete" y "N celda(s) propia(s)" los leen las tandas de pantalla.
+    const distintas = Number(c.matriz_distintas) || 0;
+    const igualTxt = celdas && !distintas ? ' · todas iguales al general' : '';
     const matrizTxt = kg
-      ? `${kg} precio(s) por kilo${celdas ? ` · ${celdas} celda(s) propia(s)` : ''}`
-      : (celdas ? `${celdas} celda(s) propia(s)` : 'sin celdas propias');
+      ? `${kg} precio(s) por kilo${celdas ? ` · ${celdas} celda(s) propia(s)${igualTxt}` : ''}`
+      : (celdas ? `${celdas} celda(s) propia(s)${igualTxt}` : 'sin celdas propias');
     cont.innerHTML = `
       <div class="tarifas-serv"><b>General</b><span class="v">${pct ? `${pct} %` : '—'}</span><small>${pct ? `${pct} % sobre el flete` : 'sin % general'}</small></div>
       <div class="tarifas-serv"><b>Matriz</b><span class="v">${kg ? `${kg} por kilo` : (celdas ? `${celdas} celdas` : '—')}</span><small>${matrizTxt}${tramos ? ' <span class="cli-chip cobro">tramos propios</span>' : ''}${!kg && !celdas ? (pct ? ' <span class="cli-chip cobro">solo el general</span>' : ' <span class="cli-chip sin-margen">sin margen</span>') : ''}</small></div>

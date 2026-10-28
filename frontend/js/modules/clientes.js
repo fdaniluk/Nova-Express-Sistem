@@ -53,7 +53,9 @@
   // leer de un vistazo; el detalle está en el perfil.
   function margenDe(c) {
     const pct = Number(c.tarifa_pct) || 0;
-    const celdas = Number(c.matriz_celdas) || 0;
+    // "+ matriz" solo si alguna celda cobra DISTINTO del general y está vigente (28/10):
+    // con todas las celdas iguales al general el cliente cobra un solo %.
+    const celdas = Number(c.matriz_distintas) || 0;
     const kg = Number(c.kg_celdas) || 0;
     // Solo si tiene precios por kilo CARGADOS (el modo del cliente es una marca vieja).
     if (kg > 0) {

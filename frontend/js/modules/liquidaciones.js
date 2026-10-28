@@ -278,7 +278,7 @@
     document.getElementById('liq-desde').addEventListener('change', invalidarBorrador);
     document.getElementById('liq-hasta').addEventListener('change', invalidarBorrador);
     // Cualquier toque saca el "confirmada" del pie y vuelve al estado normal.
-    ['liq-cliente', 'liq-desde', 'liq-hasta', 'liq-envios-body'].forEach((id) => {
+    ['liq-cliente', 'liq-desde', 'liq-hasta', 'liq-envios-body', 'liq-conceptos-lista'].forEach((id) => {
       ['change', 'input'].forEach((ev) => document.getElementById(id).addEventListener(ev, () => {
         document.getElementById('liq-resumen-pie').classList.remove('ok');
         actualizarResumen();
@@ -462,13 +462,56 @@
   }
 
 
+  // ── Otros conceptos (28/10/2026): líneas a mano de la liquidación, al costo ──────────
+  function agregarConceptoFila(datos) {
+    const lista = document.getElementById('liq-conceptos-lista');
+    if (!lista) return null;
+    const row = document.createElement('div');
+    row.className = 'liq-concepto-row';
+    row.innerHTML = `<input type="text" class="liq-concepto-nombre" maxlength="120" placeholder="Concepto (ej: Encomienda Vía Cargo pagada por Nova, 12/10)">
+      <input type="number" class="liq-concepto-monto" min="0" step="0.01" placeholder="USD">
+      <button type="button" class="liq-concepto-quitar" title="Quitar">✕</button>`;
+    if (datos) {
+      row.querySelector('.liq-concepto-nombre').value = datos.concepto || '';
+      row.querySelector('.liq-concepto-monto').value = datos.monto != null ? String(datos.monto) : '';
+    }
+    row.querySelector('.liq-concepto-quitar').addEventListener('click', () => { row.remove(); invalidarBorrador(); });
+    lista.appendChild(row);
+    if (!datos) row.querySelector('.liq-concepto-nombre').focus();
+    return row;
+  }
+  function getConceptos() {
+    return [...document.querySelectorAll('#liq-conceptos-lista .liq-concepto-row')].map((r) => ({
+      concepto: r.querySelector('.liq-concepto-nombre').value.trim(),
+      monto: Math.round((parseFloat(r.querySelector('.liq-concepto-monto').value) || 0) * 100) / 100,
+    })).filter((c) => c.concepto || c.monto > 0);
+  }
+  function limpiarConceptos() {
+    const lista = document.getElementById('liq-conceptos-lista');
+    if (lista) lista.innerHTML = '';
+  }
+  (function bindConceptos() {
+    const btn = document.getElementById('btn-concepto-add');
+    const lista = document.getElementById('liq-conceptos-lista');
+    if (!btn || !lista) return;
+    btn.addEventListener('click', () => { agregarConceptoFila(); invalidarBorrador(); });
+    lista.addEventListener('input', () => { invalidarBorrador(); });
+  }());
+
   async function calcularPreview() {
     const cliente_id = parseInt(document.getElementById('liq-cliente').value, 10);
     const { envio_ids, cargos } = getSelectedEnvios();
+    const conceptos = getConceptos();
+    const conceptoIncompleto = conceptos.find((c) => !c.concepto || !(c.monto > 0));
+    if (conceptoIncompleto) {
+      NovaUtils.showAlert(alertBox, 'Hay un concepto sin nombre o sin importe: completalo o quitalo.', 'error');
+      return;
+    }
     // Sin envíos marcados se puede igual si el cliente tiene cargos de envíos anteriores
-    // (liquidación solo de cargos, 05/10). Si no hay nada, el backend lo dice.
-    if (!envio_ids.length && !cargosAnterioresCliente.length) {
-      NovaUtils.showAlert(alertBox, 'Seleccione al menos un envío (este cliente no tiene cargos pendientes de envíos anteriores).', 'error');
+    // (liquidación solo de cargos, 05/10) o si hay otros conceptos (28/10). Si no hay nada,
+    // el backend lo dice.
+    if (!envio_ids.length && !cargosAnterioresCliente.length && !conceptos.length) {
+      NovaUtils.showAlert(alertBox, 'Seleccione al menos un envío (este cliente no tiene cargos pendientes de envíos anteriores ni otros conceptos cargados).', 'error');
       return;
     }
     // La liquidación NO recotiza: el backend arma el desglose con los valores
@@ -480,8 +523,9 @@
         envio_ids,
         cargos,
         cotizaciones,
+        conceptos,
       });
-      lastPreview = { cliente_id, envio_ids, cargos, cotizaciones, preview };
+      lastPreview = { cliente_id, envio_ids, cargos, cotizaciones, conceptos, preview };
       // Formato del Excel: arranca con el preferido del cliente; si la persona ya lo tocó en
       // esta pantalla, se respeta lo que eligió.
       const chkFmt = document.getElementById('liq-formato-detallado');
@@ -504,14 +548,16 @@
           <td class="n">${NovaUtils.formatMoney(i.adicional)}${adicDetalleHtml(i.adicional_detalle)}</td>
           <td class="n">${NovaUtils.formatMoney(i.total_usd)}</td>
           <td class="liq-interno">${profitInternoHtml(i)}</td>
-        </tr>`).join('') || '<tr><td colspan="8" class="empty">Sin envíos: esta liquidación es solo de cargos de envíos anteriores (abajo).</td></tr>';
+        </tr>`).join('') || '<tr><td colspan="8" class="empty">Sin envíos: esta liquidación es solo de cargos de envíos anteriores u otros conceptos (abajo).</td></tr>';
       aplicarFormatoPreview();
 
       // Con cargos de envíos anteriores, el pie de la tabla es "Total envíos" y el total
       // general lo cierra la sección de abajo (igual que el Excel).
       const conAnteriores = Array.isArray(preview.cargos_anteriores) && preview.cargos_anteriores.length > 0;
-      document.getElementById('liq-total').innerHTML = `<strong>${NovaUtils.formatMoney(conAnteriores ? preview.total_envios : preview.total)}</strong>`;
+      const conConceptos = Array.isArray(preview.conceptos) && preview.conceptos.length > 0;
+      document.getElementById('liq-total').innerHTML = `<strong>${NovaUtils.formatMoney(conAnteriores || conConceptos ? preview.total_envios : preview.total)}</strong>`;
       pintarCargosAnteriores(preview);
+      pintarConceptos(preview);
       // Total interno: utilidad de la liquidación y % sobre el costo (misma convención que Salidas).
       {
         const util = preview.items.reduce((s, i) => s + (Number(i.utilidad_usd) || 0), 0);
@@ -551,7 +597,7 @@
         // con la invalidación de arriba no debería pasar nunca).
         liq = await NovaAPI.liquidaciones.confirmar(lastLiquidacionId, getSelectedEnvios().envio_ids, formatoElegido());
       } else {
-        const { cliente_id, envio_ids, cargos, cotizaciones } = lastPreview;
+        const { cliente_id, envio_ids, cargos, cotizaciones, conceptos } = lastPreview;
         liq = await crearConAviso({
           cliente_id,
           periodo_desde: document.getElementById('liq-desde').value,
@@ -559,6 +605,7 @@
           envio_ids,
           cargos,
           cotizaciones,
+          conceptos,
           confirmar: true,
           formato: formatoElegido(),
         });
@@ -572,6 +619,7 @@
       enviosPendientesCliente = [];
       document.getElementById('liq-envios-wrap').classList.add('hidden');
       document.getElementById('liq-envios-body').innerHTML = '';
+      limpiarConceptos();
       lastPreview = null;
       lastLiquidacionId = null;
       actualizarResumen();
@@ -597,7 +645,7 @@
       await calcularPreview();
       if (!lastPreview) return null;
     }
-    const { cliente_id, envio_ids, cargos, cotizaciones } = lastPreview;
+    const { cliente_id, envio_ids, cargos, cotizaciones, conceptos } = lastPreview;
     const liq = await crearConAviso({
       cliente_id,
       periodo_desde: document.getElementById('liq-desde').value,
@@ -605,6 +653,7 @@
       envio_ids,
       cargos,
       cotizaciones,
+      conceptos,
       confirmar: false,
       formato: formatoElegido(),
     });
@@ -658,6 +707,9 @@
         const inp = document.querySelector(`tr[data-envio-id="${it.envio_id}"] .liq-adicional`);
         if (inp && manual > 0) inp.value = String(Math.round(manual * 100) / 100);
       }
+      // Otros conceptos del borrador (28/10): vuelven a sus filas.
+      limpiarConceptos();
+      for (const c of liq.conceptos || []) agregarConceptoFila(c);
       // Si al borrador le falta algún envío, ya no se puede confirmar tal cual (el backend
       // compara la selección con el borrador y corta con 409): se borra y Confirmar / Excel
       // crean uno nuevo con lo que quedó, que es lo que se está viendo.
@@ -771,6 +823,9 @@
     q('envios').textContent = filas.length ? `${marcadas.length} de ${filas.length}` : '—';
     const adic = marcadas.reduce((s, r) => s + (parseFloat(r.querySelector('.liq-adicional')?.value) || 0), 0);
     q('adicionales').textContent = filas.length ? (adic > 0 ? NovaUtils.formatMoney(adic) : '—') : '—';
+    const conceptosRes = getConceptos();
+    const sumaConceptos = conceptosRes.reduce((s, c) => s + (c.monto || 0), 0);
+    if (q('conceptos')) q('conceptos').textContent = conceptosRes.length ? `${conceptosRes.length} · ${NovaUtils.formatMoney(sumaConceptos)}` : '—';
 
     const preview = lastPreview && lastPreview.preview;
     q('total').textContent = preview ? NovaUtils.formatMoney(preview.total) : '—';
@@ -797,7 +852,7 @@
     if (pie && !pie.classList.contains('ok')) {
       pie.textContent = preview
         ? 'Listo para confirmar o exportar. Si cambiás la selección, hay que recalcular.'
-        : (filas.length || cargosAnterioresCliente.length ? 'Apretá Calcular para ver el desglose y el total.' : 'Elegí el cliente y el período, y cargá sus envíos.');
+        : (filas.length || cargosAnterioresCliente.length || getConceptos().length ? 'Apretá Calcular para ver el desglose y el total.' : 'Elegí el cliente y el período, y cargá sus envíos.');
     }
   }
 
@@ -822,8 +877,9 @@
       wrap.insertAdjacentElement('afterend', box);
     }
     const lista = Array.isArray(preview.cargos_anteriores) ? preview.cargos_anteriores : [];
+    const hayConceptos = Array.isArray(preview.conceptos) && preview.conceptos.length > 0;
     const foot = document.querySelector('#liq-preview tfoot td:first-child');
-    if (!lista.length) { box.hidden = true; box.innerHTML = ''; if (foot) foot.textContent = 'Total liquidación'; return; }
+    if (!lista.length) { box.hidden = true; box.innerHTML = ''; if (foot) foot.textContent = hayConceptos ? 'Total envíos' : 'Total liquidación'; return; }
     if (foot) foot.textContent = 'Total envíos';
     const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
     box.hidden = false;
@@ -845,7 +901,37 @@
         </tbody>
         <tfoot>
           <tr><td colspan="4">Total cargos de envíos anteriores</td><td class="n">${NovaUtils.formatMoney(preview.total_cargos_anteriores)}</td></tr>
-          <tr class="liq-total-general"><td colspan="4">Total liquidación</td><td class="n"><strong>${NovaUtils.formatMoney(preview.total)}</strong></td></tr>
+          ${hayConceptos ? '' : `<tr class="liq-total-general"><td colspan="4">Total liquidación</td><td class="n"><strong>${NovaUtils.formatMoney(preview.total)}</strong></td></tr>`}
+        </tfoot>
+      </table>`;
+  }
+
+  // Otros conceptos (28/10/2026): la sección propia en la vista previa, igual que en el
+  // Excel. Cierra el total general de la liquidación (va después de los cargos anteriores).
+  function pintarConceptos(preview) {
+    let box = document.getElementById('liq-conceptos-prev');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'liq-conceptos-prev';
+      box.className = 'liq-conceptos-prev';
+      const ant = document.getElementById('liq-cargos-ant');
+      (ant || document.querySelector('#liq-preview .liq-tabla-wrap')).insertAdjacentElement('afterend', box);
+    }
+    const lista = Array.isArray(preview.conceptos) ? preview.conceptos : [];
+    if (!lista.length) { box.hidden = true; box.innerHTML = ''; return; }
+    const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+    box.hidden = false;
+    box.innerHTML = `
+      <div class="liq-cargos-ant-head">
+        <strong>Otros conceptos</strong>
+        <span class="liq-hint">Al costo, sin ganancia. Van en su propia sección del Excel, con este nombre.</span>
+      </div>
+      <table class="liq-tabla liq-tabla-ant">
+        <thead><tr><th>Concepto</th><th class="n">USD</th></tr></thead>
+        <tbody>${lista.map((c) => `<tr><td>${esc(c.concepto)}</td><td class="n">${NovaUtils.formatMoney(c.monto)}</td></tr>`).join('')}</tbody>
+        <tfoot>
+          <tr><td>Total otros conceptos</td><td class="n">${NovaUtils.formatMoney(preview.total_conceptos)}</td></tr>
+          <tr class="liq-total-general"><td>Total liquidación</td><td class="n"><strong>${NovaUtils.formatMoney(preview.total)}</strong></td></tr>
         </tfoot>
       </table>`;
   }

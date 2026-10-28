@@ -8,7 +8,7 @@
   <!-- DM Sans / DM Mono: la imagen de la cotización se dibuja con ellas (29/09) -->
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@300;400;500;600;700&family=DM+Mono:wght@400;500;600&display=swap">
   <link rel="stylesheet" href="../css/main.css?v=20261027a">
-<link rel="stylesheet" href="../css/modules/cotizador.css?v=20260915a">
+<link rel="stylesheet" href="../css/modules/cotizador.css?v=20261028a">
 </head>
 <body>
 <div class="app-layout">
@@ -273,6 +273,14 @@
                 </div>
 
                 <hr class="cot-sep" />
+                <div class="cot-card-title">Otros conceptos (sin ganancia)</div>
+                <div class="cot-field">
+                  <div class="cot-hint">Cosas que se le cobran al cliente tal cual, sin profit: la encomienda que pagamos por él, un trámite, un embalaje. Se suman a TODAS las opciones y salen como línea propia en la cotización y en la imagen, con su nombre.</div>
+                  <div id="otros-lista" class="otros-lista"></div>
+                  <button type="button" class="btn-otros-add" id="btn-otro-add" onclick="agregarOtroConcepto()">+ Agregar concepto</button>
+                </div>
+
+                <hr class="cot-sep" />
                 <div class="cot-card-title">La cotización que ve el cliente</div>
                 <div class="cot-field">
                   <label>Nombre del cliente en la cotización (opcional)</label>
@@ -332,6 +340,9 @@ let bultoId=0;
    `datos` copia las medidas de otro bulto (duplicar); sin datos, la fila sale vacia.
    `despuesDeInfo` es el div de info del bulto que se esta duplicando: la copia se mete
    justo ahi abajo y no al final, asi las cajas iguales quedan juntas en la lista. */
+/* Otros conceptos: filas concepto + monto. Solo cuentan las que tienen nombre y monto > 0. */
+function agregarOtroConcepto(datos){const lista=document.getElementById('otros-lista');const row=document.createElement('div');row.className='otro-row';row.innerHTML=`<input type="text" class="o-concepto" maxlength="80" placeholder="Concepto (ej: Encomienda Vía Cargo pagada por Nova)" /><input type="number" class="o-monto" min="0" step="0.01" placeholder="USD" /><button type="button" class="btn-remove" title="Quitar" onclick="this.parentNode.remove()">\u2715</button>`;if(datos){row.querySelector('.o-concepto').value=datos.concepto||'';row.querySelector('.o-monto').value=datos.monto||'';}lista.appendChild(row);if(!datos)row.querySelector('.o-concepto').focus();return row;}
+function otrosConceptos(){return[...document.querySelectorAll('#otros-lista .otro-row')].map(r=>({concepto:r.querySelector('.o-concepto').value.trim(),monto:Math.round((parseFloat(r.querySelector('.o-monto').value)||0)*100)/100})).filter(o=>o.concepto&&o.monto>0);}
 function agregarBulto(datos,despuesDeInfo){bultoId++;const wrap=document.getElementById('bultos-wrap');const div=document.createElement('div');div.className='bulto-row';div.id='bulto-'+bultoId;div.innerHTML=`<div class="bulto-num">#${wrap.children.length+1}</div><div class="cot-field"><label>Peso real (kg)</label><input type="number" min="0.5" step="0.5" placeholder="Peso (kg)" class="b-peso" oninput="actualizarBulto(this)" /></div><div class="cot-field"><label>Largo (cm)</label><input type="number" min="1" step="1" placeholder="Largo (cm)" class="b-largo" oninput="actualizarBulto(this)" /></div><div class="cot-field"><label>Ancho (cm)</label><input type="number" min="1" step="1" placeholder="Ancho (cm)" class="b-ancho" oninput="actualizarBulto(this)" /></div><div class="cot-field"><label>Alto (cm)</label><input type="number" min="1" step="1" placeholder="Alto (cm)" class="b-alto" oninput="actualizarBulto(this)" /></div><button class="btn-dup" onclick="duplicarBulto('bulto-${bultoId}')" title="Agregar una caja igual a esta">\u29c9</button><button class="btn-remove" onclick="eliminarBulto('bulto-${bultoId}')" title="Eliminar bulto">\u2715</button>`;const info=document.createElement('div');info.id='info-bulto-'+bultoId;info.style.padding='0 12px 8px';if(despuesDeInfo&&despuesDeInfo.parentNode){despuesDeInfo.after(div);div.after(info);}else{wrap.appendChild(div);wrap.appendChild(info);}if(datos){div.querySelector('.b-peso').value=datos.pr;div.querySelector('.b-largo').value=datos.l;div.querySelector('.b-ancho').value=datos.a;div.querySelector('.b-alto').value=datos.al;}renumerarBultos();actualizarBulto(div.querySelector('.b-peso'));return div;}
 
 function leerBulto(row){return{pr:row.querySelector('.b-peso').value,l:row.querySelector('.b-largo').value,a:row.querySelector('.b-ancho').value,al:row.querySelector('.b-alto').value};}
@@ -407,7 +418,12 @@ async function cotizar(){const clienteId=document.getElementById('cliente').valu
    explícita de quien cotiza. */
 const svcNecesarios=[];if(couriers==='ambos'||couriers==='dhl')svcNecesarios.push('DHL');if(couriers!=='dhl')svcNecesarios.push('UPS_EXP');const esManual=fuenteFuel()==='manual';const faltaFuel=svcNecesarios.map(s=>[s,fuelPara(s)]).filter(([,v])=>v===null||v===undefined||isNaN(v)||(!esManual&&!(v>0)));if(faltaFuel.length){errEl.textContent=esManual?'Ingresá el porcentaje de fuel antes de cotizar.':`Falta cargar el fuel en Configuración: ${[...new Set(faltaFuel.map(([s])=>fuenteFuel()==='nova'?'Nova':(s==='DHL'?'DHL':'UPS')))].join(' y ')}. Sin fuel el precio sale por debajo del costo.`;errEl.style.display='block';return;}/* Peso facturable: se redondea CADA BULTO a medio kilo para arriba y despues se suman
    (igual que el liquidador/backend, ver calcularPesos). Cambio del 20/08/2026: antes se
-   sumaba crudo y se redondeaba el total, y los couriers nos facturan por bulto. */const bultosProc=bultos.map((b,idx)=>{const pvRaw=b.l*b.a*b.al/5000;const pv=pvRaw;const pf=Math.ceil(Math.max(b.pr,pvRaw)*2)/2;const dims=[b.l,b.a,b.al].sort((x,y)=>y-x);return{num:idx+1,pr:b.pr,pv,pf,l:b.l,a:b.a,al:b.al,dims};});const pfTotal=Math.round(bultosProc.reduce((s2,b)=>s2+b.pf,0)*1000)/1000;const results=[];const mostrarDHL=couriers==='ambos'||couriers==='dhl';const mostrarExp=couriers==='ambos'||couriers==='ups_exp'||couriers==='ups';const mostrarSav=couriers==='ambos'||couriers==='ups_sav'||couriers==='ups';/* Motor único compartido (cotizador-core.js): mismo cálculo que el liquidador y Salidas */const baseParams={pais,tipo,pf:pfTotal,fob:valor,profitPct:g,bultosProc,residencial:exRe,entrega:exR,ddp:exDdp,proteccionDoc:exProtDoc,asegurado:exAseg,contenido,descuentoPct};const arancelEl=document.querySelector('input[name="arancel"]:checked');let arancel=0;if(arancelEl){arancel=arancelEl.value==='otro'?((parseFloat(document.getElementById('arancel-otro')?.value)||0)/100):(parseFloat(arancelEl.value)||0);}function pushResult(r,tag,costo){results.push({costo,courier:r.servicio,zona:r.zona,pf:pfTotal,conGan:r.conGan,conGanLista:r.conGanLista,descuentoPct:r.descuentoPct||0,descuentoMonto:r.descuentoMonto||0,surgeAmt:r.surgeAmt,subtotalConSurge:r.subtotalConSurge,fuelMonto:r.fuelMonto,total:r.total,extraRows:r.extras,tag,profitInfo:r.profitInfo,fuelPctUsado:r.fuelUsado,modoVenta:r.modoVenta,precioKgVenta:r.precioKgVenta,pfVenta:r.pfVenta,tarifa50:!!r.tarifa50});}
+   sumaba crudo y se redondeaba el total, y los couriers nos facturan por bulto. */const bultosProc=bultos.map((b,idx)=>{const pvRaw=b.l*b.a*b.al/5000;const pv=pvRaw;const pf=Math.ceil(Math.max(b.pr,pvRaw)*2)/2;const dims=[b.l,b.a,b.al].sort((x,y)=>y-x);return{num:idx+1,pr:b.pr,pv,pf,l:b.l,a:b.a,al:b.al,dims};});const pfTotal=Math.round(bultosProc.reduce((s2,b)=>s2+b.pf,0)*1000)/1000;const results=[];const mostrarDHL=couriers==='ambos'||couriers==='dhl';const mostrarExp=couriers==='ambos'||couriers==='ups_exp'||couriers==='ups';const mostrarSav=couriers==='ambos'||couriers==='ups_sav'||couriers==='ups';/* Motor único compartido (cotizador-core.js): mismo cálculo que el liquidador y Salidas */const baseParams={pais,tipo,pf:pfTotal,fob:valor,profitPct:g,bultosProc,residencial:exRe,entrega:exR,ddp:exDdp,proteccionDoc:exProtDoc,asegurado:exAseg,contenido,descuentoPct};const arancelEl=document.querySelector('input[name="arancel"]:checked');let arancel=0;if(arancelEl){arancel=arancelEl.value==='otro'?((parseFloat(document.getElementById('arancel-otro')?.value)||0)/100):(parseFloat(arancelEl.value)||0);}/* Otros conceptos (28/10/2026, pedido de Felipe): lineas a mano (concepto + monto) que se
+   le cobran al cliente SIN ganancia — la encomienda que pagamos por el, un tramite. Se
+   suman tal cual a cada opcion, al total que ve el cliente Y a nuestra compra, asi la
+   ganancia del panel de oficina no cambia. Viajan como filas de `extras`, que es lo que
+   ya pintan la tarjeta, la imagen y la cotizacion guardada. */
+function pushResult(r,tag,costo){const otros=otrosConceptos();const sumaOtros=Math.round(otros.reduce((s,o)=>s+o.monto,0)*100)/100;const extras=(r.extras||[]).concat(otros.map(o=>[o.concepto,o.monto]));let c=costo;if(c&&sumaOtros>0){c={...c,extras:(c.extras||[]).concat(otros.map(o=>[o.concepto,o.monto])),extrasTotal:Math.round(((c.extrasTotal||0)+sumaOtros)*100)/100,total:Math.round((c.total+sumaOtros)*100)/100};}results.push({costo:c,courier:r.servicio,zona:r.zona,pf:pfTotal,conGan:r.conGan,conGanLista:r.conGanLista,descuentoPct:r.descuentoPct||0,descuentoMonto:r.descuentoMonto||0,surgeAmt:r.surgeAmt,subtotalConSurge:r.subtotalConSurge,fuelMonto:r.fuelMonto,total:Math.round((r.total+sumaOtros)*100)/100,extraRows:extras,otrosConceptos:otros,tag,profitInfo:r.profitInfo,fuelPctUsado:r.fuelUsado,modoVenta:r.modoVenta,precioKgVenta:r.precioKgVenta,pfVenta:r.pfVenta,tarifa50:!!r.tarifa50});}
 /* Resuelve un servicio. Sin cliente: usa la ganancia manual (baseParams.profitPct). Con cliente: cotiza una vez con profit 0 para conocer la zona, le pregunta al backend cual es la tarifa de venta del cliente para (servicio,tipo,zona,pf) y vuelve a cotizar con eso.
    El backend decide solo si ese cliente cobra por PORCENTAJE (matriz de profit) o por PRECIO POR KILO (tarifa_kg_overrides), y si tiene fuel propio. Aca no se decide nada: se aplica lo que devuelve, para que el cotizador, el alta de envio y la liquidacion den siempre el mismo numero. */
 async function cotizarConProfit(svc){const fuelSvc=fuelPara(svc);
@@ -666,6 +682,9 @@ async function ctzGuardarDirecto(){
       entrega:document.getElementById('ex_entrega').value,
       ddp:document.getElementById('ex_ddp').checked,
       proteccion_doc:document.getElementById('ex_proteccion_doc').checked,
+      /* Otros conceptos (28/10): quedan en la foto para que Cargar envio los pase al envio
+         como cargos al costo (con nombre) y no como ganancia. */
+      otros_conceptos:otrosConceptos(),
     },
     /* Cada tarjeta tal cual se le mostro al cliente. `total` es el precio que se le paso:
        de aca sale despues el precio acordado, y por eso el servidor no acepta que se lo

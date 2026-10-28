@@ -183,7 +183,7 @@
           <table class="salidas-table" id="salidas-table">
             <thead>
               <!-- Banda de grupos (09/09/2026): una fila arriba de los rótulos que agrupa las
-                   columnas por lo que son. Los colspans SUMAN 40 = las columnas de abajo; si se
+                   columnas por lo que son. Los colspans SUMAN 41 = las columnas de abajo; si se
                    agrega o saca una columna hay que tocar el grupo que corresponde. El grupo
                    "Factura UPS" lleva .ups-col para plegarse con las columnas UPS. -->
               <tr class="th-groups">
@@ -192,7 +192,7 @@
                 <th class="thg thg-medidas" colspan="6">Medidas y pesos</th>
                 <th class="thg thg-venta" colspan="3">Venta</th>
                 <th class="thg thg-costos" colspan="9">Costos (USD)</th>
-                <th class="thg thg-resultado" colspan="2" title="Profit y % calculados por nosotros (venta − compra estimada). El real contra la factura está en el bloque Factura UPS.">Resultado estimado</th>
+                <th class="thg thg-resultado" colspan="3" title="Profit total y % calculados por nosotros (venta − compra estimada) y el profit de solo el flete. El real contra la factura está en el bloque Factura UPS.">Resultado estimado</th>
                 <th class="thg thg-ups ups-col" colspan="7">Factura UPS</th>
                 <th class="thg thg-estado" colspan="2">Estado</th>
               </tr>
@@ -226,7 +226,8 @@
                 <th data-col="adicionales" class="num" style="width:65px"><div class="th-inner">Adic<span class="sort-icon"></span></div></th>
                 <th data-col="otros" class="num" style="width:60px"><div class="th-inner">Otros<span class="sort-icon"></span></div></th>
                 <th data-col="compra_total" class="num" style="width:80px"><div class="th-inner">Compra Total<span class="sort-icon"></span></div></th>
-                <th data-col="profit" class="num" style="width:70px"><div class="th-inner">Profit<span class="sort-icon"></span></div></th>
+                <th data-col="profit" class="num" style="width:74px" title="Profit total del envío: venta − compra estimada (flete, fuel, seguro, surge, adicionales…)"><div class="th-inner">Profit total<span class="sort-icon"></span></div></th>
+                <th data-col="profit_flete" class="num" style="width:74px" title="Lo que deja SOLO el flete: flete de venta − flete de tabla del courier. Sin fuel, seguro, surge ni ningún otro concepto"><div class="th-inner">Profit flete<span class="sort-icon"></span></div></th>
                 <th data-col="porcentaje" class="num" style="width:52px"><div class="th-inner">%<span class="sort-icon"></span></div></th>
                 <th data-col="costo_facturado" class="num ups-col" style="width:78px"><div class="th-inner">Costo UPS<span class="sort-icon"></span></div></th>
                 <th data-col="flete_fuel_ups" class="num ups-col" style="width:88px" title="Flete + fuel que facturó UPS por la guía (sin recargos). Rojo si difiere de nuestro Flete+Fuel en más de USD 2"><div class="th-inner">Flete+Fuel UPS<span class="sort-icon"></span></div></th>
@@ -242,7 +243,7 @@
               </tr>
             </thead>
             <tbody id="salidas-body">
-              <tr><td colspan="40" class="salidas-empty">Cargando…</td></tr>
+              <tr><td colspan="41" class="salidas-empty">Cargando…</td></tr>
             </tbody>
           </table>
         </div>
@@ -277,6 +278,6 @@
 <script src="/shared/salidas/numeracion.js?v=20261020a"></script>
 <script src="../js/cotizaciones-recientes.js?v=20261002a"></script>
 <script src="../js/finde.js?v=20260922b"></script>
-<script src="../js/modules/salidas.js?v=20261027a"></script>
+<script src="../js/modules/salidas.js?v=20261028a"></script>
 </body>
 </html>

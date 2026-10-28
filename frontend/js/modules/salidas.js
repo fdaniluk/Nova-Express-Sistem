@@ -79,15 +79,15 @@
   // El re-render destruye los td, por eso se guardan índices y se vuelve a resolver el td.
   // La columna 0 es el checkbox de selección: NO se navega con flechas (índices 1..36).
   const GRID_MIN_COL = 1;    // columna 0 = checkbox "copiar guías", no navegable
-  const GRID_MAX_COL = 39;   // 40 columnas fijas → índices 0..39; navegables 1..39 (06/10: + Flete+Fuel y Flete+Fuel UPS)
+  const GRID_MAX_COL = 40;   // 41 columnas fijas → índices 0..40; navegables 1..40 (06/10: + Flete+Fuel y Flete+Fuel UPS; 28/10: + Profit flete)
   let activeCell = null;
 
   // ── Bloque desplegable de columnas UPS (Costo UPS, % Real, Profit Real, Peso UPS, Peso Nova, Revisión)
   // Cinco columnas contiguas (índices 30..34) que solo importan al cruzar facturas. Se ocultan
   // con la clase .ups-collapsed en la tabla (CSS: .ups-col{display:none}). Frontend puro: la
   // exportación a Excel las incluye SIEMPRE, este el bloque plegado o no.
-  const UPS_COL_START = 31;  // Costo UPS (06/10: corrió uno por la columna Flete+Fuel de Costos)
-  const UPS_COL_END = 37;    // Revisión (el bloque sumó Profit Real el 31/08 y Flete+Fuel UPS el 06/10)
+  const UPS_COL_START = 32;  // Costo UPS (06/10: corrió uno por Flete+Fuel de Costos; 28/10: otro por Profit flete)
+  const UPS_COL_END = 38;    // Revisión (el bloque sumó Profit Real el 31/08 y Flete+Fuel UPS el 06/10)
   const UPS_BLOCK_COLS = UPS_COL_END - UPS_COL_START + 1;   // 7 columnas ocultables
 
   // Override manual del bloque, guardado en sessionStorage (dura la sesión y después vuelve al
@@ -464,12 +464,12 @@
   // Colspan de la celda de CONTENIDO de la sub-fila de detalle (arranca en Venta Total, col 19,
   // y llega hasta Observaciones, col 36). Plegado → restar las 5 columnas del bloque.
   function detailContentColspan() {
-    return (upsVisible ? 21 : 21 - UPS_BLOCK_COLS) - hiddenCountInRange(20, 40);
+    return (upsVisible ? 22 : 22 - UPS_BLOCK_COLS) - hiddenCountInRange(20, 41);
   }
 
   // Colspan de las filas de estado vacío / cargando / error (abarcan toda la tabla).
   function emptyColspan() {
-    return Math.max(1, (upsVisible ? 40 : 40 - UPS_BLOCK_COLS) - hiddenCountInRange(1, 40));
+    return Math.max(1, (upsVisible ? 41 : 41 - UPS_BLOCK_COLS) - hiddenCountInRange(1, 41));
   }
 
   // Cuántas columnas ocultas a mano hay entre dos posiciones (1-based, inclusive), sin
@@ -643,6 +643,7 @@
       <td class="num" data-col="otros">${env(fmtCell(e.otros))}</td>
       <td class="num${isRevisionPendiente(e, isFirst) ? ' cell-compra-pendiente' : ''}" data-col="compra_total">${env(fmtCell(e.compra_estimada ?? e.compra_total))}</td>
       <td class="num" data-col="profit">${env(profitCell(e))}</td>
+      <td class="num" data-col="profit_flete">${env(profitFleteCell(e))}</td>
       <td class="num" data-col="porcentaje">${env(pctCell(e))}</td>
       <td class="num ups-col${difCosto.rojo ? ' cell-desvio-rojo' : ''}" data-col="costo_ups"${difCosto.title ? ` title="${escAttr(difCosto.title)}"` : ''}>${costoUpsCellHtml(e, isFirst)}</td>
       <td class="num ups-col${difFF.rojo ? ' cell-desvio-rojo' : ''}" data-col="flete_fuel_ups"${difFF.title ? ` title="${escAttr(difFF.title)}"` : ''}>${fleteFuelUpsCellHtml(e, isFirst)}</td>
@@ -2251,6 +2252,16 @@
     return `<span style="color:${color}" title="Estimado por nosotros: venta − compra estimada">${Number(v).toFixed(2)}</span>`;
   }
 
+  // Profit de SOLO el flete (28/10): flete de venta − flete de tabla del courier. Sin fuel ni
+  // ningún otro concepto; lo calcula el backend (profit_flete) con el mismo desglose de venta
+  // que ve el cliente. Mismos colores que Profit total.
+  function profitFleteCell(e) {
+    const v = e.profit_flete;
+    if (v == null) return '<span class="em">—</span>';
+    const color = v < 0 ? '#dc2626' : v === 0 ? '#d97706' : '#15803d';
+    return `<span style="color:${color}" title="Solo el flete: flete de venta − flete de tabla del courier (sin fuel ni otros conceptos)">${Number(v).toFixed(2)}</span>`;
+  }
+
   // Profit contra la factura REAL del courier (venta − Costo UPS). Aparece apenas se
   // cruza la factura, sin esperar el tilde de Revisión (es informativo). Solo en el
   // primer renglón del envío, como el resto del bloque UPS.
@@ -2614,7 +2625,7 @@
                 <span id="saled-compra-view" class="sal-res-val">—</span>
               </div>
               <div class="sal-res-row sal-res-profit">
-                <label for="saled-profit">Profit</label>
+                <label for="saled-profit">Profit total</label>
                 <div class="sal-res-pair">
                   <input type="number" id="saled-profit" step="0.01" class="sal-res-input">
                   <input type="number" id="saled-porcentaje" step="0.1" class="sal-res-input sal-res-pct" title="% Profit">
@@ -4891,7 +4902,7 @@
     'P.Balanza': 'kg', 'P.Volumétrico': 'kg', 'P.Fact': 'kg', 'Peso UPS': 'kg', 'Peso Nova': 'kg',
     'FOB': 'USD', 'Venta Total': 'USD', 'Flete': 'USD', 'Dscto': 'USD', 'Seguro': 'USD',
     'Fuel': 'USD', 'Derechos': 'USD', 'Adic': 'USD', 'Otros': 'USD', 'Compra Total': 'USD',
-    'Profit': 'USD', 'Costo UPS': 'USD', 'Profit Real': 'USD',
+    'Profit': 'USD', 'Profit total': 'USD', 'Profit flete': 'USD', 'Costo UPS': 'USD', 'Profit Real': 'USD',
     '%': '%', '% Real': '%',
   };
   let unidadPorCol = null;

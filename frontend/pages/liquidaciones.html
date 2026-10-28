@@ -6,7 +6,7 @@
   <title>Liquidaciones – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20261027a">
-  <link rel="stylesheet" href="../css/modules/liquidaciones.css?v=20261016a">
+  <link rel="stylesheet" href="../css/modules/liquidaciones.css?v=20261028a">
 </head>
 <body>
 <div class="app-layout">
@@ -223,6 +223,17 @@
                   </div>
                 </div>
                 <p class="liq-hint" id="liq-paso-2-vacio">Todavía no se cargaron envíos. Elegí el cliente y el período arriba.</p>
+                <!-- Otros conceptos (28/10/2026, pedido de Felipe): líneas a mano de la liquidación
+                     —concepto + monto— al costo, sin ganancia. Ej.: la encomienda que Nova pagó
+                     por el cliente. Salen con su nombre en la vista previa y en el Excel. -->
+                <div class="liq-conceptos" id="liq-conceptos">
+                  <div class="liq-conceptos-head">
+                    <strong>Otros conceptos</strong>
+                    <span class="liq-hint">Cosas que se le cobran al cliente tal cual, sin ganancia, y que no son de un envío en particular: la encomienda que pagamos por él, un trámite, un embalaje. Salen con su nombre en el Excel, en su propia sección. (Un extracargo de UN envío va como cargo desde Salidas.)</span>
+                  </div>
+                  <div id="liq-conceptos-lista" class="liq-conceptos-lista"></div>
+                  <button type="button" class="btn btn-outline btn-sm" id="btn-concepto-add">+ Agregar concepto</button>
+                </div>
               </div>
             </div>
 
@@ -275,6 +286,7 @@
                 <dt>Período</dt><dd data-r="periodo">—</dd>
                 <dt>Envíos</dt><dd data-r="envios">—</dd>
                 <dt>Adicionales</dt><dd data-r="adicionales">—</dd>
+                <dt>Otros conceptos</dt><dd data-r="conceptos">—</dd>
                 <div class="liq-res-sep"></div>
                 <dt>Total</dt><dd data-r="total">—</dd>
               </dl>
@@ -331,6 +343,6 @@
 <script src="/js/auth-guard.js?v=20260924b"></script>
 <script src="../js/api.js?v=20261016a"></script>
 <script src="../js/main.js?v=20261027a"></script>
-<script src="../js/modules/liquidaciones.js?v=20261027a"></script>
+<script src="../js/modules/liquidaciones.js?v=20261028a"></script>
 </body>
 </html>

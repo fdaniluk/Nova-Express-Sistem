@@ -1517,6 +1517,9 @@ async function initSchema() {
   await migratePagosEntrantes();
   // Cargos posteriores (extracargos desde Salidas + impuestos DDP) — 25/09/2026.
   await require('../models/envio-cargos.model').migrar(dbApi);
+  // Otros conceptos de la liquidación (tabla liquidacion_conceptos) — 28/10/2026. Antes
+  // migrarColumnas solo corría al crear una liquidación; la tabla se necesita al LEER.
+  await require('../models/liquidacion.model').migrarColumnas();
   await migrateLimpiezaCierre();
   await migrateUpsAreas();
   await migrateCierres();

@@ -12,6 +12,8 @@
   // Precarga del módulo Guías que se está confirmando (null = alta o edición normal).
   // Lleva guia_id, destinatario, contenido y renglones de la proforma al alta del envío.
   let precargaActual = null;
+  // Otros conceptos de la cotización usada, a cargar como cargos del envío al guardarlo (28/10).
+  let otrosConceptosPendientes = [];
 
   async function init() {
     // hoyLocal(): toISOString() es UTC y adelantaba la fecha un día después de las 21:00.
@@ -868,8 +870,19 @@
           await NovaAPI.envios.actualizar(id, data);
           NovaUtils.showAlert(alertBox, 'Envío actualizado correctamente', 'success');
         } else {
-          await NovaAPI.envios.crear(data);
-          NovaUtils.showAlert(alertBox, precargaActual ? 'Guía confirmada: el envío ya está en Salidas' : 'Envío registrado correctamente', 'success');
+          const creado = await NovaAPI.envios.crear(data);
+          // Otros conceptos de la cotización usada (28/10): cargos del envío, al costo,
+          // con su nombre. Si alguno falla se avisa: el envío ya quedó guardado.
+          let avisoOtros = '';
+          if (creado && creado.id && otrosConceptosPendientes.length) {
+            for (const o of otrosConceptosPendientes) {
+              try { await NovaAPI.salidas.agregarCargo(creado.id, { tipo: 'otro', label: o.concepto, monto: o.monto, fecha: data.fecha }); }
+              catch (e2) { avisoOtros += ` No se pudo cargar "${o.concepto}" (${e2.message}): agregalo desde Salidas.`; }
+            }
+            if (!avisoOtros) avisoOtros = ` Se cargaron ${otrosConceptosPendientes.length === 1 ? 'el concepto' : 'los ' + otrosConceptosPendientes.length + ' conceptos'} de la cotización como cargos al costo.`;
+          }
+          otrosConceptosPendientes = [];
+          NovaUtils.showAlert(alertBox, (precargaActual ? 'Guía confirmada: el envío ya está en Salidas' : 'Envío registrado correctamente') + avisoOtros, avisoOtros.includes('No se pudo') ? 'error' : 'success');
         }
         resetForm();
         loadPrecargas();
@@ -881,6 +894,7 @@
 
   function resetForm() {
     precargaActual = null;
+    otrosConceptosPendientes = [];
     document.getElementById('guia-id').value = '';
     document.getElementById('form-envio').reset();
     const dnR = document.getElementById('destinatario_nombre'); if (dnR) { dnR.readOnly = false; dnR.title = ''; }
@@ -1092,15 +1106,24 @@
       onUsar: (total, ctx) => {
         if (ctx && ctx.cotizacion) aplicarCotizacion(ctx.cotizacion, ctx.opcion);
         const campo = document.getElementById('total_cobrado');
-        campo.value = Number(total).toFixed(2);
+        // Otros conceptos de la cotización (28/10): van al costo, con nombre, como cargos
+        // del envío — NO adentro del precio (si no, en Salidas figurarían como ganancia).
+        // Se descuentan del total y se cargan apenas se guarda el envío (ver submit).
+        const otros = (ctx && ctx.cotizacion && ctx.cotizacion.datos && Array.isArray(ctx.cotizacion.datos.otros_conceptos)) ? ctx.cotizacion.datos.otros_conceptos : [];
+        const sumaOtros = Math.round(otros.reduce((s, o) => s + (Number(o.monto) || 0), 0) * 100) / 100;
+        otrosConceptosPendientes = otros.map((o) => ({ concepto: o.concepto, monto: Number(o.monto) || 0 }));
+        campo.value = (Number(total) - sumaOtros).toFixed(2);
         actualizarResumen();
         // El cotizador automatico pudo haber dejado su propio numero: se avisa cual quedo
         // puesto, para que nadie descubra despues que el precio salio de otro lado.
         const nota = document.getElementById('ctzr-sugerido');
         if (nota) {
           const descCtz = ctx && ctx.cotizacion && ctx.cotizacion.datos ? Number(ctx.cotizacion.datos.descuento_pct) || 0 : 0;
+          const otrosTxt = sumaOtros > 0
+            ? ` La cotización incluía ${otros.length === 1 ? 'un concepto' : otros.length + ' conceptos'} sin ganancia (${otros.map((o) => `${o.concepto} USD ${Number(o.monto).toFixed(2)}`).join(', ')}): va aparte del precio, como cargo del envío, al guardar.`
+            : '';
           nota.textContent = ctx && ctx.cotizacion
-            ? `Precio y datos traídos de la CTZ-${ctx.cotizacion.numero} — son un sugerido, se puede cambiar todo.${descCtz > 0 ? ` Esa cotización tenía ${descCtz}% de descuento: si el peso cambió, el cotizador automático lo vuelve a aplicar.` : ''}`
+            ? `Precio y datos traídos de la CTZ-${ctx.cotizacion.numero} — son un sugerido, se puede cambiar todo.${descCtz > 0 ? ` Esa cotización tenía ${descCtz}% de descuento: si el peso cambió, el cotizador automático lo vuelve a aplicar.` : ''}${otrosTxt}`
             : 'Precio traido de una cotizacion — es un sugerido, se puede cambiar.';
           nota.classList.remove('hidden');
         }

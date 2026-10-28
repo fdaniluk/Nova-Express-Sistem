@@ -279,3 +279,11 @@
   .panel-compra{padding:.6rem .7rem}
   .cot-resumen{padding:.9rem}
 }
+
+/* Otros conceptos (28/10/2026): filas concepto + monto, sin ganancia. */
+.otros-lista{display:flex;flex-direction:column;gap:.4rem;margin:.4rem 0 .5rem}
+.otro-row{display:grid;grid-template-columns:1fr 110px auto;gap:.5rem;align-items:center}
+.otro-row input{width:100%;padding:.5rem .6rem;border:1px solid var(--color-border);border-radius:6px;font:inherit;font-size:.85rem}
+.otro-row .btn-remove{height:34px}
+.btn-otros-add{display:inline-flex;align-items:center;gap:.4rem;padding:.45rem .8rem;border:1px dashed var(--color-border);border-radius:6px;background:#fff;font:inherit;font-size:.85rem;color:var(--color-muted);cursor:pointer}
+.btn-otros-add:hover{border-color:var(--color-primary);color:var(--color-primary);background:#f7f9fd}

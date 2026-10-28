@@ -24,6 +24,39 @@ async function migrarColumnas() {
   if (!cols.includes('servicio_cotizado')) {
     await db.prepare("ALTER TABLE liquidacion_items ADD COLUMN servicio_cotizado TEXT").run();
   }
+  // Otros conceptos (28/10/2026, pedido de Felipe): líneas a mano de la liquidación —
+  // concepto + monto— que se le cobran al cliente AL COSTO, sin ganancia, y salen con su
+  // nombre en pantalla y en el Excel. El caso: el cliente manda la mercadería por
+  // encomienda y Nova la paga; se le suma a la liquidación y queda claro de dónde viene.
+  // Son de la liquidación entera (no de un envío): un envío con un cargo propio usa los
+  // cargos posteriores de Salidas.
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS liquidacion_conceptos (
+      id             INTEGER PRIMARY KEY AUTOINCREMENT,
+      liquidacion_id INTEGER NOT NULL REFERENCES liquidaciones(id) ON DELETE CASCADE,
+      concepto       TEXT NOT NULL,
+      monto          REAL NOT NULL,
+      created_at     TEXT DEFAULT (datetime('now','localtime'))
+    );
+    CREATE INDEX IF NOT EXISTS idx_liquidacion_conceptos_liq ON liquidacion_conceptos(liquidacion_id);
+  `);
+}
+
+// Normaliza los "otros conceptos" que manda la pantalla: nombre obligatorio, monto > 0.
+function normalizarConceptos(lista) {
+  if (!Array.isArray(lista)) return [];
+  return lista.map((c, i) => {
+    const concepto = String((c && c.concepto) || '').trim();
+    const monto = redondear2(Number(c && c.monto));
+    if (!concepto) { const e = new Error(`Concepto ${i + 1}: escribí el nombre (qué se cobra)`); e.status = 400; throw e; }
+    if (!(monto > 0)) { const e = new Error(`"${concepto}": el importe tiene que ser mayor a cero`); e.status = 400; throw e; }
+    if (concepto.length > 120) { const e = new Error(`"${concepto.slice(0, 30)}…": el concepto es demasiado largo (máx. 120)`); e.status = 400; throw e; }
+    return { concepto, monto };
+  });
+}
+async function conceptosDe(liquidacionId, db = getDb()) {
+  const filas = await db.prepare('SELECT id, concepto, monto FROM liquidacion_conceptos WHERE liquidacion_id = ? ORDER BY id').all(liquidacionId);
+  return filas.map((f) => ({ id: f.id, concepto: f.concepto, monto: redondear2(f.monto) }));
 }
 
 // NOTA: acá vivía descomponerPrecioBase(), que rehacía por su cuenta el GoGreen
@@ -178,8 +211,10 @@ async function borradoresConEnvios(envio_ids) {
   return [...porBorrador.values()];
 }
 
-async function preview({ cliente_id, envio_ids = [], cargos = [], cotizaciones = [] }) {
+async function preview({ cliente_id, envio_ids = [], cargos = [], cotizaciones = [], conceptos = [] }) {
   const db = getDb();
+  const conceptosOk = normalizarConceptos(conceptos);
+  const total_conceptos = redondear2(conceptosOk.reduce((s, c) => s + c.monto, 0));
   envio_ids = Array.isArray(envio_ids) ? envio_ids : [];
   // Sin envíos (05/10/2026, pedido de Felipe): se puede armar una liquidación SOLO con los
   // cargos de envíos anteriores del cliente (el envío fue en julio, el extracargo llegó en
@@ -221,8 +256,8 @@ async function preview({ cliente_id, envio_ids = [], cargos = [], cotizaciones =
   }
   const cargos_anteriores = await cargosModel.pendientesAnterioresDeCliente(cliente_id, db);
   const total_cargos_anteriores = redondear2(cargos_anteriores.reduce((s, c) => s + c.monto, 0));
-  if (!envios.length && !cargos_anteriores.length) {
-    const err = new Error('No hay nada para liquidar: ni envíos seleccionados ni cargos pendientes de envíos anteriores de este cliente.');
+  if (!envios.length && !cargos_anteriores.length && !conceptosOk.length) {
+    const err = new Error('No hay nada para liquidar: ni envíos seleccionados, ni cargos pendientes de envíos anteriores de este cliente, ni otros conceptos.');
     err.status = 400;
     throw err;
   }
@@ -237,13 +272,16 @@ async function preview({ cliente_id, envio_ids = [], cargos = [], cotizaciones =
   );
   for (const it of items) it.cargos_posteriores = pendPorEnvio[it.envio_id] || [];
   const total_envios = redondear2(items.reduce((s, i) => s + i.total_usd, 0));
-  const total = redondear2(total_envios + total_cargos_anteriores);
+  // Los otros conceptos van al total y a NADA más: ni a la utilidad (son al costo) ni a
+  // ningún envío.
+  const total = redondear2(total_envios + total_cargos_anteriores + total_conceptos);
   const utilidadTotal = redondear2(items.reduce((s, i) => s + (i.utilidad_usd || 0), 0));
   // Pendiente 52: la vista previa avisa si alguno de estos envíos ya está en otro borrador.
   const en_borrador = await borradoresConEnvios(envio_ids);
   const cliFmt = await db.prepare('SELECT liquidacion_formato FROM clientes WHERE id = ?').get(cliente_id);
   return {
     items, total, total_envios, cargos_anteriores, total_cargos_anteriores,
+    conceptos: conceptosOk, total_conceptos,
     utilidad_total: utilidadTotal, cantidad: items.length, en_borrador,
     // Formato preferido del cliente (16/10): la pantalla lo usa para pre-tildar "detallado".
     formato_sugerido: (cliFmt && cliFmt.liquidacion_formato) || 'estandar',
@@ -254,7 +292,7 @@ async function preview({ cliente_id, envio_ids = [], cargos = [], cotizaciones =
 
 async function crear({
   cliente_id, periodo_desde, periodo_hasta, envio_ids, cargos = [], cotizaciones = [], confirmar = false,
-  reemplazar_borradores = [], permitir_duplicado = false, usuario = null, formato = null,
+  reemplazar_borradores = [], permitir_duplicado = false, usuario = null, formato = null, conceptos = [],
 }) {
   await migrarColumnas();
   // Pendiente 52: si algún envío ya está en OTRO borrador, no se arma un segundo en
@@ -274,7 +312,7 @@ async function crear({
   for (const b of previos) {
     if (reemplazar.has(b.id)) await eliminarBorrador(b.id);
   }
-  const previewData = await preview({ cliente_id, envio_ids, cargos, cotizaciones });
+  const previewData = await preview({ cliente_id, envio_ids, cargos, cotizaciones, conceptos });
   // ⚠️ Defecto 3 de AUDITORIA-NUMEROS.md: un envío sin precio entraba a la liquidación,
   // se confirmaba en CERO y quedaba liquidado para siempre — esa plata no se facturaba
   // nunca más. Choca de lleno con los envíos sin pesar (total_cobrado = 0 por diseño):
@@ -343,6 +381,10 @@ async function crear({
         await insertCargo.run(item.envio_id, liquidacionId, 'Cargo adicional', item.adicional);
       }
     }
+
+    // Otros conceptos (28/10): líneas propias de la liquidación, al costo.
+    const insertConcepto = db.prepare('INSERT INTO liquidacion_conceptos (liquidacion_id, concepto, monto) VALUES (?, ?, ?)');
+    for (const c of previewData.conceptos) await insertConcepto.run(liquidacionId, c.concepto, c.monto);
 
     // Cargos posteriores: quedan atados a esta liquidación (los de sus envíos y los de
     // envíos anteriores del cliente). Si el borrador se borra, se sueltan (eliminarBorrador).
@@ -441,9 +483,10 @@ async function confirmar(id, envioIdsEsperados = null, usuario = null, formato =
 
   // Defecto 3: confirmar un borrador con ítems en cero también se frena acá.
   validarSinCeros(liq.items);
-  // Liquidación solo de cargos (05/10): sin envíos tiene que tener al menos un cargo.
-  if (!liq.items.length && !(liq.cargos_anteriores || []).length) {
-    const err = new Error('No se puede confirmar: la liquidación no tiene envíos ni cargos.');
+  // Liquidación solo de cargos (05/10) o solo de otros conceptos (28/10): sin envíos tiene
+  // que tener al menos una línea.
+  if (!liq.items.length && !(liq.cargos_anteriores || []).length && !(liq.conceptos || []).length) {
+    const err = new Error('No se puede confirmar: la liquidación no tiene envíos, cargos ni otros conceptos.');
     err.status = 409;
     throw err;
   }
@@ -549,7 +592,9 @@ async function buscarPorId(id) {
   const total_envios = redondear2(items.reduce((s, it) => s + (Number(it.total_usd) || 0), 0));
   const cargos_anteriores = posteriores.anteriores;
   const total_cargos_anteriores = redondear2(cargos_anteriores.reduce((s, c) => s + c.monto, 0));
-  return { ...liq, items, cargos, cargos_anteriores, total_envios, total_cargos_anteriores };
+  const conceptos = await conceptosDe(id, db);
+  const total_conceptos = redondear2(conceptos.reduce((s, c) => s + c.monto, 0));
+  return { ...liq, items, cargos, cargos_anteriores, total_envios, total_cargos_anteriores, conceptos, total_conceptos };
 }
 
 async function listar(filtros = {}) {
@@ -606,6 +651,7 @@ async function eliminarBorrador(id) {
     // Los cargos manuales viven solo en el borrador (preview los toma del body, nadie relee
     // filas sueltas): al borrarlo se borran, en vez de quedar huérfanos (29/09/2026).
     await db.prepare('DELETE FROM cargos_adicionales WHERE liquidacion_id = ?').run(id);
+    await db.prepare('DELETE FROM liquidacion_conceptos WHERE liquidacion_id = ?').run(id);
     // Los cargos posteriores vuelven a pendientes: los levanta la próxima liquidación.
     await cargosModel.liberarDeLiquidacion(id, db);
     await db.prepare('DELETE FROM liquidaciones WHERE id = ?').run(id);

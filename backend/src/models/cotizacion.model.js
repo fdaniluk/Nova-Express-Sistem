@@ -183,6 +183,13 @@ async function recientesDeCliente(clienteId, dias = 30) {
         // Descuento especial (02/10/2026): el % con el que se cotizó, para que al cargar
         // el envío con otro peso se recotice con el mismo descuento.
         descuento_pct: Number(e.descuento_pct) || 0,
+        // Otros conceptos (28/10/2026): líneas al costo (encomienda pagada por Nova, un
+        // trámite…) que la cotización le sumó al cliente sin ganancia. Cargar envío las
+        // descuenta del precio y las pasa al envío como cargos con nombre, así en Salidas
+        // y en la liquidación no figuran como profit.
+        otros_conceptos: Array.isArray(e.otros_conceptos)
+          ? e.otros_conceptos.filter((o) => o && o.concepto && Number(o.monto) > 0).map((o) => ({ concepto: String(o.concepto), monto: Math.round(Number(o.monto) * 100) / 100 }))
+          : [],
       };
     } catch { bultos = []; }
     try {

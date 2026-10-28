@@ -93,7 +93,7 @@ const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
   check('columna Flete+Fuel UPS = 83.50, en rojo, con el tooltip de la diferencia', /83[.,]50/.test(ffu.t) && ffu.rojo && /\+3\.50/.test(ffu.title), JSON.stringify(ffu));
   const bandas = await page.$$eval('.salidas-table thead tr.th-groups th', (ths) => ths.reduce((s, th) => s + (th.colSpan || 1), 0));
   const cols = await page.$$eval('.salidas-table thead tr.th-cols th', (ths) => ths.length);
-  check('la banda de grupos sigue cubriendo todas las columnas (40)', bandas === cols && cols === 40, `${bandas} vs ${cols}`);
+  check('la banda de grupos sigue cubriendo todas las columnas (41)', bandas === cols && cols === 41, `${bandas} vs ${cols}`);
   const title = chip ? await chip.getAttribute('title') : '';
   check('el tooltip explica qué', /no previsto/.test(title), title);
   await page.click('text=1Z000ANOMPANT0001');

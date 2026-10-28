@@ -64,15 +64,18 @@ const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0
   check('la banda "Costos (USD)" abarca 2 columnas menos (9 → 7)', g && g[0] === 7, JSON.stringify(g));
   check('el botón marca 2 ocultas', /2/.test(await page.textContent('#btn-hide-cols')) && !!(await page.$('#btn-hide-cols.active')));
   // Un grupo entero oculto desaparece.
+  // (28/10: el grupo Resultado estimado tiene 3 columnas: Profit total, Profit flete y %.)
   await page.click('#hidden-cols-panel input[value="profit"]');
+  await page.click('#hidden-cols-panel input[value="profit_flete"]');
   await page.click('#hidden-cols-panel input[value="porcentaje"]');
   await esperar(300);
   const gr = await grupoSpan('thg-resultado');
-  check('ocultando Profit y % desaparece el título "Resultado"', gr && gr[1] === 'none', JSON.stringify(gr));
+  check('ocultando Profit total, Profit flete y % desaparece el título "Resultado"', gr && gr[1] === 'none', JSON.stringify(gr));
   await page.click('#hidden-cols-panel input[value="profit"]');
+  await page.click('#hidden-cols-panel input[value="profit_flete"]');
   await page.click('#hidden-cols-panel input[value="porcentaje"]');
   await esperar(300);
-  check('al volver a tildarlas, "Resultado" vuelve con sus 2 columnas', JSON.stringify(await grupoSpan('thg-resultado')) === '[2,"table-cell"]', JSON.stringify(await grupoSpan('thg-resultado')));
+  check('al volver a tildarlas, "Resultado" vuelve con sus 3 columnas', JSON.stringify(await grupoSpan('thg-resultado')) === '[3,"table-cell"]', JSON.stringify(await grupoSpan('thg-resultado')));
 
   console.log('\n2. Sobrevive al re-render, al filtro y a recargar\n');
   await page.fill('#buscador', 'OCULTAR');

@@ -604,7 +604,7 @@ async function exportarLiquidacion(liquidacion) {
   if (!liquidacion.items.length) {
     // Liquidación solo de cargos (05/10): la tabla de envíos queda con una línea que lo diga.
     ws.mergeCells(dataRowNum, 1, dataRowNum, NCOL);
-    ws.getCell(dataRowNum, 1).value = 'Sin envíos en este período · ver "Cargos de envíos anteriores" más abajo.';
+    ws.getCell(dataRowNum, 1).value = 'Sin envíos en este período · ver las secciones de abajo.';
     setCellStyle(ws.getCell(dataRowNum, 1), { fill: STYLES.rowWhite, font: { ...STYLES.rowFont, italic: true } });
     ws.getCell(dataRowNum, 1).alignment = { horizontal: 'center', vertical: 'middle' };
     for (let c = 1; c <= NCOL; c++) ws.getCell(dataRowNum, c).border = BORDES;
@@ -643,9 +643,14 @@ async function exportarLiquidacion(liquidacion) {
   // Cuando existen, la fila TOTAL de arriba es solo de los envíos; acá se cierra el total
   // general de la liquidación.
   const anteriores = Array.isArray(liquidacion.cargos_anteriores) ? liquidacion.cargos_anteriores : [];
+  // Otros conceptos (28/10/2026): líneas a mano de la liquidación (concepto + monto), al
+  // costo. Van en su propia sección, después de los cargos de envíos anteriores.
+  const conceptos = Array.isArray(liquidacion.conceptos) ? liquidacion.conceptos : [];
+  let totalAnt = 0;
+  let totalConceptos = 0;
+  let ra = dataRowNum + 2;
+  if (anteriores.length || conceptos.length) totalRow.getCell(1).value = 'TOTAL ENVÍOS';
   if (anteriores.length) {
-    totalRow.getCell(1).value = 'TOTAL ENVÍOS';
-    let ra = dataRowNum + 2;
     ws.mergeCells(ra, 1, ra, NCOL);
     ws.getCell(ra, 1).value = 'CARGOS DE ENVÍOS ANTERIORES';
     ws.getCell(ra, 1).font = STYLES.subtitle.font;
@@ -668,7 +673,6 @@ async function exportarLiquidacion(liquidacion) {
       for (let c = c1; c <= c2; c++) ws.getCell(ra, c).border = BORDES;
     }
     ra++;
-    let totalAnt = 0;
     anteriores.forEach((c, i) => {
       const fill = i % 2 === 0 ? STYLES.rowWhite : STYLES.rowAlt;
       ws.mergeCells(ra, 2, ra, k(4));
@@ -702,11 +706,64 @@ async function exportarLiquidacion(liquidacion) {
       ws.getCell(ra, col).alignment = { vertical: 'middle', horizontal: col === 1 ? 'right' : 'right' };
     }
     ws.getRow(ra).height = 18;
+    ra += 2;
+  }
+  if (conceptos.length) {
+    ws.mergeCells(ra, 1, ra, NCOL);
+    ws.getCell(ra, 1).value = 'OTROS CONCEPTOS';
+    ws.getCell(ra, 1).font = STYLES.subtitle.font;
+    ws.getRow(ra).height = 18;
     ra++;
+    ws.mergeCells(ra, 1, ra, NCOL);
+    ws.getCell(ra, 1).value = 'Gastos pagados por Nova Express por cuenta del cliente u otros conceptos acordados, que se suman a esta liquidación.';
+    ws.getCell(ra, 1).font = STYLES.noteFont;
+    ra++;
+    const subC = [['CONCEPTO', 1, 11], ['USD', 12, 13]];
+    for (const [label, c1, c2] of subC) {
+      if (c2 > c1) ws.mergeCells(ra, c1, ra, c2);
+      const cell = ws.getCell(ra, c1);
+      cell.value = label;
+      cell.fill = STYLES.subHeaderFill;
+      cell.font = STYLES.subHeaderFont;
+      cell.alignment = { horizontal: label === 'USD' ? 'right' : 'left', vertical: 'middle' };
+      for (let c = c1; c <= c2; c++) ws.getCell(ra, c).border = BORDES;
+    }
+    ra++;
+    conceptos.forEach((c, i) => {
+      const fill = i % 2 === 0 ? STYLES.rowWhite : STYLES.rowAlt;
+      ws.mergeCells(ra, 1, ra, k(11));
+      ws.mergeCells(ra, k(12), ra, k(13));
+      ws.getCell(ra, 1).value = c.concepto || '';
+      ws.getCell(ra, k(12)).value = Number(c.monto) || 0;
+      ws.getCell(ra, k(12)).numFmt = FMT_MONEY;
+      for (let col = 1; col <= NCOL; col++) {
+        setCellStyle(ws.getCell(ra, col), { fill, font: STYLES.rowFont });
+        ws.getCell(ra, col).border = BORDES;
+      }
+      ws.getCell(ra, 1).alignment = { horizontal: 'left', vertical: 'middle' };
+      ws.getCell(ra, k(12)).alignment = { horizontal: 'right', vertical: 'middle' };
+      ws.getRow(ra).height = 16;
+      totalConceptos += Number(c.monto) || 0;
+      ra++;
+    });
+    ws.mergeCells(ra, 1, ra, k(11));
+    ws.mergeCells(ra, k(12), ra, k(13));
+    ws.getCell(ra, 1).value = 'TOTAL OTROS CONCEPTOS';
+    ws.getCell(ra, k(12)).value = Math.round(totalConceptos * 100) / 100;
+    ws.getCell(ra, k(12)).numFmt = FMT_MONEY;
+    for (let col = 1; col <= NCOL; col++) {
+      setCellStyle(ws.getCell(ra, col), { fill: STYLES.totalFill, font: STYLES.totalFont });
+      ws.getCell(ra, col).alignment = { vertical: 'middle', horizontal: 'right' };
+    }
+    ws.getRow(ra).height = 18;
+    ra += 2;
+  }
+  if (anteriores.length || conceptos.length) {
+    ra--;
     ws.mergeCells(ra, 1, ra, k(11));
     ws.mergeCells(ra, k(12), ra, k(13));
     ws.getCell(ra, 1).value = 'TOTAL LIQUIDACIÓN';
-    ws.getCell(ra, k(12)).value = Math.round((totals.total_usd + totalAnt) * 100) / 100;
+    ws.getCell(ra, k(12)).value = Math.round((totals.total_usd + totalAnt + totalConceptos) * 100) / 100;
     ws.getCell(ra, k(12)).numFmt = FMT_MONEY;
     for (let col = 1; col <= NCOL; col++) {
       setCellStyle(ws.getCell(ra, col), { fill: STYLES.totalFill, font: { ...STYLES.totalFont, size: (STYLES.totalFont.size || 10) + 1 } });
