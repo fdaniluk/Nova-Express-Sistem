@@ -195,7 +195,18 @@ function leerDetalle(paginas, advertencias) {
       const enFila = (i) => Math.abs(i.y - fila.y) <= 3;
 
       const fecha = bloque.find((i) => enFila(i) && /^\d{2}\/\d{2}\/\d{4}$/.test(i.s.trim()));
-      const origenDestino = bloque.find((i) => enFila(i) && /\s\/\s/.test(i.s) && cerca(i.x, c.origen, 20));
+      // Origen / Destino: puede venir en varios pedazos y en dos líneas ("CHINA" + ", PEOPLE'S
+      // REPUBLIC / " en la fila y "ARGENTINA" en la de abajo, factura del 30/09). Se juntan
+      // todos los textos de esa columna (entre el peso y el destinatario) de arriba hacia abajo.
+      const xOrigenMin = (c.origen ?? 0) - 20;
+      // La columna del destinatario arranca ~65 px a la derecha del título "Origen / Destino".
+      const xOrigenMax = (c.origen ?? 0) + 60;
+      const trozosOrigen = bloque
+        .filter((i) => i.x >= xOrigenMin && i.x < xOrigenMax && !/^\d+(\.\d+)?$/.test(i.s.trim()) && !/^[A-Z]$/.test(i.s.trim()))
+        .sort((a, b) => b.y - a.y || a.x - b.x);
+      const origenDestino = trozosOrigen.length
+        ? { s: trozosOrigen.map((i) => i.s).join('').replace(/\s+/g, ' ').replace(/\s*,\s*/g, ', ').trim() }
+        : null;
       // Peso: "6.50" al lado de la letra de tipo (W/V/A/B/M). Producto: una letra antes.
       const pesoIt = bloque.find((i) => enFila(i) && /^\d+(\.\d+)?$/.test(i.s.trim()) && i.x > (c.guia ?? 0) + 60 && i.x < (c.origen ?? 999));
       const tipoPesoIt = pesoIt ? bloque.find((i) => enFila(i) && /^[A-Z]$/.test(i.s.trim()) && i.x > pesoIt.x && i.x < pesoIt.x + 40) : null;
@@ -204,8 +215,16 @@ function leerDetalle(paginas, advertencias) {
       // Cargos: nombres (col Detalle), marcas N/S (col Grav), importes (col Importe).
       const nombres = bloque.filter((i) => cerca(i.x, c.detalle, 20)).sort((a, b) => b.y - a.y);
       const marcas = bloque.filter((i) => cerca(i.x, c.grav, 8) && /^[NS]$/.test(i.s.trim())).sort((a, b) => b.y - a.y);
-      const importes = bloque
-        .filter((i) => i.x > c.detalle + 60 && i.x < c.grav - 5 && /^-?[\d.]*\d,\d{2}$/.test(i.s.trim()))
+      // Los importes se dibujan con OTRO interlineado que los nombres: el primero de cada
+      // guía queda 2-3 px ARRIBA de la fila de la guía (factura 1700A00032188 del 30/09:
+      // "2.857,68" en y=679 con la guía en y=677) y el último se mete en el bloque de la
+      // guía siguiente. Por eso el corte del bloque, para los importes, es 6 px más
+      // arriba que la fila de guía, en las dos puntas.
+      const esImporte = (i) => i.x > c.detalle + 60 && i.x < c.grav - 5 && /^-?[\d.]*\d,\d{2}$/.test(i.s.trim());
+      const yTopImp = fila.y + 6;
+      const yBotImp = k + 1 < filasGuia.length ? filasGuia[k + 1].y + 6 : yPie + 1;
+      const importes = items
+        .filter((i) => esImporte(i) && i.y < yTopImp && i.y >= yBotImp && i.y > yPie)
         .sort((a, b) => b.y - a.y);
 
       // Los nombres largos vienen partidos en varias líneas ("VALUE" + "PROTECTION",

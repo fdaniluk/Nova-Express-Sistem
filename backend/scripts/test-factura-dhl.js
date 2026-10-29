@@ -17,6 +17,10 @@ const TOKEN = 'token-test-factura-dhl';
 const DIR = path.join(__dirname, '..', '..', 'facturas-ejemplo', 'dhl');
 const F1 = path.join(DIR, 'DHL-1700A00033061_02102026.pdf');
 const F2 = path.join(DIR, 'DHL-1700A00033064_02102026.pdf');
+// Factura de importación de 17 guías (29/10/2026): los importes se dibujan 2-3 px arriba
+// de la fila de la guía y el origen viene en dos líneas ("CHINA, PEOPLE'S REPUBLIC /" +
+// "ARGENTINA"). Antes 9 de las 17 quedaban sin costo ("cargos_desparejos").
+const F3 = path.join(DIR, 'DHL-1700A00032188_02102026.pdf');
 
 let ok = 0, fail = 0;
 function check(n, c, d) { if (c) { ok++; console.log(`  ✓ ${n}`); } else { fail++; console.log(`  ✗ ${n}${d ? '  → ' + d : ''}`); } }
@@ -55,6 +59,20 @@ const cerca = (a, b, tol = 0.011) => a != null && Math.abs(Number(a) - b) < tol;
   const g4 = r2.guias.find((g) => g.numero_guia === '5751412866');
   check('"Over Sized Piece (OSP)" 69 en 2 líneas; 90 kg a Alemania; total 904.17', g4 && g4.cargos[0].nombre === 'Over Sized Piece (OSP)' && g4.cargos[0].monto === 69 && g4.peso === 90 && cerca(g4.costo_total, 904.17), JSON.stringify(g4));
   check('esFacturaDHL no se dispara con texto de UPS', !esFacturaDHL('UPS ARGENTINA S.R.L. Factura 0020-00075895'));
+
+  if (fs.existsSync(F3)) {
+    const r3 = await extraerFacturaDHL(fs.readFileSync(F3));
+    check('factura 3 (impo, 17 guías): cuadra con el subtotal 43401.89, las 17 con costo', r3.guias.length === 17 && r3.cuadra === true && cerca(r3.suma_guias, 43401.89) && r3.guias.every((g) => g.costo_total != null), JSON.stringify({ n: r3.guias.length, c: r3.cuadra, s: r3.suma_guias, sin: r3.guias.filter((g) => g.costo_total == null).map((g) => g.numero_guia) }));
+    check('   sin avisos de cargos desparejos', !r3.advertencias.some((a) => a.tipo === 'cargos_desparejos'), JSON.stringify(r3.advertencias));
+    const g5 = r3.guias.find((g) => g.numero_guia === '1575238486');
+    check('   guía 1575238486: China → Argentina, 364 kg W, flete 3625.44 + fuel 1169.20 + VP 27.02 = 4821.66', g5 && g5.origen === "CHINA, PEOPLE'S REPUBLIC" && g5.pais === 'ARGENTINA' && g5.peso === 364 && g5.tipo_peso === 'W' && cerca(g5.flete_neto, 3625.44) && cerca(g5.fuel, 1169.2) && cerca(g5.costo_total, 4821.66), JSON.stringify(g5));
+    const g6 = r3.guias.find((g) => g.numero_guia === '1128756532');
+    check('   guía 1128756532: origen "-" (no viene), destino ARGENTINA, 243 kg, total 3818.21', g6 && g6.origen === '-' && g6.pais === 'ARGENTINA' && cerca(g6.costo_total, 3818.21), JSON.stringify(g6));
+    const sumaFlete3 = r3.guias.reduce((s, g) => s + g.flete_neto, 0);
+    check('   los fletes suman "Servicio transporte" (32423.46) y los fuel "Adicional combustible" (10601.74)', cerca(sumaFlete3, 32423.46) && cerca(r3.guias.reduce((s, g) => s + g.fuel, 0), 10601.74), `${sumaFlete3}`);
+  } else {
+    console.log('  (sin DHL-1700A00032188_02102026.pdf en facturas-ejemplo/dhl: se saltea la factura 3)');
+  }
 
   console.log('\n2. Anomalías con los nombres de DHL\n');
   const an1 = detectarAnomalias({ extras_json: '[]', seguro: 17.5, fuel: 32, peso_facturable: 6.5 }, { cargos: g1.cargos, peso_facturado: 6.5, fuel_facturado: 32.57 });
