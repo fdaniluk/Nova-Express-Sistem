@@ -84,6 +84,8 @@ function limpiarBultos(bultos) {
     largo: Number(b.largo) || null,
     ancho: Number(b.ancho) || null,
     alto: Number(b.alto) || null,
+    // 30/10: valor declarado por bulto (seguro UPS). Vacío → el modelo reparte el FOB.
+    valor_declarado: b.valor_declarado === undefined || b.valor_declarado === null || b.valor_declarado === '' ? null : Number(b.valor_declarado),
   })).filter((b) => b.peso_real > 0 || (b.largo && b.ancho && b.alto));
 }
 
@@ -139,9 +141,19 @@ async function emitir(input, usuario) {
   // Seguro de UPS (02/10): por defecto la guía sale asegurada por el FOB (valor declarado por
   // bulto). Solo se saca si la pantalla lo destilda explícitamente (asegurar = 0).
   const asegurar = input.asegurar === undefined || input.asegurar === null || input.asegurar === '' ? true : Boolean(Number(input.asegurar));
+  // 30/10 (oficina): valor declarado por bulto editable en la pantalla. El FOB total es el que
+  // manda: si los bultos no lo suman, error de datos (sin llamar a UPS). Sin valores → partes
+  // iguales. Lo que viajó queda en cada bulto (datos.bultos[].valor_declarado).
+  let valoresDeclarados = null;
+  if (asegurar) {
+    const vd = ups.validarValoresDeclarados(fob, bultos);
+    if (vd.error) return { errores: [vd.error], tipo: 'datos' };
+    valoresDeclarados = vd.valores || ups.repartirValorDeclarado(fob, bultos);
+  }
+  bultos.forEach((b, i) => { b.valor_declarado = asegurar ? valoresDeclarados[i] : 0; });
   const pedido = ups.armarPedido({
     remitente, destinatario, bultos, servicio, ddp: Boolean(input.ddp), contenido, fob,
-    referencia: `nova cli ${cliente.id}`, asegurar,
+    referencia: `nova cli ${cliente.id}`, asegurar, valoresDeclarados,
   });
   const r = await ups.pedirGuia(pedido);
   if (!r.ok) return { errores: r.errores, tipo: 'ups', status: r.status, respuesta: r.data };
@@ -202,7 +214,11 @@ async function actualizar(id, data) {
   try { datos = JSON.parse(g.datos_json || '{}'); } catch { datos = {}; }
   if (data.items !== undefined) datos.items = limpiarItems(data.items);
   if (data.observaciones !== undefined) datos.observaciones = String(data.observaciones ?? '').trim() || null;
-  if (data.bultos !== undefined) datos.bultos = limpiarBultos(data.bultos);
+  if (data.bultos !== undefined) {
+    // El valor declarado que viajó a UPS no se edita acá: si la edición no lo trae, se conserva.
+    const viejos = Array.isArray(datos.bultos) ? datos.bultos : [];
+    datos.bultos = limpiarBultos(data.bultos).map((b, i) => (b.valor_declarado === null && viejos[i] ? { ...b, valor_declarado: viejos[i].valor_declarado ?? null } : b));
+  }
   if (data.proforma_titulo !== undefined) datos.proforma_titulo = limpiarTitulo(data.proforma_titulo);
   if (data.proforma_numero !== undefined && String(data.proforma_numero).trim()) await configuracionModel.registrarNumeroProformaManual(data.proforma_numero);
   const fob = data.fob !== undefined ? (Number(data.fob) || 0) : g.fob;

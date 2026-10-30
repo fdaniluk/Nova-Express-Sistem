@@ -184,6 +184,11 @@
 .gui-items input:focus, .gui-bultos input:focus { outline: none; border-color: var(--color-primary); box-shadow: 0 0 0 3px rgba(26,58,92,0.12); }
 .gui-items input.n, .gui-bultos input { text-align: right; }
 .gui-bultos input[data-f="peso_real"] { font-weight: 600; }
+/* 30/10: valor declarado por bulto (seguro UPS). Automático = gris; corregido a mano = negro. */
+.gui-bultos input[data-f="valor_declarado"][data-manual="0"] { color: var(--color-muted); }
+.gui-bultos input[data-f="valor_declarado"]:disabled { background: #f8fafc; color: #cbd5e1; }
+#g-vd-pie { margin-left: 0.75rem; }
+#g-vd-pie.gui-vd-mal { color: var(--color-danger); font-weight: 600; }
 .gui-bultos td.num { color: var(--color-muted); font-weight: 600; width: 2rem; text-align: center; }
 .gui-items td.total { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; font-weight: 600; }
 .gui-total-label { color: var(--color-muted); font-size: 0.8rem; text-transform: uppercase; letter-spacing: 0.3px; white-space: nowrap; }

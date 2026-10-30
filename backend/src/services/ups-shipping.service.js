@@ -169,24 +169,42 @@ function validar({ cliente, remitente, destinatario, bultos, servicio, contenido
 // Valor declarado para el SEGURO de UPS (02/10/2026). El seguro que Nova le cobra al cliente
 // es el de UPS, así que la guía tiene que salir asegurada: si no, el envío viaja sin
 // cobertura aunque el cliente la pagó. UPS lo toma por bulto (PackageServiceOptions.
-// DeclaredValue), igual que el casillero "valor declarado" de su página: el FOB se reparte
-// entre los bultos en proporción al peso (en partes iguales si no hay pesos) y el último
-// absorbe el redondeo para que la suma sea exactamente el FOB.
+// DeclaredValue), igual que el casillero "valor declarado" de su página.
+// 30/10/2026 (oficina): el FOB se reparte en PARTES IGUALES entre los bultos (antes era por
+// peso) y el último absorbe el redondeo para que la suma sea exactamente el FOB. La pantalla
+// precarga ese reparto y deja corregirlo bulto por bulto; lo que manda es el FOB total.
 function repartirValorDeclarado(fob, bultos) {
   const total = Math.round((Number(fob) || 0) * 100) / 100;
   const n = bultos.length;
   if (!(total > 0) || !n) return bultos.map(() => 0);
-  const pesos = bultos.map((b) => Math.max(0, Number(b.peso_real) || 0));
-  const sumaPesos = pesos.reduce((a, b) => a + b, 0);
-  const partes = pesos.map((p) => (sumaPesos > 0 ? total * (p / sumaPesos) : total / n));
-  const out = partes.map((v) => Math.round(v * 100) / 100);
-  const acum = out.slice(0, -1).reduce((a, b) => a + b, 0);
+  const parte = Math.floor((total / n) * 100) / 100;
+  const out = bultos.map(() => parte);
+  const acum = parte * (n - 1);
   out[n - 1] = Math.round((total - acum) * 100) / 100;
   return out;
 }
 
-function armarPedido({ remitente, destinatario, bultos, servicio, ddp, contenido, fob, referencia, asegurar = true }) {
-  const valoresDeclarados = asegurar ? repartirValorDeclarado(fob, bultos) : bultos.map(() => 0);
+// Valores declarados tipeados en la pantalla (uno por bulto). Devuelve { valores } si cierran
+// o { error } si no: el FOB total es el que manda, y si los bultos no lo suman la guía no sale.
+function validarValoresDeclarados(fob, bultos) {
+  const total = Math.round((Number(fob) || 0) * 100) / 100;
+  const provistos = bultos.map((b) => (b.valor_declarado === undefined || b.valor_declarado === null || b.valor_declarado === '' ? null : Number(b.valor_declarado)));
+  if (provistos.every((v) => v === null)) return { valores: null };
+  const sinValor = provistos.map((v, i) => (v === null ? i + 1 : null)).filter(Boolean);
+  if (sinValor.length) return { error: `Falta el valor declarado del bulto ${sinValor.join(', ')} (o dejá todos vacíos para repartir el FOB en partes iguales)` };
+  const negativo = provistos.findIndex((v) => !(v >= 0) || Number.isNaN(v));
+  if (negativo >= 0) return { error: `El valor declarado del bulto ${negativo + 1} no es un número válido` };
+  const valores = provistos.map((v) => Math.round(v * 100) / 100);
+  const suma = Math.round(valores.reduce((a, b) => a + b, 0) * 100) / 100;
+  if (Math.abs(suma - total) > 0.005) return { error: `Los valores declarados de los bultos suman USD ${suma.toFixed(2)} y el FOB de la proforma es USD ${total.toFixed(2)}: tienen que coincidir` };
+  return { valores };
+}
+
+function armarPedido({ remitente, destinatario, bultos, servicio, ddp, contenido, fob, referencia, asegurar = true, valoresDeclarados: provistos = null }) {
+  // 30/10: si la pantalla mandó el valor declarado por bulto (ya validado contra el FOB) se usa
+  // tal cual; si no, el FOB se reparte en partes iguales.
+  const valoresDeclarados = !asegurar ? bultos.map(() => 0)
+    : (Array.isArray(provistos) && provistos.length === bultos.length ? provistos.map((v) => Math.round((Number(v) || 0) * 100) / 100) : repartirValorDeclarado(fob, bultos));
   const nova = shipperNova();
   const cuenta = cuentaExpo();
   const iso = isoDePais(destinatario.pais);
@@ -374,6 +392,7 @@ async function anularGuia(numeroGuia) {
 
 module.exports = {
   repartirValorDeclarado,
+  validarValoresDeclarados,
   partirLineas,
   taxIdParaUps,
   SERVICIO_CODIGO,

@@ -467,6 +467,7 @@
       total += t;
     });
     $('g-items-total').textContent = money(total);
+    repartirValorDeclarado();
     pintarResumen();
   }
 
@@ -474,13 +475,20 @@
   function agregarBulto(b) {
     const tb = $('g-bultos').querySelector('tbody');
     const tr = document.createElement('tr');
+    // 30/10 (oficina): valor declarado por bulto (seguro UPS). Se precarga el FOB repartido en
+    // partes iguales y se puede corregir a mano; el FOB total es el que manda (si los bultos no
+    // lo suman, la guía no sale). Vaciar el casillero lo devuelve al reparto automático.
+    const manual = b && b.vd_manual && b.valor_declarado != null;
     tr.innerHTML = `
       <td class="num"></td>
       <td><input type="number" data-f="peso_real" min="0" step="0.1" value="${b?.peso_real ?? ''}" placeholder="kg"></td>
       <td><input type="number" data-f="largo" min="0" step="1" value="${b?.largo ?? ''}"></td>
       <td><input type="number" data-f="ancho" min="0" step="1" value="${b?.ancho ?? ''}"></td>
       <td><input type="number" data-f="alto" min="0" step="1" value="${b?.alto ?? ''}"></td>
+      <td><input type="number" data-f="valor_declarado" min="0" step="0.01" value="${manual ? b.valor_declarado : ''}" data-manual="${manual ? 1 : 0}" title="Valor declarado del bulto para el seguro de UPS. Vacío = reparto automático del FOB."></td>
       <td><button type="button" class="gui-quitar" title="Quitar">✕</button></td>`;
+    const vd = tr.querySelector('[data-f="valor_declarado"]');
+    vd.addEventListener('input', () => { vd.dataset.manual = vd.value.trim() === '' ? '0' : '1'; repartirValorDeclarado(); });
     tr.querySelector('.gui-quitar').addEventListener('click', () => {
       if (tb.children.length <= 1) return;
       tr.remove();
@@ -492,22 +500,70 @@
 
   function numerarBultos() {
     [...$('g-bultos').querySelectorAll('tbody tr')].forEach((tr, i) => { tr.querySelector('.num').textContent = i + 1; });
+    repartirValorDeclarado();
     pintarResumen();
   }
 
+  function totalFob() {
+    return Math.round([...$('g-items').querySelectorAll('tbody tr')].reduce((s2, tr) => {
+      const c = parseFloat(tr.querySelector('[data-f="cantidad"]').value) || 0;
+      const v = parseFloat(tr.querySelector('[data-f="valor_unitario"]').value) || 0;
+      return s2 + Math.round(c * v * 100) / 100;
+    }, 0) * 100) / 100;
+  }
+
+  // Reparte el FOB entre los bultos sin valor tipeado: lo que quedó a mano se respeta y el
+  // resto se divide en partes iguales (el último automático absorbe el redondeo).
+  function repartirValorDeclarado() {
+    const inputs = [...$('g-bultos').querySelectorAll('tbody [data-f="valor_declarado"]')];
+    if (!inputs.length) return;
+    const asegurar = $('g-seguro').checked;
+    const total = totalFob();
+    inputs.forEach((inp) => { inp.disabled = !asegurar; });
+    const manuales = inputs.filter((inp) => inp.dataset.manual === '1');
+    const autos = inputs.filter((inp) => inp.dataset.manual !== '1');
+    const sumaManual = Math.round(manuales.reduce((s2, inp) => s2 + (parseFloat(inp.value) || 0), 0) * 100) / 100;
+    const resto = Math.max(0, Math.round((total - sumaManual) * 100) / 100);
+    if (autos.length) {
+      const parte = Math.floor((resto / autos.length) * 100) / 100;
+      autos.forEach((inp, i) => {
+        const v = i === autos.length - 1 ? Math.round((resto - parte * (autos.length - 1)) * 100) / 100 : parte;
+        inp.value = total > 0 ? v.toFixed(2) : '';
+      });
+    }
+    const suma = Math.round(inputs.reduce((s2, inp) => s2 + (parseFloat(inp.value) || 0), 0) * 100) / 100;
+    const pie = $('g-vd-pie');
+    if (pie) {
+      const cierra = Math.abs(suma - total) < 0.005;
+      pie.textContent = !asegurar ? 'Sin seguro UPS: la guía sale sin valor declarado.'
+        : `Valor declarado: US$ ${money(suma)} de US$ ${money(total)} (FOB de la proforma)${cierra ? '' : ' — los bultos tienen que sumar el FOB'}`;
+      pie.classList.toggle('gui-vd-mal', asegurar && !cierra);
+    }
+  }
+
+  function sumaValorDeclarado() {
+    return Math.round([...$('g-bultos').querySelectorAll('tbody [data-f="valor_declarado"]')].reduce((s2, inp) => s2 + (parseFloat(inp.value) || 0), 0) * 100) / 100;
+  }
+
   function leerBultos() {
-    return [...$('g-bultos').querySelectorAll('tbody tr')].map((tr) => ({
-      peso_real: parseFloat(tr.querySelector('[data-f="peso_real"]').value) || 0,
-      largo: parseFloat(tr.querySelector('[data-f="largo"]').value) || null,
-      ancho: parseFloat(tr.querySelector('[data-f="ancho"]').value) || null,
-      alto: parseFloat(tr.querySelector('[data-f="alto"]').value) || null,
-    }));
+    return [...$('g-bultos').querySelectorAll('tbody tr')].map((tr) => {
+      const vd = tr.querySelector('[data-f="valor_declarado"]');
+      return {
+        peso_real: parseFloat(tr.querySelector('[data-f="peso_real"]').value) || 0,
+        largo: parseFloat(tr.querySelector('[data-f="largo"]').value) || null,
+        ancho: parseFloat(tr.querySelector('[data-f="ancho"]').value) || null,
+        alto: parseFloat(tr.querySelector('[data-f="alto"]').value) || null,
+        valor_declarado: vd && vd.value.trim() !== '' ? parseFloat(vd.value) : null,
+        vd_manual: vd ? vd.dataset.manual === '1' : false,
+      };
+    });
   }
 
   // ── Emitir ────────────────────────────────────────────────────────────────
   function bindForm() {
     $('g-item-agregar').addEventListener('click', () => agregarItem());
     $('g-bulto-agregar').addEventListener('click', () => agregarBulto());
+    $('g-seguro').addEventListener('change', repartirValorDeclarado);
     $('gui-otra').addEventListener('click', () => {
       $('panel-resultado').classList.add('hidden');
       $('panel-nueva').classList.remove('hidden');
@@ -542,6 +598,11 @@
     if (!$('g-contenido').value.trim()) previos.push('Escribí el contenido');
     if (!items.length) previos.push('Cargá al menos un renglón de la proforma (descripción y valor)');
     if (!bultos.some((b) => b.peso_real > 0)) previos.push('Cargá el peso de al menos un bulto');
+    if ($('g-seguro').checked) {
+      const total = totalFob();
+      const suma = sumaValorDeclarado();
+      if (Math.abs(suma - total) >= 0.005) previos.push(`Los valores declarados de los bultos suman US$ ${money(suma)} y el FOB de la proforma es US$ ${money(total)}: tienen que coincidir`);
+    }
     if (previos.length) { mostrarErrores(previos, 'Antes de pedir la guía:'); return; }
 
     const payload = {
@@ -556,7 +617,7 @@
       proforma_numero: $('g-proforma').value.trim() || null,
       proforma_titulo: tituloProforma(),
       items,
-      bultos: bultos.filter((b) => b.peso_real > 0 || (b.largo && b.ancho && b.alto)),
+      bultos: bultos.filter((b) => b.peso_real > 0 || (b.largo && b.ancho && b.alto)).map(({ vd_manual, ...b }) => ({ ...b, valor_declarado: $('g-seguro').checked ? b.valor_declarado : null })),
       pais_destino: d.pais,
       observaciones: $('g-observaciones').value.trim() || null,
       borrador_id: borradorActual,

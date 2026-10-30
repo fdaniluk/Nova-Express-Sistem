@@ -6,7 +6,7 @@
   <title>Guías – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20261027a">
-  <link rel="stylesheet" href="../css/modules/guias.css?v=20261016a">
+  <link rel="stylesheet" href="../css/modules/guias.css?v=20261030a">
 </head>
 <body>
 <div class="app-layout">
@@ -258,17 +258,17 @@
               <span class="gui-num">4</span>
               <div>
                 <h3>Bultos</h3>
-                <p>Peso obligatorio; medidas en cm si las tenés. Sin medidas, UPS cobra por peso real.</p>
+                <p>Peso obligatorio; medidas en cm si las tenés. Sin medidas, UPS cobra por peso real. El valor declarado (seguro UPS) se reparte solo entre los bultos y se puede corregir: lo que manda es el FOB de la proforma.</p>
               </div>
             </div>
             <div class="gui-paso-cuerpo">
               <table class="gui-bultos" id="g-bultos">
                 <thead>
-                  <tr><th>#</th><th>Peso (kg) *</th><th>Largo</th><th>Ancho</th><th>Alto</th><th></th></tr>
+                  <tr><th>#</th><th>Peso (kg) *</th><th>Largo</th><th>Ancho</th><th>Alto</th><th title="Para el seguro de UPS. Se reparte el FOB en partes iguales; se puede corregir bulto por bulto y el total tiene que dar el FOB.">Valor decl. (USD)</th><th></th></tr>
                 </thead>
                 <tbody></tbody>
                 <tfoot>
-                  <tr><td colspan="6"><button type="button" class="btn btn-ghost btn-sm" id="g-bulto-agregar">+ Agregar bulto</button></td></tr>
+                  <tr><td colspan="7"><button type="button" class="btn btn-ghost btn-sm" id="g-bulto-agregar">+ Agregar bulto</button> <span class="gui-hint" id="g-vd-pie"></span></td></tr>
                 </tfoot>
               </table>
               <div class="form-group gui-obs">
@@ -519,6 +519,6 @@
 <script src="/shared/cotizador/cotizador-core.js?v=20261030a"></script>
 <script src="/shared/guias/estados.js?v=20261016a"></script>
 <script src="../js/termica.js?v=20260915a"></script>
-<script src="../js/modules/guias.js?v=20261016b"></script>
+<script src="../js/modules/guias.js?v=20261030a"></script>
 </body>
 </html>
