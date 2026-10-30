@@ -179,8 +179,25 @@ function sinPesar(pesoFacturable) {
 // ese número quedaba guardado como si fuera el costo real. Entre que se carga el envío y
 // llegan los pesos, esa plata inventada se sumaba en Salidas, en el dashboard y en la
 // utilidad. Sin peso no hay costo: las columnas quedan vacías hasta que se pese.
+// Documento asegurado = Protección de Documentos de DHL (30/10/2026, pedido de Felipe).
+// En un documento no hay valor declarado que asegurar: lo único asegurable es la
+// protección de DHL (USD 7,50). La oficina tildaba "Asegurado" en el documento y el envío
+// salía sin los 7,50 (Kasdorf #742, 29/10). Ahora, en un documento por DHL, "Asegurado"
+// ES la protección de documentos: se marca proteccion_doc y el motor la cobra.
+function normalizarProteccionDoc(data) {
+  if (!data) return data;
+  const esDoc = contenidoDe(data.tipo_paquete) === 'documento';
+  const dhl = String(data.courier || '').toUpperCase() === 'DHL';
+  const aseg = data.asegurado !== undefined && data.asegurado !== null && Boolean(Number(data.asegurado));
+  if (esDoc && dhl && aseg && !data.proteccion_doc) return { ...data, proteccion_doc: 1 };
+  return data;
+}
+
 async function calcularDesgloseAlCosto(data, pesoFacturable) {
   if (sinPesar(pesoFacturable)) return null;
+  // Documento DHL asegurado → protección de documentos (vale para el alta, la edición y el
+  // Recalcular de Salidas, que entran todos por acá).
+  data = normalizarProteccionDoc(data);
   const courier = data.courier;
   const servicio = courier === 'DHL'
     ? 'DHL'
@@ -274,20 +291,6 @@ function descuentoDe(v) {
   if (v === undefined || v === null || v === '') return null;
   const n = Math.min(100, Math.max(0, Number(v) || 0));
   return n > 0 ? n : null;
-}
-
-// Documento asegurado = Protección de Documentos de DHL (30/10/2026, pedido de Felipe).
-// En un documento no hay valor declarado que asegurar: lo único asegurable es la
-// protección de DHL (USD 7,50). La oficina tildaba "Asegurado" en el documento y el envío
-// salía sin los 7,50 (Kasdorf #742, 29/10). Ahora, en un documento por DHL, "Asegurado"
-// ES la protección de documentos: se marca proteccion_doc y el motor la cobra.
-function normalizarProteccionDoc(data) {
-  if (!data) return data;
-  const esDoc = contenidoDe(data.tipo_paquete) === 'documento';
-  const dhl = String(data.courier || '').toUpperCase() === 'DHL';
-  const aseg = data.asegurado !== undefined && data.asegurado !== null && Boolean(Number(data.asegurado));
-  if (esDoc && dhl && aseg && !data.proteccion_doc) return { ...data, proteccion_doc: 1 };
-  return data;
 }
 
 async function crear(data) {
@@ -736,6 +739,7 @@ async function marcarLiquidados(envioIds, liquidacionId, fechaLiquidacion) {
 }
 
 module.exports = {
+  normalizarProteccionDoc,
   buscarPorId,
   listar,
   crear,

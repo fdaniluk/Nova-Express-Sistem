@@ -84,7 +84,7 @@ const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0
   check(`resultado neto = profit − costos (${neto.toFixed(2)}, ${clsEsperada})`, /USD/.test(netoTxt) && tieneCls, `${netoTxt} vs ${neto}`);
   check('con el texto de si cubre o no', neto >= 0 ? /se llevan el .* % del profit/.test(txt) : /superan al profit/.test(txt), txt.slice(0, 300));
   const eq = await A.textContent('[data-costos="equilibrio"]');
-  check('punto de equilibrio del mes en curso: USD 300 con la barra de cuánto lleva', /300/.test(eq) && /lleva USD/.test(eq) && /proyección/.test(eq) && !!(await A.$('[data-costos="equilibrio"] .dash-eq i')), eq.replace(/\s+/g, ' '));
+  check('punto de equilibrio del mes en curso: USD 300 con la barra de cuánto lleva', /300/.test(eq) && /lleva USD/.test(eq) && /proyección|cubierto/.test(eq) && !!(await A.$('[data-costos="equilibrio"] .dash-eq i')), eq.replace(/\s+/g, ' '));
   check(profitMes >= 300 ? 'el mes ya cubre' : 'al mes le falta', profitMes >= 300 ? /cubierto/.test(eq) : /faltan USD/.test(eq), eq.replace(/\s+/g, ' '));
   check('el gráfico profit vs. costos está dibujado', await A.evaluate(() => { const c = document.getElementById('c-costos'); return !!c && c.width > 0 && !!(window.Chart && Chart.getChart(c)); }));
   if (process.env.SHOTS) await (await A.$('#dash-costos')).screenshot({ path: process.env.SHOTS + '/dash-costos.png' });

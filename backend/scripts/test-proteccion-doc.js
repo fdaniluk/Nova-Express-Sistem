@@ -140,31 +140,31 @@ async function main() {
 
   check('el envío guarda la tilde', Number(eCon.proteccion_doc) === 1, String(eCon.proteccion_doc));
   check('el envío sin la tilde queda en 0', !Number(eSin.proteccion_doc));
-  check('el costo congelado del envío incluye los 7,50',
-    cerca(Number(eCon.adicionales) - Number(eSin.adicionales), 7.50),
-    `con ${eCon.adicionales} sin ${eSin.adicionales}`);
-  check('aparece en el desglose guardado del envío',
-    /Protecci/.test(String(eCon.extras_json || '')), String(eCon.extras_json || '').slice(0, 120));
+  check('el costo congelado del envío incluye los 7,50 — en la columna Seguro (30/10)',
+    cerca(Number(eCon.seguro) - Number(eSin.seguro), 7.50),
+    `con ${eCon.seguro} sin ${eSin.seguro}`);
+  check('y NO duplicado entre los adicionales (el desglose guardado no lo lista aparte)',
+    !/Protecci/.test(String(eCon.extras_json || '')) && cerca(Number(eCon.adicionales), Number(eSin.adicionales)), String(eCon.extras_json || '').slice(0, 120));
 
   // El bug clásico de esta pantalla: editar algo que recalcula y perder el cargo.
   const editado = await put(`/api/envios/${eCon.id}`, { peso_real: 1.5 });
   check('editar el peso NO borra la protección', Number(editado.proteccion_doc) === 1);
-  check('y el cargo sigue en el costo recalculado',
-    /Protecci/.test(String(editado.extras_json || '')), String(editado.extras_json || '').slice(0, 120));
+  check('y el cargo sigue en el costo recalculado (Seguro 7,50)',
+    cerca(Number(editado.seguro), 7.50), String(editado.seguro));
 
   // Y el recálculo desde Salidas, que arma su propio body.
   const recalc = await (await fetch(`${BASE}/api/salidas/${eCon.id}/recalcular`, {
     method: 'POST', headers: H(), body: JSON.stringify({ peso_real: 1.5, largo: 20, ancho: 15, alto: 2 }),
   })).json();
-  check('el "Recalcular" de Salidas tampoco lo borra',
-    (recalc.extras || []).some((x) => /Protecci/.test(x.label || '')),
-    JSON.stringify(recalc.extras).slice(0, 160));
+  check('el "Recalcular" de Salidas tampoco lo borra (Seguro 7,50)',
+    cerca(Number(recalc.seguro), 7.50), JSON.stringify({ s: recalc.seguro, ex: recalc.extras }).slice(0, 160));
 
-  // Se puede sacar a mano.
-  const sacado = await put(`/api/envios/${eCon.id}`, { proteccion_doc: 0 });
+  // Se puede sacar a mano. Desde el 30/10 en un documento DHL "Asegurado" ES la protección,
+  // así que para sacarla se destilda Asegurado (lo que hace la pantalla).
+  const sacado = await put(`/api/envios/${eCon.id}`, { proteccion_doc: 0, asegurado: 0 });
   check('se puede destildar', !Number(sacado.proteccion_doc));
-  check('y el cargo desaparece del costo',
-    !/Protecci/.test(String(sacado.extras_json || '')));
+  check('y el cargo desaparece del costo (Seguro vuelve a 0)',
+    cerca(Number(sacado.seguro), 0), String(sacado.seguro));
 
   console.log('\n5. Llega a la liquidación\n');
 
@@ -193,7 +193,7 @@ async function main() {
   console.log('\n6. Documento asegurado = protección de documentos\n');
   const eAseg = await post('/api/envios', { ...envBase, numero_guia: '9900000037', fob: 0, asegurado: 1 });
   check('alta con asegurado=1 y fob 0 en un documento DHL: queda con proteccion_doc', Number(eAseg.proteccion_doc) === 1, JSON.stringify({ p: eAseg.proteccion_doc, a: eAseg.asegurado }));
-  check('   y el costo congelado tiene los 7,50 (igual que con la tilde propia)', cerca(Number(eAseg.adicionales) - Number(eSin.adicionales), 7.50), `${eAseg.adicionales} vs ${eSin.adicionales}`);
+  check('   y el costo congelado tiene los 7,50 en la columna SEGURO (30/10: en un documento es el seguro)', cerca(Number(eAseg.seguro) - Number(eSin.seguro), 7.50) && cerca(Number(eAseg.adicionales), Number(eSin.adicionales)), `seguro ${eAseg.seguro} vs ${eSin.seguro} · adic ${eAseg.adicionales} vs ${eSin.adicionales}`);
   const base6 = { cliente_id: cli.id, servicio: 'DHL', pais: 'Estados Unidos', tipo: 'export', pesoFacturable: 1, fob: 0, fuelPct: 20, profitPct: 80, bultos: [{ peso_real: 1, largo: 20, ancho: 15, alto: 2 }], profitManual: true };
   const cot0 = await post('/api/liquidaciones/cotizar', { ...base6, contenido: 'documento' });
   const cotP0 = await post('/api/liquidaciones/cotizar', { ...base6, contenido: 'paquete' });
@@ -208,7 +208,16 @@ async function main() {
   });
   check('en un PAQUETE con fob 0, asegurado no cobra nada (sigue como antes)', cerca(Number(cotP.precioFinal), Number(cotP0.precioFinal)), `${cotP.precioFinal} vs ${cotP0.precioFinal}`);
   const eEdit = await put(`/api/envios/${eSin.id}`, { asegurado: 1 });
-  check('editar un documento DHL y tildar Asegurado agrega la protección (PUT)', Number(eEdit.proteccion_doc) === 1 && cerca(Number(eEdit.adicionales) - Number(eSin.adicionales), 7.50), JSON.stringify({ p: eEdit.proteccion_doc, a: eEdit.adicionales }));
+  check('editar un documento DHL y tildar Asegurado agrega la protección (PUT), en Seguro', Number(eEdit.proteccion_doc) === 1 && cerca(Number(eEdit.seguro) - Number(eSin.seguro), 7.50), JSON.stringify({ p: eEdit.proteccion_doc, s: eEdit.seguro }));
+
+  // Salidas: Recalcular y PATCH entran por otra ruta; la regla tiene que valer ahí también
+  // (el caso real: Kasdorf #742, recalculado desde el modal con Asegurado tildado).
+  const eSal = await post('/api/envios', { ...envBase, numero_guia: '9900000045', fob: 0 });
+  const rec6 = await (await fetch(`${BASE}/api/salidas/${eSal.id}/recalcular`, { method: 'POST', headers: H(), body: JSON.stringify({ asegurado: 1, proteccion_doc: 0, tipo_paquete: 'd', courier: 'DHL' }) })).json();
+  check('Salidas › Recalcular con asegurado=1 en un documento DHL trae los 7,50 en Seguro', cerca(Number(rec6.seguro) - Number(eSal.seguro), 7.50), JSON.stringify({ s: rec6.seguro, antes: eSal.seguro, ex: rec6.extras }));
+  const pat = await (await fetch(`${BASE}/api/salidas/${eSal.id}`, { method: 'PATCH', headers: H(), body: JSON.stringify({ asegurado: 1 }) })).json();
+  const salGuardado = await (await fetch(`${BASE}/api/envios/${eSal.id}`, { headers: H() })).json();
+  check('Salidas › PATCH con asegurado=1 persiste proteccion_doc = 1', pat && Number(salGuardado.proteccion_doc) === 1, JSON.stringify({ p: salGuardado.proteccion_doc }));
 
   console.log('\n' + '─'.repeat(60));
   console.log(`${ok} pasaron · ${fail} fallaron`);

@@ -651,7 +651,12 @@ function cotizarServicio(servicio, params) {
     const goGreen=aplicaGoGreen?parseFloat((pf*0.98).toFixed(2)):0;
     const{sobrepesoTotal,excesoTotal,noConvencionalTotal}=calcDHLExtras(bultosProc);
     const topesDHL=calcTopesPieza(bultosProc).dhl;
-    const seguroObj=calcSeguro('DHL',fob,seguroPropio,asegurado);
+    // Documento (30/10/2026, Felipe): un documento no tiene valor que asegurar; su único
+    // seguro es la Protección de Documentos de DHL (USD 7,50). Con contenido 'documento' el
+    // seguro por valor declarado no se cobra, y "asegurado" equivale a la protección.
+    const esDocumento=contenido==='documento';
+    const seguroObj=esDocumento?{monto:0,desc:'Documento: sin seguro por valor (protección de documentos USD 7,50 si va asegurado)'}:calcSeguro('DHL',fob,seguroPropio,asegurado);
+    const protDocEfectiva=proteccionDoc||(esDocumento&&asegurado===true);
     const extras=[];
     if(goGreen>0)           extras.push([`GoGreen (${Number(pf.toFixed(3))} kg × USD 0.98)`,goGreen]);
     if(sobrepesoTotal>0)    extras.push(['Sobrepeso (DHL)',sobrepesoTotal]);
@@ -663,7 +668,7 @@ function cotizarServicio(servicio, params) {
     if(ddp)                 extras.push(['DDP',24.05]);
     // Va DESPUÉS del margen y sin fuel, como el DDP y el resto de los recargos del courier:
     // criterio de Felipe del 29/07, la ganancia se calcula solo sobre el flete de tabla.
-    if(proteccionDoc)       extras.push(['Protección de documentos (DHL)',DHL_PROTECCION_DOC]);
+    if(protDocEfectiva)     extras.push(['Protección de documentos (DHL)',DHL_PROTECCION_DOC]);
     // Tarifa por kilo: el flete de venta es precio × peso facturable, no flete + margen.
     const conGanLista     =usaPorKg?parseFloat((kgVenta*pf).toFixed(2)):fleteBase*(1+profit);
     const conGan          =descuento>0?conDescuento(conGanLista):conGanLista;

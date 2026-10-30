@@ -2580,7 +2580,7 @@
             <div class="sal-form-grid sal-form-grid--nums">
               <div class="form-group"><label>Flete</label><input type="number" id="saled-flete" step="0.01"></div>
               <div class="form-group"><label>Descuento</label><input type="number" id="saled-descuento" step="0.01"></div>
-              <div class="form-group"><label>Seguro</label><input type="number" id="saled-seguro" step="0.01"></div>
+              <div class="form-group"><label id="saled-seguro-label">Seguro</label><input type="number" id="saled-seguro" step="0.01"></div>
               <div class="form-group"><label>Fuel</label><input type="number" id="saled-fuel" step="0.01"></div>
               <div class="form-group"><label>Derechos</label><input type="number" id="saled-derechos" step="0.01"></div>
               <div class="form-group"><label>Adicionales</label><input type="number" id="saled-adicionales" step="0.01"></div>
@@ -2689,6 +2689,7 @@
     document.getElementById('saled-fob').addEventListener('input', () => {
       if (aseguradoTocado) return;
       const v = Number(document.getElementById('saled-fob').value);
+      if (esDocDhlModal()) return; // documento DHL: Asegurado es la protección, no sigue al FOB
       document.getElementById('saled-asegurado').checked = Number.isFinite(v) && v >= 100;
     });
     document.getElementById('saled-agregar-bulto').addEventListener('click', agregarBultoModal);
@@ -3479,7 +3480,7 @@
       // DDP tal como está tildado AHORA: sin esto el recálculo lo recibe undefined y el
       // cargo de 24.05 desaparece del desglose.
       ddp: document.getElementById('saled-ddp').checked ? 1 : 0,
-      proteccion_doc: document.getElementById('saled-proteccion-doc').checked ? 1 : 0,
+      proteccion_doc: protDocModal() ? 1 : 0,
       residencial: document.getElementById('saled-residencial').checked ? 1 : 0,
       // Asegurado tal como está tildado AHORA (09/10): es lo que decide si va el seguro.
       asegurado: document.getElementById('saled-asegurado').checked ? 1 : 0,
@@ -3647,15 +3648,37 @@
   // no se toca — destildarlo ahi seria cambiarle la plata a un envio sin que nadie lo
   // pida —, asi que un envio que ya tenga el cargo se muestra igual aunque hoy no
   // califique: mejor verlo y decidir que esconder un cobro activo.
+  // Documento por DHL (30/10/2026, pedido de Felipe): "Asegurado" ES la protección de
+  // documentos (USD 7,50): un documento no tiene valor que asegurar. El chip propio se
+  // esconde en ese caso y lo que se manda como proteccion_doc sale del tilde Asegurado
+  // (misma regla en Cargar envío, el cotizador y el backend).
+  function esDocDhlModal() {
+    const courierEl = document.getElementById('saled-courier');
+    const tipoEl = document.getElementById('saled-tipo-paquete');
+    return !!(courierEl && tipoEl && courierEl.value === 'DHL' && tipoEl.value === 'd');
+  }
+  function protDocModal() {
+    if (esDocDhlModal()) return document.getElementById('saled-asegurado').checked;
+    return document.getElementById('saled-proteccion-doc').checked;
+  }
   function toggleProtDocVisible(destildar = false) {
     const label = document.getElementById('saled-prot-doc-label');
     const chk = document.getElementById('saled-proteccion-doc');
     const courierEl = document.getElementById('saled-courier');
     const tipoEl = document.getElementById('saled-tipo-paquete');
     if (!label || !chk || !courierEl || !tipoEl) return;
+    const esDoc = esDocDhlModal();
     const aplica = courierEl.value === 'DHL' && tipoEl.value === 'd';
     if (!aplica && destildar) chk.checked = false;
-    label.style.display = (aplica || chk.checked) ? 'flex' : 'none';
+    // Documento DHL: el chip propio no se muestra (lo cubre Asegurado); si el envío ya
+    // tenía la protección, se ve como Asegurado.
+    if (esDoc && chk.checked) { document.getElementById('saled-asegurado').checked = true; aseguradoTocado = true; }
+    label.style.display = (!esDoc && chk.checked) ? 'flex' : 'none';
+    const asegLabel = document.getElementById('saled-asegurado') && document.getElementById('saled-asegurado').parentElement;
+    if (asegLabel) asegLabel.title = esDoc ? 'Documento: protección de documentos DHL, USD 7,50' : '';
+    // La columna Seguro es donde van los 7,50 de un documento: el rótulo lo dice.
+    const segLabel = document.getElementById('saled-seguro-label');
+    if (segLabel) segLabel.textContent = esDoc ? 'Seguro (prot. doc.)' : 'Seguro';
   }
 
   // Servicio UPS: solo tiene sentido con courier UPS. Se muestra u oculta con el courier.
@@ -3726,7 +3749,7 @@
       // él. Sin esto, "Calcular venta" usaría el fob guardado aunque recién lo hayan editado.
       fob: num('saled-fob') ?? 0,
       ddp: document.getElementById('saled-ddp').checked,
-      proteccionDoc: document.getElementById('saled-proteccion-doc').checked,
+      proteccionDoc: protDocModal(),
       residencial: document.getElementById('saled-residencial').checked,
       asegurado: document.getElementById('saled-asegurado').checked,
       entrega: document.getElementById('saled-entrega').value,
@@ -3986,7 +4009,7 @@
       entrega:        document.getElementById('saled-entrega').value,
       remota:         document.getElementById('saled-entrega').value !== 'normal' ? 1 : 0,
       ddp:            document.getElementById('saled-ddp').checked ? 1 : 0,
-      proteccion_doc: document.getElementById('saled-proteccion-doc').checked ? 1 : 0,
+      proteccion_doc: protDocModal() ? 1 : 0,
       residencial:    document.getElementById('saled-residencial').checked ? 1 : 0,
       observaciones:  document.getElementById('saled-observaciones').value.trim() || null,
     };

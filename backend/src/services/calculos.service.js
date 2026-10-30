@@ -319,7 +319,11 @@ function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zo
   if (!r) return null;
 
   const flete  = redondear2(r.flete);
-  const seguro = redondear2(r.seguro);
+  // Protección de Documentos de DHL (30/10/2026, pedido de Felipe): en un documento ES el
+  // seguro, así que en el desglose congelado va en la columna Seguro (Salidas la muestra
+  // ahí y la liquidación la lista como "Seguro"), no entre los adicionales.
+  const protDoc = redondear2((r.extras || []).filter(([label]) => /^Protecci[oó]n de documentos/i.test(String(label))).reduce((s, [, m]) => s + (Number(m) || 0), 0));
+  const seguro = redondear2(r.seguro + protDoc);
   const fuel   = redondear2(r.fuelMonto);
   const total  = redondear2(r.total);
   const adicionales = redondear2(total - flete - seguro - fuel);
@@ -328,7 +332,7 @@ function desglosarCosto({ pais, tipo, servicio, pesoFacturable, fob, fuelPct, zo
   // fuente de verdad del número; el array es puramente aditivo. Verificación interna:
   // Σ(montos) debe coincidir con adicionales (±0.01 por redondeo). Si no, es un bug de
   // reconciliación: se reporta sin romper el alta (no se tapa).
-  const extras = construirExtrasDesglose(r);
+  const extras = construirExtrasDesglose(r).filter((e) => e.tipo !== 'proteccion_doc');
   const sumExtras = redondear2(extras.reduce((s, e) => s + e.monto, 0));
   // La comparación va EN CENTAVOS, no en pesos. Con `Math.abs(a - b) > 0.01` la coma
   // flotante hacía saltar el aviso con diferencias de exactamente un centavo: 1.47 - 1.46

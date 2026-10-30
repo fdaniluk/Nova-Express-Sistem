@@ -138,39 +138,36 @@ async function main() {
   await esperar(700);
   check('al volver a mercadería el rótulo vuelve a "FOB ≥ 100"', /100/.test(await page.textContent('label[for="asegurado"] small')));
 
-  console.log('\n3. Salidas: el envío documento\n');
+  console.log('\n3. Salidas: el envío documento (Asegurado = protección)\n');
 
   await page.goto(`${BASE}/pages/salidas.html`);
   await esperar(3000);
   await page.click('text=9900000045');
   await esperar(1000);
   check('se abre el modal del envío', !!(await page.$('#sal-edit-overlay:not(.hidden)')));
-  check('la tilde se ve', await visible('#saled-prot-doc-label'));
-  check('y viene marcada', await page.isChecked('#saled-proteccion-doc'));
+  check('el chip propio NO se ve (documento DHL: lo cubre Asegurado)', !(await visible('#saled-prot-doc-label')));
+  check('y "Asegurado" viene marcado porque el envío tiene la protección', await page.isChecked('#saled-asegurado'));
 
-  const adicAntes = await page.inputValue('#saled-adicionales');
-  await page.selectOption('#saled-tipo-paquete', 'm');
-  await esperar(600);
-  check('al pasarlo a mercadería se esconde y se destilda',
-    !(await visible('#saled-prot-doc-label')) && !(await page.isChecked('#saled-proteccion-doc')));
-
-  // Volver a documento y recalcular: el cargo tiene que reaparecer en los adicionales.
-  await page.selectOption('#saled-tipo-paquete', 'd');
-  await esperar(600);
-  await page.check('#saled-proteccion-doc');
+  check('el rótulo del casillero dice "Seguro (prot. doc.)"', /prot\. doc/i.test(await page.textContent('#saled-seguro-label')), await page.textContent('#saled-seguro-label'));
+  const segAntes = await page.inputValue('#saled-seguro');
+  check('y el casillero Seguro muestra los 7,50', Math.abs(Number(segAntes) - 7.5) < 0.011, segAntes);
+  // Sin asegurar y recalcular: los 7,50 se van. Volver a asegurar y recalcular: vuelven.
+  await page.uncheck('#saled-asegurado');
   await page.click('#saled-recalcular');
   await esperar(2500);
-  const adicDespues = await page.inputValue('#saled-adicionales');
-  check('recalcular con la tilde deja los 7,50 en los adicionales',
-    Number(adicDespues) > 0, `antes ${adicAntes} · después ${adicDespues}`);
-  const extrasTxt = await page.textContent('#saled-extras-block');
-  check('y aparece en el desglose con su nombre', /Protecci/.test(extrasTxt),
-    extrasTxt.slice(0, 120));
+  const segSin = await page.inputValue('#saled-seguro');
+  check('destildar Asegurado y recalcular deja Seguro en 0', Math.abs(Number(segSin)) < 0.011, `antes ${segAntes} · sin ${segSin}`);
+  await page.check('#saled-asegurado');
+  await page.click('#saled-recalcular');
+  await esperar(2500);
+  const segDespues = await page.inputValue('#saled-seguro');
+  check('tildar Asegurado y recalcular vuelve a poner 7,50 en Seguro',
+    Math.abs(Number(segDespues) - 7.5) < 0.011, `sin ${segSin} · con ${segDespues}`);
 
   await page.click('#sal-modal-save');
   await esperar(2500);
   const guardado = await (await fetch(`${BASE}/api/envios/${envDoc.id}`, { headers: H })).json();
-  check('queda guardado en la base', Number(guardado.proteccion_doc) === 1,
+  check('queda guardado en la base con proteccion_doc = 1', Number(guardado.proteccion_doc) === 1,
     String(guardado.proteccion_doc));
 
   console.log('\n4. Un envío que YA tiene el cargo no se pisa por abrirlo\n');

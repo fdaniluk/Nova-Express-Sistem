@@ -17,7 +17,8 @@ const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 const FAMILIAS = [
   // Los nombres de DHL (07/10): VALUE PROTECTION = seguro; Non-conveyable (NCP) = manejo;
   // Over Sized Piece (OSP) = mayor tamaño; GoGreen Plus siempre está (se ignora, como el fuel).
-  { tipo: 'seguro',      re: /DECLARED VALUE|VALOR DECLARADO|VALUE PROTECTION/i,             label: 'Seguro (valor declarado)' },
+  // + Protección de Documentos de DHL (30/10): en un documento es el seguro (va en la columna Seguro del envío).
+  { tipo: 'seguro',      re: /DECLARED VALUE|VALOR DECLARADO|VALUE PROTECTION|DOCUMENT PROTECTION|PROTECCI.N DE DOCUMENTOS/i, label: 'Seguro (valor declarado)' },
   { tipo: 'manejo',      re: /ADDITIONAL HANDLING|MANEJO ADICIONAL|NON.?CONVEYABLE|\(NCP\)/i, label: 'Manejo adicional' },
   { tipo: 'contorno',    re: /LARGE PACKAGE|OVER ?SIZE|PAQUETE GRANDE|MAYOR TAMA|\(OSP\)/i,  label: 'Paquete de mayor tamaño' },
   { tipo: 'gogreen',     re: /GO ?GREEN/i,                                                   label: 'GoGreen' },
@@ -100,7 +101,7 @@ function detectarAnomalias(envio, factura) {
     manejo: ['manejo', 'additional handling', 'non conveyable', 'ncp'],
     contorno: ['mayor tamano', 'paquete grande', 'large package', 'oversize', 'over sized', 'osp'],
     surge: ['surge', 'demanda', 'incremento de volumen', 'peak'],
-    seguro: ['seguro', 'valor declarado', 'declared value', 'value protection'],
+    seguro: ['seguro', 'valor declarado', 'declared value', 'value protection', 'protección de documentos', 'proteccion de documentos', 'document protection'],
     papel: ['papel', 'paper'],
     ddp: ['ddp', 'impuestos de destino', 'duty'],
     direccion: ['correccion de direccion', 'address correction', 'direccion'],

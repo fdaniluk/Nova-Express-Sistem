@@ -1,7 +1,7 @@
 const { Router } = require('express');
 const { numerarPorMes, claveParaNumero } = require('../../../shared/salidas/numeracion');
 const { getDb } = require('../db');
-const { buildPesos, calcularDesgloseAlCosto, calcularSeguroVenta } = require('../models/envio.model');
+const { buildPesos, calcularDesgloseAlCosto, calcularSeguroVenta, normalizarProteccionDoc } = require('../models/envio.model');
 const { pesoVolumetricoBulto } = require('../services/calculos.service');
 const { deriveProfit, profitDoble, cargosPost, SUBQUERY_LIQUIDACION, SUBQUERY_CARGOS } = require('../utils/profit');
 const { descomponerVenta } = require('../utils/desgloseVenta');
@@ -750,6 +750,13 @@ router.patch('/:id', async (req, res, next) => {
       if (Object.prototype.hasOwnProperty.call(req.body, field)) {
         picked[field] = req.body[field];
       }
+    }
+    // Documento DHL + "Asegurado" = Protección de Documentos (30/10/2026): si lo que queda
+    // guardado es un documento por DHL asegurado, se persiste proteccion_doc = 1 (misma
+    // regla que el alta/edición y que el Recalcular, en envio.model normalizarProteccionDoc).
+    {
+      const mezcla = normalizarProteccionDoc({ ...existing, ...picked });
+      if (mezcla.proteccion_doc && !({ ...existing, ...picked }).proteccion_doc) picked.proteccion_doc = 1;
     }
 
     // extras_json: el front lo manda como ARRAY (el desglose por tipo ya reconciliado)
