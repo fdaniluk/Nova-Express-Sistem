@@ -276,7 +276,22 @@ function descuentoDe(v) {
   return n > 0 ? n : null;
 }
 
+// Documento asegurado = Protección de Documentos de DHL (30/10/2026, pedido de Felipe).
+// En un documento no hay valor declarado que asegurar: lo único asegurable es la
+// protección de DHL (USD 7,50). La oficina tildaba "Asegurado" en el documento y el envío
+// salía sin los 7,50 (Kasdorf #742, 29/10). Ahora, en un documento por DHL, "Asegurado"
+// ES la protección de documentos: se marca proteccion_doc y el motor la cobra.
+function normalizarProteccionDoc(data) {
+  if (!data) return data;
+  const esDoc = contenidoDe(data.tipo_paquete) === 'documento';
+  const dhl = String(data.courier || '').toUpperCase() === 'DHL';
+  const aseg = data.asegurado !== undefined && data.asegurado !== null && Boolean(Number(data.asegurado));
+  if (esDoc && dhl && aseg && !data.proteccion_doc) return { ...data, proteccion_doc: 1 };
+  return data;
+}
+
 async function crear(data) {
+  data = normalizarProteccionDoc(data);
   const db = getDb();
   const { pesoVolumetrico, pesoFacturable } = buildPesos(data);
   const hasBultos = data.bultos && data.bultos.length > 0;
@@ -416,6 +431,12 @@ async function actualizar(id, data) {
     throw err;
   }
 
+  // Documento + DHL + "Asegurado" → protección de documentos (ver normalizarProteccionDoc).
+  // Se evalúa sobre el envío ya mezclado y se escribe en `data` para que el UPDATE lo guarde.
+  {
+    const mezcla = normalizarProteccionDoc({ ...actual, ...data });
+    if (mezcla.proteccion_doc && !({ ...actual, ...data }).proteccion_doc) data = { ...data, proteccion_doc: 1 };
+  }
   const merged = { ...actual, ...data, peso_real: data.peso_real ?? actual.peso_real };
   const bultos =
     data.bultos !== undefined ? data.bultos : actual.bultos?.length ? actual.bultos : [];

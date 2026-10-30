@@ -186,6 +186,30 @@ async function main() {
   check('la utilidad NO sube: el cargo pasa a costo, sin margen',
     cerca(cot.utilidad, cotSin.utilidad), `con ${cot.utilidad} sin ${cotSin.utilidad}`);
 
+  // 6. Documento + DHL + "Asegurado" = Protección de Documentos (30/10/2026, pedido de
+  //    Felipe). La oficina tildaba "Asegurado" en un documento (no hay valor que asegurar) y
+  //    el envío salía sin los 7,50 (Kasdorf #742). Ahora el tilde "Asegurado" en un documento
+  //    por DHL cobra la protección: en el alta, en la edición y en el cotizar de la pantalla.
+  console.log('\n6. Documento asegurado = protección de documentos\n');
+  const eAseg = await post('/api/envios', { ...envBase, numero_guia: '9900000037', fob: 0, asegurado: 1 });
+  check('alta con asegurado=1 y fob 0 en un documento DHL: queda con proteccion_doc', Number(eAseg.proteccion_doc) === 1, JSON.stringify({ p: eAseg.proteccion_doc, a: eAseg.asegurado }));
+  check('   y el costo congelado tiene los 7,50 (igual que con la tilde propia)', cerca(Number(eAseg.adicionales) - Number(eSin.adicionales), 7.50), `${eAseg.adicionales} vs ${eSin.adicionales}`);
+  const base6 = { cliente_id: cli.id, servicio: 'DHL', pais: 'Estados Unidos', tipo: 'export', pesoFacturable: 1, fob: 0, fuelPct: 20, profitPct: 80, bultos: [{ peso_real: 1, largo: 20, ancho: 15, alto: 2 }], profitManual: true };
+  const cot0 = await post('/api/liquidaciones/cotizar', { ...base6, contenido: 'documento' });
+  const cotP0 = await post('/api/liquidaciones/cotizar', { ...base6, contenido: 'paquete' });
+  const cotA = await post('/api/liquidaciones/cotizar', {
+    cliente_id: cli.id, servicio: 'DHL', pais: 'Estados Unidos', tipo: 'export', pesoFacturable: 1, fob: 0, fuelPct: 20, profitPct: 80,
+    bultos: [{ peso_real: 1, largo: 20, ancho: 15, alto: 2 }], contenido: 'documento', profitManual: true, asegurado: true,
+  });
+  check('cotizar con asegurado=true + documento + DHL suma 7,50 (sin seguro por valor)', cerca(Number(cotA.precioFinal) - Number(cot0.precioFinal), 7.50) && (cotA.extras || []).some((x) => /Protecci/i.test(x[0] || x.label || '')), `${cotA.precioFinal} vs ${cot0.precioFinal} ` + JSON.stringify(cotA.extras));
+  const cotP = await post('/api/liquidaciones/cotizar', {
+    cliente_id: cli.id, servicio: 'DHL', pais: 'Estados Unidos', tipo: 'export', pesoFacturable: 1, fob: 0, fuelPct: 20, profitPct: 80,
+    bultos: [{ peso_real: 1, largo: 20, ancho: 15, alto: 2 }], contenido: 'paquete', profitManual: true, asegurado: true,
+  });
+  check('en un PAQUETE con fob 0, asegurado no cobra nada (sigue como antes)', cerca(Number(cotP.precioFinal), Number(cotP0.precioFinal)), `${cotP.precioFinal} vs ${cotP0.precioFinal}`);
+  const eEdit = await put(`/api/envios/${eSin.id}`, { asegurado: 1 });
+  check('editar un documento DHL y tildar Asegurado agrega la protección (PUT)', Number(eEdit.proteccion_doc) === 1 && cerca(Number(eEdit.adicionales) - Number(eSin.adicionales), 7.50), JSON.stringify({ p: eEdit.proteccion_doc, a: eEdit.adicionales }));
+
   console.log('\n' + '─'.repeat(60));
   console.log(`${ok} pasaron · ${fail} fallaron`);
   matarSrv();

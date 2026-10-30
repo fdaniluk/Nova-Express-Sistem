@@ -485,6 +485,8 @@
     document.getElementById('asegurado').addEventListener('click', () => { seguroTocado = true; });
     document.getElementById('fob').addEventListener('input', () => {
       if (seguroTocado) return;
+      // En un documento DHL "Asegurado" es la protección de documentos, no sigue al FOB.
+      if (esDocumentoDHL()) return;
       const fob = parseFloat(document.getElementById('fob').value) || 0;
       document.getElementById('asegurado').checked = fob >= 100;
     });
@@ -571,6 +573,21 @@
   // a un envio sin que nadie lo haya pedido. Por eso, al cargar, un envio que tenga el
   // cargo puesto se muestra igual aunque hoy no califique — asi se ve y se decide, en vez
   // de esconder un cobro activo.
+  // Documento por DHL (30/10/2026, pedido de Felipe): un documento no tiene valor que
+  // asegurar; lo único asegurable es la Protección de Documentos de DHL (USD 7,50). La
+  // oficina tildaba "Asegurado" y el envío salía sin los 7,50 (Kasdorf #742). Ahora en un
+  // documento por DHL el tilde "Asegurado" ES la protección: el chip "Protección doc." se
+  // esconde y el rótulo de "Asegurado" dice lo que cobra. El backend aplica la misma regla.
+  function esDocumentoDHL() {
+    const tipoPaq = document.getElementById('tipo_paquete');
+    const courier = document.getElementById('courier');
+    return !!(tipoPaq && courier && courier.value === 'DHL' && tipoPaq.value === 'd');
+  }
+  function proteccionDocEfectiva() {
+    const chk = document.getElementById('proteccion_doc');
+    if (esDocumentoDHL()) return document.getElementById('asegurado').checked;
+    return !!(chk && chk.checked);
+  }
   function aplicarVisibilidadProteccionDoc(destildar = false) {
     const grupo = document.getElementById('grupo-proteccion-doc');
     const chk = document.getElementById('proteccion_doc');
@@ -578,9 +595,15 @@
     const courier = document.getElementById('courier');
     if (!grupo || !chk || !tipoPaq || !courier) return;
 
+    const esDoc = esDocumentoDHL();
     const aplica = courier.value === 'DHL' && tipoPaq.value === 'd';
     if (!aplica && destildar) chk.checked = false;
-    grupo.style.display = (aplica || chk.checked) ? '' : 'none';
+    // En un documento DHL el chip propio no se muestra: lo cubre "Asegurado".
+    grupo.style.display = (!esDoc && chk.checked) ? '' : 'none';
+    // Si el envío guardado tenía la protección, en pantalla se ve como "Asegurado".
+    if (esDoc && chk.checked) { document.getElementById('asegurado').checked = true; seguroTocado = true; }
+    const hint = document.querySelector('label[for="asegurado"] small');
+    if (hint) hint.textContent = esDoc ? 'documento: protección DHL USD 7,50' : 'FOB ≥ 100 se marca solo';
   }
 
   // ── Regla de negocio: los DOCUMENTOS solo se despachan por DHL ──────────────
@@ -710,7 +733,7 @@
         zona,
         bultos: bultosParaCotizar,
         ddp: document.getElementById('ddp').checked,
-        proteccionDoc: document.getElementById('proteccion_doc').checked,
+        proteccionDoc: proteccionDocEfectiva(),
         residencial: document.getElementById('residencial').checked,
         // El tilde "Asegurado" manda sobre el seguro (09/10): se tilda solo a partir de
         // USD 100 (DHL y UPS por igual) y se puede sacar o poner a mano.
@@ -836,7 +859,7 @@
         fuel_origen: getFuelOrigenForm(),
         asegurado: document.getElementById('asegurado').checked ? 1 : 0,
         ddp: document.getElementById('ddp').checked ? 1 : 0,
-        proteccion_doc: document.getElementById('proteccion_doc').checked ? 1 : 0,
+        proteccion_doc: proteccionDocEfectiva() ? 1 : 0,
         residencial: document.getElementById('residencial').checked ? 1 : 0,
         // "Sin numerar" (salida 0): marcable ya en el alta, pedido de administración (14/08).
         num_sal_cero: document.getElementById('sin_numerar').checked ? 1 : 0,

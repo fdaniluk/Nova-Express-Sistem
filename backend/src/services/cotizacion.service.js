@@ -251,6 +251,10 @@ async function normalizarEntrada(crudo = {}) {
   const contenido = (c.contenido !== undefined && c.contenido !== null && c.contenido !== '')
     ? (c.contenido === 'documento' ? 'documento' : 'paquete')
     : ((envio && envio.tipo_paquete === 'd') ? 'documento' : 'paquete');
+  // Documento asegurado por DHL = Protección de Documentos (30/10/2026): en un documento no
+  // hay valor que asegurar; "Asegurado" ES la protección de DHL (USD 7,50). Misma regla que
+  // envio.model normalizarProteccionDoc, para que el precio en pantalla y el guardado coincidan.
+  const proteccionDocFinal = proteccionDoc || (contenido === 'documento' && servicio === 'DHL' && asegurado === true);
 
   // ── Fuel ───────────────────────────────────────────────────────────────────────────
   // `fuenteFuel` es lo que eligió la persona en el desplegable de Cargar envío
@@ -312,7 +316,7 @@ async function normalizarEntrada(crudo = {}) {
     // Para el motor
     pais, tipo, servicio, pesoFacturable, fob,
     fuelPct: fuel.fuelPct, profitPct, zona, bultos: bultos || [],
-    ddp, proteccionDoc, residencial, entrega, contenido, precioKgVenta, seguroPropio, descuentoPct, asegurado,
+    ddp, proteccionDoc: proteccionDocFinal, residencial, entrega, contenido, precioKgVenta, seguroPropio, descuentoPct, asegurado,
     // Fecha del envío (29/09/2026): el surge de importación cambió el 27-sep y el de DHL
     // rige por calendario. Sin esto "Calcular venta" de un envío de agosto usaba la tabla
     // de hoy mientras el costo congelado usaba la de su fecha.

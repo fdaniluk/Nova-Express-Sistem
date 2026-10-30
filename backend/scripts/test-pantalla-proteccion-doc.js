@@ -106,37 +106,37 @@ async function main() {
     return s.display !== 'none' && s.visibility !== 'hidden';
   });
 
-  console.log('\n1. Cotizador: la tilde sigue al tipo de contenido\n');
+  console.log('\n1. Cotizador: en un documento, "Asegurado" ES la protección (30/10/2026)\n');
 
   await page.goto(`${BASE}/pages/cotizador.html`);
   await esperar(2500);
-  check('con "Paquete" la tilde NO se ve', !(await visible('#ex_proteccion_doc_label')));
+  check('con "Paquete" la tilde propia NO se ve', !(await visible('#ex_proteccion_doc_label')));
   await page.selectOption('#contenido', 'documento');
   await esperar(700);
-  check('con "Documento" aparece', await visible('#ex_proteccion_doc_label'));
-  const etiqueta = await page.textContent('#ex_proteccion_doc_label');
-  check('la etiqueta dice el monto del tarifario', /7,50/.test(etiqueta), etiqueta.trim());
-
-  await page.check('#ex_proteccion_doc');
+  check('con "Documento" la tilde propia sigue escondida (hay un solo tilde: Asegurado)', !(await visible('#ex_proteccion_doc_label')));
+  const etiquetaAseg = await page.textContent('#ex_asegurado_label');
+  check('el rótulo de "Asegurado" dice que es la protección DHL de 7,50', /7,50/.test(etiquetaAseg), etiquetaAseg.trim());
+  await page.check('#ex_asegurado');
+  await esperar(300);
+  const segInfo = await page.textContent('#seguro-info');
+  check('la ayuda del seguro dice "Protección de documentos DHL: USD 7,50"', /7,50/.test(segInfo), segInfo.trim());
   await page.selectOption('#contenido', 'paquete');
   await esperar(700);
-  check('al volver a paquete se esconde', !(await visible('#ex_proteccion_doc_label')));
-  check('y se destilda sola (no queda un cobro escondido)',
-    !(await page.isChecked('#ex_proteccion_doc')));
+  check('al volver a paquete el rótulo vuelve al de siempre', /100/.test(await page.textContent('#ex_asegurado_label')));
 
   console.log('\n2. Cargar envío: lo mismo, y además solo DHL\n');
 
   await page.goto(`${BASE}/pages/envios.html`);
   await esperar(2500);
-  check('arranca en mercadería y NO se ve', !(await visible('#grupo-proteccion-doc')));
+  check('arranca en mercadería y la tilde propia NO se ve', !(await visible('#grupo-proteccion-doc')));
   await page.selectOption('#tipo_paquete', 'd');
   await esperar(700);
-  check('con documento aparece', await visible('#grupo-proteccion-doc'));
-  await page.check('#proteccion_doc');
+  check('con documento (DHL) la tilde propia sigue escondida: la cubre "Asegurado"', !(await visible('#grupo-proteccion-doc')));
+  const hintAseg = await page.textContent('label[for="asegurado"] small');
+  check('el rótulo de "Asegurado" dice protección DHL USD 7,50', /7,50/.test(hintAseg), hintAseg.trim());
   await page.selectOption('#tipo_paquete', 'm');
   await esperar(700);
-  check('al volver a mercadería se esconde y se destilda',
-    !(await visible('#grupo-proteccion-doc')) && !(await page.isChecked('#proteccion_doc')));
+  check('al volver a mercadería el rótulo vuelve a "FOB ≥ 100"', /100/.test(await page.textContent('label[for="asegurado"] small')));
 
   console.log('\n3. Salidas: el envío documento\n');
 
