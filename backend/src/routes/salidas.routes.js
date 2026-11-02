@@ -4,7 +4,7 @@ const { getDb } = require('../db');
 const { buildPesos, calcularDesgloseAlCosto, calcularSeguroVenta, normalizarProteccionDoc } = require('../models/envio.model');
 const { pesoVolumetricoBulto } = require('../services/calculos.service');
 const { deriveProfit, profitDoble, cargosPost, SUBQUERY_LIQUIDACION, SUBQUERY_CARGOS } = require('../utils/profit');
-const { descomponerVenta } = require('../utils/desgloseVenta');
+const { descomponerVenta, ventaManualDe } = require('../utils/desgloseVenta');
 const configuracionModel = require('../models/configuracion.model');
 const cierreService = require('../services/cierre.service');
 const { hoyLocal } = require('../utils/fecha');
@@ -90,6 +90,7 @@ async function listarSalidas({ desde, hasta } = {}) {
       e.adicionales,
       e.otros,
       e.extras_json,
+      e.venta_json,
       e.total_cobrado       AS total,
       e.profit,
       e.porcentaje,
@@ -280,12 +281,15 @@ async function listarSalidas({ desde, hasta } = {}) {
       // Mismo dato que le pasa la liquidación: así el bloque Venta de Salidas y el Excel
       // del cliente reparten igual (el fuel del surge en Adicional, el flete en kg × precio).
       extras: row.extras_json,
+      venta_json: row.venta_json,
     });
     // Cargos posteriores (01/10): al Adicional y al Total de la venta, como en la liquidación.
     const cargos = cargosPost(row);
     if (cargos) { vd.adicional = r2(vd.adicional + cargos); vd.total = r2(vd.total + cargos); }
     return vd;
   };
+  // Venta ajustada a mano (02/11): lo guardado, sin cargos posteriores, para editar en el modal.
+  const ventaManualDeRow = (row) => (row.total ? ventaManualDe({ total_cobrado: row.total, venta_json: row.venta_json }) : null);
   const r2 = (n) => Math.round(n * 100) / 100;
   const profitFleteDe = (row) => {
     const vd = ventaDesgloseDe(row);
@@ -363,6 +367,9 @@ async function listarSalidas({ desde, hasta } = {}) {
     cargos_total: cargosPost(row),
     venta_total: r2((Number(row.total) || 0) + cargosPost(row)),
     venta_desglose: ventaDesgloseDe(row),
+    venta_manual: ventaManualDeRow(row),
+    // El reparto automático aunque haya ajuste a mano: para el botón "Volver al automático".
+    venta_desglose_auto: row.venta_json ? ventaDesgloseDe({ ...row, venta_json: null }) : null,
     // Profit flete (28/10, pedido de Felipe): lo que deja SOLO el flete, sin fuel, seguro,
     // surge ni ningún otro concepto = flete de venta (el que ve el cliente en el desglose)
     // − flete de tabla del courier (neto del descuento de costo). Estimado siempre: la
@@ -783,6 +790,32 @@ router.patch('/:id', async (req, res, next) => {
       }
     }
 
+    // Desglose de VENTA a mano (02/11/2026): el modal manda venta_desglose {flete, fuel,
+    // seguro, adicional} cuando la oficina lo tocó; tiene que sumar la venta total (la que
+    // viene en el body o la guardada). null = volver al reparto automático. Si no viene y
+    // cambia total_cobrado, el ajuste viejo ya no cierra: se borra.
+    if (Object.prototype.hasOwnProperty.call(req.body, 'venta_desglose')) {
+      const vdIn = req.body.venta_desglose;
+      if (vdIn === null) {
+        picked.venta_json = null;
+      } else if (vdIn && typeof vdIn === 'object') {
+        const n = (x) => Math.round((Number(x) || 0) * 100) / 100;
+        const vd = { flete: n(vdIn.flete), fuel: n(vdIn.fuel), seguro: n(vdIn.seguro), adicional: n(vdIn.adicional) };
+        if ([vd.flete, vd.fuel, vd.seguro, vd.adicional].some((x) => !Number.isFinite(x))) {
+          return res.status(400).json({ error: 'El desglose de venta tiene un valor inválido.' });
+        }
+        const totalRef = Object.prototype.hasOwnProperty.call(picked, 'total_cobrado') ? Number(picked.total_cobrado) : Number(existing.total_cobrado);
+        const suma = n(vd.flete + vd.fuel + vd.seguro + vd.adicional);
+        if (Math.abs(suma - n(totalRef)) > 0.011) {
+          return res.status(400).json({ error: `El desglose de venta suma USD ${suma.toFixed(2)} y la venta total es USD ${n(totalRef).toFixed(2)}: tienen que coincidir.` });
+        }
+        picked.venta_json = JSON.stringify(vd);
+      }
+    } else if (Object.prototype.hasOwnProperty.call(picked, 'total_cobrado') && existing.venta_json
+      && Math.abs((Number(picked.total_cobrado) || 0) - (Number(existing.total_cobrado) || 0)) > 0.005) {
+      picked.venta_json = null;
+    }
+
     // Bultos editados (multi-bulto): se persisten aparte del UPDATE plano de envios.
     // Cada bulto se identifica por su id (fila de envio_bultos). El bulto sintético del
     // bulto único no tiene fila (id null) y se ignora: su peso/medidas viajan en `picked`.
@@ -863,6 +896,8 @@ router.patch('/:id', async (req, res, next) => {
       const cambiaPlata = CAMPOS_PLATA.filter((c) =>
         Object.prototype.hasOwnProperty.call(picked, c)
         && Number(picked[c]) !== Number(existing[c]));
+      // El desglose de venta a mano también es plata de la liquidación (cambia el Excel).
+      if (Object.prototype.hasOwnProperty.call(picked, 'venta_json') && String(picked.venta_json ?? '') !== String(existing.venta_json ?? '')) cambiaPlata.push('desglose de venta');
       if (cambiaPlata.length > 0) {
         return res.status(409).json({
           error: `El envío está liquidado: no se puede cambiar ${cambiaPlata.join(', ')}. ` +

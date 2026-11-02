@@ -323,6 +323,9 @@ async function migrateEnvios() {
     ['porcentaje',       'REAL'],
     // Desglose de extras por tipo (array reconciliado JSON; ver desglosarCosto)
     ['extras_json',      'TEXT'],
+    // Desglose de VENTA ajustado a mano desde Salidas (02/11/2026): JSON {flete, fuel,
+    // seguro, adicional} que suma total_cobrado. NULL = reparto automático (desgloseVenta).
+    ['venta_json',       'TEXT'],
     ['destino_raw',      'TEXT'],
     ['direccion',        "TEXT DEFAULT 'expo'"],
     // Flag "envío número 0": 1 = envío raro que se muestra con #Sal 0, va arriba de

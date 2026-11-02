@@ -825,6 +825,7 @@
           <span class="venta-item"><span class="venta-label">Seguro</span> <b>${fmtUSD(vd.seguro)}</b></span>
           <span class="venta-item"${(e.extras || []).some((x) => x.tipo === 'surge') ? ' title="Incluye el combustible sobre el surge: UPS lo factura con fuel y al cliente se le cobra igual. Por eso puede no coincidir con la suma de extracargos de compra."' : ''}><span class="venta-label">Adicionales</span> <b>${fmtUSD(vd.adicional)}</b></span>
           <span class="venta-item venta-item-total"><span class="venta-label">Total</span> <b>${fmtUSD(vd.total)}</b></span>
+          ${e.venta_manual ? '<span class="venta-item venta-manual-chip" title="El reparto de la venta se corrigió a mano desde el modal (Costos → Venta)">ajustado a mano</span>' : ''}
         </div>
       </div>` : '';
 
@@ -2576,7 +2577,29 @@
             <!-- Tarifa DHL +50 kg: dice contra que cuenta se emite la guia. Va arriba de
                  los costos porque es una instruccion operativa, no un numero mas. -->
             <div id="saled-tarifa50-aviso" class="aviso-tarifa50 hidden"></div>
-            <div class="sal-section-title"><span class="sal-sec-n">3</span>Costos (USD)</div>
+            <div class="sal-section-title sal-section-title--modo"><span class="sal-sec-n">3</span><span id="saled-modo-titulo">Costos (USD)</span>
+              <!-- Compra / Venta (02/11/2026, pedido de Felipe): el mismo bloque muestra el
+                   desglose de la compra (lo de siempre) o el de la VENTA, que se puede
+                   corregir a mano en los pocos casos en que el reparto automático no sirve. -->
+              <span class="saled-modo" id="saled-modo">
+                <button type="button" class="saled-modo-btn on" data-modo="compra">Compra</button>
+                <button type="button" class="saled-modo-btn" data-modo="venta">Venta</button>
+              </span>
+            </div>
+            <div id="saled-venta-block" class="hidden">
+              <div class="sal-form-grid sal-form-grid--nums">
+                <div class="form-group"><label>Flete</label><input type="number" id="saled-v-flete" step="0.01"></div>
+                <div class="form-group"><label>Fuel</label><input type="number" id="saled-v-fuel" step="0.01"></div>
+                <div class="form-group"><label>Seguro</label><input type="number" id="saled-v-seguro" step="0.01"></div>
+                <div class="form-group"><label>Adicionales</label><input type="number" id="saled-v-adicional" step="0.01"></div>
+              </div>
+              <div class="saled-venta-pie">
+                <span id="saled-venta-estado" class="saled-recalc-status"></span>
+                <button type="button" class="btn btn-secondary btn-sm" id="saled-venta-auto">Volver al reparto automático</button>
+              </div>
+              <div class="sal-res-hint">Es lo que ve el cliente en la liquidación. La suma de las cuatro líneas es la Venta total: si cambiás una, cambia el total (o compensá otra para que quede igual). Los cargos posteriores van aparte.</div>
+            </div>
+            <div id="saled-compra-block">
             <div class="sal-form-grid sal-form-grid--nums">
               <div class="form-group"><label>Flete</label><input type="number" id="saled-flete" step="0.01"></div>
               <div class="form-group"><label>Descuento</label><input type="number" id="saled-descuento" step="0.01"></div>
@@ -2596,6 +2619,7 @@
                  recargo, marcando lo que el envío NO tenía previsto. Desde acá se puede pasar
                  cada diferencia a un cargo posterior para cobrársela al cliente. -->
             <div id="saled-factura-block" class="saled-cargos"></div>
+            </div>
           </div>
           <div class="form-group">
             <label>Observaciones</label>
@@ -2706,6 +2730,17 @@
 
     // El cartelito de desfase se re-evalúa en vivo cada vez que se edita Adicionales a mano.
     document.getElementById('saled-adicionales').addEventListener('input', updateExtrasWarn);
+
+    // Compra / Venta (02/11): el switch del bloque 3 y los cuatro campos de la venta.
+    document.querySelectorAll('#saled-modo .saled-modo-btn').forEach((b) => b.addEventListener('click', () => setModoCostos(b.dataset.modo)));
+    for (const f of ['flete', 'fuel', 'seguro', 'adicional']) {
+      document.getElementById(`saled-v-${f}`).addEventListener('input', onVentaManualInput);
+    }
+    document.getElementById('saled-venta-auto').addEventListener('click', volverVentaAutomatica);
+    // Tocar la Venta total a mano deja sin efecto el reparto manual (ya no cerraría).
+    document.getElementById('saled-total').addEventListener('input', () => {
+      if (ventaManualDirty || ventaManualActiva) { ventaManualActiva = false; ventaManualDirty = false; ventaManualDrop = true; pintarEstadoVenta(); }
+    });
 
     // Pararse en el precio de venta abre las cotizaciones de ese cliente. No se abre solo
     // al abrir el envío: la mayoría de las veces no hace falta y sería ruido en un modal
@@ -2854,6 +2889,9 @@
     const compraAbrir = envio.compra_estimada ?? envio.compra_total;
     document.getElementById('saled-compra-view').textContent = compraAbrir != null && compraAbrir !== '' ? Number(compraAbrir).toFixed(2) : '—';
     document.getElementById('saled-total').value = envio.total ?? '';
+    // Venta (02/11): se precarga con lo ajustado a mano si lo hay, si no con el reparto
+    // automático (sin los cargos posteriores, que van aparte). Arranca en Compra.
+    cargarVentaModal(envio);
     // El aviso de venta desfasada es de la sesion de edicion, no del envio: al abrir otro
     // se limpia, si no arrastraria el cartel del anterior.
     ventaDesfasada = null;
@@ -3160,6 +3198,71 @@
     editEnvio.bultos[i].id = updated.id;
     editEnvio.bultos[i].estado_caja = updated.estado_caja;
     if (updated.numero_bulto != null) editEnvio.bultos[i].numero_bulto = updated.numero_bulto;
+  }
+
+  // ── Compra / Venta en el bloque 3 (02/11/2026) ──────────────────────────────────────
+  let ventaManualActiva = false;  // el envío tiene (o va a tener) un reparto de venta a mano
+  let ventaManualDirty = false;   // se tocó en esta sesión → se manda al guardar
+  let ventaManualDrop = false;    // se volvió al automático → se manda null al guardar
+  function cargarVentaModal(envio) {
+    const cargos = (envio.cargos || []).filter((c) => c.estado !== 'anulado').reduce((a, c) => a + parseNum(c.monto), 0);
+    const vd = envio.venta_manual || (envio.venta_desglose ? {
+      flete: envio.venta_desglose.flete, fuel: envio.venta_desglose.fuel, seguro: envio.venta_desglose.seguro,
+      adicional: Math.round((envio.venta_desglose.adicional - cargos) * 100) / 100,
+    } : null);
+    for (const f of ['flete', 'fuel', 'seguro', 'adicional']) {
+      document.getElementById(`saled-v-${f}`).value = vd && vd[f] != null ? Number(vd[f]).toFixed(2) : '';
+    }
+    ventaManualActiva = !!envio.venta_manual;
+    ventaManualDirty = false;
+    ventaManualDrop = false;
+    setModoCostos('compra');
+    pintarEstadoVenta();
+  }
+  function setModoCostos(modo) {
+    const venta = modo === 'venta';
+    document.querySelectorAll('#saled-modo .saled-modo-btn').forEach((b) => b.classList.toggle('on', b.dataset.modo === modo));
+    document.getElementById('saled-venta-block').classList.toggle('hidden', !venta);
+    document.getElementById('saled-compra-block').classList.toggle('hidden', venta);
+    document.getElementById('saled-modo-titulo').textContent = venta ? 'Venta (USD) · lo que ve el cliente' : 'Costos (USD)';
+  }
+  function sumaVentaManual() {
+    return Math.round(['flete', 'fuel', 'seguro', 'adicional'].reduce((a, f) => a + parseNum(document.getElementById(`saled-v-${f}`).value), 0) * 100) / 100;
+  }
+  function onVentaManualInput() {
+    ventaManualActiva = true;
+    ventaManualDirty = true;
+    ventaManualDrop = false;
+    // La suma de las cuatro líneas ES la venta total: se refleja arriba y el profit se re-deriva.
+    document.getElementById('saled-total').value = sumaVentaManual().toFixed(2);
+    recalcProfit();
+    pintarEstadoVenta();
+  }
+  function volverVentaAutomatica() {
+    if (!editEnvio) return;
+    const cargos = (editEnvio.cargos || []).filter((c) => c.estado !== 'anulado').reduce((a, c) => a + parseNum(c.monto), 0);
+    const vd = editEnvio.venta_desglose_auto || null;
+    ventaManualActiva = false;
+    ventaManualDirty = false;
+    ventaManualDrop = true;
+    if (vd) {
+      document.getElementById('saled-v-flete').value = Number(vd.flete).toFixed(2);
+      document.getElementById('saled-v-fuel').value = Number(vd.fuel).toFixed(2);
+      document.getElementById('saled-v-seguro').value = Number(vd.seguro).toFixed(2);
+      document.getElementById('saled-v-adicional').value = (Math.round((vd.adicional - cargos) * 100) / 100).toFixed(2);
+      document.getElementById('saled-total').value = Number(vd.total - cargos).toFixed(2);
+      recalcProfit();
+    }
+    pintarEstadoVenta();
+  }
+  function pintarEstadoVenta() {
+    const el = document.getElementById('saled-venta-estado');
+    if (!el) return;
+    if (ventaManualDirty) el.textContent = 'Reparto de venta corregido a mano: se guarda con el envío.';
+    else if (ventaManualActiva) el.textContent = 'Este envío tiene el reparto de venta corregido a mano.';
+    else if (ventaManualDrop) el.textContent = 'Vuelve al reparto automático al guardar.';
+    else el.textContent = 'Reparto automático (flete + fuel balancean el total; seguro y adicionales tal cual).';
+    document.getElementById('saled-venta-auto').classList.toggle('hidden', !ventaManualActiva);
   }
 
   // Re-deriva profit y % en vivo. Lee el total cobrado editable (saled-total) y el costo
@@ -4021,6 +4124,18 @@
     // como `total`). Permite cargar una guía en 0 y completar el cobro después.
     const totalCobrado = document.getElementById('saled-total').value;
     payload.total_cobrado = totalCobrado !== '' ? Number(totalCobrado) : null;
+    // Reparto de venta a mano (02/11): solo viaja si se tocó en esta sesión (o si se volvió
+    // al automático → null). El backend exige que las cuatro líneas sumen la venta total.
+    if (ventaManualDirty) {
+      payload.venta_desglose = {
+        flete: parseNum(document.getElementById('saled-v-flete').value),
+        fuel: parseNum(document.getElementById('saled-v-fuel').value),
+        seguro: parseNum(document.getElementById('saled-v-seguro').value),
+        adicional: parseNum(document.getElementById('saled-v-adicional').value),
+      };
+    } else if (ventaManualDrop) {
+      payload.venta_desglose = null;
+    }
 
     // Identidad: fecha, cliente, courier, país destino y "sin numerar". El backend valida
     // todo y re-resuelve la zona solo cuando cambia el país. En envíos liquidados fecha y
@@ -4083,7 +4198,7 @@
         // caja recién traído del GET (se vería rojo hasta refrescar). Las dims por bulto se
         // mergean más abajo sobre las filas vivas (Object.assign(target, eb)), conservando
         // estado_caja. Por eso aquí se asignan solo los campos del envío, sin `bultos`.
-        const { bultos: _ignorarBultos, ...envioFields } = payload;
+        const { bultos: _ignorarBultos, venta_desglose: _ignorarVenta, ...envioFields } = payload;
         Object.assign(d, envioFields);
         // Reflejar el desglose persistido en memoria para que al reabrir se vea igual (el GET
         // lo expone como `extras`, distinto del `extras_json` que viaja en el PATCH).
@@ -4128,6 +4243,11 @@
       // tienen id y renglón propio en la grilla, y eso solo lo sabe el servidor.
       if (bultosAgregados) {
         bultosAgregados = false;
+        await loadData();
+      }
+      // Reparto de venta a mano (02/11): el desglose y la marca "ajustado a mano" los arma el
+      // servidor (y también cuando cambia la venta total, que puede descartar el ajuste).
+      if (Object.prototype.hasOwnProperty.call(payload, 'venta_desglose') || (editEnvio && editEnvio.venta_manual && Number(payload.total_cobrado) !== Number(editEnvio.total))) {
         await loadData();
       }
       // Posición a mano del #Sal (20/10): el servidor devuelve la clave de orden nueva (o

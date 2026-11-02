@@ -113,6 +113,8 @@ async function calcularItem(envio, adicional = 0, cargosDetalle = []) {
     // El desglose por tipo del alta: con él, el fuel del surge va a Adicional y el flete
     // queda en kg × precio (ver utils/desgloseVenta.js). Sin él, reparto histórico.
     extras: envio.extras_json,
+    // Desglose de venta ajustado a mano desde Salidas (02/11): si cierra con el total, manda.
+    venta_json: envio.venta_json,
   };
   const venta = descomponerVenta(datosVenta);
   // Qué compone el Adicional, línea por línea (surge con su fuel, GoGreen, manejo, remota,

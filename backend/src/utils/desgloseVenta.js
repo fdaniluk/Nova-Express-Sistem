@@ -45,7 +45,27 @@ function surgeDe(extras) {
 //           (el que quiera el comportamiento histórico de fallback a config debe resolverlo antes).
 // extras:   el desglose por tipo del envío (array o el JSON crudo de envios.extras_json).
 //           Opcional: sin él no se puede separar el surge y el reparto es el histórico.
+// Desglose de venta ajustado A MANO (02/11/2026, pedido de Felipe): en algunos envíos la
+// oficina necesita corregir cómo se reparte la venta (flete / fuel / seguro / adicional) sin
+// tocar el total, o moviendo el total. Salidas lo guarda en envios.venta_json y acá manda
+// SOLO si cierra con total_cobrado (±1 centavo): si el total cambió por otro lado, el
+// ajuste viejo ya no sirve y se vuelve al reparto automático.
+function ventaManualDe(datos) {
+  let v = datos.venta_json;
+  if (!v) return null;
+  if (typeof v === 'string') { try { v = JSON.parse(v); } catch { return null; } }
+  if (!v || typeof v !== 'object') return null;
+  const n = (x) => redondear2(Number(x) || 0);
+  const out = { flete: n(v.flete), fuel: n(v.fuel), seguro: n(v.seguro), adicional: n(v.adicional) };
+  const total = redondear2(datos.total_cobrado || 0);
+  const suma = redondear2(out.flete + out.fuel + out.seguro + out.adicional);
+  if (Math.abs(suma - total) > 0.011) return null;
+  return { ...out, total };
+}
+
 function descomponerVenta(datos = {}) {
+  const manual = ventaManualDe(datos);
+  if (manual) return manual;
   const fuelPct =
     datos.fuel_pct !== null && datos.fuel_pct !== undefined ? datos.fuel_pct : 0;
   const fuelDecimal = fuelPct / 100;
@@ -131,7 +151,11 @@ function detallarAdicional(datos = {}) {
   const objetivo = descomponerVenta(datos).adicional;
   const suma = redondear2(lineas.reduce((s, l) => s + l.monto, 0));
   const dif = redondear2(objetivo - suma);
-  if (Math.abs(dif) >= 0.01) {
+  // Venta ajustada a mano: lo que la oficina movió en Adicional va en su propia línea, con
+  // signo, para que el cliente vea de dónde sale el número (y la suma cierre igual).
+  if (ventaManualDe(datos) && Math.abs(dif) >= 0.01) {
+    lineas.push({ tipo: 'ajuste', label: 'Ajuste', monto: dif });
+  } else if (Math.abs(dif) >= 0.01) {
     // Centavos de redondeo (el residual `adicionales` del alta vs. la suma de sus extras): se
     // absorben en la línea más grande, no merecen una línea propia. Una diferencia mayor sí.
     if (Math.abs(dif) < 0.05 && lineas.length) {
@@ -144,4 +168,5 @@ function detallarAdicional(datos = {}) {
   return lineas;
 }
 
-module.exports = { descomponerVenta, surgeDe, detallarAdicional, LABEL_ADICIONAL };
+module.exports = {
+  ventaManualDe, descomponerVenta, surgeDe, detallarAdicional, LABEL_ADICIONAL };
