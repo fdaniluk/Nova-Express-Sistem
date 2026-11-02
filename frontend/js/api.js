@@ -76,6 +76,10 @@ const api = {
     activar: (id, activo = true) => api.put(`/clientes/${id}/activo`, { activo }),
     eliminar: (id) => api.delete(`/clientes/${id}`),
     perfil: (id) => api.get(`/clientes/${id}/perfil`),
+    // Cargos sin envío (30/10): extracargos de guías que no están en el sistema.
+    cargos: (id) => api.get(`/clientes/${id}/cargos`),
+    agregarCargo: (id, formData) => request(`/clientes/${id}/cargos`, { method: 'POST', body: formData }),
+    anularCargo: (id, cargoId) => api.delete(`/clientes/${id}/cargos/${cargoId}`),
     // Unir clientes duplicados (admin). El origen desaparece; todo pasa al destino.
     duplicados: () => api.get('/clientes/duplicados'),
     unirPreview: (origenId, destinoId) => api.post(`/clientes/${origenId}/unir/preview`, { destino_id: destinoId }),

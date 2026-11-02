@@ -13,8 +13,47 @@
       box.id = 'liq-cargos-pend-crear';
       document.getElementById('liq-envios-wrap').appendChild(box);
     }
-    box.innerHTML = tablaCargosAnterioresHtml(lista);
+    box.innerHTML = tablaCargosAnterioresHtml(lista, { anulable: true });
     box.hidden = !lista.length;
+    // Anular un cargo sin envío (30/10): solo mientras está pendiente.
+    box.querySelectorAll('[data-anular-suelto]').forEach((b) => b.addEventListener('click', async () => {
+      const c = lista.find((x) => Number(x.id) === Number(b.dataset.anularSuelto));
+      if (!c || !confirm(`¿Anular el cargo "${c.label}" de USD ${NovaUtils.formatMoney(c.monto)}? No va a entrar en ninguna liquidación.`)) return;
+      try {
+        await NovaAPI.clientes.anularCargo(c.cliente_id, c.id);
+        await cargarEnviosCliente();
+      } catch (e) { NovaUtils.showAlert(alertBox, e.message, 'error'); }
+    }));
+  }
+
+  // Alta del cargo sin envío (30/10): queda pendiente en el cliente y aparece en la lista
+  // de "cargos de envíos anteriores" de arriba; Calcular lo mete en la liquidación.
+  async function guardarCargoSuelto() {
+    const clienteId = document.getElementById('liq-cliente').value;
+    const estado = document.getElementById('liq-suelto-estado');
+    if (!clienteId) { NovaUtils.showAlert(alertBox, 'Elegí el cliente primero', 'error'); return; }
+    const concepto = document.getElementById('liq-suelto-concepto').value.trim();
+    const monto = parseFloat(document.getElementById('liq-suelto-monto').value);
+    if (!concepto) { NovaUtils.showAlert(alertBox, 'Escribí el concepto del cargo', 'error'); return; }
+    if (!(monto > 0)) { NovaUtils.showAlert(alertBox, 'El importe tiene que ser mayor a cero', 'error'); return; }
+    const fd = new FormData();
+    fd.append('tipo', 'otro');
+    fd.append('label', concepto);
+    fd.append('monto', String(monto));
+    fd.append('fecha', document.getElementById('liq-suelto-fecha').value || '');
+    fd.append('guia_texto', document.getElementById('liq-suelto-guia').value.trim());
+    const pdf = document.getElementById('liq-suelto-pdf').files[0];
+    if (pdf) fd.append('pdf', pdf, pdf.name);
+    const btn = document.getElementById('btn-suelto-add');
+    btn.disabled = true;
+    try {
+      const c = await NovaAPI.clientes.agregarCargo(clienteId, fd);
+      estado.textContent = `Guardado: "${c.label}" USD ${NovaUtils.formatMoney(c.monto)} queda pendiente para la próxima liquidación.`;
+      ['liq-suelto-guia', 'liq-suelto-concepto', 'liq-suelto-monto', 'liq-suelto-pdf'].forEach((id) => { document.getElementById(id).value = ''; });
+      await cargarEnviosCliente();
+    } catch (e) {
+      NovaUtils.showAlert(alertBox, e.message, 'error');
+    } finally { btn.disabled = false; }
   }
   let lastLiquidacionId = null;
   let lastPreview = null;
@@ -261,6 +300,10 @@
 
   function bindCrear() {
     document.getElementById('btn-cargar-envios').addEventListener('click', cargarEnviosCliente);
+    document.getElementById('btn-suelto-add').addEventListener('click', guardarCargoSuelto);
+    // Fecha local (toISOString es UTC y después de las 21:00 ya es mañana).
+    const hoy = new Date();
+    document.getElementById('liq-suelto-fecha').value = `${hoy.getFullYear()}-${String(hoy.getMonth() + 1).padStart(2, '0')}-${String(hoy.getDate()).padStart(2, '0')}`;
     document.getElementById('liq-select-all').addEventListener('change', (e) => {
       document.querySelectorAll('.liq-envio-check').forEach((c) => {
         c.checked = e.target.checked;
@@ -369,19 +412,31 @@
 
   // Tabla de cargos de envíos anteriores para la lista de Pendientes (05/10): guía, fecha
   // y país del envío, concepto e importe. Es lo mismo que va a entrar en la liquidación.
-  function tablaCargosAnterioresHtml(lista) {
+  // Guía del cargo: la del envío, o la que tipeó la oficina para un cargo sin envío (30/10),
+  // con el chip que lo dice y el PDF del courier si lo adjuntó.
+  function guiaCargo(c) {
+    const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+    if (!c.sin_envio) return `<span class="guia-num">${esc(c.numero_guia)}</span>${c.liquidacion_original_id ? ` <span class="liq-num-id" title="El envío se cobró en la liquidación #${c.liquidacion_original_id}">liq. #${c.liquidacion_original_id}</span>` : ''}`;
+    let t = c.numero_guia ? `<span class="guia-num">${esc(c.numero_guia)}</span> ` : '';
+    t += '<span class="liq-chip sin-envio" title="Cargo cargado a mano: la guía no está en el sistema">sin envío en el sistema</span>';
+    if (c.adjunto_nombre) t += ` <a class="liq-cargo-pdf" href="${API_BASE}/clientes/${c.cliente_id}/cargos/${c.id}/adjunto" target="_blank" rel="noopener" title="${esc(c.adjunto_nombre)}">📄 PDF</a>`;
+    return t;
+  }
+
+  function tablaCargosAnterioresHtml(lista, { anulable = false } = {}) {
     if (!Array.isArray(lista) || !lista.length) return '';
     const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
     return `<div class="liq-pend-cargos">
-      <div class="liq-pend-cargos-titulo">Cargos de envíos anteriores (ya liquidados) · entran en la próxima liquidación</div>
+      <div class="liq-pend-cargos-titulo">Cargos de envíos anteriores (ya liquidados o sin envío en el sistema) · entran en la próxima liquidación</div>
       <table>
-        <thead><tr><th>Fecha envío</th><th>Guía</th><th>País</th><th>Concepto</th><th class="n">USD</th></tr></thead>
+        <thead><tr><th>Fecha envío</th><th>Guía</th><th>País</th><th>Concepto</th><th class="n">USD</th>${anulable ? '<th></th>' : ''}</tr></thead>
         <tbody>${lista.map((c) => `<tr>
           <td>${NovaUtils.formatDate(c.envio_fecha)}</td>
-          <td><span class="guia-num">${esc(c.numero_guia)}</span>${c.liquidacion_original_id ? ` <span class="liq-num-id" title="El envío se cobró en la liquidación #${c.liquidacion_original_id}">liq. #${c.liquidacion_original_id}</span>` : ''}</td>
-          <td>${esc(c.pais_destino)}</td>
+          <td>${guiaCargo(c)}</td>
+          <td>${esc(c.pais_destino || '')}</td>
           <td>${conceptoCargo(c)}</td>
           <td class="n">${NovaUtils.formatMoney(c.monto)}</td>
+          ${anulable ? `<td>${c.sin_envio ? `<button type="button" class="liq-cargo-anular" data-anular-suelto="${c.id}" title="Anular este cargo (no se va a cobrar)">✕</button>` : ''}</td>` : ''}
         </tr>`).join('')}</tbody>
       </table>
     </div>`;
@@ -893,8 +948,8 @@
         <tbody>${lista.map((c) => `
           <tr>
             <td>${NovaUtils.formatDate(c.envio_fecha)}</td>
-            <td><span class="guia-num">${esc(c.numero_guia)}</span>${c.liquidacion_original_id ? ` <span class="liq-num-id" title="El envío se cobró en la liquidación #${c.liquidacion_original_id}">liq. #${c.liquidacion_original_id}</span>` : ''}</td>
-            <td>${esc(c.pais_destino)}</td>
+            <td>${guiaCargo(c)}</td>
+            <td>${esc(c.pais_destino || '')}</td>
             <td>${conceptoCargo(c)}</td>
             <td class="n">${NovaUtils.formatMoney(c.monto)}</td>
           </tr>`).join('')}

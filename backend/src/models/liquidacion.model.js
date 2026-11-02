@@ -602,8 +602,8 @@ async function listar(filtros = {}) {
   let sql = `
     SELECT l.*, COALESCE(NULLIF(c.nombre_nova,''), c.nombre) AS cliente_nombre, c.tipo_cobro,
            (SELECT COUNT(*) FROM liquidacion_items WHERE liquidacion_id = l.id) AS cantidad_envios,
-           (SELECT COUNT(*) FROM envio_cargos x JOIN envios e ON e.id = x.envio_id
-             WHERE x.liquidacion_id = l.id AND x.anulado_at IS NULL AND e.liquidacion_id IS NOT NULL AND e.liquidacion_id <> l.id) AS cantidad_cargos_anteriores
+           (SELECT COUNT(*) FROM envio_cargos x LEFT JOIN envios e ON e.id = x.envio_id
+             WHERE x.liquidacion_id = l.id AND x.anulado_at IS NULL AND (x.envio_id IS NULL OR (e.liquidacion_id IS NOT NULL AND e.liquidacion_id <> l.id))) AS cantidad_cargos_anteriores
     FROM liquidaciones l
     JOIN clientes c ON c.id = l.cliente_id
     WHERE 1=1`;

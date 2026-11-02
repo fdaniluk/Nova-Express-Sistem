@@ -53,6 +53,57 @@ router.post('/:id/razones-sociales', rsCtrl.crear);
 router.post('/:id/unir/preview', requireAdmin, rsCtrl.unirPreview);
 router.post('/:id/unir', requireAdmin, rsCtrl.unir);
 
+// Cargos sin envío (30/10/2026): extracargos de guías que no están en el sistema, cargados
+// a mano al cliente; entran en su próxima liquidación como "cargos de envíos anteriores".
+// El alta va en multipart (campo `pdf` opcional) o en JSON.
+const multer = require('multer');
+const cargosModel = require('../models/envio-cargos.model');
+const subirPdf = (req, res, next) => {
+  if (!/multipart\/form-data/i.test(req.headers['content-type'] || '')) return next();
+  multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } }).single('pdf')(req, res, (err) => {
+    if (!err) return next();
+    if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ error: 'El PDF pesa más de 8 MB.' });
+    return res.status(400).json({ error: `No se pudo recibir el archivo: ${err.message}` });
+  });
+};
+router.get('/:id/cargos', async (req, res, next) => {
+  try { res.json(await cargosModel.listarSueltosDeCliente(parseInt(req.params.id, 10))); } catch (e) { next(e); }
+});
+router.post('/:id/cargos', subirPdf, async (req, res, next) => {
+  try {
+    const b = req.body || {};
+    const cargo = await cargosModel.agregarSuelto(parseInt(req.params.id, 10), {
+      tipo: b.tipo, label: b.label, monto: b.monto, fecha: b.fecha, guia_texto: b.guia_texto,
+      adjunto: req.file ? req.file.buffer : null, adjunto_nombre: req.file ? req.file.originalname : null,
+    }, req.usuario);
+    res.status(201).json(cargo);
+  } catch (e) {
+    if (e.status) return res.status(e.status).json({ error: e.message });
+    next(e);
+  }
+});
+router.delete('/:id/cargos/:cargoId', async (req, res, next) => {
+  try {
+    const c = await cargosModel.obtener(parseInt(req.params.cargoId, 10));
+    if (!c || c.envio_id || Number(c.cliente_id) !== parseInt(req.params.id, 10)) return res.status(404).json({ error: 'Cargo inexistente' });
+    res.json(await cargosModel.anular(c.id, req.usuario));
+  } catch (e) {
+    if (e.status) return res.status(e.status).json({ error: e.message });
+    next(e);
+  }
+});
+router.get('/:id/cargos/:cargoId/adjunto', async (req, res, next) => {
+  try {
+    const c = await cargosModel.obtener(parseInt(req.params.cargoId, 10));
+    if (!c || Number(c.cliente_id) !== parseInt(req.params.id, 10)) return res.status(404).json({ error: 'Cargo inexistente' });
+    const a = await cargosModel.adjuntoDe(c.id);
+    if (!a) return res.status(404).json({ error: 'Ese cargo no tiene PDF adjunto' });
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${encodeURIComponent(a.nombre)}"`);
+    res.send(a.pdf);
+  } catch (e) { next(e); }
+});
+
 router.get('/:id', ctrl.buscarPorId);
 router.put('/:id', ctrl.actualizar);
 router.put('/:id/activo', ctrl.activar);

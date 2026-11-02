@@ -261,3 +261,15 @@ th.liq-interno { color: #166534; font-size: .7rem; }
 .liq-conceptos-prev[hidden] { display: none; }
 .liq-conceptos-prev .liq-cargos-ant-head strong { color: var(--color-primary); }
 @media (max-width: 640px) { .liq-concepto-row { grid-template-columns: 1fr 90px auto; } }
+
+/* Cargo de una guía que no está en el sistema (30/10/2026) */
+.liq-sueltos { margin-top: .7rem; }
+.liq-suelto-form { display: grid; grid-template-columns: 150px 170px 1fr 110px 220px auto; gap: .5rem; align-items: end; }
+.liq-suelto-form .form-group { margin: 0; }
+.liq-suelto-form label { font-size: .75rem; }
+.liq-suelto-form input[type="file"] { font-size: .8rem; }
+@media (max-width: 1100px) { .liq-suelto-form { grid-template-columns: 1fr 1fr; } .liq-suelto-form .liq-suelto-concepto { grid-column: 1 / -1; } }
+.liq-chip.sin-envio { background: #fff4e5; color: #8a4b00; border-color: #f3c98b; }
+.liq-cargo-pdf { margin-left: .35rem; font-size: .8rem; }
+.liq-cargo-anular { background: none; border: none; color: #cbd5e1; cursor: pointer; font-size: .95rem; padding: 0 .3rem; line-height: 1; }
+.liq-cargo-anular:hover { color: var(--color-danger, #c0392b); }

@@ -440,6 +440,8 @@ function conceptoCargoAnterior(c) {
   const f = (x) => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(x || '')); return m ? `${m[3]}/${m[2]}/${m[1]}` : ''; };
   let t = c.label || 'Cargo';
   if (c.fecha) t += ` · informado el ${f(c.fecha)}`;
+  // Cargo sin envío (30/10): la guía no está en el sistema; se dice así, sin inventar país.
+  if (c.sin_envio) return `${t} · envío no cargado en el sistema`;
   const envio = [c.pais_destino ? `envío a ${c.pais_destino}` : 'envío', c.liquidacion_original_id ? `cobrado en la liquidación #${c.liquidacion_original_id}` : ''].filter(Boolean).join(', ');
   return `${t} · ${envio}`;
 }

@@ -685,19 +685,22 @@ async function listarPendientesPorCliente(filtros = {}) {
   // vacío de envíos: así se le puede armar una liquidación únicamente con esos cargos.
   // La lista viene con guía, fecha del envío y concepto para que se vea qué es cada uno.
   {
-    let sqlC = `SELECT c.id, c.envio_id, c.tipo, c.label, c.monto, c.fecha, c.origen,
-                       e.cliente_id, e.numero_guia, e.fecha AS envio_fecha, e.pais_destino,
+    // 30/10: también los cargos SIN envío (envio_id NULL, cargados a mano al cliente): su
+    // "guía" es el texto que tipeó la oficina y su "fecha de envío" la del cargo.
+    let sqlC = `SELECT c.id, c.envio_id, c.tipo, c.label, c.monto, c.fecha, c.origen, c.guia_texto, c.adjunto_nombre,
+                       COALESCE(c.cliente_id, e.cliente_id) AS cliente_id,
+                       COALESCE(e.numero_guia, c.guia_texto) AS numero_guia, COALESCE(e.fecha, c.fecha) AS envio_fecha, e.pais_destino,
                        e.liquidacion_id AS liquidacion_original_id,
                        cl.tipo_cobro, COALESCE(NULLIF(cl.nombre_nova,''), cl.nombre) AS cliente_nombre
                 FROM envio_cargos c
-                JOIN envios e ON e.id = c.envio_id
-                JOIN clientes cl ON cl.id = e.cliente_id
-                WHERE e.liquidado = 1 AND c.liquidacion_id IS NULL AND c.anulado_at IS NULL`;
+                LEFT JOIN envios e ON e.id = c.envio_id
+                JOIN clientes cl ON cl.id = COALESCE(c.cliente_id, e.cliente_id)
+                WHERE (e.liquidado = 1 OR c.envio_id IS NULL) AND c.liquidacion_id IS NULL AND c.anulado_at IS NULL`;
     const pc = [];
-    if (filtros.cliente_id) { sqlC += ' AND e.cliente_id = ?'; pc.push(filtros.cliente_id); }
-    if (filtros.courier) { sqlC += ' AND e.courier = ?'; pc.push(filtros.courier); }
+    if (filtros.cliente_id) { sqlC += ' AND cl.id = ?'; pc.push(filtros.cliente_id); }
+    if (filtros.courier) { sqlC += ' AND (e.courier = ? OR c.envio_id IS NULL)'; pc.push(filtros.courier); }
     if (filtros.tipo_cobro) { sqlC += ' AND cl.tipo_cobro = ?'; pc.push(filtros.tipo_cobro); }
-    sqlC += ' ORDER BY cliente_nombre COLLATE NOCASE, e.fecha, e.numero_guia, c.id';
+    sqlC += ' ORDER BY cliente_nombre COLLATE NOCASE, envio_fecha, numero_guia, c.id';
     const filas = await db.prepare(sqlC).all(...pc);
     for (const f of filas) {
       if (!grupos.has(f.cliente_id)) {
@@ -712,6 +715,7 @@ async function listarPendientesPorCliente(filtros = {}) {
         id: f.id, envio_id: f.envio_id, tipo: f.tipo, label: f.label, monto: Math.round(f.monto * 100) / 100,
         fecha: f.fecha, origen: f.origen, numero_guia: f.numero_guia, envio_fecha: f.envio_fecha,
         pais_destino: f.pais_destino, liquidacion_original_id: f.liquidacion_original_id,
+        sin_envio: !f.envio_id, cliente_id: f.cliente_id, guia_texto: f.guia_texto, adjunto_nombre: f.adjunto_nombre,
       });
       g.cargos_anteriores_n = g.cargos_anteriores.length;
       g.cargos_anteriores_total = Math.round(g.cargos_anteriores.reduce((s, c) => s + c.monto, 0) * 100) / 100;
