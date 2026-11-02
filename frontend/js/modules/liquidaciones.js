@@ -29,7 +29,7 @@
   // Alta del cargo sin envío (30/10): queda pendiente en el cliente y aparece en la lista
   // de "cargos de envíos anteriores" de arriba; Calcular lo mete en la liquidación.
   async function guardarCargoSuelto() {
-    const clienteId = document.getElementById('liq-cliente').value;
+    const clienteId = document.getElementById('liq-suelto-cliente').value;
     const estado = document.getElementById('liq-suelto-estado');
     if (!clienteId) { NovaUtils.showAlert(alertBox, 'Elegí el cliente primero', 'error'); return; }
     const concepto = document.getElementById('liq-suelto-concepto').value.trim();
@@ -48,9 +48,9 @@
     btn.disabled = true;
     try {
       const c = await NovaAPI.clientes.agregarCargo(clienteId, fd);
-      estado.textContent = `Guardado: "${c.label}" USD ${NovaUtils.formatMoney(c.monto)} queda pendiente para la próxima liquidación.`;
+      estado.textContent = `Guardado: "${c.label}" USD ${NovaUtils.formatMoney(c.monto)} queda pendiente para la próxima liquidación del cliente.`;
       ['liq-suelto-guia', 'liq-suelto-concepto', 'liq-suelto-monto', 'liq-suelto-pdf'].forEach((id) => { document.getElementById(id).value = ''; });
-      await cargarEnviosCliente();
+      await loadCargosPendientes();
     } catch (e) {
       NovaUtils.showAlert(alertBox, e.message, 'error');
     } finally { btn.disabled = false; }
@@ -58,6 +58,46 @@
   let lastLiquidacionId = null;
   let lastPreview = null;
 
+
+  // Pestaña "Cargos pendientes" (02/11/2026): todo lo que va a entrar solo en la próxima
+  // liquidación de cada cliente — cargos sin envío y cargos posteriores de envíos ya
+  // liquidados. Sale del mismo endpoint que Pendientes (grupos por cliente).
+  async function loadCargosPendientes() {
+    const box = document.getElementById('liq-cargos-lista');
+    let grupos = [];
+    try { grupos = await NovaAPI.liquidaciones.pendientes({}); }
+    catch (e) { box.innerHTML = `<p class="liq-hint">No se pudo cargar: ${e.message}</p>`; return; }
+    const conCargos = grupos.filter((g) => Array.isArray(g.cargos_anteriores) && g.cargos_anteriores.length);
+    const n = conCargos.reduce((s2, g) => s2 + g.cargos_anteriores.length, 0);
+    const badge = document.getElementById('tab-badge-cargos');
+    if (badge) { badge.textContent = String(n); badge.hidden = !n; }
+    if (!conCargos.length) { box.innerHTML = '<p class="liq-hint">No hay cargos pendientes de cobrar.</p>'; return; }
+    const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+    box.innerHTML = conCargos.map((g) => `<div class="liq-pend-cargos" data-cliente="${g.cliente_id}">
+      <div class="liq-pend-cargos-titulo">${esc(g.cliente_nombre)} · ${g.cargos_anteriores.length} cargo${g.cargos_anteriores.length === 1 ? '' : 's'} · ${NovaUtils.formatMoney(g.cargos_anteriores_total)}</div>
+      <table>
+        <thead><tr><th>Fecha envío</th><th>Guía</th><th>País</th><th>Concepto</th><th class="n">USD</th><th></th></tr></thead>
+        <tbody>${g.cargos_anteriores.map((c) => `<tr>
+          <td>${NovaUtils.formatDate(c.envio_fecha)}</td>
+          <td>${guiaCargo(c)}</td>
+          <td>${esc(c.pais_destino || '')}</td>
+          <td>${conceptoCargo(c)}</td>
+          <td class="n">${NovaUtils.formatMoney(c.monto)}</td>
+          <td><button type="button" class="liq-cargo-anular" data-anular-cargo="${c.id}" data-envio="${c.envio_id || ''}" data-cliente="${g.cliente_id}" title="Anular este cargo (no se va a cobrar)">✕</button></td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>`).join('');
+    box.querySelectorAll('[data-anular-cargo]').forEach((b) => b.addEventListener('click', async () => {
+      const g = conCargos.find((x) => Number(x.cliente_id) === Number(b.dataset.cliente));
+      const c = g && g.cargos_anteriores.find((x) => Number(x.id) === Number(b.dataset.anularCargo));
+      if (!c || !confirm(`¿Anular el cargo "${c.label}" de USD ${NovaUtils.formatMoney(c.monto)} de ${g.cliente_nombre}? No va a entrar en ninguna liquidación.`)) return;
+      try {
+        if (c.envio_id) await NovaAPI.salidas.anularCargo(c.envio_id, c.id);
+        else await NovaAPI.clientes.anularCargo(g.cliente_id, c.id);
+        await loadCargosPendientes();
+      } catch (e) { NovaUtils.showAlert(alertBox, e.message, 'error'); }
+    }));
+  }
 
   async function init() {
     try { await loadClientes(); } catch (e) { NovaUtils.showAlert(document.getElementById('alert-box'), 'No se pudieron cargar los clientes: ' + e.message, 'error'); }
@@ -67,6 +107,7 @@
     bindHistorial();
     setDefaultDates();
     loadPendientes();
+    loadCargosPendientes();
     // Salidas (27/10) manda acá con ?retomar=<id> desde el badge "Borrador #N" de la
     // columna Estado: se abre ese borrador directo en Crear liquidación.
     const retomar = new URLSearchParams(window.location.search).get('retomar');
@@ -100,10 +141,10 @@
 
   async function loadClientes() {
     clientes = await NovaAPI.clientes.listar();
-    const selects = [document.getElementById('liq-cliente'), document.getElementById('hist-cliente')];
+    const selects = [document.getElementById('liq-cliente'), document.getElementById('hist-cliente'), document.getElementById('liq-suelto-cliente')];
     for (const sel of selects) {
       const isHist = sel.id === 'hist-cliente';
-      sel.innerHTML = isHist ? '<option value="">Todos</option>' : '';
+      sel.innerHTML = isHist ? '<option value="">Todos</option>' : (sel.id === 'liq-suelto-cliente' ? '<option value="">Elegir…</option>' : '');
       for (const c of clientes) {
         const opt = document.createElement('option');
         opt.value = c.id;
@@ -119,11 +160,12 @@
         document.querySelectorAll('.tab').forEach((t) => t.classList.remove('active'));
         tab.classList.add('active');
         const name = tab.dataset.tab;
-        ['pendientes', 'crear', 'historial'].forEach((p) => {
+        ['pendientes', 'crear', 'cargos', 'historial'].forEach((p) => {
           document.getElementById(`panel-${p}`).classList.toggle('hidden', name !== p);
         });
         if (name === 'historial') loadHistorial();
         if (name === 'pendientes') loadPendientes();
+        if (name === 'cargos') loadCargosPendientes();
       });
     });
   }

@@ -145,7 +145,7 @@ async function main() {
   check('  y el cliente ya no tiene nada pendiente', pend.length === 0, JSON.stringify(pend));
   check('  el cargo quedó liquidado', (await j(await get(`/api/clientes/${cli.id}/cargos`))).find((c) => c.id === c1.id).estado === 'liquidado');
 
-  console.log('\n5. La pantalla de Liquidaciones: cargar uno, verlo en la lista y anularlo\n');
+  console.log('\n5. La pantalla: pestaña "Cargos pendientes" — cargar uno, verlo, que entre en la liquidación, anularlo\n');
   const cand = [process.env.CHROME_PATH, '/opt/pw-browsers/chromium/chrome-linux/chrome', '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'].filter(Boolean);
   const exe = cand.find((p) => fs.existsSync(p));
   const browser = await chromium.launch(exe ? { executablePath: exe } : {});
@@ -158,10 +158,11 @@ async function main() {
   page.on('dialog', (d) => d.accept());
   await page.goto(BASE + '/pages/liquidaciones.html', { waitUntil: 'networkidle' });
   await esperar(800);
-  await page.click('[data-tab="crear"]');
-  await esperar(300);
-  check('está el bloque "Cargo de una guía que no está en el sistema"', await page.evaluate(() => /no está en el sistema/.test(document.getElementById('liq-sueltos')?.textContent || '')));
-  await page.selectOption('#liq-cliente', String(cli.id));
+  check('hay una pestaña "Cargos pendientes" y en Crear ya no está el formulario', await page.evaluate(() => !!document.querySelector('[data-tab="cargos"]') && !document.querySelector('#panel-crear #liq-sueltos')));
+  await page.click('[data-tab="cargos"]');
+  await esperar(500);
+  check('sin nada pendiente lo dice', await page.evaluate(() => /No hay cargos pendientes/.test(document.getElementById('liq-cargos-lista').textContent)));
+  await page.selectOption('#liq-suelto-cliente', String(cli.id));
   await page.fill('#liq-suelto-guia', '1Z999');
   await page.fill('#liq-suelto-concepto', 'Área remota (guía de mayo)');
   await page.fill('#liq-suelto-monto', '22.4');
@@ -171,22 +172,30 @@ async function main() {
   await page.click('#btn-suelto-add');
   await esperar(1200);
   const estado = await page.evaluate(() => document.getElementById('liq-suelto-estado').textContent);
-  check('Guardar → avisa que quedó pendiente', /quedó pendiente|queda pendiente/.test(estado), estado);
-  const tabla = await page.evaluate(() => document.getElementById('liq-cargos-pend-crear')?.textContent || '');
-  check('  aparece en la lista de cargos pendientes con el chip "sin envío en el sistema"', /1Z999/.test(tabla) && /sin envío en el sistema/.test(tabla) && /Área remota/.test(tabla) && /22,40/.test(tabla), tabla.slice(0, 200));
-  check('  con el link al PDF', await page.evaluate(() => !!document.querySelector('#liq-cargos-pend-crear a.liq-cargo-pdf')));
+  check('Guardar → avisa que quedó pendiente', /queda pendiente/.test(estado), estado);
+  const tabla = await page.evaluate(() => document.getElementById('liq-cargos-lista').textContent);
+  check('  aparece en la lista, bajo el cliente, con el chip "sin envío en el sistema"', /SUELTOS SA/.test(tabla) && /1Z999/.test(tabla) && /sin envío en el sistema/.test(tabla) && /Área remota/.test(tabla) && /22,40/.test(tabla), tabla.slice(0, 200));
+  check('  con el link al PDF y el contador en la pestaña', await page.evaluate(() => !!document.querySelector('#liq-cargos-lista a.liq-cargo-pdf') && document.getElementById('tab-badge-cargos').textContent === '1' && !document.getElementById('tab-badge-cargos').hidden));
   const nuevo = (await j(await get(`/api/clientes/${cli.id}/cargos`)))[0];
   check('  en la base: pendiente, con PDF', nuevo.estado === 'pendiente' && nuevo.adjunto_nombre === 'cargo-test.pdf' && nuevo.monto === 22.4, JSON.stringify(nuevo));
 
+  // Sin hacer nada más, al armar la liquidación del cliente entra solo.
+  await page.click('[data-tab="crear"]');
+  await esperar(300);
+  await page.selectOption('#liq-cliente', String(cli.id));
+  await page.click('#btn-cargar-envios');
+  await esperar(1000);
+  check('Crear → la lista de cargos pendientes del cliente lo muestra', await page.evaluate(() => /1Z999/.test(document.getElementById('liq-cargos-pend-crear')?.textContent || '')));
   await page.click('#btn-preview');
   await esperar(1200);
   const prev = await page.evaluate(() => document.getElementById('liq-cargos-ant')?.textContent || '');
-  check('Calcular → la vista previa lo muestra en "Cargos de envíos anteriores" con total 22,40', /sin envío en el sistema/.test(prev) && /22,40/.test(prev), prev.slice(0, 200));
+  check('Calcular → la vista previa lo mete en "Cargos de envíos anteriores" con total 22,40', /sin envío en el sistema/.test(prev) && /22,40/.test(prev), prev.slice(0, 200));
 
-  // Calcular es solo vista previa (no ata el cargo): el ✕ lo anula, con confirmación.
-  await page.click('#liq-cargos-pend-crear [data-anular-suelto]');
+  await page.click('[data-tab="cargos"]');
+  await esperar(600);
+  await page.click('#liq-cargos-lista [data-anular-cargo]');
   await esperar(1200);
-  check('✕ anula (con confirmación) y desaparece de la lista', await page.evaluate(() => document.getElementById('liq-cargos-pend-crear').hidden === true), String(await page.evaluate(() => document.getElementById('liq-cargos-pend-crear').textContent)).slice(0, 120));
+  check('✕ en la pestaña anula (con confirmación) y la lista queda vacía', await page.evaluate(() => /No hay cargos pendientes/.test(document.getElementById('liq-cargos-lista').textContent) && document.getElementById('tab-badge-cargos').hidden));
   check('  en la base quedó anulado', (await j(await get(`/api/clientes/${cli.id}/cargos`)))[0].estado === 'anulado');
 
   console.log('\n6. Sin errores de JavaScript\n');

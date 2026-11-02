@@ -264,11 +264,16 @@ th.liq-interno { color: #166534; font-size: .7rem; }
 
 /* Cargo de una guía que no está en el sistema (30/10/2026) */
 .liq-sueltos { margin-top: .7rem; }
-.liq-suelto-form { display: grid; grid-template-columns: 150px 170px 1fr 110px 220px auto; gap: .5rem; align-items: end; }
+.liq-suelto-form { display: grid; grid-template-columns: 220px 150px 170px 1fr 110px 220px auto; gap: .5rem; align-items: end; }
 .liq-suelto-form .form-group { margin: 0; }
 .liq-suelto-form label { font-size: .75rem; }
 .liq-suelto-form input[type="file"] { font-size: .8rem; }
-@media (max-width: 1100px) { .liq-suelto-form { grid-template-columns: 1fr 1fr; } .liq-suelto-form .liq-suelto-concepto { grid-column: 1 / -1; } }
+@media (max-width: 1250px) { .liq-suelto-form { grid-template-columns: 1fr 1fr 1fr; } .liq-suelto-form .liq-suelto-concepto, .liq-suelto-form .liq-suelto-cliente { grid-column: 1 / -1; } }
+#panel-cargos .liq-sueltos { margin-top: 0; margin-bottom: 1rem; }
+.liq-cargos-lista-head { display: flex; flex-direction: column; gap: .15rem; margin: .4rem 0 .6rem; }
+.liq-cargos-lista-head h3 { margin: 0; font-size: 1rem; color: var(--color-primary); }
+#liq-cargos-lista .liq-pend-cargos { border-top: 0; padding-top: 0; margin-top: .9rem; }
+#liq-cargos-lista .liq-pend-cargos-titulo { font-size: .9rem; color: var(--color-primary); }
 .liq-chip.sin-envio { background: #fff4e5; color: #8a4b00; border-color: #f3c98b; }
 .liq-cargo-pdf { margin-left: .35rem; font-size: .8rem; }
 .liq-cargo-anular { background: none; border: none; color: #cbd5e1; cursor: pointer; font-size: .95rem; padding: 0 .3rem; line-height: 1; }

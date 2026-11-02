@@ -6,7 +6,7 @@
   <title>Liquidaciones – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
   <link rel="stylesheet" href="../css/main.css?v=20261027a">
-  <link rel="stylesheet" href="../css/modules/liquidaciones.css?v=20261030a">
+  <link rel="stylesheet" href="../css/modules/liquidaciones.css?v=20261102a">
 </head>
 <body>
 <div class="app-layout">
@@ -119,6 +119,7 @@
       <div class="tabs">
         <button class="tab active" data-tab="pendientes">Pendientes <span class="tab-badge" id="tab-badge-pendientes" hidden></span></button>
         <button class="tab" data-tab="crear">Crear liquidación</button>
+        <button class="tab" data-tab="cargos">Cargos pendientes <span class="tab-badge" id="tab-badge-cargos" hidden></span></button>
         <button class="tab" data-tab="historial">Historial</button>
       </div>
 
@@ -234,25 +235,6 @@
                   <div id="liq-conceptos-lista" class="liq-conceptos-lista"></div>
                   <button type="button" class="btn btn-outline btn-sm" id="btn-concepto-add">+ Agregar concepto</button>
                 </div>
-                <!-- Cargos sin envío (30/10/2026, pedido de Felipe): un extracargo del courier de una
-                     guía que NO está en el sistema (de antes de arrancar, o cargada por afuera). Se
-                     carga a mano al cliente y queda pendiente hasta la próxima liquidación, donde
-                     entra en "Cargos de envíos anteriores". Al costo. Se anula desde la lista. -->
-                <div class="liq-conceptos liq-sueltos" id="liq-sueltos">
-                  <div class="liq-conceptos-head">
-                    <strong>Cargo de una guía que no está en el sistema</strong>
-                    <span class="liq-hint">Llegó un extracargo (sobrepeso, impuestos, área remota…) de un envío que no existe en el sistema. Cargalo acá al cliente: queda pendiente y entra solo en su próxima liquidación, en "Cargos de envíos anteriores", al costo. Si el envío SÍ está en el sistema, el cargo va desde Salidas.</span>
-                  </div>
-                  <div class="liq-suelto-form">
-                    <div class="form-group"><label for="liq-suelto-fecha">Fecha del cargo</label><input type="date" id="liq-suelto-fecha"></div>
-                    <div class="form-group"><label for="liq-suelto-guia">Nº de guía</label><input type="text" id="liq-suelto-guia" maxlength="40" placeholder="Opcional"></div>
-                    <div class="form-group liq-suelto-concepto"><label for="liq-suelto-concepto">Concepto</label><input type="text" id="liq-suelto-concepto" maxlength="120" placeholder="Ej.: Sobrepeso informado por UPS"></div>
-                    <div class="form-group"><label for="liq-suelto-monto">USD</label><input type="number" id="liq-suelto-monto" min="0" step="0.01" placeholder="0,00"></div>
-                    <div class="form-group"><label for="liq-suelto-pdf">PDF del courier</label><input type="file" id="liq-suelto-pdf" accept="application/pdf"></div>
-                    <button type="button" class="btn btn-outline btn-sm" id="btn-suelto-add">Guardar cargo pendiente</button>
-                  </div>
-                  <small class="liq-hint" id="liq-suelto-estado"></small>
-                </div>
               </div>
             </div>
 
@@ -324,6 +306,35 @@
         </div>
       </section>
 
+      <!-- ═══ CARGOS PENDIENTES (02/11/2026, pedido de Felipe) ═══════════════════════════
+           Extracargos que todavía no se cobraron: los de guías que NO están en el sistema
+           (se cargan acá, a mano, al cliente) y los cargos posteriores de envíos ya
+           liquidados (se cargan desde Salidas). Quedan pendientes el tiempo que haga falta y
+           entran solos en la próxima liquidación del cliente, al costo. -->
+      <section id="panel-cargos" class="card liq-panel hidden">
+        <div class="liq-conceptos liq-sueltos" id="liq-sueltos">
+          <div class="liq-conceptos-head">
+            <strong>Cargar un extracargo de una guía que no está en el sistema</strong>
+            <span class="liq-hint">Llegó un cargo del courier (sobrepeso, impuestos, área remota…) de un envío que no existe en el sistema. Cargalo al cliente: queda pendiente hasta el día que le armes la liquidación, y ahí entra solo en "Cargos de envíos anteriores", al costo. Si el envío SÍ está en el sistema, el cargo se agrega desde Salidas (abrí el envío → Cargos posteriores).</span>
+          </div>
+          <div class="liq-suelto-form">
+            <div class="form-group liq-suelto-cliente"><label for="liq-suelto-cliente">Cliente</label><select id="liq-suelto-cliente"><option value="">Elegir…</option></select></div>
+            <div class="form-group"><label for="liq-suelto-fecha">Fecha del cargo</label><input type="date" id="liq-suelto-fecha"></div>
+            <div class="form-group"><label for="liq-suelto-guia">Nº de guía</label><input type="text" id="liq-suelto-guia" maxlength="40" placeholder="Opcional"></div>
+            <div class="form-group liq-suelto-concepto"><label for="liq-suelto-concepto">Concepto</label><input type="text" id="liq-suelto-concepto" maxlength="120" placeholder="Ej.: Sobrepeso informado por UPS"></div>
+            <div class="form-group"><label for="liq-suelto-monto">USD</label><input type="number" id="liq-suelto-monto" min="0" step="0.01" placeholder="0,00"></div>
+            <div class="form-group"><label for="liq-suelto-pdf">PDF del courier</label><input type="file" id="liq-suelto-pdf" accept="application/pdf"></div>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-suelto-add">Guardar cargo pendiente</button>
+          </div>
+          <small class="liq-hint" id="liq-suelto-estado"></small>
+        </div>
+        <div class="liq-cargos-lista-head">
+          <h3>Pendientes de cobrar</h3>
+          <span class="liq-hint">Todo lo que entra solo en la próxima liquidación de cada cliente. El ✕ lo anula (solo mientras no esté en un borrador).</span>
+        </div>
+        <div id="liq-cargos-lista"><p class="liq-hint">Cargando…</p></div>
+      </section>
+
       <!-- ═══ HISTORIAL ═══════════════════════════════════════════════════════════ -->
       <section id="panel-historial" class="card liq-panel hidden">
         <div class="liq-toolbar">
@@ -362,6 +373,6 @@
 <script src="/js/auth-guard.js?v=20260924b"></script>
 <script src="../js/api.js?v=20261016a"></script>
 <script src="../js/main.js?v=20261027a"></script>
-<script src="../js/modules/liquidaciones.js?v=20261030a"></script>
+<script src="../js/modules/liquidaciones.js?v=20261102a"></script>
 </body>
 </html>
