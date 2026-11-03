@@ -278,6 +278,89 @@ const HERRAMIENTAS = {
     },
   },
 
+
+  /* El dashboard entero (03/11/2026, pedido de Felipe: "el bot tiene que poder contestar
+     todo lo de la pantalla y más: proyecciones, desglosar números, lo que se le ocurra").
+     Es la misma ruta que la pantalla (/api/dashboard/analitica), con la sesión del que
+     pregunta, resumida en bloques con el nombre de cada número. venta_periodo queda para
+     la pregunta corta de todos los días; esta es para cuando hay que desglosar. */
+  dashboard: {
+    audiencia: ['interno'],
+    definicion: {
+      name: 'dashboard',
+      description: 'Todo lo que muestra la pantalla Dashboard para un período: resumen (envíos, kilos, compra, venta, profit, margen, comparación con el período anterior), reparto por mes, valor del kilo por mes (compra/kg, venta/kg, utilidad/kg; todos, UPS o DHL), mix de couriers, clientes (hasta 20, con venta/kg y utilidad/kg), destinos, proyección del mes en curso, plata en la calle, estimado vs real (factura del courier) y ritmo. Usala para desglosar, comparar meses, proyectar o responder cualquier pregunta de números. Importes en USD. Para comparar dos períodos distintos llamala una vez por período.',
+      input_schema: {
+        type: 'object',
+        properties: {
+          periodo: { type: 'string', enum: ['mes', 'anio', '12m', 'rango'], description: '"mes" = el mes en curso hasta hoy (trae la proyección); "anio" = el año en curso; "12m" = últimos 12 meses; "rango" = de desde a hasta (fechas o meses enteros)' },
+          desde: { type: 'string', description: 'YYYY-MM-DD, solo con periodo=rango. Para un mes entero: el 1 de ese mes' },
+          hasta: { type: 'string', description: 'YYYY-MM-DD, solo con periodo=rango. Para un mes entero: el último día de ese mes' },
+          courier: { type: 'string', enum: ['UPS', 'DHL'], description: 'Filtra todo el dashboard a un courier' },
+          tipo: { type: 'string', enum: ['exportacion', 'importacion'] },
+          comparar: { type: 'string', enum: ['previo', 'anio'], description: '"previo" = el período anterior del mismo largo (default); "anio" = el mismo período del año pasado' },
+          bloques: {
+            type: 'array', items: { type: 'string', enum: ['resumen', 'por_mes', 'valor_kilo', 'couriers', 'clientes', 'destinos', 'proyeccion', 'plata', 'estimado_vs_real', 'ritmo'] },
+            description: 'Qué bloques devolver. Sin esto devuelve todos (es más largo).',
+          },
+        },
+        required: ['periodo'],
+      },
+    },
+    async ejecutar(a, ctx) {
+      const qs = new URLSearchParams();
+      if (a.periodo === 'rango') { qs.set('periodo', 'rango'); qs.set('desde', resolverFecha(a.desde)); qs.set('hasta', resolverFecha(a.hasta)); } else qs.set('periodo', a.periodo || 'mes');
+      if (a.courier) qs.set('courier', a.courier);
+      if (a.tipo) qs.set('tipo', a.tipo);
+      if (a.comparar) qs.set('comparar', a.comparar);
+      const r = await api(ctx.cookie, 'GET', '/api/dashboard/analitica?' + qs.toString());
+      if (r && r.error) return r;
+      const quiere = (b) => !Array.isArray(a.bloques) || !a.bloques.length || a.bloques.includes(b);
+      const k = r.kpis || {}, ka = r.kpis_ant || {}, v = r.variaciones || {};
+      const cifras = (x) => ({ envios: x.envios, bultos: x.bultos, kg_facturables: n2(x.kg_fact), compra_usd: n2(x.compra), venta_usd: n2(x.venta), profit_usd: n2(x.profit), margen_pct: n2(x.margen_pct), compra_por_kg: n2(x.compra_kg), venta_por_kg: n2(x.venta_kg), utilidad_por_kg: n2(x.utilidad_kg), envios_sin_precio: x.sin_venta ? x.sin_venta.n : undefined });
+      const out = {
+        periodo: { etiqueta: r.periodo.etiqueta, desde: r.periodo.desde, hasta: r.periodo.hasta, meses: r.periodo.meses },
+        comparado_con: { desde: r.comparacion.desde, hasta: r.comparacion.hasta, modo: r.comparacion.modo === 'anio' ? 'mismo período del año pasado' : 'período anterior del mismo largo', misma_altura: r.comparacion.misma_altura ? 'sí: hasta el mismo día, porque el período está en curso' : 'no' },
+        filtros: r.filtros,
+        que_significa: {
+          venta: 'lo cobrado al cliente, sin los cargos posteriores (manejo, sobrepeso, DDP), que van al costo',
+          compra: 'lo que cobra el courier: la factura real si está cruzada, si no la estimación del sistema',
+          profit: 'venta − compra; margen = profit ÷ compra',
+          valor_del_kilo: 'compra ÷ kg, venta ÷ kg y profit ÷ kg, sobre los kilos facturables de los envíos con venta',
+          no_volo: 'los envíos marcados NO VOLÓ no cuentan en nada',
+        },
+      };
+      if (quiere('resumen')) {
+        out.resumen = { ...cifras(k), sin_liquidar: k.sin_liquidar, cargos_posteriores_usd: n2(k.cargos_post), periodo_anterior: cifras(ka), variacion_pct: { envios: n2(v.envios), kg: n2(v.kg_fact), venta: n2(v.venta), compra: n2(v.compra), profit: n2(v.profit), margen_puntos: n2(v.margen_pts) } };
+      }
+      if (quiere('por_mes') && r.series) {
+        out.por_mes = r.series.meses.map((m, i) => ({ mes: m, envios: r.series.envios[i], kg_facturables: n2(r.series.kg[i]), compra_usd: n2(r.series.compra[i]), venta_usd: n2(r.series.venta[i]), profit_usd: n2(r.series.profit[i]), margen_pct: n2(((r.margen && r.margen.meses[i]) || {}).pct) }));
+        out.por_mes_comparacion = r.series.meses_ant.map((m, i) => ({ mes: m, envios: r.series.envios_ant[i], kg_facturables: n2(r.series.kg_ant[i]), venta_usd: n2(r.series.venta_ant[i]), profit_usd: n2(r.series.profit_ant[i]) }));
+      }
+      if (quiere('valor_kilo') && r.por_kg) {
+        const bloque = (b) => ({ por_mes: b.filas.filter((f) => f.envios).map((f) => ({ mes: f.mes, ...cifras(f) })), total: cifras(b.total) });
+        out.valor_del_kilo = { todos: bloque(r.por_kg.todos), UPS: bloque(r.por_kg.UPS), DHL: bloque(r.por_kg.DHL) };
+      }
+      if (quiere('couriers') && r.mix_total) out.couriers = { UPS: cifras(r.mix_total.UPS), DHL: cifras(r.mix_total.DHL) };
+      if (quiere('clientes')) {
+        out.clientes = { activos: r.clientes_activos, top_20_por_venta: (r.top_clientes || []).slice(0, 20).map((c) => ({ cliente: c.nombre, cliente_id: c.id, ...cifras(c), participacion_venta_pct: n2(c.part_venta_pct), variacion_venta_pct: n2(c.var_venta) })) };
+      }
+      if (quiere('destinos')) out.destinos = (r.paises || []).slice(0, 15).map((p) => ({ pais: p.pais, envios: p.envios, kg: n2(p.kg), venta_usd: n2(p.venta) }));
+      if (quiere('proyeccion')) {
+        const p = r.proyeccion;
+        out.proyeccion_mes_en_curso = !p ? 'solo con periodo=mes (o un período que incluya el mes de hoy entero)' : {
+          mes: p.mes, dia: p.dia, avance_pct: n2(p.avance_pct), habiles_pasados: p.habiles_pasados, habiles_mes: p.habiles_mes, confianza: p.confianza, metodo: p.metodo,
+          hasta_hoy: p.actual, proyectado_mes_entero: { envios: p.envios, kg_facturables: n2(p.kg_fact), venta_usd: n2(p.venta), profit_usd: n2(p.profit) },
+          rango_probable: p.rango, mes_anterior_entero: p.mes_anterior, vs_mes_anterior_pct: p.vs_mes_anterior,
+          nota: 'Proyección estimada por ritmo de días hábiles (mezclada con el promedio de los últimos meses cuando hay); no es un dato cerrado.',
+        };
+      }
+      if (quiere('plata') && r.plata) out.plata_en_la_calle_hoy = r.plata;
+      if (quiere('estimado_vs_real') && r.real) out.estimado_vs_real = r.real.filter((m) => m.cruzadas).map((m) => ({ mes: m.mes, guias: m.guias, con_factura: m.cruzadas, cobertura_pct: n2(m.cobertura_pct), compra_estimada_usd: n2(m.compra_est), costo_facturado_usd: n2(m.compra_real), profit_estimado_usd: n2(m.profit_est), profit_real_usd: n2(m.profit_real), kg_facturables: n2(m.kg_fact), kg_facturados_por_el_courier: n2(m.kg_real) }));
+      if (quiere('ritmo') && r.ritmo) out.ritmo = r.ritmo;
+      return out;
+    },
+  },
+
   buscar_clientes: {
     audiencia: ['interno'],
     definicion: {
@@ -597,6 +680,7 @@ function systemPrompt(usuario, audiencia = 'interno', extra = {}) {
     '- El semáforo de buscar_envios es el tracking automático de UPS: verde = entregada, amarillo = volando, rojo = despachada pero sin escanear todavía, sin_dato = no se consultó (DHL no tiene semáforo automático). Se actualiza cada 4 horas, así que las horas de entrega son aproximadas y conviene aclararlo.',
     '- Antes de decir que no hay envíos, fijate en qué ventana miró la herramienta (campo ventana_mirada) y, si hace falta, volvé a buscar con otras fechas.',
     '- Si no sabés el cliente_id, buscalo con buscar_clientes. Si hay varios parecidos, preguntá cuál.',
+    '- Números del negocio (venta, compra, profit, kilos, valor del kilo, por mes, por cliente, por courier, destinos, proyección, plata en la calle): usá la herramienta dashboard, que es la misma pantalla Dashboard. venta_periodo alcanza para "cómo viene la venta de hoy". Para comparar dos meses o períodos, pedí cada uno (periodo=rango con el mes entero) y compará vos. Si te piden un desglose, dalo con los números de la herramienta; si piden algo que no está, decí qué sí podés dar. Cuando hablás de proyección aclará que es estimada.',
     '- Sin markdown pesado: texto plano, guiones para listas, nada de tablas.',
   ].join('\n');
 }
@@ -731,6 +815,11 @@ async function llamarModeloMock(system, mensajes, ctx) {
         const cola = ` [semáforo: ${rs.entregadas || 0} entregadas · ${rs.volando || 0} volando · ${rs.sin_escanear || 0} sin escanear · ${rs.sin_dato || 0} sin dato]`;
         return texto((res.cantidad ? `[mock] Encontré ${res.cantidad} envío(s): ` + res.envios.map((e) => `guía ${e.guia} · ${e.cliente} · ${e.destino} · ${e.courier} · ${e.kg_facturable} kg · USD ${e.venta_usd} · ${e.liquidado ? 'liquidado' : 'sin liquidar'}${e.semaforo ? ' · ' + e.semaforo : ''}`).join(' | ') : '[mock] No encontré envíos con eso.') + cola);
       }
+      case 'dashboard': {
+        const t = res.valor_del_kilo ? res.valor_del_kilo.todos.total : (res.resumen || {});
+        const pm = (res.por_mes || []).map((m) => `${m.mes}: ${m.envios} env · USD ${m.venta_usd}`).join(' | ');
+        return texto(`[mock] Dashboard ${res.periodo.desde} → ${res.periodo.hasta}: ${t.envios} envíos · ${t.kg_facturables} kg · compra USD ${t.compra_usd} · venta USD ${t.venta_usd} · profit USD ${t.profit_usd} · venta/kg ${t.venta_por_kg} · utilidad/kg ${t.utilidad_por_kg}${pm ? ' · por mes: ' + pm : ''}${res.proyeccion_mes_en_curso && res.proyeccion_mes_en_curso.mes ? ` · proyección ${res.proyeccion_mes_en_curso.mes}: ${res.proyeccion_mes_en_curso.proyectado_mes_entero.envios} envíos, USD ${res.proyeccion_mes_en_curso.proyectado_mes_entero.venta_usd} (estimada)` : ''}`);
+      }
       case 'venta_periodo':
         return texto(`[mock] Venta ${res.periodo}: ${res.envios} envíos · ${res.kg_facturables} kg · USD ${res.venta_usd} · profit USD ${res.profit_estimado_usd}`);
       case 'buscar_clientes':
@@ -768,6 +857,10 @@ async function llamarModeloMock(system, mensajes, ctx) {
     return uso('buscar_envios', { fecha_desde: d, fecha_hasta: d });
   }
   if (/pendiente/.test(tl)) { const f = (t.match(/\d{4}-\d{2}-\d{2}/) || [])[0]; return uso('pendientes', f ? { fecha: f } : (/mañana|manana/.test(tl) ? { fecha: 'mañana' } : {})); }
+  if (/dashboard|kilo|proyecci|compra|margen|clientes?\b.*(venta|profit|kilo)|por mes|desglos/.test(tl)) {
+    const r = /por mes|desglos/.test(tl) ? ['por_mes', 'valor_kilo'] : /kilo/.test(tl) ? ['valor_kilo'] : /proyecci/.test(tl) ? ['proyeccion'] : /cliente/.test(tl) ? ['clientes'] : undefined;
+    return uso('dashboard', { periodo: /a[ñn]o/.test(tl) ? 'anio' : /12 meses/.test(tl) ? '12m' : 'mes', courier: /\bups\b/.test(tl) ? 'UPS' : /\bdhl\b/.test(tl) ? 'DHL' : undefined, bloques: r });
+  }
   if (/venta|vendimos|facturamos/.test(tl)) return uso('venta_periodo', { periodo: /ayer/.test(tl) ? 'ayer' : /mes/.test(tl) ? 'mes' : 'hoy', courier: /\bups\b/.test(tl) ? 'UPS' : /\bdhl\b/.test(tl) ? 'DHL' : undefined });
   if (/pickup|retiro/.test(tl)) {
     const cid = (t.match(/cliente\s*(?:id\s*)?#?(\d+)/i) || [])[1];

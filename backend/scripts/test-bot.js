@@ -190,6 +190,23 @@ async function main() {
     vEmp.status === 200 && /venta_periodo/.test(vEmp.herramientas.join()) && !/envíos ·/.test(vEmp.texto) && /403|permiso|dashboard/i.test(vEmp.texto),
     vEmp.texto);
 
+  // ── 3b ─────────────────────────────────────────────────────────────────────
+  console.log('\n3b. El dashboard entero por chat (03/11/2026)\n');
+  const dk = await chat('a cuánto compramos el kilo este mes');
+  check('usó la herramienta dashboard', dk.herramientas.includes('dashboard'), dk.herramientas.join(','));
+  check('   y contesta con el valor del kilo', /venta\/kg/.test(dk.texto) && /utilidad\/kg/.test(dk.texto), dk.texto);
+  const dd = await botSrv.HERRAMIENTAS.dashboard.ejecutar({ periodo: 'rango', desde: hoy, hasta: hoy, bloques: ['resumen', 'por_mes', 'valor_kilo', 'clientes', 'proyeccion'] }, ctxH);
+  check('resumen = los KPIs del dashboard (envíos, venta, compra, profit)', dd.resumen && dd.resumen.envios === ana.kpis.envios && dd.resumen.venta_usd === ventaEsperada && dd.resumen.compra_usd === Math.round(Number(ana.kpis.compra) * 100) / 100, JSON.stringify(dd.resumen));
+  check('   valor del kilo en todos / UPS / DHL con compra, venta y utilidad por kg', dd.valor_del_kilo && ['todos', 'UPS', 'DHL'].every((c) => dd.valor_del_kilo[c] && 'venta_por_kg' in dd.valor_del_kilo[c].total) && dd.valor_del_kilo.todos.total.venta_por_kg === Math.round(Number(ana.kpis.venta_kg) * 100) / 100, JSON.stringify(dd.valor_del_kilo && dd.valor_del_kilo.todos.total));
+  check('   por mes con el mes de hoy', Array.isArray(dd.por_mes) && dd.por_mes.length === 1 && dd.por_mes[0].mes === hoy.slice(0, 7), JSON.stringify(dd.por_mes));
+  check('   clientes con venta/kg y utilidad/kg', dd.clientes && dd.clientes.top_20_por_venta.length >= 1 && 'utilidad_por_kg' in dd.clientes.top_20_por_venta[0], JSON.stringify(dd.clientes && dd.clientes.top_20_por_venta[0]));
+  check('   con rango de un día no hay proyección (lo dice, no inventa)', typeof dd.proyeccion_mes_en_curso === 'string');
+  check('   los bloques que no se pidieron no viajan (destinos, plata)', !dd.destinos && !dd.plata_en_la_calle_hoy);
+  const dm = await botSrv.HERRAMIENTAS.dashboard.ejecutar({ periodo: 'mes', bloques: ['proyeccion'] }, ctxH);
+  check('   con periodo=mes viene la proyección del mes con su nota de "estimada"', dm.proyeccion_mes_en_curso && dm.proyeccion_mes_en_curso.mes === hoy.slice(0, 7) && /estimad/i.test(dm.proyeccion_mes_en_curso.nota), JSON.stringify(dm.proyeccion_mes_en_curso).slice(0, 200));
+  const dkEmp = await chat('a cuánto compramos el kilo este mes', null, H2);
+  check('un empleado sin ver_dashboard tampoco lo saca por acá', /403|permiso|dashboard/i.test(dkEmp.texto) && !/venta\/kg \d/.test(dkEmp.texto), dkEmp.texto);
+
   // ── 4 ──────────────────────────────────────────────────────────────────────
   console.log('\n4. Cotizar: los totales del motor, sin el margen\n');
   const c = await chat(`cotizame 10 kg 40x30x30 a Brasil, cliente ${cli.id}, fob 100`);
