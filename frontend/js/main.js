@@ -128,3 +128,107 @@ window.NovaUtils = {
     setTimeout(() => { tb.classList.remove('nova-cargando'); obs.disconnect(); }, 8000);
   });
 })();
+
+// ── La flecha "atrás" del navegador vuelve UN paso dentro del sistema (03/11/2026) ──────
+// Pedido de Felipe: en el Dashboard tocó una tarjeta (se abre el panel del detalle), quiso
+// volver con la flecha de Chrome y lo mandó al módulo anterior. Lo mismo con cualquier
+// modal o pestaña: la gente no se acostumbra a buscar el botón del sistema.
+//
+// Cómo funciona, sin tocar cada módulo:
+//   1) PESTAÑAS: un clic en cualquier `button[data-tab]` deja un paso en el historial.
+//      "Atrás" vuelve a la pestaña anterior (se hace clic en ella por el usuario).
+//   2) CAPAS (modales, paneles): un observador mira el DOM; cuando aparece un elemento
+//      fijo que tapa al menos un tercio de la pantalla (el fondo de un modal, el panel
+//      del detalle) deja un paso en el historial. "Atrás" lo cierra apretando su botón
+//      de cerrar/cancelar (el mismo camino que a mano, así el módulo limpia su estado);
+//      si no tiene, manda Escape; si tampoco, lo esconde. Si se cierra a mano, el paso
+//      sobrante se saca solo para que el siguiente "atrás" sí cambie de módulo.
+// Las capas que aparecen juntas (fondo + panel) cuentan como UNA.
+(function atrasDelNavegador() {
+  if (!window.history || !window.MutationObserver) return;
+  const TAB_ACTIVA = ['active', 'activa', 'on'];
+  let restaurando = false; // clic programático: no dejar paso
+  let ignorarPop = 0;      // history.back() propio: no cerrar nada
+  let n = 0;               // contador de capas; el estado guarda hasta cuál está abierta
+  const abiertas = [];     // [{ n, els: [el, …] }]
+
+  const estado = () => (history.state && typeof history.state === 'object') ? history.state : {};
+  const tabActiva = () => document.querySelector(TAB_ACTIVA.map((c) => `button[data-tab].${c}`).join(', '));
+
+  // ── 1) Pestañas ──
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('button[data-tab]');
+    if (!b || restaurando) return;
+    const actual = tabActiva();
+    if (actual && actual.dataset.tab === b.dataset.tab) return;
+    try { history.pushState({ ...estado(), novaTab: b.dataset.tab, novaCapa: 0 }, ''); } catch {}
+  }, true);
+  const inicial = tabActiva();
+  if (inicial && estado().novaTab === undefined) {
+    try { history.replaceState({ ...estado(), novaTab: inicial.dataset.tab, novaCapa: 0 }, ''); } catch {}
+  }
+
+  // ── 2) Capas ──
+  const esCapa = (el) => {
+    if (!(el instanceof Element) || el.classList.contains('sidebar') || el.closest('.sidebar')) return false;
+    const cs = getComputedStyle(el);
+    if (cs.position !== 'fixed' || cs.display === 'none' || cs.visibility === 'hidden') return false;
+    const r = el.getBoundingClientRect();
+    return r.width * r.height >= (innerWidth * innerHeight) / 3;
+  };
+  const visible = (el) => el.isConnected && esCapa(el);
+  const cerrar = (el) => {
+    const btn = el.querySelector('[id$="-close"], [id$="-cerrar"], [id$="-cancel"], [id$="-cancelar"], .modal-close, .cerrar, [aria-label="Cerrar"], [data-cerrar]');
+    if (btn) { btn.click(); return; }
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+    if (visible(el)) el.classList.add('hidden');
+  };
+  const candidatos = (muts) => {
+    const set = new Set();
+    for (const m of muts) {
+      if (m.type === 'attributes') set.add(m.target);
+      for (const nodo of m.addedNodes) if (nodo instanceof Element) { set.add(nodo); nodo.querySelectorAll('[class],[style]').forEach((x) => set.add(x)); }
+    }
+    return set;
+  };
+  const obs = new MutationObserver((muts) => {
+    // Las que se cerraron a mano: sacar el paso sobrante del historial.
+    for (let i = abiertas.length - 1; i >= 0; i--) {
+      const g = abiertas[i];
+      if (g.els.some(visible)) continue;
+      abiertas.splice(i, 1);
+      if (!g.porPop && estado().novaCapa === g.n) { ignorarPop++; try { history.back(); } catch { ignorarPop--; } }
+    }
+    // Las que aparecieron: un paso nuevo (todas las de esta tanda, juntas).
+    const nuevas = [];
+    for (const el of candidatos(muts)) {
+      if (!visible(el) || abiertas.some((g) => g.els.includes(el))) continue;
+      if (el.closest('[data-nova-sin-historial]')) continue;
+      nuevas.push(el);
+    }
+    if (nuevas.length) {
+      n++;
+      abiertas.push({ n, els: nuevas, porPop: false });
+      try { history.pushState({ ...estado(), novaCapa: n }, ''); } catch {}
+    }
+  });
+  obs.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style', 'hidden', 'open'], childList: true, subtree: true });
+
+  window.addEventListener('popstate', (e) => {
+    if (ignorarPop > 0) { ignorarPop--; return; }
+    const st = (e.state && typeof e.state === 'object') ? e.state : {};
+    const hasta = Number(st.novaCapa) || 0;
+    // Capas abiertas después del estado al que volvimos: se cierran.
+    for (let i = abiertas.length - 1; i >= 0; i--) {
+      const g = abiertas[i];
+      if (g.n <= hasta) continue;
+      g.porPop = true;
+      g.els.filter(visible).forEach(cerrar);
+    }
+    if (st.novaTab) {
+      const b = document.querySelector(`button[data-tab="${CSS.escape(st.novaTab)}"]`);
+      const actual = tabActiva();
+      if (b && (!actual || actual !== b)) { restaurando = true; try { b.click(); } finally { restaurando = false; } }
+    }
+  });
+})();
