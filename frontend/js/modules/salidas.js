@@ -5097,7 +5097,7 @@
     'FOB': 'USD', 'Venta Total': 'USD', 'Flete': 'USD', 'Dscto': 'USD', 'Seguro': 'USD',
     'Fuel': 'USD', 'Derechos': 'USD', 'Adic': 'USD', 'Otros': 'USD', 'Compra Total': 'USD',
     'Profit': 'USD', 'Profit total': 'USD', 'Profit flete': 'USD', 'Costo UPS': 'USD', 'Profit Real': 'USD',
-    '%': '%', '% Real': '%',
+    '%': '%', '% Real': '%', 'Margen %': '%', 'Margen real': '%',
   };
   let unidadPorCol = null;
   function unidadDeColumna(colIndex) {

@@ -174,7 +174,7 @@ async function main() {
 
   const COL_VENTA = await colDe('Venta Total');
   const COL_PFACT = await colDe('P.Fact');
-  const COL_PCT = await colDe('%');
+  const COL_PCT = await colDe('Margen %');
   const COL_DESTINO = await colDe('Destino');
   check('(fixture) se ubicaron las columnas por su rótulo', COL_VENTA > 0 && COL_PFACT > 0 && COL_PCT > 0 && COL_DESTINO > 0,
     `venta ${COL_VENTA} · pfact ${COL_PFACT} · % ${COL_PCT} · destino ${COL_DESTINO}`);
