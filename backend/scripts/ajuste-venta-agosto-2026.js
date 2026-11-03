@@ -16,7 +16,8 @@
  *
  * FRENOS (cada fila se aplica SOLO si pasan todos; si no, se saltea y se informa)
  *   - la guía existe una sola vez y es de agosto 2026
- *   - no está liquidada (ni confirmada ni en borrador)
+ *   - no está en una liquidación CONFIRMADA (un borrador no congela plata: al retomarlo la
+ *     vista previa se recalcula con la venta nueva; solo se avisa cuál es)
  *   - su total_cobrado actual es el que tenía el sistema cuando se hizo la comparación
  *     (si alguien lo tocó en el medio, no se pisa a ciegas)
  * Si el envío tenía un desglose de venta a mano (venta_json), se borra: ya no cerraría
@@ -74,9 +75,11 @@ const igual = (a, b) => Math.abs(Number(a) - Number(b)) < 0.011;
   const salteados = [];
   for (const [guia, esperado, nuevo] of AJUSTES) {
     const filas = await db.prepare(
-      `SELECT e.id, e.numero_salida, e.fecha, e.total_cobrado, e.venta_json, e.liquidado, c.nombre AS cliente,
-              (SELECT COUNT(*) FROM liquidacion_items li JOIN liquidaciones l ON l.id = li.liquidacion_id
-                WHERE li.envio_id = e.id AND l.estado IN ('borrador', 'confirmada')) AS en_liquidacion
+      `SELECT e.id, e.fecha, e.total_cobrado, e.venta_json, e.liquidado, c.nombre AS cliente,
+              (SELECT GROUP_CONCAT(l.id) FROM liquidacion_items li JOIN liquidaciones l ON l.id = li.liquidacion_id
+                WHERE li.envio_id = e.id AND l.estado = 'confirmada') AS confirmadas,
+              (SELECT GROUP_CONCAT(l.id) FROM liquidacion_items li JOIN liquidaciones l ON l.id = li.liquidacion_id
+                WHERE li.envio_id = e.id AND l.estado = 'borrador') AS borradores
          FROM envios e LEFT JOIN clientes c ON c.id = e.cliente_id
         WHERE e.numero_guia = ?`
     ).all(guia);
@@ -85,7 +88,9 @@ const igual = (a, b) => Math.abs(Number(a) - Number(b)) < 0.011;
       if (filas.length > 1) return `la guía está ${filas.length} veces`;
       const f = filas[0];
       if (!String(f.fecha || '').startsWith('2026-08')) return `no es de agosto (fecha ${f.fecha})`;
-      if (f.liquidado || f.en_liquidacion) return 'está liquidado (o en un borrador de liquidación)';
+      // Misma regla que el PATCH de Salidas: la plata se congela con la liquidación
+      // CONFIRMADA. Un borrador no congela nada (se rehace al abrirlo), solo se avisa.
+      if (f.liquidado || f.confirmadas) return `está liquidado (liquidación confirmada #${f.confirmadas || '?'})`;
       if (!igual(f.total_cobrado, esperado)) return `el total actual es ${usd(f.total_cobrado)}, no ${usd(esperado)} (alguien lo cambió después de la comparación)`;
       return null;
     })();
@@ -97,11 +102,16 @@ const igual = (a, b) => Math.abs(Number(a) - Number(b)) < 0.011;
   console.log(`Se ajustan ${aplicables.length} de ${AJUSTES.length}:`);
   for (const a of aplicables) {
     const f = a.fila;
-    console.log(`  #${String(f.numero_salida).padStart(3)}  ${String(f.cliente || '').padEnd(28)} ${a.guia.padEnd(20)} ${usd(f.total_cobrado).padStart(13)} → ${usd(a.nuevo)}${f.venta_json ? '  (se borra el desglose a mano)' : ''}`);
+    console.log(`  ${String(f.cliente || '').padEnd(28)} ${a.guia.padEnd(20)} ${usd(f.total_cobrado).padStart(13)} → ${usd(a.nuevo)}${f.venta_json ? '  (se borra el desglose a mano)' : ''}${f.borradores ? `  [en borrador #${f.borradores}]` : ''}`);
+  }
+  const enBorrador = [...new Set(aplicables.filter((a) => a.fila.borradores).flatMap((a) => a.fila.borradores.split(',')))];
+  if (enBorrador.length) {
+    console.log(`\nOJO: ${aplicables.filter((a) => a.fila.borradores).length} de estos envíos están en borradores de liquidación (#${enBorrador.join(', #')}).`);
+    console.log('No pasa nada: al retomar un borrador la vista previa se recalcula con la venta nueva (el total guardado del borrador es solo informativo).');
   }
   if (salteados.length) {
     console.log(`\nSalteados (${salteados.length}):`);
-    for (const s of salteados) console.log(`  ${s.guia}${s.fila ? ` (#${s.fila.numero_salida} ${s.fila.cliente || ''})` : ''}: ${s.motivo}`);
+    for (const s of salteados) console.log(`  ${s.guia}${s.fila ? ` (${s.fila.cliente || ''})` : ''}: ${s.motivo}`);
   }
   const antes = aplicables.reduce((s, a) => s + Number(a.fila.total_cobrado), 0);
   const despues = aplicables.reduce((s, a) => s + Number(a.nuevo), 0);
