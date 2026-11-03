@@ -190,59 +190,59 @@
                    agrega o saca una columna hay que tocar el grupo que corresponde. El grupo
                    "Factura UPS" lleva .ups-col para plegarse con las columnas UPS. -->
               <tr class="th-groups">
-                <th class="thg thg-id" colspan="8">Identificación</th>
-                <th class="thg thg-bulto" colspan="3">Bulto</th>
-                <th class="thg thg-medidas" colspan="6">Medidas y pesos</th>
-                <th class="thg thg-venta" colspan="3">Venta</th>
-                <th class="thg thg-costos" colspan="9">Costos (USD)</th>
+                <th class="thg thg-id" colspan="8" title="Quién, qué y a dónde">Identificación</th>
+                <th class="thg thg-bulto" colspan="3" title="Bulto, tipo de paquete y dirección">Bulto</th>
+                <th class="thg thg-medidas" colspan="6" title="Medidas en cm y pesos en kg; el facturable es el que se cobra">Medidas y pesos</th>
+                <th class="thg thg-venta" colspan="3" title="Lo que se le cobra al cliente">Venta</th>
+                <th class="thg thg-costos" colspan="9" title="Lo que el sistema estima que nos cobra el courier, concepto por concepto (compra estimada)">Costos (USD)</th>
                 <th class="thg thg-resultado" colspan="3" title="Profit total y % calculados por nosotros (venta − compra estimada) y el profit de solo el flete. El real contra la factura está en el bloque Factura UPS.">Resultado estimado</th>
-                <th class="thg thg-ups ups-col" colspan="7">Factura UPS</th>
-                <th class="thg thg-estado" colspan="2">Estado</th>
+                <th class="thg thg-ups ups-col" colspan="7" title="Lo que el courier facturó de verdad por esta guía (se carga en Facturas). Costo UPS es el total; Flete+Fuel UPS solo el renglón base, la diferencia son los recargos">Factura UPS</th>
+                <th class="thg thg-estado" colspan="2" title="Estado de cobro del envío y observaciones">Estado</th>
               </tr>
               <tr class="th-cols">
                 <th class="chk-cell" style="width:32px"><input type="checkbox" id="chk-all-guias" title="Seleccionar todo"></th>
-                <th data-col="numero_salida" style="width:52px"><div class="th-inner">#Sal<button class="filter-btn" data-filter="numero_salida" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
-                <th data-col="courier" style="width:70px"><div class="th-inner">Courier<button class="filter-btn" data-filter="courier" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
-                <th data-col="fecha" style="width:80px"><div class="th-inner">Fecha<button class="filter-btn" data-filter="fecha" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
-                <th data-col="numero_guia" style="width:160px"><div class="th-inner">Guía<span class="sort-icon"></span></div></th>
-                <th data-col="tipo_cobro" style="width:58px"><div class="th-inner">Cobro<button class="filter-btn" data-filter="tipo_cobro" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
-                <th data-col="cliente_nombre" style="width:130px"><div class="th-inner">Cliente<button class="filter-btn" data-filter="cliente_nombre" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
-                <th data-col="destino" style="width:110px"><div class="th-inner">Destino<button class="filter-btn" data-filter="destino" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
-                <th data-col="bulto" style="width:70px"><div class="th-inner">Bulto<button class="filter-btn" data-filter="numero_bulto" title="Filtrar por número de bulto (ver solo los 1/x) o por cantidad de bultos">▼</button><span class="sort-icon"></span></div></th>
-                <th data-col="tipo_paquete" style="width:55px"><div class="th-inner">Tipo<button class="filter-btn" data-filter="tipo_paquete" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
-                <th data-col="direccion" style="width:60px"><div class="th-inner">Dir<button class="filter-btn" data-filter="direccion" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
-                <th class="num" style="width:48px"><div class="th-inner">Largo</div></th>
-                <th class="num" style="width:48px"><div class="th-inner">Ancho</div></th>
-                <th class="num" style="width:48px"><div class="th-inner">Alto</div></th>
-                <th class="num" style="width:72px"><div class="th-inner">P.Balanza</div></th>
-                <th class="num" style="width:72px"><div class="th-inner">P.Volumétrico</div></th>
-                <th data-col="peso_facturable" class="num" style="width:62px"><div class="th-inner">P.Fact<span class="sort-icon"></span></div></th>
-                <th data-col="valor_declarado" class="num" style="width:70px"><div class="th-inner">FOB<span class="sort-icon"></span></div></th>
-                <th data-col="asegurado" style="width:52px"><div class="th-inner">Aseg<button class="filter-btn" data-filter="asegurado" title="Filtrar">▼</button></div></th>
-                <th data-col="total" class="num" style="width:75px"><div class="th-inner">Venta Total<span class="sort-icon"></span></div></th>
-                <th data-col="flete" class="num" style="width:70px"><div class="th-inner">Flete<span class="sort-icon"></span></div></th>
-                <th data-col="descuento" class="num" style="width:65px"><div class="th-inner">Dscto<span class="sort-icon"></span></div></th>
-                <th data-col="seguro" class="num" style="width:65px"><div class="th-inner">Seguro<span class="sort-icon"></span></div></th>
-                <th data-col="fuel" class="num" style="width:65px"><div class="th-inner">Fuel<span class="sort-icon"></span></div></th>
+                <th data-col="numero_salida" style="width:52px" title="Número de salida del mes (se numera por fecha; se puede fijar a mano desde el modal)"><div class="th-inner">#Sal<button class="filter-btn" data-filter="numero_salida" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
+                <th data-col="courier" style="width:70px" title="Courier del envío: UPS o DHL"><div class="th-inner">Courier<button class="filter-btn" data-filter="courier" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
+                <th data-col="fecha" style="width:80px" title="Fecha de salida del envío"><div class="th-inner">Fecha<button class="filter-btn" data-filter="fecha" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
+                <th data-col="numero_guia" style="width:160px" title="Número de guía del courier. Se pinta la celda si el número no pasa el dígito verificador (posible error de tipeo)"><div class="th-inner">Guía<span class="sort-icon"></span></div></th>
+                <th data-col="tipo_cobro" style="width:58px" title="Cómo paga el cliente: D diario, S semanal, Q quincenal, CC cuenta corriente"><div class="th-inner">Cobro<button class="filter-btn" data-filter="tipo_cobro" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
+                <th data-col="cliente_nombre" style="width:130px" title="Cliente al que se le factura"><div class="th-inner">Cliente<button class="filter-btn" data-filter="cliente_nombre" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
+                <th data-col="destino" style="width:110px" title="País de destino"><div class="th-inner">Destino<button class="filter-btn" data-filter="destino" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
+                <th data-col="bulto" style="width:70px" title="Número de bulto (1 de 1, 2 de 3…)"><div class="th-inner">Bulto<button class="filter-btn" data-filter="numero_bulto" title="Filtrar por número de bulto (ver solo los 1/x) o por cantidad de bultos">▼</button><span class="sort-icon"></span></div></th>
+                <th data-col="tipo_paquete" style="width:55px" title="Tipo de paquete: documento o mercadería"><div class="th-inner">Tipo<button class="filter-btn" data-filter="tipo_paquete" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
+                <th data-col="direccion" style="width:60px" title="Dirección del envío: exportación o importación"><div class="th-inner">Dir<button class="filter-btn" data-filter="direccion" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
+                <th class="num" style="width:48px" title="Largo en cm (del bulto, o del único bulto)"><div class="th-inner">Largo</div></th>
+                <th class="num" style="width:48px" title="Ancho en cm"><div class="th-inner">Ancho</div></th>
+                <th class="num" style="width:48px" title="Alto en cm"><div class="th-inner">Alto</div></th>
+                <th class="num" style="width:72px" title="Peso de balanza en kg (el real)"><div class="th-inner">P.Balanza</div></th>
+                <th class="num" style="width:72px" title="Peso volumétrico en kg: largo × ancho × alto ÷ 5000"><div class="th-inner">P.Volumétrico</div></th>
+                <th data-col="peso_facturable" class="num" style="width:62px" title="Peso facturable: el mayor entre el de balanza y el volumétrico, redondeado según el courier. Es el peso que se cobra y con el que se calcula el flete"><div class="th-inner">P.Fact<span class="sort-icon"></span></div></th>
+                <th data-col="valor_declarado" class="num" style="width:70px" title="FOB: valor declarado de la mercadería en USD. De acá sale el seguro"><div class="th-inner">FOB<span class="sort-icon"></span></div></th>
+                <th data-col="asegurado" style="width:52px" title="Si el envío lleva seguro (valor declarado)"><div class="th-inner">Aseg<button class="filter-btn" data-filter="asegurado" title="Filtrar">▼</button></div></th>
+                <th data-col="total" class="num" style="width:75px" title="Venta total: lo que se le cobra al cliente por el envío (sin cargos posteriores)"><div class="th-inner">Venta Total<span class="sort-icon"></span></div></th>
+                <th data-col="flete" class="num" style="width:70px" title="Flete de tabla del courier para ese peso y zona (compra estimada, sin fuel)"><div class="th-inner">Flete<span class="sort-icon"></span></div></th>
+                <th data-col="descuento" class="num" style="width:65px" title="Descuento del courier sobre el flete (resta de la compra)"><div class="th-inner">Dscto<span class="sort-icon"></span></div></th>
+                <th data-col="seguro" class="num" style="width:65px" title="Seguro al costo: lo que cobra el courier por el valor declarado (o la protección de documentos en DHL)"><div class="th-inner">Seguro<span class="sort-icon"></span></div></th>
+                <th data-col="fuel" class="num" style="width:65px" title="Fuel al costo: el % de combustible del courier aplicado sobre flete y recargos"><div class="th-inner">Fuel<span class="sort-icon"></span></div></th>
                 <th data-col="flete_fuel" class="num" style="width:78px" title="Flete + Fuel: es el renglón que UPS factura junto por cada guía"><div class="th-inner">Flete+Fuel<span class="sort-icon"></span></div></th>
-                <th data-col="derechos" class="num" style="width:65px"><div class="th-inner">Derechos<span class="sort-icon"></span></div></th>
-                <th data-col="adicionales" class="num" style="width:65px"><div class="th-inner">Adic<span class="sort-icon"></span></div></th>
-                <th data-col="otros" class="num" style="width:60px"><div class="th-inner">Otros<span class="sort-icon"></span></div></th>
-                <th data-col="compra_total" class="num" style="width:80px"><div class="th-inner">Compra Total<span class="sort-icon"></span></div></th>
+                <th data-col="derechos" class="num" style="width:65px" title="Derechos de exportación al costo (cuando el courier los cobra)"><div class="th-inner">Derechos<span class="sort-icon"></span></div></th>
+                <th data-col="adicionales" class="num" style="width:65px" title="Adicionales al costo: surge, manejo, área remota, residencial, mayor tamaño… (el detalle está en el modal, bloque Costos)"><div class="th-inner">Adic<span class="sort-icon"></span></div></th>
+                <th data-col="otros" class="num" style="width:60px" title="Otros costos al costo que no entran en ninguna columna"><div class="th-inner">Otros<span class="sort-icon"></span></div></th>
+                <th data-col="compra_total" class="num" style="width:80px" title="Compra total estimada: flete − descuento + seguro + fuel + derechos + adicionales + otros + cargos posteriores. Es lo que el sistema calcula que nos va a cobrar el courier"><div class="th-inner">Compra Total<span class="sort-icon"></span></div></th>
                 <th data-col="profit" class="num" style="width:74px" title="Profit total del envío: venta − compra estimada (flete, fuel, seguro, surge, adicionales…)"><div class="th-inner">Profit total<span class="sort-icon"></span></div></th>
                 <th data-col="profit_flete" class="num" style="width:74px" title="Lo que deja SOLO el flete: flete de venta − flete de tabla del courier. Sin fuel, seguro, surge ni ningún otro concepto"><div class="th-inner">Profit flete<span class="sort-icon"></span></div></th>
                 <th data-col="porcentaje" class="num" style="width:64px" title="Margen estimado: profit total ÷ compra estimada, en %"><div class="th-inner">Margen %<span class="sort-icon"></span></div></th>
-                <th data-col="costo_facturado" class="num ups-col" style="width:78px"><div class="th-inner">Costo UPS<span class="sort-icon"></span></div></th>
+                <th data-col="costo_facturado" class="num ups-col" style="width:78px" title="Costo UPS: TODO lo que el courier facturó por esta guía (flete + fuel + recargos + percepción si la hubo). En rojo con ⚠ cuando trae algo no previsto; comparar contra Compra total"><div class="th-inner">Costo UPS<span class="sort-icon"></span></div></th>
                 <th data-col="flete_fuel_ups" class="num ups-col" style="width:88px" title="Flete + fuel que facturó UPS por la guía (sin recargos). Rojo si difiere de nuestro Flete+Fuel en más de USD 2"><div class="th-inner">Flete+Fuel UPS<span class="sort-icon"></span></div></th>
                 <th data-col="porcentaje_real" class="num ups-col" style="width:70px" title="Margen real: profit real ÷ costo facturado por el courier, en %"><div class="th-inner">Margen real<span class="sort-icon"></span></div></th>
                 <!-- La doble vista (31/08): el profit contra la factura REAL del courier, al lado
                      del estimado de siempre. Ninguno pisa al otro. -->
-                <th class="num ups-col" style="width:80px"><div class="th-inner">Profit Real</div></th>
+                <th class="num ups-col" style="width:80px" title="Profit real: Venta − Costo UPS facturado (lo que de verdad quedó, contra la factura y no contra la estimación)"><div class="th-inner">Profit Real</div></th>
                 <th data-col="peso_facturado" class="num ups-col" style="width:70px" title="Kilos que facturó UPS. En rojo cuando pesó de más de lo tolerado; el % va en el tooltip de la celda"><div class="th-inner">Peso UPS<span class="sort-icon"></span></div></th>
                 <th class="num ups-col" style="width:70px" title="Nuestro peso facturable (el mismo P.Fact de la izquierda), puesto acá para compararlo con el de UPS"><div class="th-inner">Peso Nova</div></th>
-                <th class="ups-col" style="width:70px"><div class="th-inner">Revisión<button class="filter-btn" data-filter="revision" title="Filtrar">▼</button></div></th>
-                <th data-col="estado" style="width:100px"><div class="th-inner">Estado<button class="filter-btn" data-filter="estado" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
-                <th style="width:140px">Observaciones</th>
+                <th class="ups-col" style="width:70px" title="Revisión de la factura: ✓ aprobada, ✕ a revisar, ⚑ en reclamo. Con factura y sin decisión aparece la botonera"><div class="th-inner">Revisión<button class="filter-btn" data-filter="revision" title="Filtrar">▼</button></div></th>
+                <th data-col="estado" style="width:100px" title="Estado de cobro: pendiente (con los días desde la salida), liquidado, etc."><div class="th-inner">Estado<button class="filter-btn" data-filter="estado" title="Filtrar">▼</button><span class="sort-icon"></span></div></th>
+                <th style="width:140px" title="Observaciones del envío (se editan en el modal)">Observaciones</th>
               </tr>
             </thead>
             <tbody id="salidas-body">
@@ -281,6 +281,6 @@
 <script src="/shared/salidas/numeracion.js?v=20261020a"></script>
 <script src="../js/cotizaciones-recientes.js?v=20261002a"></script>
 <script src="../js/finde.js?v=20260922b"></script>
-<script src="../js/modules/salidas.js?v=20261103b"></script>
+<script src="../js/modules/salidas.js?v=20261103c"></script>
 </body>
 </html>
