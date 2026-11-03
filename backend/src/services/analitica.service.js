@@ -344,7 +344,7 @@ function profitOficial(e) {
 // porque la factura del courier los incluye y los DDP se suman aparte).
 function compraOficial(e) { return r2(compraEnvio(e) - cargosPost(e)); }
 
-function acumulador() { return { envios: 0, bultos: 0, kg_fact: 0, kg_real: 0, venta: 0, compra: 0, profit: 0, cargos: 0, sin_venta_n: 0, sin_venta_compra: 0 }; }
+function acumulador() { return { envios: 0, bultos: 0, kg_fact: 0, kg_real: 0, kg_con_venta: 0, venta: 0, compra: 0, profit: 0, cargos: 0, sin_venta_n: 0, sin_venta_compra: 0 }; }
 // Un envío SIN precio de venta cargado (total 0) cuenta en envíos y kilos, pero su compra
 // va aparte (29/09/2026): antes sumaba a Compra y no a Venta ni a Profit, y el dashboard
 // mostraba una compra mayor que la venta con un profit positivo (sept-2026: 63 envíos sin
@@ -364,6 +364,10 @@ function sumar(acc, e) {
     acc.venta += venta;
     acc.compra += compra;
     acc.profit += profitOficial(e);
+    // Los kilos que respaldan la venta y la compra: con ellos se calcula el valor del
+    // kilo (03/11/2026). Un envío sin precio suma kilos a la tarjeta pero no acá, porque
+    // su compra tampoco está en Compra: si entrara, el kilo saldría más barato de lo real.
+    acc.kg_con_venta += Number(e.peso_facturable) || 0;
   } else {
     acc.sin_venta_n += 1;
     acc.sin_venta_compra += compra;
@@ -378,6 +382,13 @@ function cerrar(acc) {
     cargos_post: r2(acc.cargos),
     margen_pct: acc.compra > 0 ? r1((acc.profit / acc.compra) * 100) : null,
     sin_venta: { n: acc.sin_venta_n, compra: r2(acc.sin_venta_compra) },
+    // Valor del kilo (03/11/2026, pedido de Marcelo): a cuánto se compró, a cuánto se
+    // vendió y cuánto dejó cada kilo facturable, en USD. Sobre los kilos de los envíos con
+    // venta (kg_con_venta), para que compra, venta y profit estén sobre la misma base.
+    kg_con_venta: r1(acc.kg_con_venta),
+    compra_kg: acc.kg_con_venta > 0 ? r2(acc.compra / acc.kg_con_venta) : null,
+    venta_kg: acc.kg_con_venta > 0 ? r2(acc.venta / acc.kg_con_venta) : null,
+    utilidad_kg: acc.kg_con_venta > 0 ? r2(acc.profit / acc.kg_con_venta) : null,
   };
 }
 
@@ -487,6 +498,22 @@ async function analitica(q = {}) {
     }
   }
   const mixTotal = { UPS: cerrar(envios.filter((e) => e.courier === 'UPS').reduce(sumar, acumulador())), DHL: cerrar(envios.filter((e) => e.courier === 'DHL').reduce(sumar, acumulador())) };
+
+  // ── Tabla por mes con el valor del kilo (03/11/2026) ──
+  // Lo que pidió Marcelo: por período, cuánto costó el kilo, a cuánto se vendió y cuánto
+  // dejó, escrito y no en gráfico. Una fila por mes y la fila Total, en tres juegos: todos
+  // los envíos, solo UPS y solo DHL (el kilo de uno y del otro no valen lo mismo). Mismo
+  // sumar/cerrar que las tarjetas, así los números cierran entre sí.
+  const porMesCourier = (c) => meses.map((m) => ({
+    mes: m,
+    ...cerrar(envios.filter((e) => mesDe(e.fecha) === m && (!c || e.courier === c)).reduce(sumar, acumulador())),
+  }));
+  const porKg = {
+    meses,
+    todos: { filas: porMesCourier(null), total: kpis },
+    UPS: { filas: porMesCourier('UPS'), total: mixTotal.UPS },
+    DHL: { filas: porMesCourier('DHL'), total: mixTotal.DHL },
+  };
 
   // ── Top clientes ──
   const porCliente = new Map();
@@ -608,6 +635,7 @@ async function analitica(q = {}) {
     filtros,
     kpis, kpis_ant: kpisAnt, variaciones,
     series, mix, mix_total: mixTotal,
+    por_kg: porKg,
     top_clientes: clientes, clientes_activos: clientes.length,
     paises,
     real,
@@ -667,6 +695,10 @@ async function detalle(q = {}) {
     if (!porCliente.has(k)) porCliente.set(k, { cliente_id: k, cliente: e.cliente_nombre, acc: acumulador() });
     sumar(porCliente.get(k).acc, e);
   }
+  // Cómo se reparte el número entre los meses del período (03/11/2026, pedido de Felipe:
+  // "de esos 499 envíos, cuántos fueron de cada mes"). Solo tiene sentido con más de un mes.
+  const mesesDet = mesesEntre(desde, hasta);
+  const porMes = mesesDet.map((m) => ({ mes: m, ...cerrar(envios.filter((e) => mesDe(e.fecha) === m).reduce(sumar, acumulador())) }));
   const metrica = kpi === 'sin_liquidar' ? 'venta' : kpi === 'sin_venta' ? 'envios' : kpi;
   const clientes = [...porCliente.values()].map((c) => ({ cliente_id: c.cliente_id, cliente: c.cliente, ...cerrar(c.acc) }))
     .sort((a, b) => (b[metrica] || 0) - (a[metrica] || 0));
@@ -682,7 +714,7 @@ async function detalle(q = {}) {
   filas.sort(orden);
   return {
     kpi, periodo: { desde, hasta: sumarDias(hasta, -1), etiqueta }, filtros,
-    totales, por_courier: porCourier, por_tipo: porTipo, por_cliente: clientes.slice(0, 10), clientes_n: clientes.length,
+    totales, por_mes: porMes, por_courier: porCourier, por_tipo: porTipo, por_cliente: clientes.slice(0, 10), clientes_n: clientes.length,
     filas: filas.slice(0, TOPE_FILAS),
     filas_total: envios.length, truncado: envios.length > TOPE_FILAS,
   };

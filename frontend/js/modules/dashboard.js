@@ -33,7 +33,7 @@
 
   // ── Estado de los filtros ──────────────────────────────────────────────────
   const filtros = { periodo: '12m', desde: null, hasta: null, courier: '', tipo: '', comparar: 'previo' };
-  const vista = { mes: 'kg', mix: 'venta', top: 'venta', topN: 10, pais: 'envios' };
+  const vista = { mes: 'kg', mix: 'venta', top: 'venta', topN: 10, pais: 'envios', kg: 'todos' };
   let datos = null;
   const charts = {};
 
@@ -98,6 +98,7 @@
     hint.textContent = `${fmtDia(p.desde)} → ${fmtDia(p.hasta)} · comparado con ${fmtDia(c.desde)} → ${fmtDia(c.hasta)}${c.misma_altura ? ' (a la misma altura: hasta el mismo día)' : ''} · NO VOLÓ excluidos`;
     $('dash-excel').href = NovaAPI.dashboard.analiticaExcelUrl(query());
     pintarKpis();
+    pintarPorKg();
     pintarMes();
     pintarMix();
     pintarTop();
@@ -369,6 +370,37 @@
   }
 
   // ── Top clientes ───────────────────────────────────────────────────────────
+  // Valor del kilo por mes (03/11/2026): una fila por mes + Total, con Todos / UPS / DHL.
+  function pintarPorKg() {
+    const bloque = datos.por_kg && datos.por_kg[vista.kg];
+    const tbody = $('dash-kg-t').querySelector('tbody');
+    if (!bloque || !bloque.filas.length || !bloque.total.envios) {
+      tbody.innerHTML = '<tr class="vacio"><td colspan="10">No hay envíos en el período.</td></tr>';
+      $('dash-kg-pie').textContent = '';
+      return;
+    }
+    const kg = (v) => (v == null ? '—' : fmtN(v, 2));
+    const fila = (etq, x, total) => `<tr${total ? ' class="total"' : ''}>
+      <td>${etq}</td>
+      <td class="n">${fmtN(x.envios)}</td>
+      <td class="n">${fmtN(x.kg_fact, 0)}</td>
+      <td class="n">${fmtN(x.compra, 0)}</td>
+      <td class="n">${fmtN(x.venta, 0)}</td>
+      <td class="n ${x.profit < 0 ? 'neg' : 'pos'}">${fmtN(x.profit, 0)}</td>
+      <td class="n sep">${kg(x.compra_kg)}</td>
+      <td class="n"><b>${kg(x.venta_kg)}</b></td>
+      <td class="n ${x.utilidad_kg < 0 ? 'neg' : 'pos'}">${kg(x.utilidad_kg)}</td>
+      <td class="n">${x.margen_pct == null ? '—' : fmtN(x.margen_pct, 0) + '%'}</td>
+    </tr>`;
+    const filas = bloque.filas.filter((f) => f.envios > 0);
+    const cap = (t) => t.charAt(0).toUpperCase() + t.slice(1);
+    tbody.innerHTML = filas.map((f) => fila(`${cap(mesNombre(f.mes))} ${f.mes.slice(0, 4)}`, f, false)).join('')
+      + (filas.length > 1 ? fila('Total', bloque.total, true) : '');
+    const sv = bloque.total.sin_venta;
+    $('dash-kg-pie').textContent = 'USD por kilo facturable: compra ÷ kg, venta ÷ kg y profit ÷ kg. '
+      + (vista.kg === 'todos' ? 'UPS y DHL mezclados: usá el selector para ver cada uno. ' : `Solo ${vista.kg}. `)
+      + (sv && sv.n ? `${sv.n} ${sv.n === 1 ? 'envío sin precio de venta cuenta' : 'envíos sin precio de venta cuentan'} en Envíos y Kg pero no en el valor del kilo.` : '');
+  }
   function pintarTop() {
     const campo = vista.top;
     const part = { kg_fact: 'part_kg_pct', venta: 'part_venta_pct', profit: 'part_profit_pct', envios: 'part_envios_pct' }[campo];
@@ -378,7 +410,7 @@
     const visibles = lista.slice(0, n);
     const tbody = $('dash-top').querySelector('tbody');
     if (!lista.length) {
-      tbody.innerHTML = '<tr class="vacio"><td colspan="9">No hay envíos en el período.</td></tr>';
+      tbody.innerHTML = '<tr class="vacio"><td colspan="11">No hay envíos en el período.</td></tr>';
       $('dash-top-pie').textContent = '';
       return;
     }
@@ -394,6 +426,8 @@
         <td class="n"><b>${fmtN(c.venta, 0)}</b></td>
         <td class="n ${c.profit < 0 ? 'neg' : 'pos'}">${fmtN(c.profit, 0)}</td>
         <td class="n">${c.margen_pct == null ? '—' : fmtN(c.margen_pct, 0) + '%'}</td>
+        <td class="n">${c.venta_kg == null ? '—' : fmtN(c.venta_kg, 2)}</td>
+        <td class="n ${c.utilidad_kg < 0 ? 'neg' : ''}">${c.utilidad_kg == null ? '—' : fmtN(c.utilidad_kg, 2)}</td>
         <td><div class="bar" title="${fmtN(c[part], 1)}% del total"><i style="width:${Math.round(((c[part] || 0) / maxPart) * 100)}%"></i></div></td>
         <td class="n">${varHtml}</td>
       </tr>`;
@@ -554,6 +588,7 @@
     seg('seg-mix', 'mix', pintarMix);
     seg('seg-top', 'top', pintarTop);
     seg('seg-pais', 'pais', pintarPaises);
+    seg('seg-kg', 'kg', pintarPorKg);
     $('dash-top-n').addEventListener('change', (e) => { vista.topN = Number(e.target.value); if (datos) pintarTop(); });
   }
 
@@ -632,6 +667,14 @@
     const val = (x) => (metrica === 'envios' ? fmtN(x.envios) : metrica === 'kg_fact' ? fmtN(x.kg_fact, 0) + ' kg' : 'USD ' + fmtCorto(kpi === 'sin_venta' ? x.sin_venta.compra : x[metrica]));
     const extra = (x) => (kpi === 'profit' && x.margen_pct != null ? ` · ${fmtN(x.margen_pct, 0)}%` : kpi === 'kg_fact' || kpi === 'venta' || kpi === 'compra' ? ` · ${fmtN(x.envios)} env.` : '');
     const chips = [];
+    // Reparto por mes (03/11/2026): con más de un mes en el período, primero cómo se
+    // divide el número entre los meses ("de esos 499 envíos, cuántos de cada mes").
+    if (Array.isArray(d.por_mes) && d.por_mes.length > 1) {
+      for (const m of d.por_mes) {
+        if (!m.envios) continue;
+        chips.push(`<span class="chip mes">${mesCorto(m.mes)}: <b>${val(m)}</b>${kpi === 'envios' ? '' : ` · ${fmtN(m.envios)} env.`}</span>`);
+      }
+    }
     for (const c of ['UPS', 'DHL']) {
       const x = d.por_courier[c];
       if (x && x.envios) chips.push(`<span class="chip ${c.toLowerCase()}">${c}: <b>${val(x)}</b>${kpi === 'envios' ? '' : ` · ${fmtN(x.envios)} envíos`}${kpi === 'profit' && x.margen_pct != null ? ` · ${fmtN(x.margen_pct, 0)}%` : ''}</span>`);

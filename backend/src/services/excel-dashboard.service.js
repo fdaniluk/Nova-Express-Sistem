@@ -42,10 +42,26 @@ async function armar(d) {
     m, e: d.series.envios[i], k: d.series.kg[i], v: d.series.venta[i], c: d.series.compra[i], p: d.series.profit[i],
     mg: (d.margen.meses[i] || {}).pct, uv: d.mix.UPS.venta[i], dv: d.mix.DHL.venta[i],
   })));
+  // Valor del kilo por mes (03/11/2026): la tabla escrita que pidió Marcelo, con los tres
+  // juegos (todos / UPS / DHL) uno debajo del otro y la fila Total de cada uno.
+  const filasKg = [];
+  for (const [clave, titulo] of [['todos', 'Todos'], ['UPS', 'UPS'], ['DHL', 'DHL']]) {
+    const b = d.por_kg[clave];
+    const fila = (etq, x) => ({ j: titulo, m: etq, e: x.envios, k: x.kg_fact, c: x.compra, v: x.venta, p: x.profit, ck: x.compra_kg, vk: x.venta_kg, uk: x.utilidad_kg, mg: x.margen_pct });
+    b.filas.forEach((f) => filasKg.push(fila(f.mes, f)));
+    filasKg.push(fila('Total', b.total));
+  }
+  hoja(wb, 'Valor del kilo', [
+    { h: 'Courier', k: 'j', w: 9 }, { h: 'Mes', k: 'm', w: 10 }, { h: 'Envíos', k: 'e' }, { h: 'Kg facturables', k: 'k', f: KG },
+    { h: 'Compra USD', k: 'c', f: NUM }, { h: 'Venta USD', k: 'v', f: NUM }, { h: 'Profit USD', k: 'p', f: NUM },
+    { h: 'Compra USD/kg', k: 'ck', f: NUM }, { h: 'Venta USD/kg', k: 'vk', f: NUM }, { h: 'Utilidad USD/kg', k: 'uk', f: NUM }, { h: 'Margen %', k: 'mg', f: '0.0' },
+  ], filasKg);
   hoja(wb, 'Clientes', [
     { h: '#', k: 'n', w: 5 }, { h: 'Cliente', k: 'c', w: 30 }, { h: 'Envíos', k: 'e' }, { h: 'Kg', k: 'k', f: KG }, { h: 'Venta USD', k: 'v', f: NUM },
-    { h: 'Compra USD', k: 'co', f: NUM }, { h: 'Profit USD', k: 'p', f: NUM }, { h: 'Margen %', k: 'mg', f: '0.0' }, { h: 'Part. venta %', k: 'pv', f: '0.0' }, { h: 'Var. venta %', k: 'vv', f: '0.0' },
-  ], d.top_clientes.map((c, i) => ({ n: i + 1, c: c.nombre, e: c.envios, k: c.kg_fact, v: c.venta, co: c.compra, p: c.profit, mg: c.margen_pct, pv: c.part_venta_pct, vv: c.var_venta })));
+    { h: 'Compra USD', k: 'co', f: NUM }, { h: 'Profit USD', k: 'p', f: NUM }, { h: 'Margen %', k: 'mg', f: '0.0' },
+    { h: 'Venta USD/kg', k: 'vk', f: NUM }, { h: 'Utilidad USD/kg', k: 'uk', f: NUM },
+    { h: 'Part. venta %', k: 'pv', f: '0.0' }, { h: 'Var. venta %', k: 'vv', f: '0.0' },
+  ], d.top_clientes.map((c, i) => ({ n: i + 1, c: c.nombre, e: c.envios, k: c.kg_fact, v: c.venta, co: c.compra, p: c.profit, mg: c.margen_pct, vk: c.venta_kg, uk: c.utilidad_kg, pv: c.part_venta_pct, vv: c.var_venta })));
   hoja(wb, 'Destinos', [
     { h: 'País', k: 'p', w: 26 }, { h: 'Envíos', k: 'e' }, { h: 'Kg', k: 'k', f: KG }, { h: 'Venta USD', k: 'v', f: NUM },
   ], d.paises.map((p) => ({ p: p.pais, e: p.envios, k: p.kg, v: p.venta })));

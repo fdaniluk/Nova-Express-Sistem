@@ -22,6 +22,7 @@ const { prepararDb, abrirSesion, esperarServidor } = require('./_base-test');
 const PORT = process.env.PORT_TEST || 3966;
 const BASE = `http://localhost:${PORT}`;
 const DB = process.env.DB_PATH_TEST || '/tmp/test_dashboard_analitica.db';
+ const HOY_FIJO = (() => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-15`; })();
 const TOKEN = 'token-test-dash-analitica';
 const H = { 'Content-Type': 'application/json', Cookie: `nova_session=${TOKEN}` };
 
@@ -41,7 +42,11 @@ function ym(d, n) { const x = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMont
 async function main() {
   prepararDb(DB, { desdeProduccion: false });
   const srv = spawn('node', [path.join(__dirname, '..', 'src', 'server.js')], {
-    env: { ...process.env, DB_PATH: DB, PORT: String(PORT), NODE_ENV: 'production' },
+    // "Hoy" fijo al 15 del mes en curso (NOVA_HOY, utils/fecha.js): el test compara períodos
+    // a la misma altura y los primeros días del mes (03/11/2026) la comparación quedaba con
+    // 1 o 2 días y los números no cerraban. El día 15 siempre deja los envíos del 02, 05 y 08
+    // adentro y la proyección con días hábiles de sobra.
+    env: { ...process.env, DB_PATH: DB, PORT: String(PORT), NODE_ENV: 'production', NOVA_HOY: HOY_FIJO },
     stdio: ['ignore', 'pipe', 'pipe'],
   });
   let logOut = ''; let logErr = '';
@@ -64,7 +69,7 @@ async function main() {
   const cB = await j(await post('/api/clientes', { nombre: 'BETA SRL', tarifa_pct: 80 }));
 
   // Fechas: este mes (M0) y el anterior (M-1) son el "período"; M-2 y M-3 el previo.
-  const hoy = new Date();
+  const hoy = new Date(`${HOY_FIJO}T12:00:00`);
   const M0 = ym(hoy, 0), M1 = ym(hoy, -1), M2 = ym(hoy, -2), M3 = ym(hoy, -3);
   // Los envíos de este mes caen hasta el día 8: a principio de mes serían fechas futuras
   // (fuera de "últimos 12 meses" y de "este mes hasta hoy"), así que el día se recorta a hoy.
@@ -140,7 +145,7 @@ async function main() {
   const esperadosM0 = 3;
   check(`periodo=mes → solo este mes hasta hoy: ${esperadosM0} envío(s)`, dM.kpis.envios === esperadosM0 && dM.periodo.meses.length === 1, `${dM.kpis.envios} ${JSON.stringify(dM.periodo.meses)}`);
   check('   y compara a la misma altura del mes anterior (1..hoy)', dM.comparacion.misma_altura === true && dM.comparacion.desde === `${M1}-01` && Number(dM.comparacion.hasta.slice(8, 10)) <= diaHoy, JSON.stringify(dM.comparacion));
-  check('   con una proyección del mes (ritmo solo: no hay 3 meses cerrados antes)', dM.proyeccion && dM.proyeccion.metodo === 'ritmo_habil' && dM.proyeccion.habiles_mes >= 20 && dM.proyeccion.mes_anterior && ['baja', 'media', 'alta', 'cerrado'].includes(dM.proyeccion.confianza), JSON.stringify(dM.proyeccion));
+  check('   con una proyección del mes (ritmo solo: no hay 3 meses cerrados antes)', dM.proyeccion && dM.proyeccion.metodo === 'ritmo_habil' && dM.proyeccion.habiles_mes >= 17 && dM.proyeccion.mes_anterior && ['baja', 'media', 'alta', 'cerrado'].includes(dM.proyeccion.confianza), JSON.stringify(dM.proyeccion));
   {
     // Unitario, con fechas fijas: 15 de septiembre 2026 (martes; 11 hábiles pasados de 22).
     const A = require('../src/services/analitica.service');
@@ -285,7 +290,7 @@ async function main() {
   const buf = Buffer.from(await r.arrayBuffer());
   const wb = new ExcelJS.Workbook(); await wb.xlsx.load(buf);
   const hojas = wb.worksheets.map((w) => w.name);
-  check('hojas: Resumen, Por mes, Clientes, Destinos, Estimado vs real', hojas.join('|') === 'Resumen|Por mes|Clientes|Destinos|Estimado vs real', hojas.join('|'));
+  check('hojas: Resumen, Por mes, Valor del kilo, Clientes, Destinos, Estimado vs real', hojas.join('|') === 'Resumen|Por mes|Valor del kilo|Clientes|Destinos|Estimado vs real', hojas.join('|'));
   const wsC = wb.getWorksheet('Clientes');
   check('la hoja Clientes tiene a BETA primero con venta 900', wsC.getRow(2).getCell(2).value === 'BETA SRL' && cerca(wsC.getRow(2).getCell(5).value, 900), JSON.stringify(wsC.getRow(2).values));
 

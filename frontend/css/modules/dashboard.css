@@ -145,6 +145,7 @@
 .dash-detalle-reparto .chip.ups { background: #fff7ed; color: #9a3412; border-color: #fdba74; }
 .dash-detalle-reparto .chip.dhl { background: #fef2f2; color: #991b1b; border-color: #fca5a5; }
 .dash-detalle-reparto .chip.cli { background: #f8fafc; color: #334155; border-color: var(--color-border); cursor: pointer; }
+.dash-detalle-reparto .chip.mes { background: #f0fdf4; color: #166534; border-color: #86efac; }
 .dash-detalle-reparto .chip.tipo { background: #f1f5f9; color: #334155; border-color: #cbd5e1; }
 .dash-detalle-reparto .chip.cli.neg b { color: var(--color-danger); }
 .dash-detalle-t td .orig { font-size: 10px; font-weight: 700; padding: 1px 6px; border-radius: 8px; background: #f1f5f9; color: #475569; }
@@ -168,3 +169,8 @@
 .dash-detalle-t td .liq.no { background: #fff3cd; color: #8a5a00; }
 .dash-detalle-t tr.vacio td { text-align: center; color: var(--color-muted); padding: 24px; }
 @media (max-width: 700px) { .dash-detalle-barra { flex-wrap: wrap; } }
+
+/* Valor del kilo por mes (03/11/2026) */
+.dash-kg-t th.sep, .dash-kg-t td.sep { border-left: 2px solid #dfe5ee; padding-left: 14px; }
+.dash-kg-t tr.total td { border-top: 2px solid #dfe5ee; border-bottom: 0; font-weight: 700; background: #f8fafc; }
+.dash-kg-t td.n b { font-weight: 800; }

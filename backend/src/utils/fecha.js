@@ -16,13 +16,21 @@
 //
 // Es la contraparte de NovaUtils.hoyLocal() del frontend (frontend/js/main.js).
 
-function hoyLocal(d = new Date()) {
+// Solo para los tests: NOVA_HOY=YYYY-MM-DD fija "hoy" (los tests del dashboard comparan
+// períodos relativos a hoy y fallaban los primeros días de cada mes). En producción no se
+// define y "hoy" es el reloj del servidor.
+function ahora() {
+  const fijo = process.env.NOVA_HOY;
+  return /^\d{4}-\d{2}-\d{2}$/.test(fijo || '') ? new Date(`${fijo}T12:00:00`) : new Date();
+}
+
+function hoyLocal(d = ahora()) {
   const p = (n) => String(n).padStart(2, '0');
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
 
 // Fecha local corrida N días (negativo = hacia atrás), 'YYYY-MM-DD'.
-function hoyLocalMas(dias, base = new Date()) {
+function hoyLocalMas(dias, base = ahora()) {
   const d = new Date(base);
   d.setDate(d.getDate() + dias);
   return hoyLocal(d);

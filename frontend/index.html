@@ -9,7 +9,7 @@
        inline, porque si queda solo en main.css Chrome a veces lo lee tarde y saltea el fundido. -->
   <style>@view-transition { navigation: auto; }</style>
   <link rel="stylesheet" href="css/main.css?v=20261103a">
-  <link rel="stylesheet" href="css/modules/dashboard.css?v=20261016a">
+  <link rel="stylesheet" href="css/modules/dashboard.css?v=20261103a">
 </head>
 <body>
 <div class="app-layout">
@@ -165,6 +165,21 @@
         <div class="dash-kpi" data-kpi="sin_liquidar"><div class="k">Sin liquidar</div><div class="v">—</div><div class="d"></div></div>
       </div>
 
+      <!-- Valor del kilo por mes (03/11/2026, pedido de Marcelo): escrito, no en gráfico.
+           A cuánto se compró, a cuánto se vendió y cuánto dejó cada kilo, mes a mes y total,
+           con el selector Todos / UPS / DHL porque el kilo de cada courier vale distinto. -->
+      <div class="card dash-card" id="dash-kg">
+        <h2>Por mes · valor del kilo <span class="sub" id="dash-kg-sub">USD por kilo facturable · compra, venta y utilidad</span>
+          <span class="der"><span class="seg" id="seg-kg"><button class="on" data-m="todos">Todos</button><button data-m="UPS">UPS</button><button data-m="DHL">DHL</button></span></span></h2>
+        <div class="table-wrap">
+          <table class="dash-tabla dash-kg-t" id="dash-kg-t">
+            <thead><tr><th>Mes</th><th class="n">Envíos</th><th class="n">Kg</th><th class="n">Compra</th><th class="n">Venta</th><th class="n">Profit</th><th class="n sep">Compra/kg</th><th class="n">Venta/kg</th><th class="n">Utilidad/kg</th><th class="n">Margen</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <div class="dash-hint" id="dash-kg-pie"></div>
+      </div>
+
       <!-- Proyección del mes en curso (29/09/2026): con los períodos que incluyen el mes de hoy. -->
       <div class="card dash-card dash-proy hidden" id="dash-proy">
         <h2><span id="dash-proy-tit">Proyección del mes</span> <span class="sub" id="dash-proy-sub"></span><span class="der"><span class="dash-proy-conf" id="dash-proy-conf"></span></span></h2>
@@ -204,7 +219,7 @@
             <select id="dash-top-n" class="dash-sel"><option value="5">Ver 5</option><option value="10" selected>Ver 10</option><option value="20">Ver 20</option><option value="0">Todos</option></select></span></h2>
           <div class="table-wrap">
             <table class="dash-tabla" id="dash-top">
-              <thead><tr><th></th><th>Cliente</th><th class="n">Envíos</th><th class="n">Kg</th><th class="n">Venta</th><th class="n">Profit</th><th class="n">%</th><th>Participación</th><th class="n">vs. ant.</th></tr></thead>
+              <thead><tr><th></th><th>Cliente</th><th class="n">Envíos</th><th class="n">Kg</th><th class="n">Venta</th><th class="n">Profit</th><th class="n">%</th><th class="n" title="Venta ÷ kg facturables">Venta/kg</th><th class="n" title="Profit ÷ kg facturables">Util./kg</th><th>Participación</th><th class="n">vs. ant.</th></tr></thead>
               <tbody></tbody>
             </table>
           </div>
@@ -283,6 +298,6 @@
 <script src="js/api.js?v=20261016a"></script>
 <script src="js/main.js?v=20261103a"></script>
 <script src="js/vendor/chart.umd.js?v=20260915a"></script>
-<script src="js/modules/dashboard.js?v=20261019b"></script>
+<script src="js/modules/dashboard.js?v=20261103a"></script>
 </body>
 </html>
