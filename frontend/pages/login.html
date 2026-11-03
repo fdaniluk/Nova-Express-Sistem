@@ -5,7 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Ingresar – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
-  <link rel="stylesheet" href="../css/main.css?v=20261027a">
+  <!-- Cambio de módulo sin salto (03/11/2026): el opt-in a las view transitions va acá,
+       inline, porque si queda solo en main.css Chrome a veces lo lee tarde y saltea el fundido. -->
+  <style>@view-transition { navigation: auto; }</style>
+  <link rel="stylesheet" href="../css/main.css?v=20261103a">
   <style>
     body {
       display: flex;
@@ -98,6 +101,6 @@
       </form>
     </div>
   </div>
-  <script src="/js/login.js?v=20260915a"></script>
+  <script src="/js/login.js?v=20261103a"></script>
 </body>
 </html>

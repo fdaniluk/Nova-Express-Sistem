@@ -25,6 +25,9 @@ document.getElementById('form-login').addEventListener('submit', async function 
     }
 
     const data = await res.json();
+    // El usuario recordado (auth-guard.js, nova_me) es del que se fue: se borra para que
+    // la primera pantalla del que entra no se dibuje con permisos ajenos.
+    try { localStorage.removeItem('nova_me'); } catch { /* sin storage */ }
     location.replace(data.ver_dashboard === 1 ? '/index.html' : '/pages/envios.html');
   } catch {
     errorEl.textContent = 'No se pudo conectar con el servidor.';

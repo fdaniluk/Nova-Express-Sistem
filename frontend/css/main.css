@@ -509,6 +509,38 @@ tr:hover td {
 .app-layout.sb-colapsado .sidebar-toggle { justify-content: center; padding: 0.3rem 0; }
 .app-layout.sb-colapsado .nav-item { justify-content: center; padding: 0.7rem; }
 
+/* ── Cambio de módulo sin salto (03/11/2026) ─────────────────────────────────
+   Cada módulo sigue siendo una página aparte, pero Chrome anima el pase entre una y
+   otra (view transitions entre documentos): el menú queda quieto (tiene nombre propio
+   y se empareja consigo mismo) y el contenido hace un fundido corto en vez de
+   parpadear en blanco. En navegadores que no lo soportan no pasa nada. */
+@view-transition { navigation: auto; }
+.sidebar { view-transition-name: nova-menu; }
+::view-transition-old(root),
+::view-transition-new(root) { animation-duration: 140ms; }
+::view-transition-old(nova-menu),
+::view-transition-new(nova-menu) { animation: none; }
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) { animation: none !important; }
+}
+
+/* Tablas que todavía no tienen datos (main.js marca el tbody vacío al arrancar y le saca
+   la clase apenas el módulo escribe algo): un bloque gris animado en vez de un hueco. */
+tbody.nova-cargando {
+  display: block;
+  height: 150px;
+  border-radius: 0 0 8px 8px;
+  background: linear-gradient(90deg, #f1f5f9 25%, #e2e8f0 40%, #f1f5f9 55%);
+  background-size: 300% 100%;
+  animation: nova-shimmer 1.3s ease-in-out infinite;
+}
+@keyframes nova-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -100% 0; }
+}
+
 @media (max-width: 700px) {
   .sidebar {
     width: 54px;

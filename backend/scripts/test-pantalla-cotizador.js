@@ -125,7 +125,8 @@ async function main() {
   check('   con los números 1 a 4 a la vista', numeros === '1234', numeros);
 
   const html = await page.content();
-  check('la pantalla ya no trae su propio <style>', !/<style[\s>]/i.test(html));
+  // El único <style> inline que queda es el opt-in a las view transitions (03/11/2026).
+  check('la pantalla ya no trae su propio <style>', !/<style[\s>]/i.test(html.replace(/<style>@view-transition[^<]*<\/style>/, '')));
   // La PANTALLA usa la tipografía del sistema (main.css), pero la IMAGEN de la cotización se
   // dibuja en canvas con DM Sans / DM Mono: las fuentes se cargan para que el cuadro salga
   // igual acá que en el perfil del cliente (29/09/2026). Se chequea que no las use el CSS.

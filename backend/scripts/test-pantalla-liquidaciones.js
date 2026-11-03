@@ -112,8 +112,9 @@ async function main() {
   await page.waitForSelector('#pendientes-list .cliente-grupo', { timeout: 15000 });
   await esperar(400);
 
+  // El único <style> inline permitido es el opt-in a las view transitions (03/11/2026).
   check('el CSS del módulo se cargó (no quedó un <style> adentro del html)',
-    await page.evaluate(() => !document.querySelector('head style')
+    await page.evaluate(() => ![...document.querySelectorAll('head style')].some((st) => !/@view-transition/.test(st.textContent))
       && [...document.styleSheets].some((s) => /liquidaciones\.css/.test(s.href || ''))));
 
   const grupos = await page.$$eval('#pendientes-list .cliente-grupo', (gs) => gs.map((g) => ({

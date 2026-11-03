@@ -5,7 +5,10 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Consultas – Nova Express</title>
   <link rel="icon" type="image/svg+xml" href="/assets/logos/isotipo.svg">
-  <link rel="stylesheet" href="../css/main.css?v=20261027a">
+  <!-- Cambio de módulo sin salto (03/11/2026): el opt-in a las view transitions va acá,
+       inline, porque si queda solo en main.css Chrome a veces lo lee tarde y saltea el fundido. -->
+  <style>@view-transition { navigation: auto; }</style>
+  <link rel="stylesheet" href="../css/main.css?v=20261103a">
   <link rel="stylesheet" href="../css/modules/consultas.css?v=20261014a">
 </head>
 <body class="pagina-asistente pagina-consultas">
@@ -187,9 +190,9 @@
   </div>
 </div>
 
-<script src="/js/auth-guard.js?v=20260924b"></script>
+<script src="/js/auth-guard.js?v=20261103a"></script>
 <script src="../js/api.js?v=20261016a"></script>
-<script src="../js/main.js?v=20261027a"></script>
+<script src="../js/main.js?v=20261103a"></script>
 <script src="../js/modules/consultas.js?v=20261014a"></script>
 </body>
 </html>

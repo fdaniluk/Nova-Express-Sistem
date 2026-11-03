@@ -99,3 +99,32 @@ window.NovaUtils = {
   if (brand) brand.insertAdjacentElement('afterend', btn); else sidebar.prepend(btn);
   pintar();
 })();
+
+// ── Cambio de módulo más rápido (03/11/2026) ─────────────────────────────────
+// 1) Pre-carga: al pasar el mouse por un ítem del menú, Chrome baja el HTML de esa
+//    pantalla antes del clic (speculation rules, solo el documento; los datos los pide
+//    la pantalla cuando se abre, así nunca se muestran viejos). Otros navegadores lo
+//    ignoran.
+// 2) Tablas vacías: el tbody que arranca sin filas se marca "nova-cargando" (gris animado,
+//    main.css) y se desmarca solo apenas el módulo escribe algo adentro.
+(function cambioDeModulo() {
+  try {
+    if (window.HTMLScriptElement && HTMLScriptElement.supports && HTMLScriptElement.supports('speculationrules')) {
+      const s = document.createElement('script');
+      s.type = 'speculationrules';
+      s.textContent = JSON.stringify({
+        prefetch: [{ where: { selector_matches: '.sidebar-nav a' }, eagerness: 'moderate' }],
+      });
+      document.head.appendChild(s);
+    }
+  } catch {}
+
+  document.querySelectorAll('table thead ~ tbody').forEach((tb) => {
+    if (tb.children.length || tb.textContent.trim()) return;
+    tb.classList.add('nova-cargando');
+    const obs = new MutationObserver(() => { tb.classList.remove('nova-cargando'); obs.disconnect(); });
+    obs.observe(tb, { childList: true, characterData: true, subtree: true });
+    // Por las dudas (módulo que nunca escribe): a los 8 s se saca igual.
+    setTimeout(() => { tb.classList.remove('nova-cargando'); obs.disconnect(); }, 8000);
+  });
+})();
