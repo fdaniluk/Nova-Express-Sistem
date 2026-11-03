@@ -21,6 +21,23 @@
   function init() {
     bindTabs();
     document.getElementById('btn-sinenvio-reload')?.addEventListener('click', loadSinEnvio);
+    // Cruzar con Salidas (03/11/2026): las guías de acá que ya tienen envío cargado reciben
+    // los datos de la factura. Lo mismo pasa solo al cargar el envío; esto es para barrer.
+    document.getElementById('btn-sinenvio-cruzar')?.addEventListener('click', async () => {
+      const btn = document.getElementById('btn-sinenvio-cruzar');
+      btn.disabled = true;
+      try {
+        const r = await NovaAPI.facturas.cruzarSinEnvio();
+        const n = r.cantidad || 0;
+        const det = (r.cruzados || []).map((c) => `${c.numero_guia}${c.flete != null ? ` (USD ${Number(c.flete).toFixed(2)})` : ''}${c.impuestos != null ? ` + DDP USD ${Number(c.impuestos).toFixed(2)}` : ''}`).join(', ');
+        NovaUtils.showAlert(alertBox, n
+          ? `${n === 1 ? 'Se cruzó 1 guía' : `Se cruzaron ${n} guías`} con su envío de Salidas: ${det}. Ya se ven en Salidas con su factura (pendientes de revisar).`
+          : 'Ninguna de estas guías tiene envío en el sistema todavía. Cuando carguen el envío (o corrijan la guía), se cruza solo.', n ? 'success' : 'info');
+        await loadSinEnvio();
+      } catch (e) {
+        NovaUtils.showAlert(alertBox, 'No se pudo cruzar: ' + e.message, 'error');
+      } finally { btn.disabled = false; }
+    });
     // Se consulta al entrar a la pantalla para que el número del cartelito de la pestaña
     // esté a la vista sin tener que abrirla.
     loadSinEnvio();
@@ -637,7 +654,10 @@
 
   // Filtros de la bandeja (08/10/2026): estado (a revisar / en reclamo / todas) y texto
   // (cliente o guía). Son de pantalla: la API trae las dos bandejas juntas.
-  let revisarEstado = 'a_revisar';
+  // 03/11/2026: la carga ya no marca nada sola; la bandeja trae también las pendientes con
+  // aviso (margen bajo, anomalía o sin precio) y la oficina decide con ✓ / ✕ / Reclamar.
+  // Arranca en "Todas" para que se vea de un golpe lo marcado y lo que falta mirar.
+  let revisarEstado = '';
   let revisarTexto = '';
 
   function renderRevisar() {
@@ -654,7 +674,7 @@
       seg.querySelectorAll('button').forEach((b) => {
         const e = b.dataset.estado;
         b.classList.toggle('on', e === revisarEstado);
-        b.textContent = e === 'a_revisar' ? `A revisar · ${n('a_revisar')}` : e === 'reclamar' ? `En reclamo · ${n('reclamar')}` : `Todas · ${revisarData.length}`;
+        b.textContent = e === 'pendiente' ? `Sin revisar · ${n('pendiente')}` : e === 'a_revisar' ? `A revisar · ${n('a_revisar')}` : e === 'reclamar' ? `En reclamo · ${n('reclamar')}` : `Todas · ${revisarData.length}`;
       });
     }
     const t = revisarTexto.trim().toLowerCase();
@@ -691,12 +711,13 @@
     const estado = g.estado_revision || '';
     if (estado === 'a_revisar') tr.classList.add('row-a-revisar');
     else if (estado === 'reclamar') tr.classList.add('row-reclamar');
+    else if (estado === 'pendiente') tr.classList.add('row-pendiente');
 
     const clase = { no_previsto: 'fac-anom-np', mas_caro: 'fac-anom-mc', peso: 'fac-anom-peso' };
     // Motivo (08/10): las anomalías de la factura o, si no hay, el margen bajo el mínimo.
     const anom = (g.anomalias || []).length
       ? `<div class="fac-anom-fila">${g.anomalias.map((a) => `<span class="fac-chip-anom ${clase[a.clase] || ''}">${esc(a.texto)}</span>`).join(' ')}</div>`
-      : (!(Number(g.total_cobrado) > 0) ? '<span class="em">sin precio de venta</span>' : (g.ganancia_pct != null && estado === 'a_revisar' ? '<span class="em">margen bajo el mínimo</span>' : ''));
+      : (!(Number(g.total_cobrado) > 0) ? '<span class="em">sin precio de venta</span>' : (g.ganancia_pct != null && (g.margen_bajo || estado === 'a_revisar') ? '<span class="em">margen bajo el mínimo</span>' : ''));
     const sinPrecio = !(Number(g.total_cobrado) > 0);
     tr.innerHTML = `
       <td class="mono">${esc(g.numero_guia)}</td>
@@ -735,6 +756,7 @@
       tr.className = '';
       if (nuevoEstado === 'a_revisar') tr.classList.add('row-a-revisar');
       else if (nuevoEstado === 'reclamar') tr.classList.add('row-reclamar');
+      else if (nuevoEstado === 'pendiente') tr.classList.add('row-pendiente');
 
       const cells = tr.querySelectorAll('td');
       cells[10].innerHTML = estadoBadge(nuevoEstado) + accionesBtns(id, nuevoEstado);
@@ -752,9 +774,8 @@
 
   function estadoBadge(estado) {
     const map = {
-      // 'pendiente' no debería llegar acá (la bandeja filtra a_revisar/reclamar), pero lo
-      // mapeamos para no romper el render si alguna vez aparece.
-      'pendiente':   ['badge-pendiente',    '• Pendiente'],
+      // 'pendiente' con aviso (03/11): nadie la miró todavía; la fila trae el motivo.
+      'pendiente':   ['badge-pendiente',    '• Sin revisar'],
       'a_revisar':   ['badge-a-revisar',   'a revisar'],
       'revisado_ok': ['badge-revisado-ok',  'revisado OK'],
       'reclamar':    ['badge-reclamar',     'en reclamo'],
@@ -764,6 +785,13 @@
   }
 
   function accionesBtns(id, estado) {
+    if (estado === 'pendiente') {
+      return `<div class="fac-action-btns">
+        <button class="btn btn-sm btn-outline btn-ok btn-accion" data-estado="revisado_ok" data-id="${id}">✓ Aprobar</button>
+        <button class="btn btn-sm btn-outline btn-accion" data-estado="a_revisar" data-id="${id}">✕ A revisar</button>
+        <button class="btn btn-sm btn-outline btn-reclamar btn-accion" data-estado="reclamar" data-id="${id}">Reclamar</button>
+      </div>`;
+    }
     if (estado === 'a_revisar') {
       return `<div class="fac-action-btns">
         <button class="btn btn-sm btn-outline btn-ok btn-accion" data-estado="revisado_ok" data-id="${id}">✓ Aprobar</button>

@@ -278,3 +278,7 @@ th.liq-interno { color: #166534; font-size: .7rem; }
 .liq-cargo-pdf { margin-left: .35rem; font-size: .8rem; }
 .liq-cargo-anular { background: none; border: none; color: #cbd5e1; cursor: pointer; font-size: .95rem; padding: 0 .3rem; line-height: 1; }
 .liq-cargo-anular:hover { color: var(--color-danger, #c0392b); }
+
+/* Cargos de envíos anteriores con tilde (03/11/2026) */
+.liq-pend-cargos th.liq-chk-col, .liq-pend-cargos td.liq-chk-col { width: 28px; text-align: center; }
+.liq-pend-cargos tr:has(.liq-cargo-ant-chk:not(:checked)) td { color: var(--color-muted); }

@@ -320,6 +320,7 @@ api.salidas = {
   cargos: (id) => api.get(`/salidas/${id}/cargos`),
   agregarCargo: (id, data) => request(`/salidas/${id}/cargos`, { method: 'POST', body: data }),
   anularCargo: (id, cargoId) => request(`/salidas/${id}/cargos/${cargoId}`, { method: 'DELETE' }),
+  anomalias: (id) => request(`/salidas/${id}/anomalias`),
 };
 
 api.tracking = {
@@ -373,6 +374,7 @@ api.facturas = {
   guias: (todo = false) => api.get(`/facturas/guias${todo ? '?todo=1' : ''}`),
   // Guías que el courier facturó y que no tienen envío en el sistema.
   sinEnvio: (todo = false) => api.get(`/facturas/sin-envio${todo ? '?todo=1' : ''}`),
+  cruzarSinEnvio: () => request('/facturas/sin-envio/cruzar', { method: 'POST' }),
   // Percepción de Ingresos Brutos por factura (costo de la empresa, fuera de los envíos).
   percepciones: (desde, hasta) => api.get(`/facturas/percepciones?desde=${desde || ''}&hasta=${hasta || ''}`),
   actualizarEstado: (id, estado_revision) =>

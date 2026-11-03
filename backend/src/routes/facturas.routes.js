@@ -334,30 +334,30 @@ router.post('/cargar', subirPdf, async (req, res, next) => {
 
           const total_cobrado = envio.total_cobrado ?? 0;
           const costo_facturado = guia.costo_total;
-          // Default neutro: la guía entra 'pendiente' hasta que un humano la apruebe.
-          // El auto-marcado a 'a_revisar' se mantiene: pre-filtra los de margen bajo y
-          // los manda solos a la bandeja de problemas. Lo que NO hacemos es aprobar solos.
+          // TODAS entran 'pendiente' (03/11/2026, pedido de Felipe): la oficina lee cada
+          // guía a mano y decide con la botonera ✓/✕ de Salidas. El sistema ya NO marca
+          // nada solo (antes el margen bajo o una anomalía la dejaban con la ✕ puesta).
+          // Lo que sí hace es AVISAR: el ⚠ con las anomalías y el "margen bajo" siguen en
+          // Salidas, en la bandeja de Facturas y en el resumen de la carga.
           let estado_revision = 'pendiente';
+          let aviso = false;
 
           if (costo_facturado > 0) {
             const ganancia_pct = (total_cobrado - costo_facturado) / costo_facturado * 100;
-            if (ganancia_pct < umbral) estado_revision = 'a_revisar';
+            if (ganancia_pct < umbral) aviso = true;
           }
-          // Anomalías (05/10): un recargo no previsto o un peso distinto también manda la
-          // guía a revisar, aunque el margen esté bien. Es lo que administración tiene que ver.
+          // Anomalías (05/10): un recargo no previsto o un peso distinto. Se informan.
           const anomalias = detectarAnomalias({ ...envio, cargos_posteriores: await cargosModel.listarDeEnvio(envio.id, db) }, { cargos: guia.cargos, peso_facturado: guia.peso, fuel_facturado: guia.fuel });
           if (anomalias.length) {
-            estado_revision = 'a_revisar';
+            aviso = true;
             resumen.con_anomalias++;
             resumen.anomalias_lista.push({ numero_guia: guia.numero_guia, envio_id: envio.id, pais: guia.pais, anomalias });
           }
           // Sobreescribir NO pisa el trabajo de revisión (auditoría 07/10): si la guía ya
-          // estaba aprobada o en reclamo y la factura trae el MISMO costo, se conserva ese
-          // estado. Antes una recarga de la factura devolvía todo a 'pendiente'/'a_revisar' y
-          // la oficina tenía que volver a aprobar guía por guía. Si el costo cambió, sí se
-          // vuelve a revisar: es otro número.
+          // tenía una decisión (aprobada, a revisar, en reclamo) y la factura trae el MISMO
+          // costo, se conserva. Si el costo cambió, vuelve a 'pendiente': es otro número.
           if (sobreescribir && envio.costo_facturado != null
-              && (envio.estado_revision === 'revisado_ok' || envio.estado_revision === 'reclamar')
+              && (envio.estado_revision === 'revisado_ok' || envio.estado_revision === 'reclamar' || envio.estado_revision === 'a_revisar')
               && Math.abs(Number(envio.costo_facturado) - Number(costo_facturado)) < 0.01) {
             estado_revision = envio.estado_revision;
             resumen.revision_conservada = (resumen.revision_conservada || 0) + 1;
@@ -375,7 +375,9 @@ router.post('/cargar', subirPdf, async (req, res, next) => {
           `).run(costo_facturado, guia.peso ?? null, courier, fecha_factura || hoy, estado_revision, envio.id); // fecha de la FACTURA, como la rama de impuestos (29/09)
 
           resumen.guardadas++;
-          if (estado_revision === 'a_revisar') resumen.a_revisar++;
+          // a_revisar en el resumen = "con aviso" (margen bajo o anomalía): lo que conviene
+          // mirar primero. Ya no es un estado que el sistema haya puesto.
+          if (aviso) resumen.a_revisar++;
 
           await db.exec('RELEASE SAVEPOINT factura_row');
         } catch (e) {
@@ -485,9 +487,10 @@ router.post('/cargar', subirPdf, async (req, res, next) => {
 });
 
 // GET /api/facturas/guias
-// Bandeja de problemas: SOLO los envíos facturados marcados como problema
-// (a_revisar o reclamar). Los revisado_ok ya están aprobados y NO aparecen acá.
-// Los a_revisar van primero.
+// Bandeja de problemas: los envíos facturados marcados como problema (a_revisar o
+// reclamar) MÁS los pendientes con aviso (margen bajo el mínimo, anomalía de la factura o
+// sin precio de venta), desde el 03/11/2026 en que la carga dejó de marcar sola. Los
+// revisado_ok ya están aprobados y NO aparecen acá. Los a_revisar van primero.
 // Desde el 07/09 la bandeja respeta la FECHA DE CORTE del control (Configuración): los
 // envíos anteriores a esa fecha no se muestran salvo que se pida `?todo=1`. Pedido de
 // Felipe: el sistema se usó a medias hasta agosto y la bandeja se llenaba de envíos viejos
@@ -510,13 +513,14 @@ router.get('/guias', async (req, res, next) => {
       FROM envios e
       JOIN clientes c ON c.id = e.cliente_id
       WHERE e.costo_facturado IS NOT NULL
-        AND e.estado_revision IN ('a_revisar', 'reclamar')
+        AND e.estado_revision IN ('a_revisar', 'reclamar', 'pendiente')
         AND (? = 1 OR e.fecha >= ?)
       ORDER BY
         CASE e.estado_revision
           WHEN 'a_revisar'   THEN 0
-          WHEN 'reclamar'    THEN 1
-          ELSE 2
+          WHEN 'pendiente'   THEN 1
+          WHEN 'reclamar'    THEN 2
+          ELSE 3
         END,
         e.fecha_facturado DESC,
         e.id DESC
@@ -528,6 +532,10 @@ router.get('/guias', async (req, res, next) => {
         AND e.fecha < ?`).get(corte)).n;
 
     const cargosPorEnvio = await cargosModel.porEnvios(rows.map((r) => r.id), db);
+    // Umbral de margen por courier (Configuración): una pendiente con margen bajo el mínimo
+    // o con anomalías entra en la bandeja como "con aviso" (03/11/2026: ya no se marcan solas).
+    const umbrales = {};
+    for (const c of await db.prepare('SELECT courier, ganancia_minima_pct FROM configuracion').all()) umbrales[c.courier] = c.ganancia_minima_pct;
     const result = rows.map((r) => {
       const ganancia_usd = r.total_cobrado != null
         ? Math.round((r.total_cobrado - r.costo_facturado) * 100) / 100
@@ -552,8 +560,9 @@ router.get('/guias', async (req, res, next) => {
         // Anomalías (05/10): recargos no previstos / más caros / otro peso, contra la factura
         // más reciente cruzada a este envío.
         anomalias: detectarAnomalias({ ...r, cargos_posteriores: cargosPorEnvio.get(r.id) || [] }, { cargos_json: r.cargos_json, peso_facturado: r.peso_facturado, fuel_facturado: r.fuel_facturado }),
+        margen_bajo: ganancia_pct != null && ganancia_pct < (umbrales[r.courier_facturado] ?? umbrales.UPS ?? 20),
       };
-    });
+    }).filter((g) => g.estado_revision !== 'pendiente' || g.margen_bajo || g.anomalias.length || !(Number(g.total_cobrado) > 0));
 
     res.json({ guias: result, fecha_corte: corte, anteriores, todo });
   } catch (err) {
@@ -661,6 +670,18 @@ router.get('/sin-envio', async (req, res, next) => {
       fecha_corte: corte,
       anteriores,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/facturas/sin-envio/cruzar (03/11/2026): barre las guías facturadas sin envío
+// que HOY sí tienen envío en el sistema (se cargó después, o se corrigió la guía) y les
+// pasa los datos guardados de la factura. Lo mismo que hace solo al cargar un envío; el
+// botón existe para los casos que quedaron de antes o si el automático falló.
+router.post('/sin-envio/cruzar', async (req, res, next) => {
+  try {
+    res.json(await require('../services/cruce-facturas.service').pendientes(getDb()));
   } catch (err) {
     next(err);
   }

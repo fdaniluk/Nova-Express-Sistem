@@ -2929,6 +2929,7 @@
     document.getElementById('saled-peso-facturable').value = envio.peso_facturable ?? '';
     document.getElementById('saled-peso-volumetrico').value = envio.peso_volumetrico ?? '';
     renderEditBultos();
+    fotoPesos = fotoDePesos();
     renderEstadoCajaSection();
     // Todo lo que es "de la sesión de edición" y no del envío se limpia acá (09/10/2026):
     // la oficina abría un envío, recalculaba o calculaba la venta, salía sin guardar, y al
@@ -3480,6 +3481,7 @@
         actualizarCargosEnGrilla();
         renderCargosBlock();
         recalcProfit();
+        if (editEnvio.costo_facturado != null) { await refrescarAnomalias(editEnvio.id); renderPage(); }
       } catch (err) {
         status.textContent = err.message || 'No se pudo guardar el cargo.';
       }
@@ -3495,6 +3497,7 @@
           actualizarCargosEnGrilla();
           renderCargosBlock();
           recalcProfit();
+          if (editEnvio.costo_facturado != null) { await refrescarAnomalias(editEnvio.id); renderPage(); }
         } catch (err) {
           alert(err.message || 'No se pudo anular el cargo.');
         }
@@ -3515,6 +3518,32 @@
     d.profit_real_monto = Math.round((venta - d.costo_facturado) * 100) / 100;
     d.porcentaje_real = d.costo_facturado !== 0
       ? Math.round((d.profit_real_monto / d.costo_facturado) * 10000) / 100 : null;
+  }
+
+  // Foto de peso y medidas con la que se calculó el peso facturable que está en el modal
+  // (al abrirlo y después de cada Recalcular). Si al guardar cambió y no se recalculó, el
+  // peso facturable y el costo quedan viejos: era el caso del ⚠ de peso que "no se iba"
+  // (03/11/2026): se corregía la balanza, se guardaba sin Recalcular y el facturable seguía
+  // siendo el de antes.
+  let fotoPesos = '';
+  function fotoDePesos() {
+    const v = (id) => document.getElementById(id).value;
+    const bultos = editMulti ? readBultosFromModal().map((b) => [b.peso_real, b.largo, b.ancho, b.alto].join('x')).join('|') : '';
+    return [v('saled-peso-real'), v('saled-largo'), v('saled-ancho'), v('saled-alto'), bultos].join(';');
+  }
+
+  // Vuelve a pedir las anomalías de la factura del envío en edición (03/11/2026) y las
+  // refleja en el modal y en la fila. Antes quedaban como estaban al abrir el modal: se
+  // corregía el peso o se cargaba el cargo y el ⚠ seguía hasta refrescar la pantalla.
+  async function refrescarAnomalias(envioId) {
+    if (!envioId) return;
+    try {
+      const r = await NovaAPI.salidas.anomalias(envioId);
+      const an = Array.isArray(r && r.anomalias) ? r.anomalias : [];
+      if (editEnvio && editEnvio.id === envioId) { editEnvio.anomalias_factura = an; renderFacturaBlock(); }
+      const d = allData.find((x) => x.id === envioId);
+      if (d) { d.anomalias_factura = an; }
+    } catch { /* se ve en la próxima carga */ }
   }
 
   // Refleja los cargos del envío en edición en la fila de la grilla (chip) sin refrescar.
@@ -3647,6 +3676,7 @@
       document.getElementById('saled-adicionales').value = r.adicionales ?? '';
       document.getElementById('saled-peso-facturable').value = r.peso_facturable ?? '';
       document.getElementById('saled-peso-volumetrico').value = r.peso_volumetrico ?? '';
+      fotoPesos = fotoDePesos();
       // Desglose nuevo del motor: queda "dirty" para persistirlo al guardar. Tras esto el
       // total y la suma vuelven a cuadrar, así que el cartelito desaparece solo.
       editExtras = Array.isArray(r.extras) ? r.extras.map((x) => ({ ...x })) : [];
@@ -4056,6 +4086,23 @@
       return;
     }
 
+    // Peso o medidas cambiados sin Recalcular (03/11/2026): el peso facturable y el costo del
+    // modal son los del peso viejo. Se ofrece recalcular antes de guardar; si dice que no,
+    // se guarda tal cual (hay casos legítimos), pero no en silencio.
+    if (fotoPesos && fotoDePesos() !== fotoPesos) {
+      const rec = window.confirm(
+        'Cambiaste el peso o las medidas pero no tocaste "Recalcular": el peso facturable y el '
+        + 'costo que se van a guardar son los de ANTES del cambio.\n\n'
+        + 'Aceptar = recalcular ahora y guardar.\nCancelar = guardar tal cual, sin recalcular.');
+      if (rec) {
+        await recalcularDesglose();
+        if (!/saled-recalc-ok/.test(document.getElementById('saled-recalc-status').className)) {
+          NovaUtils.showAlert(document.getElementById('sal-modal-alert'), 'No se pudo recalcular; revisá el aviso y volvé a guardar.', 'error');
+          return;
+        }
+      }
+    }
+
     // Guardar con el precio calculado para otro peso es el error que costo plata. No se
     // bloquea —hay precios negociados aparte que son legitimos— pero no se guarda callado.
     if (ventaDesfasada) {
@@ -4249,6 +4296,10 @@
       // servidor (y también cuando cambia la venta total, que puede descartar el ajuste).
       if (Object.prototype.hasOwnProperty.call(payload, 'venta_desglose') || (editEnvio && editEnvio.venta_manual && Number(payload.total_cobrado) !== Number(editEnvio.total))) {
         await loadData();
+      } else if (idx !== -1 && allData[idx].costo_facturado != null) {
+        // Con factura cruzada, las anomalías dependen de lo que se acaba de guardar (peso,
+        // medidas, desglose): se vuelven a pedir para que el ⚠ refleje la corrección (03/11).
+        await refrescarAnomalias(editEnvio.id);
       }
       // Posición a mano del #Sal (20/10): el servidor devuelve la clave de orden nueva (o
       // null si el envío volvió al orden automático); con eso la renumeración en pantalla da

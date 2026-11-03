@@ -445,6 +445,25 @@ router.get('/', async (req, res, next) => {
 // Lo usan los tests y scripts (la pantalla tiene la lista de tipos en salidas.js).
 router.get('/cargos/tipos', (req, res) => res.json(cargosModel.TIPOS));
 
+// GET /api/salidas/:id/anomalias — las anomalías de la factura de UN envío, recién
+// calculadas (03/11/2026). El modal las pide después de guardar o de agregar/anular un
+// cargo: antes la fila se actualizaba en memoria y el ⚠ del peso o del recargo seguía
+// apareciendo hasta refrescar la pantalla, aunque ya estuviera corregido.
+router.get('/:id/anomalias', async (req, res, next) => {
+  try {
+    const db = getDb();
+    const id = parseInt(req.params.id, 10);
+    if (!Number.isFinite(id)) return res.status(400).json({ error: 'ID inválido' });
+    const row = await db.prepare('SELECT * FROM envios WHERE id = ?').get(id);
+    if (!row) return res.status(404).json({ error: 'Envío no encontrado' });
+    if (row.costo_facturado == null) return res.json({ anomalias: [] });
+    const g = await db.prepare('SELECT cargos_json, fuel_facturado FROM factura_guias WHERE envio_id = ? ORDER BY id DESC LIMIT 1').get(id);
+    const cargosPost = await cargosModel.listarDeEnvio(id, db);
+    const anomalias = detectarAnomalias({ ...row, cargos_posteriores: cargosPost }, { cargos: g ? parseExtras(g.cargos_json) : [], peso_facturado: row.peso_facturado, fuel_facturado: g ? g.fuel_facturado : null });
+    res.json({ anomalias });
+  } catch (e) { next(e); }
+});
+
 router.get('/:id/cargos', async (req, res, next) => {
   try {
     res.json(await cargosModel.listarDeEnvio(parseInt(req.params.id, 10)));
@@ -1153,6 +1172,12 @@ router.patch('/:id', async (req, res, next) => {
     const respuesta = { ok: true };
     if (ordenSalida !== undefined) respuesta.orden_salida = ordenSalida;
     if (avisoZona) respuesta.aviso_zona = avisoZona;
+    // Guía corregida (03/11/2026): si la guía nueva figura en una factura cargada "sin
+    // envío", se cruza ahora con los datos guardados de esa factura.
+    if (picked.numero_guia !== undefined && picked.numero_guia !== existing.numero_guia) {
+      const cruce = await require('../services/cruce-facturas.service').paraEnvio(id, db);
+      if (cruce) respuesta.cruce_factura = cruce;
+    }
     res.json(respuesta);
   } catch (err) {
     next(err);

@@ -9,7 +9,7 @@
        inline, porque si queda solo en main.css Chrome a veces lo lee tarde y saltea el fundido. -->
   <style>@view-transition { navigation: auto; }</style>
   <link rel="stylesheet" href="../css/main.css?v=20261103a">
-  <link rel="stylesheet" href="../css/modules/facturas.css?v=20261008a">
+  <link rel="stylesheet" href="../css/modules/facturas.css?v=20261103a">
 </head>
 <body>
 <div class="app-layout">
@@ -222,6 +222,7 @@
           <div class="fac-seccion-acciones">
             <span class="fac-revisar-counter" id="fac-sinenvio-counter"></span>
             <button class="btn btn-sm btn-outline" id="btn-sinenvio-reload">↺ Actualizar</button>
+            <button class="btn btn-sm btn-primary" id="btn-sinenvio-cruzar" title="Busca estas guías en Salidas: a las que ya tienen envío (se cargó después, o se corrigió la guía) les pasa el costo, el peso, los recargos y los impuestos de la factura, sin recargar el PDF.">⇄ Cruzar con Salidas</button>
           </div>
         </div>
         <div class="fac-tiles fac-tiles-3 hidden" id="fac-sinenvio-tiles"></div>
@@ -295,9 +296,10 @@
           <div>
             <label>Estado</label>
             <div class="fac-seg" id="fac-revisar-estado">
-              <button type="button" class="on" data-estado="a_revisar">A revisar</button>
+              <button type="button" class="on" data-estado="">Todas</button>
+              <button type="button" data-estado="pendiente">Sin revisar</button>
+              <button type="button" data-estado="a_revisar">A revisar</button>
               <button type="button" data-estado="reclamar">En reclamo</button>
-              <button type="button" data-estado="">Todas</button>
             </div>
           </div>
           <div class="fac-toolbar-buscar">
@@ -334,8 +336,8 @@
 </div>
 
 <script src="/js/auth-guard.js?v=20261103a"></script>
-<script src="../js/api.js?v=20261016a"></script>
+<script src="../js/api.js?v=20261103a"></script>
 <script src="../js/main.js?v=20261103b"></script>
-<script src="../js/modules/facturas.js?v=20261008b"></script>
+<script src="../js/modules/facturas.js?v=20261103b"></script>
 </body>
 </html>

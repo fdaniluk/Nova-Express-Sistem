@@ -213,7 +213,7 @@ async function borradoresConEnvios(envio_ids) {
   return [...porBorrador.values()];
 }
 
-async function preview({ cliente_id, envio_ids = [], cargos = [], cotizaciones = [], conceptos = [] }) {
+async function preview({ cliente_id, envio_ids = [], cargos = [], cotizaciones = [], conceptos = [], cargos_anteriores_ids = null }) {
   const db = getDb();
   const conceptosOk = normalizarConceptos(conceptos);
   const total_conceptos = redondear2(conceptosOk.reduce((s, c) => s + c.monto, 0));
@@ -256,10 +256,18 @@ async function preview({ cliente_id, envio_ids = [], cargos = [], cotizaciones =
       cargosEnviosIds.push(c.id);
     }
   }
-  const cargos_anteriores = await cargosModel.pendientesAnterioresDeCliente(cliente_id, db);
+  // Cargos de envíos anteriores OPCIONALES (03/11/2026, pedido de Felipe: cargaron un cargo
+  // a Giannastacio, liquidaron un envío después y el cargo entró sin que lo quisieran).
+  // La pantalla manda los ids tildados en `cargos_anteriores_ids`; sin el parámetro (API
+  // vieja, scripts) entran todos, como hasta ahora. Los destildados siguen pendientes.
+  const pendientesAnteriores = await cargosModel.pendientesAnterioresDeCliente(cliente_id, db);
+  const elegidos = Array.isArray(cargos_anteriores_ids) ? new Set(cargos_anteriores_ids.map(Number)) : null;
+  const cargos_anteriores = elegidos ? pendientesAnteriores.filter((c) => elegidos.has(Number(c.id))) : pendientesAnteriores;
   const total_cargos_anteriores = redondear2(cargos_anteriores.reduce((s, c) => s + c.monto, 0));
   if (!envios.length && !cargos_anteriores.length && !conceptosOk.length) {
-    const err = new Error('No hay nada para liquidar: ni envíos seleccionados, ni cargos pendientes de envíos anteriores de este cliente, ni otros conceptos.');
+    const err = new Error(pendientesAnteriores.length && elegidos
+      ? 'No hay nada para liquidar: no hay envíos seleccionados ni cargos de envíos anteriores tildados, ni otros conceptos.'
+      : 'No hay nada para liquidar: ni envíos seleccionados, ni cargos pendientes de envíos anteriores de este cliente, ni otros conceptos.');
     err.status = 400;
     throw err;
   }
@@ -283,6 +291,7 @@ async function preview({ cliente_id, envio_ids = [], cargos = [], cotizaciones =
   const cliFmt = await db.prepare('SELECT liquidacion_formato FROM clientes WHERE id = ?').get(cliente_id);
   return {
     items, total, total_envios, cargos_anteriores, total_cargos_anteriores,
+    cargos_anteriores_pendientes: pendientesAnteriores.length,
     conceptos: conceptosOk, total_conceptos,
     utilidad_total: utilidadTotal, cantidad: items.length, en_borrador,
     // Formato preferido del cliente (16/10): la pantalla lo usa para pre-tildar "detallado".
@@ -295,6 +304,7 @@ async function preview({ cliente_id, envio_ids = [], cargos = [], cotizaciones =
 async function crear({
   cliente_id, periodo_desde, periodo_hasta, envio_ids, cargos = [], cotizaciones = [], confirmar = false,
   reemplazar_borradores = [], permitir_duplicado = false, usuario = null, formato = null, conceptos = [],
+  cargos_anteriores_ids = null,
 }) {
   await migrarColumnas();
   // Pendiente 52: si algún envío ya está en OTRO borrador, no se arma un segundo en
@@ -314,7 +324,7 @@ async function crear({
   for (const b of previos) {
     if (reemplazar.has(b.id)) await eliminarBorrador(b.id);
   }
-  const previewData = await preview({ cliente_id, envio_ids, cargos, cotizaciones, conceptos });
+  const previewData = await preview({ cliente_id, envio_ids, cargos, cotizaciones, conceptos, cargos_anteriores_ids });
   // ⚠️ Defecto 3 de AUDITORIA-NUMEROS.md: un envío sin precio entraba a la liquidación,
   // se confirmaba en CERO y quedaba liquidado para siempre — esa plata no se facturaba
   // nunca más. Choca de lleno con los envíos sin pesar (total_cobrado = 0 por diseño):
@@ -496,7 +506,17 @@ async function confirmar(id, envioIdsEsperados = null, usuario = null, formato =
   // Cargos posteriores (25/09): si después de armar el borrador entró un cargo (un
   // extracargo desde Salidas o los impuestos DDP de una factura), no se confirma sin
   // que la oficina lo vea. Se pide recalcular: la vista previa nueva lo incluye sola.
-  const nuevos = await cargosModel.pendientesFueraDe(id, liq.cliente_id, envioIds, db);
+  // Desde el 03/11/2026 los cargos de envíos anteriores son OPCIONALES: uno que ya existía
+  // cuando se armó el borrador y quedó afuera, quedó afuera a propósito (destildado) y no
+  // frena. Sí frena uno que ENTRÓ después de armar el borrador (eso es lo que la oficina
+  // todavía no vio), y siempre los cargos de los envíos que están en la liquidación.
+  const todosFuera = await cargosModel.pendientesFueraDe(id, liq.cliente_id, envioIds, db);
+  const armado = String(liq.created_at || '');
+  const nuevos = todosFuera.filter((c) => {
+    const deEnvioIncluido = c.envio_id != null && envioIds.map(Number).includes(Number(c.envio_id));
+    if (deEnvioIncluido) return true;
+    return !armado || String(c.creado_at || '') > armado;
+  });
   if (nuevos.length) {
     const lista = nuevos.map((c) => `${c.numero_guia ? c.numero_guia : 'envío ' + c.envio_id}: ${c.label} USD ${c.monto.toFixed(2)}`).join('; ');
     const err = new Error(

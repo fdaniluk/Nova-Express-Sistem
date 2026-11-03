@@ -13,8 +13,13 @@
       box.id = 'liq-cargos-pend-crear';
       document.getElementById('liq-envios-wrap').appendChild(box);
     }
-    box.innerHTML = tablaCargosAnterioresHtml(lista, { anulable: true });
+    box.innerHTML = tablaCargosAnterioresHtml(lista, { anulable: true, seleccionable: true });
     box.hidden = !lista.length;
+    // Tildar / destildar un cargo cambia la liquidación: se invalida el borrador y hay que
+    // volver a Calcular (misma regla que los tildes de los envíos).
+    box.querySelectorAll('.liq-cargo-ant-chk').forEach((c) => c.addEventListener('change', () => { invalidarBorrador(); actualizarResumen(); }));
+    const todos = box.querySelector('.liq-cargo-ant-todos');
+    if (todos) todos.addEventListener('change', () => { box.querySelectorAll('.liq-cargo-ant-chk').forEach((c) => { c.checked = todos.checked; }); invalidarBorrador(); actualizarResumen(); });
     // Anular un cargo sin envío (30/10): solo mientras está pendiente.
     box.querySelectorAll('[data-anular-suelto]').forEach((b) => b.addEventListener('click', async () => {
       const c = lista.find((x) => Number(x.id) === Number(b.dataset.anularSuelto));
@@ -465,14 +470,17 @@
     return t;
   }
 
-  function tablaCargosAnterioresHtml(lista, { anulable = false } = {}) {
+  // seleccionable (03/11/2026): cada cargo con su tilde (marcado por defecto). Lo que se
+  // destilda queda pendiente para la próxima liquidación del cliente.
+  function tablaCargosAnterioresHtml(lista, { anulable = false, seleccionable = false } = {}) {
     if (!Array.isArray(lista) || !lista.length) return '';
     const esc = (t) => String(t == null ? '' : t).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
     return `<div class="liq-pend-cargos">
-      <div class="liq-pend-cargos-titulo">Cargos de envíos anteriores (ya liquidados o sin envío en el sistema) · entran en la próxima liquidación</div>
+      <div class="liq-pend-cargos-titulo">Cargos de envíos anteriores (ya liquidados o sin envío en el sistema)${seleccionable ? ' · tildados entran en esta liquidación; lo que destildás queda pendiente para la próxima' : ' · entran en la próxima liquidación'}</div>
       <table>
-        <thead><tr><th>Fecha envío</th><th>Guía</th><th>País</th><th>Concepto</th><th class="n">USD</th>${anulable ? '<th></th>' : ''}</tr></thead>
+        <thead><tr>${seleccionable ? '<th class="liq-chk-col"><input type="checkbox" class="liq-cargo-ant-todos" checked title="Tildar / destildar todos"></th>' : ''}<th>Fecha envío</th><th>Guía</th><th>País</th><th>Concepto</th><th class="n">USD</th>${anulable ? '<th></th>' : ''}</tr></thead>
         <tbody>${lista.map((c) => `<tr>
+          ${seleccionable ? `<td class="liq-chk-col"><input type="checkbox" class="liq-cargo-ant-chk" value="${c.id}" checked></td>` : ''}
           <td>${NovaUtils.formatDate(c.envio_fecha)}</td>
           <td>${guiaCargo(c)}</td>
           <td>${esc(c.pais_destino || '')}</td>
@@ -537,6 +545,11 @@
       if (!ok) throw new Error('No se creó la liquidación: los envíos siguen en el borrador anterior.');
       return NovaAPI.liquidaciones.crear({ ...datos, reemplazar_borradores: err.borradores.map((b) => b.id) });
     }
+  }
+
+  // Ids de los cargos de envíos anteriores tildados (03/11): es lo que viaja al backend.
+  function getCargosAnterioresSeleccionados() {
+    return [...document.querySelectorAll('#liq-cargos-pend-crear .liq-cargo-ant-chk')].filter((c) => c.checked).map((c) => Number(c.value));
   }
 
   // ── Precarga de % profit desde la matriz ─────────────────────────
@@ -607,8 +620,11 @@
     // Sin envíos marcados se puede igual si el cliente tiene cargos de envíos anteriores
     // (liquidación solo de cargos, 05/10) o si hay otros conceptos (28/10). Si no hay nada,
     // el backend lo dice.
-    if (!envio_ids.length && !cargosAnterioresCliente.length && !conceptos.length) {
-      NovaUtils.showAlert(alertBox, 'Seleccione al menos un envío (este cliente no tiene cargos pendientes de envíos anteriores ni otros conceptos cargados).', 'error');
+    const cargos_anteriores_ids = getCargosAnterioresSeleccionados();
+    if (!envio_ids.length && !cargos_anteriores_ids.length && !conceptos.length) {
+      NovaUtils.showAlert(alertBox, cargosAnterioresCliente.length
+        ? 'Seleccione al menos un envío o tildá algún cargo de envíos anteriores (o cargá otro concepto).'
+        : 'Seleccione al menos un envío (este cliente no tiene cargos pendientes de envíos anteriores ni otros conceptos cargados).', 'error');
       return;
     }
     // La liquidación NO recotiza: el backend arma el desglose con los valores
@@ -621,8 +637,9 @@
         cargos,
         cotizaciones,
         conceptos,
+        cargos_anteriores_ids,
       });
-      lastPreview = { cliente_id, envio_ids, cargos, cotizaciones, conceptos, preview };
+      lastPreview = { cliente_id, envio_ids, cargos, cotizaciones, conceptos, cargos_anteriores_ids, preview };
       // Formato del Excel: arranca con el preferido del cliente; si la persona ya lo tocó en
       // esta pantalla, se respeta lo que eligió.
       const chkFmt = document.getElementById('liq-formato-detallado');
@@ -694,7 +711,7 @@
         // con la invalidación de arriba no debería pasar nunca).
         liq = await NovaAPI.liquidaciones.confirmar(lastLiquidacionId, getSelectedEnvios().envio_ids, formatoElegido());
       } else {
-        const { cliente_id, envio_ids, cargos, cotizaciones, conceptos } = lastPreview;
+        const { cliente_id, envio_ids, cargos, cotizaciones, conceptos, cargos_anteriores_ids } = lastPreview;
         liq = await crearConAviso({
           cliente_id,
           periodo_desde: document.getElementById('liq-desde').value,
@@ -703,6 +720,7 @@
           cargos,
           cotizaciones,
           conceptos,
+          cargos_anteriores_ids,
           confirmar: true,
           formato: formatoElegido(),
         });
@@ -742,7 +760,7 @@
       await calcularPreview();
       if (!lastPreview) return null;
     }
-    const { cliente_id, envio_ids, cargos, cotizaciones, conceptos } = lastPreview;
+    const { cliente_id, envio_ids, cargos, cotizaciones, conceptos, cargos_anteriores_ids } = lastPreview;
     const liq = await crearConAviso({
       cliente_id,
       periodo_desde: document.getElementById('liq-desde').value,
@@ -751,6 +769,7 @@
       cargos,
       cotizaciones,
       conceptos,
+      cargos_anteriores_ids,
       confirmar: false,
       formato: formatoElegido(),
     });
@@ -807,6 +826,19 @@
       // Otros conceptos del borrador (28/10): vuelven a sus filas.
       limpiarConceptos();
       for (const c of liq.conceptos || []) agregarConceptoFila(c);
+      // Cargos de envíos anteriores (03/11): el borrador los tiene atados, así que al retomar
+      // la lista de pendientes no los trae; se vuelven a listar con los del borrador tildados
+      // y los que quedaron afuera destildados.
+      {
+        const delBorrador = (liq.cargos_anteriores || []).map((c) => ({ ...c }));
+        const idsBorrador = new Set(delBorrador.map((c) => Number(c.id)));
+        const sueltos = cargosAnterioresCliente.filter((c) => !idsBorrador.has(Number(c.id)));
+        cargosAnterioresCliente = delBorrador.concat(sueltos);
+        pintarCargosPendientesCrear(cargosAnterioresCliente);
+        document.querySelectorAll('#liq-cargos-pend-crear .liq-cargo-ant-chk').forEach((c) => { c.checked = idsBorrador.has(Number(c.value)); });
+        const todos = document.querySelector('#liq-cargos-pend-crear .liq-cargo-ant-todos');
+        if (todos) todos.checked = !sueltos.length;
+      }
       // Si al borrador le falta algún envío, ya no se puede confirmar tal cual (el backend
       // compara la selección con el borrador y corta con 409): se borra y Confirmar / Excel
       // crean uno nuevo con lo que quedó, que es lo que se está viendo.
@@ -949,7 +981,7 @@
     if (pie && !pie.classList.contains('ok')) {
       pie.textContent = preview
         ? 'Listo para confirmar o exportar. Si cambiás la selección, hay que recalcular.'
-        : (filas.length || cargosAnterioresCliente.length || getConceptos().length ? 'Apretá Calcular para ver el desglose y el total.' : 'Elegí el cliente y el período, y cargá sus envíos.');
+        : (filas.length || getCargosAnterioresSeleccionados().length || getConceptos().length ? 'Apretá Calcular para ver el desglose y el total.' : 'Elegí el cliente y el período, y cargá sus envíos.');
     }
   }
 

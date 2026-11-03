@@ -416,6 +416,9 @@ async function crear(data) {
   // Sin bultos, un INSERT único ya es atómico en SQLite y puede ejecutarse dentro de
   // una transacción externa (como la de importarSalidas) sin anidar BEGIN.
   const id = (hasBultos || hasItems || guiaId) ? await db.transaction(doInsert) : await doInsert();
+  // Si la guía ya venía en una factura cargada antes (Facturas → "Sin envío"), le llega el
+  // costo/peso/impuestos de esa factura ahora mismo, sin recargar el PDF (03/11/2026).
+  await require('../services/cruce-facturas.service').paraEnvio(id, db);
   return buscarPorId(id);
 }
 

@@ -106,6 +106,8 @@ function detectarAnomalias(envio, factura) {
     ddp: ['ddp', 'impuestos de destino', 'duty'],
     direccion: ['correccion de direccion', 'address correction', 'direccion'],
     derechos: ['derechos de exportacion'],
+    // Un cargo "otro" escrito como "sobrepeso" / "diferencia de peso" cubre el aviso de peso (03/11).
+    peso: ['sobrepeso', 'sobre peso', 'diferencia de peso', 'peso', 'kilos', 'kg'],
   };
   const cubrePorNombre = (c, tipo, labelFamilia) => {
     if (c.tipo !== 'otro') return false;

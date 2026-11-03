@@ -14,7 +14,7 @@ async function pendientes(req, res, next) {
 
 async function preview(req, res, next) {
   try {
-    const { cliente_id, envio_ids, cargos, cotizaciones, conceptos } = req.body;
+    const { cliente_id, envio_ids, cargos, cotizaciones, conceptos, cargos_anteriores_ids } = req.body;
     // envio_ids puede venir vacío: liquidación solo de cargos de envíos anteriores (05/10).
     if (!cliente_id || !Array.isArray(envio_ids)) {
       return res.status(400).json({ error: 'cliente_id y envio_ids son obligatorios' });
@@ -25,6 +25,7 @@ async function preview(req, res, next) {
       cargos: cargos || [],
       cotizaciones: cotizaciones || [],
       conceptos: Array.isArray(conceptos) ? conceptos : [],
+      cargos_anteriores_ids: Array.isArray(cargos_anteriores_ids) ? cargos_anteriores_ids : null,
     }));
   } catch (e) {
     if (e.status === 400) return res.status(400).json({ error: e.message });
@@ -36,7 +37,7 @@ async function crear(req, res, next) {
   try {
     const {
       cliente_id, periodo_desde, periodo_hasta, envio_ids, cargos, cotizaciones, confirmar,
-      reemplazar_borradores, permitir_duplicado, formato, conceptos,
+      reemplazar_borradores, permitir_duplicado, formato, conceptos, cargos_anteriores_ids,
     } = req.body;
     if (!cliente_id || !periodo_desde || !periodo_hasta || !Array.isArray(envio_ids)) {
       return res
@@ -56,6 +57,7 @@ async function crear(req, res, next) {
       permitir_duplicado: Boolean(permitir_duplicado),
       usuario: req.usuario ? req.usuario.usuario : null,
       formato: formato || null,
+      cargos_anteriores_ids: Array.isArray(cargos_anteriores_ids) ? cargos_anteriores_ids : null,
     });
     res.status(201).json(liq);
   } catch (e) {

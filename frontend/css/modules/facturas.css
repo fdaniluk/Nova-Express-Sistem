@@ -166,6 +166,8 @@
 .fac-table td.fac-motivo .fac-anom-fila { gap: .25rem; }
 .fac-table tr.row-a-revisar td { background: #fffdf5; }
 .fac-table tr.row-a-revisar:hover td { background: #fff8e1; }
+.fac-table tr.row-pendiente td { background: #f8fbff; }
+.fac-table tr.row-pendiente:hover td { background: #eef5ff; }
 .fac-table tr.row-reclamar td { background: #fff5f5; }
 .fac-table tr.row-reclamar:hover td { background: #ffecec; }
 .mono { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .82rem; }

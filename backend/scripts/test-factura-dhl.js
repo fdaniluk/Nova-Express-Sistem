@@ -119,7 +119,8 @@ const cerca = (a, b, tol = 0.011) => a != null && Math.abs(Number(a) - b) < tol;
   const fc = await get('SELECT * FROM facturas_cargadas WHERE numero_factura = ?', ['1700A00033061']);
   check('cabecera: courier DHL, subtotal 764.44, IVA 14.70, percepción 22.94, total 802.08, 6 guías', fc && fc.courier === 'DHL' && cerca(fc.subtotal_factura, 764.44) && cerca(fc.iva, 14.7) && cerca(fc.percepciones, 22.94) && cerca(fc.total_declarado, 802.08) && fc.cantidad_guias === 6, JSON.stringify(fc));
   const anomA = (car.body.anomalias_lista || []).find((x) => x.envio_id === eA.id);
-  check('anomalías de A: el seguro previsto cubre VALUE PROTECTION, queda "12:00 PREMIUM" (a_revisar)', anomA && anomA.anomalias.length === 1 && anomA.anomalias[0].label === '12:00 PREMIUM' && a.estado_revision === 'a_revisar', JSON.stringify(anomA));
+  // 03/11/2026: la carga ya no marca sola; la guía con anomalía entra 'pendiente' (con aviso).
+  check('anomalías de A: el seguro previsto cubre VALUE PROTECTION, queda "12:00 PREMIUM" (y la guía entra pendiente, con la botonera)', anomA && anomA.anomalias.length === 1 && anomA.anomalias[0].label === '12:00 PREMIUM' && a.estado_revision === 'pendiente', JSON.stringify(anomA));
 
   const sal = (await J('GET', '/salidas?desde=2026-09-08&hasta=2026-09-08')).body;
   const fila = (Array.isArray(sal) ? sal : sal.rows || []).find((r) => r.id === eA.id);
