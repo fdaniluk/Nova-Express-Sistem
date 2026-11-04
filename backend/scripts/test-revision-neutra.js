@@ -100,11 +100,14 @@ function all(q, p = []) { return new Promise((res, rej) => { const d = new sqlit
     check('   y el peso facturable guardado es 35', Number((await all('SELECT peso_facturable FROM envios WHERE id = ?', [eA.id]))[0].peso_facturable) === 35);
     await page.click('text=1Z000REVNEU000001'); await esperar(1000);
     check('   y el modal ya no lo muestra', !/Peso: facturado/.test(await page.textContent('#saled-factura-block')));
-    // Si dice que NO recalcula, se guarda tal cual: balanza 10 pero facturable sigue en 35.
+    // Si dice que NO recalcula, se guarda sin recalcular el costo: balanza 10 y el facturable
+    // de la vista previa (04/11/2026: los kilos se actualizan en vivo; el costo no).
     rechazarDialogo = true; dialogos.length = 0;
     await page.fill('#saled-peso-real', '10'); await page.click('#sal-modal-save'); await esperar(2000);
     const pesos = (await all('SELECT peso_real, peso_facturable FROM envios WHERE id = ?', [eA.id]))[0];
-    check('   si no acepta recalcular, guarda tal cual (balanza 10, facturable sigue 35) y no hay ⚠', dialogos.length >= 1 && Number(pesos.peso_real) === 10 && Number(pesos.peso_facturable) === 35 && !(await page.$('.chip-anom')), JSON.stringify(pesos));
+    check('   si no acepta recalcular, guarda sin recalcular (balanza 10, facturable 10 de la vista previa)', dialogos.length >= 1 && Number(pesos.peso_real) === 10 && Number(pesos.peso_facturable) === 10, JSON.stringify(pesos) + ' · ' + dialogos.join(' | '));
+    // Y el ⚠ vuelve, con razón: ahora el facturable (10) sí difiere de lo facturado (35).
+    check('   y el ⚠ de peso vuelve a la fila (10 kg nuestros contra 35 facturados)', !!(await page.$('.chip-anom')));
     rechazarDialogo = false;
     await page.click('text=1Z000REVNEU000001'); await esperar(1000);
     await page.click('#saled-recalcular'); await esperar(1500);

@@ -56,7 +56,7 @@
     "verificar-backup": "node scripts/verificar-backup.js",
     "test-pantalla-tarifa-kg": "node scripts/test-pantalla-tarifa-kg.js",
     "test-pantalla-seguro-cliente": "node scripts/test-pantalla-seguro-cliente.js",
-    "test-pantalla-proteccion-doc": "node scripts/test-pantalla-proteccion-doc.js",
+    "test-pantalla-proteccion-doc": "node scripts/test-pantalla-proteccion-doc.js && node scripts/test-pantalla-pesos-en-vivo.js",
     "test-pantalla-venta-salidas": "node scripts/test-pantalla-venta-salidas.js",
     "test-pantalla-cierre": "node scripts/test-pantalla-cierre.js",
     "test-pantalla-fuel-cotizador": "node scripts/test-pantalla-fuel-cotizador.js",

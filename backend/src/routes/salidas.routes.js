@@ -614,16 +614,25 @@ router.post('/:id/recalcular', async (req, res, next) => {
     // —que tampoco venían—, así que un recálculo que solo cambiaba el DDP o el país perdía
     // el peso y devolvía cualquier cosa. Mismo criterio que remota/ddp/entrega: del modal si
     // vino, del envío si no.
-    const bultos = (Array.isArray(body.bultos) && body.bultos.length > 0)
+    //
+    // BULTO ÚNICO CON FILA REAL (04/11/2026, caso de administración): el modal de un envío
+    // de un solo bulto manda peso/medidas en los campos sueltos (sin `bultos`), pero si ese
+    // bulto tiene fila en envio_bultos (semáforo puesto, guía por bulto, alta por Guías)
+    // acá se cargaban LOS GUARDADOS y el motor calculaba con las medidas viejas: tocaban las
+    // medidas, apretaban Recalcular y "no movía nada". Si vienen medidas sueltas y el envío
+    // tiene a lo sumo una fila, mandan las sueltas.
+    const vienenSueltos = ['peso_real', 'largo', 'ancho', 'alto'].some((c) => body[c] !== undefined);
+    const guardados = (Array.isArray(body.bultos) && body.bultos.length > 0) ? null : await db
+      .prepare('SELECT peso_real, largo, ancho, alto FROM envio_bultos WHERE envio_id = ? ORDER BY numero_bulto')
+      .all(id);
+    const bultos = guardados === null
       ? body.bultos.map((b) => ({
           peso_real: b.peso_real,
           largo: b.largo,
           ancho: b.ancho,
           alto: b.alto,
         }))
-      : (await db
-          .prepare('SELECT peso_real, largo, ancho, alto FROM envio_bultos WHERE envio_id = ? ORDER BY numero_bulto')
-          .all(id));
+      : (vienenSueltos && guardados.length <= 1) ? [] : guardados;
 
     // ZONA: la zona guardada es un override atado al país viejo. Si el país efectivo cambió
     // respecto al guardado, usarla daría una tarifa equivocada: pasamos null para que el
@@ -1138,6 +1147,25 @@ router.patch('/:id', async (req, res, next) => {
              WHERE id = ? AND envio_id = ?`
           )
           .run(b.peso_real ?? null, b.largo ?? null, b.ancho ?? null, b.alto ?? null, pv, b.id, id);
+      }
+
+      // BULTO ÚNICO CON FILA REAL (04/11/2026): el modal manda peso/medidas en los campos
+      // sueltos y no en `bultos`, así que la fila 1 de envio_bultos (si existe) quedaba con
+      // las medidas viejas: la grilla mostraba el volumétrico viejo y el próximo Recalcular
+      // volvía a leerlas. Se espeja la fila con lo que entró en `picked`.
+      if (bultosBody.length === 0 && ['peso_real', 'largo', 'ancho', 'alto'].some((c) => Object.prototype.hasOwnProperty.call(picked, c))) {
+        const filas = await db.prepare('SELECT id, peso_real, largo, ancho, alto FROM envio_bultos WHERE envio_id = ? ORDER BY numero_bulto').all(id);
+        if (filas.length === 1) {
+          const f = filas[0];
+          const v = (c, actual) => (Object.prototype.hasOwnProperty.call(picked, c) ? picked[c] : actual);
+          const largo = Number(v('largo', f.largo)) || 0;
+          const ancho = Number(v('ancho', f.ancho)) || 0;
+          const alto = Number(v('alto', f.alto)) || 0;
+          const pv = Math.round(pesoVolumetricoBulto(largo, ancho, alto) * 1000) / 1000;
+          await db
+            .prepare('UPDATE envio_bultos SET peso_real = ?, largo = ?, ancho = ?, alto = ?, peso_volumetrico = ? WHERE id = ?')
+            .run(v('peso_real', f.peso_real) ?? null, largo, ancho, alto, pv, f.id);
+        }
       }
 
       if (bultosNuevos.length) {

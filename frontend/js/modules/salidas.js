@@ -2707,6 +2707,7 @@
     document.getElementById('sal-modal-delete').addEventListener('click', deleteEditModal);
     document.getElementById('sal-modal-no-volo').addEventListener('click', toggleNoVolo);
     document.getElementById('saled-recalcular').addEventListener('click', recalcularDesglose);
+    bindPesosEnVivo();
     // Asegurado (09/10): se prende solo desde USD 100 de valor declarado (DHL y UPS por
     // igual) mientras nadie lo haya tocado a mano en esta edición; el tilde manda.
     document.getElementById('saled-asegurado').addEventListener('change', () => { aseguradoTocado = true; });
@@ -2929,7 +2930,7 @@
     document.getElementById('saled-peso-facturable').value = envio.peso_facturable ?? '';
     document.getElementById('saled-peso-volumetrico').value = envio.peso_volumetrico ?? '';
     renderEditBultos();
-    fotoPesos = fotoDePesos();
+    fotoPesos = fotoDePesos(); pesoFactRef = parseNum(document.getElementById('saled-peso-facturable').value);
     renderEstadoCajaSection();
     // Todo lo que es "de la sesión de edición" y no del envío se limpia acá (09/10/2026):
     // la oficina abría un envío, recalculaba o calculaba la venta, salía sin guardar, y al
@@ -3059,6 +3060,10 @@
     // El peso balanza de arriba = suma de los pesos de bulto, recalculada en vivo.
     container.querySelectorAll('[data-field="peso_real"]').forEach((inp) => {
       inp.addEventListener('input', recalcEditPesoBalanza);
+    });
+    // Volumétrico y facturable en vivo también por bulto (04/11/2026).
+    container.querySelectorAll('input[data-field]').forEach((inp) => {
+      inp.addEventListener('input', previsualizarPesos);
     });
     recalcEditPesoBalanza();
   }
@@ -3526,10 +3531,70 @@
   // (03/11/2026): se corregía la balanza, se guardaba sin Recalcular y el facturable seguía
   // siendo el de antes.
   let fotoPesos = '';
+  let pesoFactRef = null; // facturable con el que se calculó el costo que está en el modal
   function fotoDePesos() {
     const v = (id) => document.getElementById(id).value;
     const bultos = editMulti ? readBultosFromModal().map((b) => [b.peso_real, b.largo, b.ancho, b.alto].join('x')).join('|') : '';
     return [v('saled-peso-real'), v('saled-largo'), v('saled-ancho'), v('saled-alto'), bultos].join(';');
+  }
+
+  // Volumétrico y facturable EN VIVO mientras se tipea peso o medidas (04/11/2026, pedido
+  // de Felipe): la oficina corregía las medidas para que el facturable diera lo que cobró
+  // el courier y los campos grises no se movían hasta Recalcular — parecía bug. Misma
+  // regla que calculos.service.js del backend: volumétrico = L×A×H/5000; facturable = por
+  // bulto, el mayor entre balanza y volumétrico redondeado al medio kilo para ARRIBA, y
+  // se suman. El COSTO sigue necesitando "Recalcular costo": acá solo se muestran los kilos.
+  const redondearMedioKilo = (kg) => Math.ceil((Number(kg) || 0) * 2) / 2;
+  function calcularPesosModal() {
+    const n = (x) => (x === '' || x == null ? 0 : Number(x) || 0);
+    const vol = (l, a, h) => (n(l) > 0 && n(a) > 0 && n(h) > 0 ? (n(l) * n(a) * n(h)) / 5000 : 0);
+    let volTotal = 0;
+    let factTotal = 0;
+    if (editMulti) {
+      for (const b of readBultosFromModal()) {
+        const v = vol(b.largo, b.ancho, b.alto);
+        volTotal += v;
+        factTotal += redondearMedioKilo(Math.max(n(b.peso_real), v));
+      }
+    } else {
+      const g = (id) => document.getElementById(id).value;
+      const v = vol(g('saled-largo'), g('saled-ancho'), g('saled-alto'));
+      volTotal = v;
+      factTotal = redondearMedioKilo(Math.max(n(g('saled-peso-real')), v));
+    }
+    return { volumetrico: Math.round(volTotal * 1000) / 1000, facturable: Math.round(factTotal * 1000) / 1000 };
+  }
+  function previsualizarPesos() {
+    if (!editEnvio) return;
+    const { volumetrico, facturable } = calcularPesosModal();
+    const campoVol = document.getElementById('saled-peso-volumetrico');
+    const campoFact = document.getElementById('saled-peso-facturable');
+    const antes = pesoFactRef;
+    campoVol.value = volumetrico;
+    campoFact.value = facturable;
+    // Aviso solo cuando el peso facturable CAMBIÓ respecto de lo que había: el costo que
+    // se ve sigue siendo el del peso anterior hasta que aprieten Recalcular.
+    const status = document.getElementById('saled-recalc-status');
+    if (!status) return;
+    if (fotoDePesos() !== fotoPesos) {
+      const kg = (v) => `${Number(v).toFixed(1)} kg`;
+      status.className = 'saled-recalc-status';
+      status.textContent = antes != null && Math.abs(antes - facturable) >= 0.005
+        ? `Peso facturable ${kg(antes)} → ${kg(facturable)}. Tocá "Recalcular costo" para que el costo use el peso nuevo.`
+        : 'Cambiaste peso o medidas: tocá "Recalcular costo" para actualizar el costo.';
+      avisoPesosPuesto = true;
+    } else if (avisoPesosPuesto) {
+      // Volvieron a los valores con los que se calculó el costo: no hay nada que recalcular.
+      status.textContent = '';
+      avisoPesosPuesto = false;
+    }
+  }
+  let avisoPesosPuesto = false;
+  function bindPesosEnVivo() {
+    ['saled-peso-real', 'saled-largo', 'saled-ancho', 'saled-alto'].forEach((id) => {
+      const inp = document.getElementById(id);
+      if (inp) inp.addEventListener('input', () => { if (!editMulti) previsualizarPesos(); });
+    });
   }
 
   // Vuelve a pedir las anomalías de la factura del envío en edición (03/11/2026) y las
@@ -3676,7 +3741,7 @@
       document.getElementById('saled-adicionales').value = r.adicionales ?? '';
       document.getElementById('saled-peso-facturable').value = r.peso_facturable ?? '';
       document.getElementById('saled-peso-volumetrico').value = r.peso_volumetrico ?? '';
-      fotoPesos = fotoDePesos();
+      fotoPesos = fotoDePesos(); pesoFactRef = parseNum(document.getElementById('saled-peso-facturable').value);
       // Desglose nuevo del motor: queda "dirty" para persistirlo al guardar. Tras esto el
       // total y la suma vuelven a cuadrar, así que el cartelito desaparece solo.
       editExtras = Array.isArray(r.extras) ? r.extras.map((x) => ({ ...x })) : [];
@@ -3911,8 +3976,11 @@
     // Sin peso no hay precio. Si el envio venia sin pesar y recien le cargaron los kilos,
     // el peso facturable todavia no esta calculado: se pide primero el recalculo, que es
     // el paso que igual habria que dar.
+    // Peso o medidas tocados sin Recalcular (04/11/2026): el facturable en pantalla es el de
+    // la vista previa, pero el costo sigue siendo el del peso viejo. Se recalcula primero,
+    // así venta y costo salen del mismo peso.
     let pf = parseNum(document.getElementById('saled-peso-facturable').value);
-    if (!(pf > 0)) {
+    if (!(pf > 0) || fotoDePesos() !== fotoPesos) {
       status.className = 'saled-recalc-status';
       status.textContent = 'Calculando el peso facturable…';
       await recalcularDesglose();
@@ -4086,13 +4154,14 @@
       return;
     }
 
-    // Peso o medidas cambiados sin Recalcular (03/11/2026): el peso facturable y el costo del
-    // modal son los del peso viejo. Se ofrece recalcular antes de guardar; si dice que no,
-    // se guarda tal cual (hay casos legítimos), pero no en silencio.
+    // Peso o medidas cambiados sin Recalcular (03/11/2026): el costo del modal es el del
+    // peso viejo (el facturable ya se ve actualizado por la vista previa, 04/11). Se ofrece
+    // recalcular antes de guardar; si dice que no, se guarda tal cual (hay casos
+    // legítimos), pero no en silencio.
     if (fotoPesos && fotoDePesos() !== fotoPesos) {
       const rec = window.confirm(
-        'Cambiaste el peso o las medidas pero no tocaste "Recalcular": el peso facturable y el '
-        + 'costo que se van a guardar son los de ANTES del cambio.\n\n'
+        'Cambiaste el peso o las medidas pero no tocaste "Recalcular": el peso facturable ya '
+        + 'está actualizado, pero el COSTO que se va a guardar es el de ANTES del cambio.\n\n'
         + 'Aceptar = recalcular ahora y guardar.\nCancelar = guardar tal cual, sin recalcular.');
       if (rec) {
         await recalcularDesglose();

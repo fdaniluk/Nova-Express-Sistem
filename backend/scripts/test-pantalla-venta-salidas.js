@@ -401,9 +401,9 @@ async function main() {
   // 07/09 (pedido de Felipe): "Dif Costo" salió de la tabla y entró "% Real" = profit real / costo UPS.
   check('la columna "% Real" muestra (300 − 160) / 160 = 87.5%', f && num(f.pctReal) === 87.5, f && f.pctReal);
   check('la columna "Dif Costo" ya no está en la tabla', f && !f.hayDifCosto);
-  check('la cabecera dice "% Real" y no "Dif Costo"', await page.evaluate(() => {
+  check('la cabecera dice "Margen real" y no "Dif Costo"', await page.evaluate(() => {
     const ths = [...document.querySelectorAll('.salidas-table thead th')].map((t) => t.textContent.replace(/[▼]/g, '').trim());
-    return ths.includes('% Real') && !ths.includes('Dif Costo');
+    return ths.includes('Margen real') && !ths.includes('Dif Costo');
   }));
   check('el desvío contra la estimación quedó en el tooltip de "Costo UPS"', /Contra nuestra compra estimada/.test(f.titleCosto), f.titleCosto);
   const estimadoAntes = num(f.profit);
