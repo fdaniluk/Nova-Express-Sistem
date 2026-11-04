@@ -15,6 +15,7 @@ const SIN_BLOBS = `g.id, g.cliente_id, g.destinatario_id, g.fecha, g.courier, g.
   g.envio_id, g.usuario, g.nota, g.created_at, g.updated_at, g.anulada_at, g.remitente_id,
   r.nombre AS remitente_nombre,
   (g.etiqueta_gif IS NOT NULL) AS tiene_etiqueta,
+  (g.proforma_pdf IS NOT NULL) AS tiene_proforma_ups,
   COALESCE(NULLIF(c.nombre_nova, ''), c.nombre) AS cliente_nombre,
   d.nombre AS destinatario_nombre, d.ciudad AS destinatario_ciudad, d.pais AS destinatario_pais`;
 
@@ -32,6 +33,8 @@ function mapGuia(row) {
     ...resto,
     ddp: Boolean(row.ddp),
     tiene_etiqueta: Boolean(row.tiene_etiqueta),
+    tiene_proforma_ups: Boolean(row.tiene_proforma_ups),
+    proforma_ups: datos.proforma_ups || null,
     datos,
     bultos: datos.bultos || [],
     items: datos.items || [],
@@ -96,7 +99,22 @@ function limpiarItems(items) {
     cantidad: Number(it.cantidad) || 1,
     descripcion: String(it.descripcion ?? '').trim(),
     valor_unitario: Number(it.valor_unitario) || 0,
+    // Proforma de UPS (03/11/2026): partida arancelaria (HS) opcional y origen (Argentina).
+    hs: String(it.hs ?? '').replace(/\s+/g, '').slice(0, 15) || null,
+    origen: String(it.origen ?? '').trim().slice(0, 40) || null,
   })).filter((it) => it.descripcion);
+}
+
+// Lo que la pantalla manda como proforma de UPS: { activa, incoterm, motivo, comentario }.
+function limpiarProformaUps(pf) {
+  if (!pf || typeof pf !== 'object') return null;
+  const activa = pf.activa === undefined ? true : Boolean(Number(pf.activa) || pf.activa === true);
+  if (!activa) return null;
+  return {
+    incoterm: String(pf.incoterm || 'FOB').trim().toUpperCase(),
+    motivo: String(pf.motivo || 'SALE').trim().toUpperCase(),
+    comentario: String(pf.comentario || '').trim().slice(0, 150) || null,
+  };
 }
 
 function totalItems(items) {
@@ -136,6 +154,10 @@ async function emitir(input, usuario) {
   const remitente = await remitentes.resolver(cliente, input.remitente_id || null);
   const faltan = ups.validar({ cliente, remitente, destinatario, bultos, servicio, contenido });
   if (input.destinatario_id && cliente && !destinatario) faltan.push('El destinatario no es de ese cliente');
+  // Proforma de UPS (03/11/2026): si la pantalla la pide, los renglones tienen que estar
+  // completos y cerrar con el FOB; se chequea ANTES de llamar a UPS.
+  const proformaUps = limpiarProformaUps(input.proforma_ups);
+  if (proformaUps) faltan.push(...ups.validarProformaUps(proformaUps, items, fob));
   if (faltan.length) return { errores: faltan, tipo: 'datos' };
 
   // Seguro de UPS (02/10): por defecto la guía sale asegurada por el FOB (valor declarado por
@@ -151,9 +173,15 @@ async function emitir(input, usuario) {
     valoresDeclarados = vd.valores || ups.repartirValorDeclarado(fob, bultos);
   }
   bultos.forEach((b, i) => { b.valor_declarado = asegurar ? valoresDeclarados[i] : 0; });
+  // Nº de proforma: con proforma de UPS el número viaja en el pedido, así que se mira el
+  // próximo ANTES de llamar (sin consumirlo: una guía rechazada no gasta número) y se toma
+  // recién después, con la guía emitida.
+  const numeroTipeado = String(input.proforma_numero ?? '').trim() || null;
+  const numeroParaUps = numeroTipeado || String(await configuracionModel.obtenerProformaProximo());
   const pedido = ups.armarPedido({
     remitente, destinatario, bultos, servicio, ddp: Boolean(input.ddp), contenido, fob,
     referencia: `nova cli ${cliente.id}`, asegurar, valoresDeclarados,
+    proformaUps: proformaUps ? { ...proformaUps, numero: numeroParaUps, fecha, items } : null,
   });
   const r = await ups.pedirGuia(pedido);
   if (!r.ok) return { errores: r.errores, tipo: 'ups', status: r.status, respuesta: r.data };
@@ -162,7 +190,7 @@ async function emitir(input, usuario) {
   // Nº de proforma (10/09/2026): vacío → lo pone el sistema (correlativo, Configuración);
   // tipeado → se respeta y el contador salta si hace falta. Recién acá, con la guía ya
   // emitida: una guía rechazada por UPS no gasta número.
-  let proformaNumero = String(input.proforma_numero ?? '').trim() || null;
+  let proformaNumero = numeroTipeado;
   if (!proformaNumero) proformaNumero = String(await configuracionModel.tomarNumeroProforma());
   else await configuracionModel.registrarNumeroProformaManual(proformaNumero);
   const datos = {
@@ -178,7 +206,10 @@ async function emitir(input, usuario) {
     trackings: resumen.trackings,
     alertas: resumen.alertas,
     moneda: resumen.moneda,
+    // Proforma de UPS: qué se pidió (incoterm, motivo) y si UPS devolvió el PDF.
+    proforma_ups: proformaUps ? { ...proformaUps, numero: numeroParaUps, pdf: !!resumen.proforma_pdf, formato: resumen.proforma_pdf ? resumen.proforma_pdf.formato : null } : null,
   };
+  const proformaPdf = resumen.proforma_pdf ? Buffer.from(resumen.proforma_pdf.base64, 'base64') : null;
   // Con varios bultos UPS devuelve una etiqueta por bulto; se guardan todas en orden,
   // separadas para que la impresión las saque una atrás de otra.
   const etiquetas = resumen.etiquetas.filter(Boolean);
@@ -186,18 +217,26 @@ async function emitir(input, usuario) {
     .prepare(
       `INSERT INTO guias (cliente_id, destinatario_id, remitente_id, fecha, courier, servicio, cuenta, entorno, numero_guia,
          estado, ddp, fob, contenido, proforma_numero, datos_json, request_json, response_json, etiqueta_gif,
-         cargo_ups, usuario)
-       VALUES (?, ?, ?, ?, 'UPS', ?, ?, ?, ?, 'emitida', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         cargo_ups, usuario, proforma_pdf)
+       VALUES (?, ?, ?, ?, 'UPS', ?, ?, ?, ?, 'emitida', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       cliente.id, destinatario.id, remitente.id || null, fecha, servicio, ups.cuentaExpo(), ups.entorno(), resumen.numero_guia,
       input.ddp ? 1 : 0, fob, contenido, proformaNumero,
       JSON.stringify(datos), JSON.stringify(pedido), JSON.stringify(r.data),
-      etiquetas.length ? JSON.stringify(etiquetas) : null, resumen.cargo, usuario || null
+      etiquetas.length ? JSON.stringify(etiquetas) : null, resumen.cargo, usuario || null, proformaPdf
     );
   await db.prepare("UPDATE destinatarios SET ultimo_uso = datetime('now', 'localtime') WHERE id = ?").run(destinatario.id);
   await remitentes.tocar(remitente.id);
   return { guia: await buscarPorId(result.lastInsertRowid) };
+}
+
+/** El PDF de la proforma que armó UPS (o null). */
+async function proformaUpsPdf(id) {
+  const db = getDb();
+  const row = await db.prepare('SELECT numero_guia, proforma_pdf FROM guias WHERE id = ?').get(id);
+  if (!row || !row.proforma_pdf) return null;
+  return { numero_guia: row.numero_guia, pdf: Buffer.isBuffer(row.proforma_pdf) ? row.proforma_pdf : Buffer.from(row.proforma_pdf) };
 }
 
 /** Edita lo que no cambia la guía ya impresa: proforma, contenido, renglones, FOB, nota. */
@@ -371,4 +410,4 @@ async function borrarBorrador(id) {
   return r.changes > 0;
 }
 
-module.exports = { buscarPorId, listar, pendientes, etiqueta, emitir, actualizar, anular, comoEnvio, listarBorradores, buscarBorrador, guardarBorrador, borrarBorrador };
+module.exports = { buscarPorId, listar, pendientes, etiqueta, emitir, actualizar, anular, comoEnvio, listarBorradores, buscarBorrador, guardarBorrador, borrarBorrador, proformaUpsPdf };

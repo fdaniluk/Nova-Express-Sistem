@@ -203,6 +203,8 @@ api.guias = {
   etiquetaZplUrl: (id, o = {}) => `${API_BASE}/guias/${id}/etiqueta.zpl?${o.b64 ? 'b64=1&' : ''}${o.giro180 ? 'giro=180' : ''}`,
   etiquetaGifUrl: (id, bulto) => `${API_BASE}/guias/${id}/etiqueta.gif${bulto ? `?bulto=${bulto}` : ''}`,
   proformaUrl: (id) => `${API_BASE}/guias/${id}/proforma.html`,
+  proformaUpsUrl: (id) => `${API_BASE}/guias/${id}/proforma-ups.pdf`,
+  leerProformaExcel: (formData) => request('/guias/proforma-excel', { method: 'POST', body: formData }),
 };
 // Perfiles de remitente del cliente (la ficha primero, id null).
 api.clientes.remitentes = {

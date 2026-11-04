@@ -361,3 +361,20 @@
 .gui-link { background: none; border: 0; color: var(--color-primary); cursor: pointer; text-decoration: underline; font: inherit; font-size: 0.8rem; padding: 0; }
 #g-guardar-borrador { margin-top: 8px; }
 .btn-block { width: 100%; }
+
+/* Proforma de UPS + lector del Excel (03/11/2026) */
+.gui-excel-row { display: flex; align-items: center; gap: .6rem; margin: .2rem 0 .5rem; flex-wrap: wrap; }
+.gui-items th.gui-hs { width: 96px; }
+#g-items { table-layout: fixed; }
+#g-items th:nth-child(1) { width: 84px; }
+#g-items th:nth-child(3) { width: 100px; }
+#g-items th:nth-child(4) { width: 128px; }
+#g-items .gui-total-label { white-space: nowrap; }
+#g-items th:nth-child(5) { width: 84px; }
+#g-items th:nth-child(6) { width: 30px; }
+.gui-items input.gui-hs { width: 90px; font-family: ui-monospace, Menlo, Consolas, monospace; font-size: .85rem; }
+.gui-proforma-ups { margin-top: .8rem; padding: .6rem .8rem; border: 1px dashed var(--color-border); border-radius: 8px; background: #fbfcfe; }
+.gui-proforma-ups .gui-check { display: flex; align-items: center; gap: .5rem; cursor: pointer; }
+.gui-proforma-ups .gui-check small { color: var(--color-muted); }
+.gui-proforma-ups #g-proforma-ups-campos { margin-top: .6rem; }
+.doc-proforma-ups { border-color: #c7d2fe; background: #eef2ff; }

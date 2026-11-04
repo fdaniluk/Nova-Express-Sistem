@@ -21,6 +21,9 @@ router.get('/configuracion', (req, res) => {
     shipper_completo: c.shipper_completo,
     shipper_nombre: c.shipper.nombre,
     servicios: Object.entries(ups.SERVICIO_NOMBRE).map(([codigo, nombre]) => ({ codigo, nombre, ups: ups.SERVICIO_CODIGO[codigo] })),
+    // Proforma de UPS (03/11/2026): las listas que muestra la pantalla.
+    incoterms: ups.INCOTERMS,
+    motivos_export: Object.entries(ups.MOTIVOS_EXPORT).map(([codigo, nombre]) => ({ codigo, nombre })),
   });
 });
 
@@ -283,6 +286,37 @@ router.get('/:id/etiqueta.html', async (req, res, next) => {
 ${paginas}
 </body></html>`);
   } catch (e) {
+    next(e);
+  }
+});
+
+// La proforma que armó UPS (InternationalForms, 03/11/2026): el PDF tal cual lo devolvió.
+router.get('/:id/proforma-ups.pdf', async (req, res, next) => {
+  try {
+    const r = await guias.proformaUpsPdf(req.params.id);
+    if (!r) return res.status(404).send('Esta guía no tiene proforma de UPS (se pide al emitirla, con el tilde "Proforma de UPS").');
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="proforma-ups-${String(r.numero_guia || req.params.id).replace(/[^A-Za-z0-9]/g, '')}.pdf"`);
+    res.send(r.pdf);
+  } catch (e) {
+    next(e);
+  }
+});
+
+// Lector de la proforma Excel de la oficina (03/11/2026): devuelve número, fecha, consignee
+// y renglones para precargar la pantalla. Solo lectura: no guarda nada.
+const multer = require('multer');
+const subirExcel = (req, res, next) => multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } }).single('archivo')(req, res, (err) => {
+  if (err) return res.status(400).json({ error: err.code === 'LIMIT_FILE_SIZE' ? 'El archivo pesa más de 8 MB' : err.message });
+  next();
+});
+router.post('/proforma-excel', subirExcel, async (req, res, next) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'Falta el archivo (.xlsx)' });
+    const r = await require('../services/proforma-excel.service').leer(req.file.buffer, req.file.originalname);
+    res.json(r);
+  } catch (e) {
+    if (e.status === 422) return res.status(422).json({ error: e.message });
     next(e);
   }
 });

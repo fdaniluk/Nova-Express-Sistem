@@ -32,6 +32,7 @@
     bindModalRem();
     bindListado();
     bindTituloProforma();
+    bindProformaUps();
     mostrarProximaProforma();
     agregarItem();
     agregarBulto();
@@ -439,7 +440,8 @@
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td><input type="number" class="n" data-f="cantidad" min="0" step="1" value="${it?.cantidad ?? 1}"></td>
-      <td><input type="text" data-f="descripcion" maxlength="60" value="${esc(it?.descripcion || '')}" placeholder="Leather hides"></td>
+      <td><input type="text" data-f="descripcion" maxlength="105" value="${esc(it?.descripcion || '')}" placeholder="Leather hides"></td>
+      <td><input type="text" class="gui-hs" data-f="hs" maxlength="15" value="${esc(it?.hs || '')}" placeholder="6104.43"></td>
       <td><input type="number" class="n" data-f="valor_unitario" min="0" step="0.01" value="${it?.valor_unitario ?? ''}"></td>
       <td class="total">0.00</td>
       <td><button type="button" class="gui-quitar" title="Quitar">✕</button></td>`;
@@ -454,7 +456,60 @@
       cantidad: parseFloat(tr.querySelector('[data-f="cantidad"]').value) || 0,
       descripcion: tr.querySelector('[data-f="descripcion"]').value.trim(),
       valor_unitario: parseFloat(tr.querySelector('[data-f="valor_unitario"]').value) || 0,
+      hs: tr.querySelector('[data-f="hs"]').value.replace(/\s+/g, '') || null,
     })).filter((it) => it.descripcion);
+  }
+
+  // ── Proforma de UPS + lector del Excel (03/11/2026) ────────────────────────
+  function proformaUpsActiva() { return !!($('g-proforma-ups') && $('g-proforma-ups').checked); }
+  function bindProformaUps() {
+    const chk = $('g-proforma-ups');
+    if (!chk) return;
+    const inc = $('g-incoterm'); const mot = $('g-motivo');
+    (config.incoterms || ['FOB', 'EXW', 'CIF', 'CFR', 'DAP', 'DDP', 'DDU', 'FCA']).forEach((c) => { const o = document.createElement('option'); o.value = c; o.textContent = c; inc.appendChild(o); });
+    (config.motivos_export || [{ codigo: 'SALE', nombre: 'Venta' }, { codigo: 'SAMPLE', nombre: 'Muestra' }, { codigo: 'GIFT', nombre: 'Regalo' }, { codigo: 'RETURN', nombre: 'Devolución' }, { codigo: 'REPAIR', nombre: 'Reparación' }]).forEach((m) => { const o = document.createElement('option'); o.value = m.codigo; o.textContent = `${m.nombre} (${m.codigo})`; mot.appendChild(o); });
+    inc.value = 'FOB'; mot.value = 'SALE';
+    chk.addEventListener('change', () => { $('g-proforma-ups-campos').classList.toggle('hidden', !chk.checked); pintarResumen(); });
+    // Lector del Excel: llena Nº, renglones (con HS) y avisa qué leyó.
+    const file = $('g-proforma-excel');
+    $('g-proforma-excel-btn').addEventListener('click', () => { file.value = ''; file.click(); });
+    file.addEventListener('change', async () => {
+      const f = file.files && file.files[0];
+      if (!f) return;
+      const estado = $('g-proforma-excel-estado');
+      estado.textContent = 'Leyendo…';
+      try {
+        const fd = new FormData();
+        fd.append('archivo', f, f.name);
+        const r = await NovaAPI.guias.leerProformaExcel(fd);
+        aplicarProformaExcel(r);
+        const partes = [`${r.items.length} ${r.items.length === 1 ? 'renglón' : 'renglones'} · total US$ ${money(r.suma)}`];
+        if (r.numero) partes.push(`Nº ${r.numero}`);
+        if (r.consignee && r.consignee.nombre) partes.push(`consignee: ${r.consignee.nombre}`);
+        estado.textContent = `Leído "${f.name}": ${partes.join(' · ')}. Revisá los renglones antes de pedir la guía.`;
+        if (r.avisos && r.avisos.length) mostrarErrores(r.avisos, 'Avisos de la proforma Excel:');
+      } catch (err) {
+        estado.textContent = '';
+        NovaUtils.showAlert(alertBox, err.message || 'No se pudo leer la proforma.', 'error');
+      }
+    });
+  }
+  function aplicarProformaExcel(r) {
+    if (r.numero && !$('g-proforma').value.trim()) $('g-proforma').value = String(r.numero);
+    if (r.titulo && $('g-proforma-titulo')) {
+      const sel = $('g-proforma-titulo');
+      if ([...sel.options].some((o) => o.value === r.titulo)) { sel.value = r.titulo; $('g-proforma-titulo-otro').classList.add('hidden'); }
+    }
+    if (r.items && r.items.length) {
+      $('g-items').querySelector('tbody').innerHTML = '';
+      r.items.forEach((it) => agregarItem(it));
+    }
+    if (!$('g-contenido').value.trim() && r.items && r.items.length) {
+      $('g-contenido').value = r.items[0].descripcion.slice(0, 50);
+    }
+    $('g-proforma-ups').checked = true;
+    $('g-proforma-ups-campos').classList.remove('hidden');
+    pintarResumen();
   }
 
   function recalcItems() {
@@ -598,6 +653,12 @@
     if (!$('g-contenido').value.trim()) previos.push('Escribí el contenido');
     if (!items.length) previos.push('Cargá al menos un renglón de la proforma (descripción y valor)');
     if (!bultos.some((b) => b.peso_real > 0)) previos.push('Cargá el peso de al menos un bulto');
+    if (proformaUpsActiva()) {
+      items.forEach((it, i) => {
+        if (!Number.isInteger(it.cantidad) || it.cantidad < 1) previos.push(`Renglón ${i + 1}: la proforma de UPS necesita cantidades enteras (tiene ${it.cantidad})`);
+        if (!(it.valor_unitario > 0)) previos.push(`Renglón ${i + 1}: la proforma de UPS necesita el valor unitario`);
+      });
+    }
     if ($('g-seguro').checked) {
       const total = totalFob();
       const suma = sumaValorDeclarado();
@@ -617,6 +678,8 @@
       proforma_numero: $('g-proforma').value.trim() || null,
       proforma_titulo: tituloProforma(),
       items,
+      // Proforma de UPS (03/11): si está tildada, UPS arma la factura comercial con los renglones.
+      proforma_ups: proformaUpsActiva() ? { activa: 1, incoterm: $('g-incoterm').value, motivo: $('g-motivo').value, comentario: $('g-pf-comentario').value.trim() || null } : null,
       bultos: bultos.filter((b) => b.peso_real > 0 || (b.largo && b.ancho && b.alto)).map(({ vd_manual, ...b }) => ({ ...b, valor_declarado: $('g-seguro').checked ? b.valor_declarado : null })),
       pais_destino: d.pais,
       observaciones: $('g-observaciones').value.trim() || null,
@@ -677,6 +740,7 @@
     $('g-observaciones').value = '';
     $('g-ddp').checked = false;
     $('g-seguro').checked = true;
+    if ($('g-proforma-ups')) { $('g-proforma-ups').checked = false; $('g-proforma-ups-campos').classList.add('hidden'); $('g-pf-comentario').value = ''; $('g-incoterm').value = 'FOB'; $('g-motivo').value = 'SALE'; $('g-proforma-excel-estado').textContent = ''; }
     $('g-items').querySelector('tbody').innerHTML = '';
     $('g-bultos').querySelector('tbody').innerHTML = '';
     agregarItem();
@@ -706,7 +770,9 @@
       proforma_titulo_otro: $('g-proforma-titulo-otro') ? $('g-proforma-titulo-otro').value.trim() : '',
       items: [...$('g-items').querySelectorAll('tbody tr')].map((tr) => ({
         cantidad: tr.querySelector('[data-f="cantidad"]').value, descripcion: tr.querySelector('[data-f="descripcion"]').value, valor_unitario: tr.querySelector('[data-f="valor_unitario"]').value,
+        hs: tr.querySelector('[data-f="hs"]').value,
       })),
+      proforma_ups: proformaUpsActiva() ? { activa: 1, incoterm: $('g-incoterm').value, motivo: $('g-motivo').value, comentario: $('g-pf-comentario').value.trim() || null } : null,
       bultos: leerBultos(),
       observaciones: $('g-observaciones').value.trim() || null,
     };
@@ -723,6 +789,12 @@
     $('g-proforma').value = x.proforma_numero || '';
     if ($('g-proforma-titulo') && x.proforma_titulo_sel) { $('g-proforma-titulo').value = x.proforma_titulo_sel; $('g-proforma-titulo-otro').value = x.proforma_titulo_otro || ''; $('g-proforma-titulo-otro').classList.toggle('hidden', x.proforma_titulo_sel !== '__otro'); }
     $('g-observaciones').value = x.observaciones || '';
+    if ($('g-proforma-ups')) {
+      const pf = x.proforma_ups;
+      $('g-proforma-ups').checked = !!(pf && (pf.activa === undefined || pf.activa));
+      $('g-proforma-ups-campos').classList.toggle('hidden', !$('g-proforma-ups').checked);
+      if (pf) { if (pf.incoterm) $('g-incoterm').value = pf.incoterm; if (pf.motivo) $('g-motivo').value = pf.motivo; $('g-pf-comentario').value = pf.comentario || ''; }
+    }
     $('g-items').querySelector('tbody').innerHTML = '';
     (x.items && x.items.length ? x.items : [null]).forEach((it) => agregarItem(it));
     $('g-bultos').querySelector('tbody').innerHTML = '';
@@ -848,18 +920,21 @@
       <a href="${NovaAPI.guias.etiquetaPdfUrl(g.id)}" target="_blank" rel="noopener" title="Etiqueta térmica en PDF de 4×6 exactas">PDF 4×6</a>
       <a href="${NovaAPI.guias.etiquetaUrl(g.id, 'termica')}" target="_blank" rel="noopener" title="Etiqueta térmica en el navegador (4×6)">Térmica</a>
       <a href="${NovaAPI.guias.etiquetaUrl(g.id, 'a4')}" target="_blank" rel="noopener" title="Etiqueta en hoja A4 (una sola hoja)">A4</a>
-      <a href="${NovaAPI.guias.proformaUrl(g.id)}" target="_blank" rel="noopener" title="Proforma / commercial invoice">Proforma</a>`;
+      <a href="${NovaAPI.guias.proformaUrl(g.id)}" target="_blank" rel="noopener" title="Proforma / commercial invoice (la del sistema)">Proforma</a>${g.tiene_proforma_ups ? `
+      <a href="${NovaAPI.guias.proformaUpsUrl(g.id)}" target="_blank" rel="noopener" title="La factura comercial que armó UPS con los renglones (PDF)">Proforma UPS</a>` : ''}`;
     }
     return `
       <a class="doc-termica doc-directo" href="#" data-imprimir="${g.id}" title="Sale directo de la impresora térmica, por el plugin de UPS (sin ventana de imprimir)"><span class="ico">⚡</span>Imprimir térmica <small>directo</small></a>
       <a class="doc-termica sec" href="${NovaAPI.guias.etiquetaPdfUrl(g.id)}" target="_blank" rel="noopener" title="PDF de 4×6 exactas, por si la impresión directa no anda"><span class="ico">🏷</span>Térmica <small>PDF 4×6</small></a>
       <a class="doc-a4" href="${NovaAPI.guias.etiquetaUrl(g.id, 'a4')}" target="_blank" rel="noopener"><span class="ico">📄</span>Etiqueta en A4</a>
-      <a class="doc-proforma" href="${NovaAPI.guias.proformaUrl(g.id)}" target="_blank" rel="noopener"><span class="ico">🧾</span>Proforma</a>`;
+      <a class="doc-proforma" href="${NovaAPI.guias.proformaUrl(g.id)}" target="_blank" rel="noopener" title="La proforma del sistema (hoja A4)"><span class="ico">🧾</span>Proforma</a>${g.tiene_proforma_ups ? `
+      <a class="doc-proforma doc-proforma-ups" href="${NovaAPI.guias.proformaUpsUrl(g.id)}" target="_blank" rel="noopener" title="La factura comercial que armó UPS con los renglones de la proforma (PDF, para imprimir)"><span class="ico">📑</span>Proforma UPS <small>PDF</small></a>` : ''}`;
   }
 
   // ── Resumen lateral (se actualiza con cada cambio del formulario) ──────────
   function pintarResumen() {
     const set = (k, v) => { const el = document.querySelector(`#g-resumen [data-r="${k}"]`); if (el) el.textContent = v || '—'; };
+    set('proforma', proformaUpsActiva() ? `UPS (${$('g-incoterm').value} · ${$('g-motivo').value})` : 'del sistema');
     const r = remSeleccionado();
     const d = destSeleccionado();
     set('cliente', clienteActual ? (clienteActual.nombre_nova || clienteActual.nombre) : '');

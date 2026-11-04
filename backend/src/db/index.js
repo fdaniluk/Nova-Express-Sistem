@@ -535,6 +535,8 @@ async function migrateGuias() {
   await dbApi.exec('CREATE INDEX IF NOT EXISTS idx_guias_borradores_cliente ON guias_borradores(cliente_id)');
   const colsG = (await dbApi.prepare('PRAGMA table_info(guias)').all()).map((c) => c.name);
   if (!colsG.includes('remitente_id')) await dbApi.exec('ALTER TABLE guias ADD COLUMN remitente_id INTEGER');
+  // Proforma de UPS (03/11/2026): el PDF de la factura comercial que arma UPS, cuando se pidió.
+  if (!colsG.includes('proforma_pdf')) await dbApi.exec('ALTER TABLE guias ADD COLUMN proforma_pdf BLOB');
   // Remitente completo del cliente (para la guía y la proforma): teléfono y provincia. La
   // dirección (direccion_recoleccion), CP (codigo_postal), ciudad (localidad), CUIT y mail ya estaban.
   const cols = (await dbApi.prepare('PRAGMA table_info(clientes)').all()).map((c) => c.name);

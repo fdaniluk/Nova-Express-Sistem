@@ -125,6 +125,40 @@ function soloDigitos(s) {
   return String(s ?? '').replace(/\D+/g, '');
 }
 
+// ── Proforma de UPS (InternationalForms, 03/11/2026) ─────────────────────────────
+// La factura comercial la arma UPS con los renglones de la proforma: viaja en la misma
+// llamada que la guía (FormType 01 = Invoice) y UPS devuelve el PDF junto con la etiqueta.
+// Incoterms y motivos de exportación tal como los acepta la API.
+const INCOTERMS = ['FOB', 'CIF', 'CFR', 'CIP', 'CPT', 'DAF', 'DDP', 'DDU', 'DEQ', 'DES', 'EXW', 'FAS', 'FCA'];
+const MOTIVOS_EXPORT = { SALE: 'Venta', SAMPLE: 'Muestra', GIFT: 'Regalo', RETURN: 'Devolución', REPAIR: 'Reparación', INTERCOMPANYDATA: 'Intercompañía', OTHER: 'Otro' };
+// Cada renglón admite hasta 3 descripciones de 35: una descripción larga se parte ahí.
+function descripcionUps(texto) {
+  return partirLineas(texto, 35, 3);
+}
+// Lista de problemas de la proforma de UPS (vacía si está todo). `items` ya limpios.
+function validarProformaUps(pf, items, fob) {
+  const faltan = [];
+  if (!pf) return faltan;
+  if (!INCOTERMS.includes(String(pf.incoterm || '').toUpperCase())) faltan.push('Elegí el incoterm de la proforma de UPS (FOB, EXW, CIF…)');
+  if (!MOTIVOS_EXPORT[String(pf.motivo || '').toUpperCase()]) faltan.push('Elegí el motivo de exportación de la proforma de UPS (venta, muestra…)');
+  if (!items.length) faltan.push('La proforma de UPS necesita al menos un renglón (cantidad, descripción y valor)');
+  items.forEach((it, i) => {
+    const n = i + 1;
+    if (!(Number.isInteger(Number(it.cantidad)) && Number(it.cantidad) >= 1)) faltan.push(`Renglón ${n}: la cantidad tiene que ser un entero mayor a cero (UPS no acepta decimales)`);
+    if (!(Number(it.valor_unitario) > 0)) faltan.push(`Renglón ${n}: el valor unitario tiene que ser mayor a cero`);
+    if (!String(it.descripcion || '').trim()) faltan.push(`Renglón ${n}: falta la descripción`);
+    const hs = String(it.hs || '').replace(/\s+/g, '');
+    if (hs && !/^[0-9.]{6,15}$/.test(hs)) faltan.push(`Renglón ${n}: el código HS "${it.hs}" no tiene forma de partida (6 a 15 dígitos, con o sin puntos)`);
+  });
+  const suma = Math.round(items.reduce((s2, it) => s2 + (Number(it.cantidad) || 0) * (Number(it.valor_unitario) || 0), 0) * 100) / 100;
+  if (items.length && Math.abs(suma - (Number(fob) || 0)) > 0.011) faltan.push(`Los renglones de la proforma suman USD ${suma.toFixed(2)} y el FOB es USD ${(Number(fob) || 0).toFixed(2)}: tienen que coincidir`);
+  return faltan;
+}
+function fechaUps(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+  return m ? `${m[1]}${m[2]}${m[3]}` : '';
+}
+
 /** Devuelve la lista de problemas que impiden pedir la guía (vacía si está todo). */
 // `remitente` es la forma única de remitentes.model.resolver(): la ficha del cliente o
 // un perfil de la libreta de remitentes.
@@ -200,7 +234,7 @@ function validarValoresDeclarados(fob, bultos) {
   return { valores };
 }
 
-function armarPedido({ remitente, destinatario, bultos, servicio, ddp, contenido, fob, referencia, asegurar = true, valoresDeclarados: provistos = null }) {
+function armarPedido({ remitente, destinatario, bultos, servicio, ddp, contenido, fob, referencia, asegurar = true, valoresDeclarados: provistos = null, proformaUps = null }) {
   // 30/10: si la pantalla mandó el valor declarado por bulto (ya validado contra el FOB) se usa
   // tal cual; si no, el FOB se reparte en partes iguales.
   const valoresDeclarados = !asegurar ? bultos.map(() => 0)
@@ -234,7 +268,7 @@ function armarPedido({ remitente, destinatario, bultos, servicio, ddp, contenido
   // cargo 02 y UPS se los cobra al destinatario, que es "facturar al destinatario" (4-ter).
   if (ddp) shipmentCharge.push({ Type: '02', BillShipper: { AccountNumber: cuenta } });
 
-  return {
+  const pedido = {
     ShipmentRequest: {
       Request: {
         RequestOption: 'nonvalidate',
@@ -301,6 +335,52 @@ function armarPedido({ remitente, destinatario, bultos, servicio, ddp, contenido
       },
     },
   };
+  // Proforma de UPS (03/11/2026): la factura comercial viaja con la guía. SoldTo = el
+  // destinatario. Cada renglón: descripción (hasta 3×35), cantidad en piezas, valor
+  // unitario, HS code si lo hay y origen Argentina. OverridePaperlessIndicator pide que
+  // UPS devuelva SIEMPRE el PDF, esté o no la cuenta en paperless.
+  if (proformaUps && Array.isArray(proformaUps.items) && proformaUps.items.length) {
+    const sh = pedido.ShipmentRequest.Shipment;
+    if (remitente.cuit) sh.Shipper.TaxIdentificationNumber = taxIdParaUps(remitente.cuit);
+    sh.ShipmentServiceOptions = {
+      ...(sh.ShipmentServiceOptions || {}),
+      InternationalForms: {
+        FormType: '01',
+        InvoiceNumber: recortar(proformaUps.numero || referencia || 'nova', 35),
+        InvoiceDate: fechaUps(proformaUps.fecha),
+        TermsOfShipment: String(proformaUps.incoterm || 'FOB').toUpperCase(),
+        ReasonForExport: String(proformaUps.motivo || 'SALE').toUpperCase(),
+        CurrencyCode: 'USD',
+        ...(proformaUps.comentario ? { Comments: recortar(proformaUps.comentario, 150) } : {}),
+        Contacts: {
+          SoldTo: {
+            Name: shipTo.Name,
+            AttentionName: shipTo.AttentionName,
+            Phone: shipTo.Phone,
+            ...(shipTo.EMailAddress ? { EMailAddress: shipTo.EMailAddress } : {}),
+            ...(shipTo.TaxIdentificationNumber ? { TaxIdentificationNumber: shipTo.TaxIdentificationNumber } : {}),
+            Address: shipTo.Address,
+          },
+        },
+        Product: proformaUps.items.map((it) => {
+          const p = {
+            Description: descripcionUps(it.descripcion),
+            Unit: {
+              Number: String(Math.max(1, Math.round(Number(it.cantidad) || 1))),
+              Value: (Number(it.valor_unitario) || 0).toFixed(2),
+              UnitOfMeasurement: { Code: 'PCS', Description: 'Pieces' },
+            },
+            OriginCountryCode: isoDePais(it.origen || 'Argentina') || 'AR',
+          };
+          const hs = String(it.hs || '').replace(/\s+/g, '');
+          if (hs) p.CommodityCode = hs.slice(0, 15);
+          return p;
+        }),
+        OverridePaperlessIndicator: '',
+      },
+    };
+  }
+  return pedido;
 }
 
 // ── Llamadas a UPS ───────────────────────────────────────────────────────────
@@ -312,6 +392,8 @@ function erroresDe(data, texto) {
 
 // GIF de 1×1 para el mock: la etiqueta de mentira existe y se puede imprimir.
 const GIF_MOCK = 'R0lGODlhAQABAIAAAP///wAAACH5BAEAAAAALAAAAAABAAEAAAICRAEAOw==';
+// Un PDF mínimo válido (una página en blanco), en base64, para simular la proforma de UPS.
+const PDF_MOCK = Buffer.from('%PDF-1.4\n1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj\n2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj\n3 0 obj<</Type/Page/Parent 2 0 R/MediaBox[0 0 595 842]>>endobj\nxref\n0 4\n0000000000 65535 f \n0000000009 00000 n \n0000000052 00000 n \n0000000101 00000 n \ntrailer<</Size 4/Root 1 0 R>>\nstartxref\n160\n%%EOF\n').toString('base64');
 
 function respuestaMock(pedido) {
   const n = String(Date.now()).slice(-10);
@@ -321,6 +403,7 @@ function respuestaMock(pedido) {
     ShippingLabel: { ImageFormat: { Code: 'GIF' }, GraphicImage: GIF_MOCK },
     _mock: i,
   }));
+  const conProforma = !!(pedido.ShipmentRequest.Shipment.ShipmentServiceOptions || {}).InternationalForms;
   return {
     ShipmentResponse: {
       Response: { ResponseStatus: { Code: '1', Description: 'Success' }, Alert: [{ Code: '0', Description: 'Respuesta simulada (UPS_SHIPPING_MOCK)' }] },
@@ -328,6 +411,8 @@ function respuestaMock(pedido) {
         ShipmentCharges: { TotalCharges: { CurrencyCode: 'USD', MonetaryValue: '123.45' } },
         ShipmentIdentificationNumber: numero,
         PackageResults: paquetes,
+        // Con InternationalForms, UPS devuelve la factura comercial como PDF (Form 01).
+        ...(conProforma ? { Form: { Code: '01', Description: 'Invoice', Image: { ImageFormat: { Code: 'PDF' }, GraphicImage: PDF_MOCK } } } : {}),
       },
     },
   };
@@ -366,6 +451,12 @@ function resumirRespuesta(data) {
     cargo: r.ShipmentCharges?.TotalCharges ? Number(r.ShipmentCharges.TotalCharges.MonetaryValue) : null,
     moneda: r.ShipmentCharges?.TotalCharges?.CurrencyCode || null,
     alertas,
+    // Proforma de UPS (Form 01 = Invoice): el PDF en base64, o null si UPS no mandó formulario.
+    proforma_pdf: (() => {
+      const forms = [].concat(r.Form || []);
+      const f = forms.find((x) => x && x.Image && x.Image.GraphicImage && (!x.Code || String(x.Code) === '01')) || forms.find((x) => x && x.Image && x.Image.GraphicImage);
+      return f ? { formato: (f.Image.ImageFormat && f.Image.ImageFormat.Code) || 'PDF', base64: f.Image.GraphicImage } : null;
+    })(),
   };
 }
 
@@ -391,6 +482,10 @@ async function anularGuia(numeroGuia) {
 }
 
 module.exports = {
+  INCOTERMS,
+  MOTIVOS_EXPORT,
+  validarProformaUps,
+  descripcionUps,
   repartirValorDeclarado,
   validarValoresDeclarados,
   partirLineas,

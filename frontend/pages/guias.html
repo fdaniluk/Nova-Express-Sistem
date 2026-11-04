@@ -9,7 +9,7 @@
        inline, porque si queda solo en main.css Chrome a veces lo lee tarde y saltea el fundido. -->
   <style>@view-transition { navigation: auto; }</style>
   <link rel="stylesheet" href="../css/main.css?v=20261103a">
-  <link rel="stylesheet" href="../css/modules/guias.css?v=20261030a">
+  <link rel="stylesheet" href="../css/modules/guias.css?v=20261103a">
 </head>
 <body>
 <div class="app-layout">
@@ -238,20 +238,45 @@
                   </div>
                 </div>
               </div>
+              <!-- Proforma Excel de la oficina (03/11/2026): la lee y llena Nº, renglones y HS. -->
+              <div class="gui-excel-row">
+                <input type="file" id="g-proforma-excel" accept=".xlsx,.xlsm" class="hidden">
+                <button type="button" class="btn btn-secondary btn-sm" id="g-proforma-excel-btn" title="Lee la proforma Excel del cliente (Quantity / Description / Unit value) y llena los renglones, el Nº y el HS code si viene en la descripción. Después revisá y corregí lo que haga falta.">📄 Leer proforma Excel</button>
+                <span class="gui-hint" id="g-proforma-excel-estado"></span>
+              </div>
               <table class="gui-items" id="g-items">
                 <thead>
-                  <tr><th class="n">Cantidad</th><th>Descripción (inglés)</th><th class="n">Valor unitario USD</th><th class="n">Total</th><th></th></tr>
+                  <tr><th class="n">Cantidad</th><th>Descripción (inglés)</th><th class="gui-hs" title="Partida arancelaria (HS / NCM), 6 a 10 dígitos. Opcional; va en la proforma de UPS">HS code</th><th class="n">Valor unitario USD</th><th class="n">Total</th><th></th></tr>
                 </thead>
                 <tbody></tbody>
                 <tfoot>
                   <tr>
                     <td colspan="2"><button type="button" class="btn btn-ghost btn-sm" id="g-item-agregar">+ Agregar renglón</button></td>
-                    <td class="n gui-total-label">TOTAL USD · valor declarado</td>
+                    <td class="n gui-total-label" colspan="2">TOTAL USD · valor declarado</td>
                     <td class="n" id="g-items-total">0.00</td>
                     <td></td>
                   </tr>
                 </tfoot>
               </table>
+              <!-- Proforma de UPS (03/11/2026): UPS arma la factura comercial con estos renglones y la
+                   devuelve en PDF junto con la etiqueta (InternationalForms, tipo Invoice). -->
+              <div class="gui-proforma-ups">
+                <label class="gui-check"><input type="checkbox" id="g-proforma-ups"> <b>Proforma de UPS</b> <small>UPS arma la factura comercial con estos renglones y la devuelve en PDF para imprimir</small></label>
+                <div id="g-proforma-ups-campos" class="form-grid gui-grid-3 hidden">
+                  <div class="form-group">
+                    <label for="g-incoterm">Incoterm</label>
+                    <select id="g-incoterm"></select>
+                  </div>
+                  <div class="form-group">
+                    <label for="g-motivo">Motivo de exportación</label>
+                    <select id="g-motivo"></select>
+                  </div>
+                  <div class="form-group">
+                    <label for="g-pf-comentario">Comentario en la proforma (opcional)</label>
+                    <input type="text" id="g-pf-comentario" maxlength="150" placeholder="Ej: Samples, no commercial value">
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -295,6 +320,7 @@
               <dt>Servicio</dt><dd data-r="servicio">Worldwide Saver</dd>
               <dt>Bultos</dt><dd data-r="bultos">—</dd>
               <dt>Valor declarado</dt><dd data-r="fob">US$ 0.00</dd>
+              <dt>Proforma</dt><dd data-r="proforma">del sistema</dd>
             </dl>
             <div class="gui-borrador-chip hidden" id="g-borrador-chip">
               <span>✎ Retomando una guía en espera</span>
@@ -522,6 +548,6 @@
 <script src="/shared/cotizador/cotizador-core.js?v=20261030a"></script>
 <script src="/shared/guias/estados.js?v=20261016a"></script>
 <script src="../js/termica.js?v=20260915a"></script>
-<script src="../js/modules/guias.js?v=20261030a"></script>
+<script src="../js/modules/guias.js?v=20261103a"></script>
 </body>
 </html>
