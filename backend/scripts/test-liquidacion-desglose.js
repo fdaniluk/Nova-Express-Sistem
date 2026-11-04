@@ -141,17 +141,23 @@ async function main() {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.load(buf);
   const ws = wb.getWorksheet('Liquidacion');
-  check('el título dice LIQUIDACIÓN SEMANAL', String(ws.getCell('D1').value) === 'LIQUIDACIÓN SEMANAL', String(ws.getCell('D1').value));
-  check('el título va en azul Nova', (ws.getCell('D1').font || {}).color?.argb === 'FF2A3661', JSON.stringify(ws.getCell('D1').font));
+  // Rediseño 04/11/2026: el título va centrado desde la columna C (después del Nº de envío).
+  check('el título dice LIQUIDACIÓN SEMANAL', String(ws.getCell('C1').value) === 'LIQUIDACIÓN SEMANAL', String(ws.getCell('C1').value));
+  check('el título va en azul Nova', (ws.getCell('C1').font || {}).color?.argb === 'FF2A3661', JSON.stringify(ws.getCell('C1').font));
   check('el Excel lleva el logo', (ws.getImages() || []).length === 1, `${(ws.getImages() || []).length}`);
   const textos = [];
   ws.eachRow((row) => row.eachCell((c) => { if (c.value != null) textos.push(String(c.value.richText ? c.value.richText.map((t) => t.text).join('') : c.value)); }));
   check('la cabecera de la tabla va en azul con letra blanca', ws.getCell('A7').fill?.fgColor?.argb === 'FF2A3661' && ws.getCell('A7').font?.color?.argb === 'FFFFFFFF');
   check('la fila TOTAL va en coral', textos.includes('TOTAL') && (() => { let f = null; ws.eachRow((row) => { if (row.getCell(1).value === 'TOTAL') f = row.getCell(1).fill?.fgColor?.argb; }); return f === 'FFEA6749'; })());
-  check('hay una sección "DETALLE DE ADICIONALES"', textos.includes('DETALLE DE ADICIONALES'));
-  check('  con la línea del GoGreen', textos.includes('GoGreen'));
-  check('  con el surge con fuel', textos.includes('Surge fee (con fuel)'));
-  check('  y con el extra manual', textos.includes('Embalaje'));
+  // Rediseño 04/11/2026: un solo formato, el desglose va debajo de cada envío con ↳ (ya no hay
+  // sección "DETALLE DE ADICIONALES" al pie) y sin FOB ni DERECHOS.
+  check('no hay sección "DETALLE DE ADICIONALES" al pie', !textos.includes('DETALLE DE ADICIONALES'));
+  check('  el GoGreen va debajo de su envío', textos.includes('↳ GoGreen'));
+  check('  el surge con fuel también', textos.includes('↳ Surge fee (con fuel)'));
+  check('  y el extra manual', textos.includes('↳ Embalaje'));
+  const cab = []; ws.getRow(7).eachCell((c) => cab.push(String(c.value)));
+  check('la cabecera no tiene FOB ni DERECHOS y sí "DESGLOSE DE ADICIONAL" pegado a ADICIONAL', !cab.includes('FOB') && !cab.includes('DERECHOS') && cab.indexOf('DESGLOSE DE ADICIONAL') === cab.indexOf('ADICIONAL') - 1, cab.join('|'));
+  check('sin destinatarios, la columna DESTINATARIO no sale', !cab.includes('DESTINATARIO'), cab.join('|'));
   check('el Excel NO muestra el profit (dato interno)', !textos.some((t) => /profit|utilidad/i.test(t)));
   console.log(`   (Excel de muestra en ${outPath})`);
 
@@ -223,10 +229,9 @@ async function main() {
     }, '1Z000DESG000000004');
     check('la fila del envío está en la vista previa', !!filaPrev, JSON.stringify(filaPrev));
     check('hay columna "Profit (interno)"', filaPrev && filaPrev.th.includes('Profit (interno)'), filaPrev && filaPrev.th.join(' | '));
-    check('la columna Destinatario está pero oculta (formato estándar)', filaPrev && filaPrev.remitenteOculto === true, JSON.stringify(filaPrev));
-    await page.check('#liq-formato-detallado');
-    check('con "Formato detallado" tildado se muestra la columna Destinatario', await page.evaluate(() => [...document.querySelectorAll('#liq-preview-body td.liq-col-remitente')].every((td) => !td.classList.contains('hidden')) && /Destinatario/.test([...document.querySelectorAll('#liq-preview thead th')].find((t) => t.classList.contains('liq-col-remitente'))?.textContent || '')));
-    await page.uncheck('#liq-formato-detallado');
+    check('la columna Destinatario está pero oculta (ningún envío lo tiene)', filaPrev && filaPrev.remitenteOculto === true, JSON.stringify(filaPrev));
+    check('ya no hay tilde de "Formato detallado" (un solo formato desde el 04/11)', !(await page.$('#liq-formato-detallado')));
+    check('hay botón PDF al lado del de Excel', !!(await page.$('#btn-export-pdf')));
     check('el profit del envío se muestra como % · US$', filaPrev && /\d+(\.\d+)?% · US?\$/.test(filaPrev.profit), filaPrev && filaPrev.profit);
     check('el Adicional trae el desglose debajo (surge con fuel + manejo)', filaPrev && /Surge fee \(con fuel\)/.test(filaPrev.detalle) && /Manejo adicional/.test(filaPrev.detalle), filaPrev && filaPrev.detalle);
     const totalProfit = await page.evaluate(() => document.getElementById('liq-profit-total')?.textContent.trim());
@@ -271,22 +276,29 @@ async function main() {
   const wb5 = new ExcelJS.Workbook(); await wb5.xlsx.load(buf5);
   const ws5 = wb5.getWorksheet('Liquidacion');
   const cab5 = []; ws5.getRow(7).eachCell((c) => cab5.push(String(c.value)));
-  check('la cabecera tiene DESTINATARIO como tercera columna y 14 columnas', cab5[2] === 'DESTINATARIO' && cab5.length === 14 && cab5[13] === 'TOTAL USD', cab5.join('|'));
-  const filas5 = []; ws5.eachRow((row, n) => { if (n >= 8) filas5.push([n, String(row.getCell(2).value ?? ''), String(row.getCell(3).value ?? ''), row.getCell(13).value, row.getCell(14).value]); });
+  check('la cabecera tiene DESTINATARIO como tercera columna y 13 columnas', cab5[2] === 'DESTINATARIO' && cab5.length === 13 && cab5[12] === 'TOTAL USD', cab5.join('|'));
+  // [fila, guía, destinatario, adicional, total, desglose]
+  const filas5 = []; ws5.eachRow((row, n) => { if (n >= 8) filas5.push([n, String(row.getCell(2).value ?? ''), String(row.getCell(3).value ?? ''), row.getCell(12).value, row.getCell(13).value, String(row.getCell(11).value ?? '')]); });
   const fUps = filas5.find((f) => f[1] === '1Z000DESG000000005');
   const fDhl = filas5.find((f) => f[1] === 'DHLDESG000000006');
   const fChi = filas5.find((f) => f[1] === 'DHLDESG000000007');
   check('cada envío muestra su destinatario (libreta, tipeado, o vacío)', fUps && fUps[2] === 'ACME MIAMI LLC' && fChi && fChi[2] === 'Tienda del Sur' && fDhl && fDhl[2] === '', JSON.stringify([fUps, fChi, fDhl]));
   // Los renglones ↳ que siguen al envío UPS, hasta el próximo envío.
-  const subFilas = []; for (let i = filas5.indexOf(fUps) + 1; i < filas5.length && /^\s*↳ /.test(filas5[i][1]); i++) subFilas.push(filas5[i]);
-  const despuesUps = subFilas.map((f) => f[1]);
+  const subFilas = []; for (let i = filas5.indexOf(fUps) + 1; i < filas5.length && /^\s*↳ /.test(filas5[i][5]); i++) subFilas.push(filas5[i]);
+  const despuesUps = subFilas.map((f) => f[5]);
   check('debajo del UPS van sus extracargos (surge, manejo, procesamiento, embalaje) con ↳', despuesUps.length === 4 && despuesUps.some((t) => /Embalaje/.test(t)) && despuesUps.some((t) => /Surge/.test(t)) && despuesUps.some((t) => /Manejo/.test(t)), JSON.stringify(despuesUps));
   const subUps = subFilas.reduce((s, f) => s + (Number(f[3]) || 0), 0);
   check('  y sus montos suman la columna ADICIONAL del envío', Math.abs(subUps - Number(fUps[3])) < 0.011, `${subUps} vs ${fUps[3]}`);
   const textos5 = []; ws5.eachRow((row) => row.eachCell((c) => { if (c.value != null) textos5.push(String(c.value)); }));
   check('ya no hay sección "DETALLE DE ADICIONALES" al pie', !textos5.includes('DETALLE DE ADICIONALES'));
   const totalRow5 = filas5.find((f) => String(ws5.getRow(f[0]).getCell(1).value) === 'TOTAL');
-  check('la fila TOTAL cierra en la columna 14', totalRow5 && Math.abs(Number(totalRow5[4]) - (400 + 12 + 250 + 100)) < 0.011, JSON.stringify(totalRow5));
+  check('la fila TOTAL cierra en la columna 13', totalRow5 && Math.abs(Number(totalRow5[4]) - (400 + 12 + 250 + 100)) < 0.011, JSON.stringify(totalRow5));
+  // PDF (04/11): mismo documento, bajable como .pdf
+  const rp5 = await fetch(BASE + `/api/liquidaciones/${liq5.id}/export.pdf`, { headers: { Cookie: `nova_session=${TOKEN}` } });
+  const bp5 = Buffer.from(await rp5.arrayBuffer());
+  check('el export.pdf responde un PDF con nombre .pdf', rp5.status === 200 && rp5.headers.get('content-type') === 'application/pdf' && /filename="CUENTA_CORRIENTE_.*\.pdf"/.test(rp5.headers.get('content-disposition') || '') && bp5.slice(0, 5).toString('latin1') === '%PDF-', `${rp5.status} ${rp5.headers.get('content-disposition')}`);
+  const rp5b = await fetch(BASE + `/api/liquidaciones/${liq5.id}/export?formato=pdf`, { headers: { Cookie: `nova_session=${TOKEN}` } });
+  check('  y /export?formato=pdf también', rp5b.status === 200 && rp5b.headers.get('content-type') === 'application/pdf');
   console.log(`   (Excel detallado de muestra en ${out5})`);
 
   matarSrv();

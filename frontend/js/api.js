@@ -121,6 +121,8 @@ const api = {
     },
     obtener: (id) => api.get(`/liquidaciones/${id}`),
     exportarUrl: (id) => `${API_BASE}/liquidaciones/${id}/export`,
+    // PDF de la liquidación (04/11/2026): mismo documento que el Excel.
+    exportarPdfUrl: (id) => `${API_BASE}/liquidaciones/${id}/export.pdf`,
   },
 
   configuracion: {

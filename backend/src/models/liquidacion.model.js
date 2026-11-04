@@ -79,7 +79,9 @@ async function conceptosDe(liquidacionId, db = getDb()) {
 // muestran tal cual; flete+fuel balancean el resto para que la suma = total_cobrado.
 // `cargosDetalle`: los cargos manuales de esta liquidación para el envío ([{descripcion, monto}]),
 // solo para rotular el desglose; el monto que cuenta es `adicional` (la suma).
-async function calcularItem(envio, adicional = 0, cargosDetalle = []) {
+// `fuelExtra`: diferencias de fuel informadas por el courier (cargos posteriores de tipo
+// fuel, 04/11/2026): se suman a la columna FUEL del ítem y al total, no al Adicional.
+async function calcularItem(envio, adicional = 0, cargosDetalle = [], fuelExtra = 0) {
   // Fuel% del desglose: si el envío tiene fuel_pct propio (congelado al cargarlo) se usa ESE
   // y NO se lee config (un envío viejo se liquida con el fuel de su época, no con el de hoy).
   // Si es NULL (envíos previos a la columna), se cae al reparto proporcional con el fuel de
@@ -124,7 +126,8 @@ async function calcularItem(envio, adicional = 0, cargosDetalle = []) {
   const totalCobrado = venta.total;   // = redondear2(envio.total_cobrado || 0)
   const seguro = venta.seguro;
   const flete = venta.flete;
-  const fuel = venta.fuel;
+  const fuelDif = redondear2(fuelExtra);
+  const fuel = redondear2(venta.fuel + fuelDif);
   // Adicionales itemizados guardados (surge en extras_json, derechos, otros). NO se duplican
   // con el adicional manual: ese es un cargo aparte que se agrega aparte.
   const adicGuardado = venta.adicional;
@@ -139,9 +142,9 @@ async function calcularItem(envio, adicional = 0, cargosDetalle = []) {
       adicionalDetalle.push({ tipo: 'manual', label: 'Adicional de esta liquidación', monto: adicManual });
     }
   }
-  // Total = lo que el cliente pagó + el extra manual agregado en esta liquidación.
-  // Invariante: flete + fuel + seguro + adicionalItem = total_cobrado + adicManual = totalUsd.
-  const totalUsd = redondear2(totalCobrado + adicManual);
+  // Total = lo que el cliente pagó + el extra manual agregado en esta liquidación + la
+  // diferencia de fuel. Invariante: flete + fuel + seguro + adicionalItem = totalUsd.
+  const totalUsd = redondear2(totalCobrado + adicManual + fuelDif);
 
   // Servicio para columnas internas/persistencia (no se muestra al cliente).
   const servicioCotizado = envio.courier === 'DHL' ? 'DHL' : (envio.servicio_ups || null);
@@ -164,6 +167,7 @@ async function calcularItem(envio, adicional = 0, cargosDetalle = []) {
     seguro,
     adicional: adicionalItem,
     adicional_detalle: adicionalDetalle,
+    fuel_diferencia: fuelDif,
     total_usd: totalUsd,
     fuel_pct_usado: fuelPct,
     precio_cotizado: totalCobrado,
@@ -247,13 +251,19 @@ async function preview({ cliente_id, envio_ids = [], cargos = [], cotizaciones =
   // que facturó UPS después de cargar el envío. Los de ESTOS envíos entran en su ítem,
   // al costo, con su nombre. Los pendientes de envíos del cliente que YA se liquidaron
   // van aparte, en "Cargos de envíos anteriores", y se suman al total.
+  // Rótulo SIN la fecha "informado el…" (04/11/2026, pedido de Felipe): dentro de la
+  // liquidación del propio envío esa fecha es solo el día en que se cargó la factura y
+  // confunde. La fecha queda en "Cargos de envíos anteriores", donde sí explica algo.
+  // Diferencia de fuel: va a la columna FUEL del ítem, no al Adicional.
   const pendPorEnvio = await cargosModel.pendientesDeEnvios(envio_ids, db);
   const cargosEnviosIds = [];
+  const fuelMap = {};
   for (const [envioId, lista] of Object.entries(pendPorEnvio)) {
     for (const c of lista) {
-      cargoMap[envioId] = (cargoMap[envioId] || 0) + c.monto;
-      (cargosPorEnvio[envioId] = cargosPorEnvio[envioId] || []).push({ envio_id: Number(envioId), monto: c.monto, descripcion: cargosModel.rotulo(c), tipo: 'cargo', cargo_id: c.id });
       cargosEnviosIds.push(c.id);
+      if (cargosModel.esFuel(c)) { fuelMap[envioId] = (fuelMap[envioId] || 0) + c.monto; continue; }
+      cargoMap[envioId] = (cargoMap[envioId] || 0) + c.monto;
+      (cargosPorEnvio[envioId] = cargosPorEnvio[envioId] || []).push({ envio_id: Number(envioId), monto: c.monto, descripcion: c.label || 'Cargo', tipo: 'cargo', cargo_id: c.id });
     }
   }
   // Cargos de envíos anteriores OPCIONALES (03/11/2026, pedido de Felipe: cargaron un cargo
@@ -278,7 +288,7 @@ async function preview({ cliente_id, envio_ids = [], cargos = [], cotizaciones =
   void cotizaciones;
 
   const items = await Promise.all(
-    envios.map((e) => calcularItem(e, cargoMap[e.id] || 0, cargosPorEnvio[e.id] || []))
+    envios.map((e) => calcularItem(e, cargoMap[e.id] || 0, cargosPorEnvio[e.id] || [], fuelMap[e.id] || 0))
   );
   for (const it of items) it.cargos_posteriores = pendPorEnvio[it.envio_id] || [];
   const total_envios = redondear2(items.reduce((s, i) => s + i.total_usd, 0));
@@ -575,8 +585,14 @@ async function buscarPorId(id) {
     .all(id);
   // Cargos posteriores de esta liquidación: los de sus envíos se suman a `cargos` (rotulan
   // el desglose del ítem, igual que los manuales); los de envíos anteriores van aparte.
+  // Sin la fecha "informado el…" (04/11); las diferencias de fuel no van acá: están sumadas
+  // en la columna FUEL del ítem (se informan aparte en fuel_diferencia).
   const posteriores = await cargosModel.deLiquidacion(id, db);
-  for (const c of posteriores.enItems) cargos.push({ envio_id: c.envio_id, descripcion: cargosModel.rotulo(c), monto: c.monto, tipo: 'cargo', cargo_id: c.id });
+  const fuelPorEnvio = {};
+  for (const c of posteriores.enItems) {
+    if (cargosModel.esFuel(c)) { (fuelPorEnvio[c.envio_id] = fuelPorEnvio[c.envio_id] || []).push({ envio_id: c.envio_id, descripcion: c.label || 'Diferencia de fuel', monto: c.monto, tipo: 'cargo', cargo_id: c.id }); continue; }
+    cargos.push({ envio_id: c.envio_id, descripcion: c.label || 'Cargo', monto: c.monto, tipo: 'cargo', cargo_id: c.id });
+  }
 
   // Detalle del Adicional de cada ítem (07/09): se deriva del envío con el MISMO helper que
   // usó el cálculo (read-only, no toca lo confirmado). Los envíos liquidados tienen la plata
@@ -597,9 +613,20 @@ async function buscarPorId(id) {
     // esa tabla a ciegas: se usa solo si sus filas suman exactamente la parte manual.
     const derivado = redondear2(detalle.reduce((s, d) => s + d.monto, 0));
     const manual = redondear2((Number(it.adicional) || 0) - derivado);
+    // Diferencias de fuel del envío: desde el 04/11 están sumadas en la columna FUEL del
+    // ítem. Una liquidación anterior a ese día las tiene dentro del Adicional: se reconoce
+    // porque la parte manual las necesita para cerrar, y en ese caso siguen como línea.
+    const fuelFilas = fuelPorEnvio[it.envio_id] || [];
+    const sumaFuel = redondear2(fuelFilas.reduce((s, c) => s + Number(c.monto), 0));
+    let filas = cargos.filter((c) => c.envio_id === it.envio_id && Number(c.monto) > 0);
+    let sumaFilas = redondear2(filas.reduce((s, c) => s + Number(c.monto), 0));
+    let fuelDif = sumaFuel;
+    if (fuelFilas.length && manual > 0.005 && Math.abs(sumaFilas - manual) >= 0.011 && Math.abs(sumaFilas + sumaFuel - manual) < 0.011) {
+      filas = filas.concat(fuelFilas);
+      sumaFilas = redondear2(sumaFilas + sumaFuel);
+      fuelDif = 0;
+    }
     if (manual > 0.005) {
-      const filas = cargos.filter((c) => c.envio_id === it.envio_id && Number(c.monto) > 0);
-      const sumaFilas = redondear2(filas.reduce((s, c) => s + Number(c.monto), 0));
       if (filas.length && Math.abs(sumaFilas - manual) < 0.011) {
         for (const c of filas) detalle.push({ tipo: c.tipo || 'manual', label: c.descripcion || 'Adicional de esta liquidación', monto: redondear2(c.monto) });
       } else {
@@ -607,6 +634,7 @@ async function buscarPorId(id) {
       }
     }
     it.adicional_detalle = detalle;
+    it.fuel_diferencia = fuelDif;
     delete it.extras_json; delete it.envio_adicionales; delete it.envio_derechos;
     delete it.envio_otros; delete it.envio_seguro; delete it.envio_seguro_venta;
   }

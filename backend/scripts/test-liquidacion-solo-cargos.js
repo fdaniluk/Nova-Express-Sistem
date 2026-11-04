@@ -95,7 +95,7 @@ function check(nombre, cond, det) {
   const c3 = await C.agregar(otro.id, { tipo: 'remota', monto: 9, fecha: '2026-09-02' }, u);
   const p2 = await L.preview({ cliente_id: otro.cliente_id, envio_ids: [otro.id] });
   const det = p2.items[0].adicional_detalle.find((d) => d.monto === 9);
-  check('detalle del ítem: "Área remota · informado el 02/09/2026"', det && det.label === 'Área remota · informado el 02/09/2026', JSON.stringify(p2.items[0].adicional_detalle));
+  check('detalle del ítem: "Área remota" (sin fecha dentro de la liquidación del envío, 04/11)', det && det.label === 'Área remota', JSON.stringify(p2.items[0].adicional_detalle));
   await C.anular(c3.id, u);
 
   console.log(`\n${ok} pasaron · ${fail} fallaron`);

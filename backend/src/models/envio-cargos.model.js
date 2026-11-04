@@ -34,9 +34,22 @@ const TIPOS = {
   remota: 'Área remota',
   residencial: 'Entrega residencial',
   ddp: 'Impuestos de destino (DDP)',
+  // Diferencia de fuel (04/11/2026, pedido de Felipe): UPS facturó más combustible que el
+  // calculado. En la liquidación NO va como extracargo (el cliente leería que se le cobró el
+  // fuel dos veces): se suma a la columna FUEL del envío. Si el envío ya estaba liquidado,
+  // va en "Cargos de envíos anteriores" como cualquier cargo tardío.
+  fuel: 'Diferencia de fuel',
   otro: 'Otro cargo',
 };
 const LABEL_IMPUESTOS = 'Impuestos de destino (DDP)';
+
+// ¿Es un cargo de fuel? Por tipo, o por nombre para los que la oficina cargó como "Otro"
+// con el nombre "Fuel" antes de que existiera el tipo.
+function esFuel(c) {
+  if (!c) return false;
+  if (c.tipo === 'fuel') return true;
+  return /^\s*(diferencia\s+(de\s+)?)?(fuel|combustible)\b/i.test(String(c.label || ''));
+}
 
 // dd/mm/aaaa para los rótulos de cara al cliente.
 function fechaCorta(f) {
@@ -349,7 +362,7 @@ async function registrarImpuestos(db, envioId, monto, fecha) {
 }
 
 module.exports = {
-  TIPOS, LABEL_IMPUESTOS, rotulo, fechaCorta, migrar, listarDeEnvio, porEnvios, pendientesDeEnvios, pendientesAnterioresDeCliente,
+  TIPOS, LABEL_IMPUESTOS, rotulo, fechaCorta, esFuel, migrar, listarDeEnvio, porEnvios, pendientesDeEnvios, pendientesAnterioresDeCliente,
   deLiquidacion, asignarLiquidacion, liberarDeLiquidacion, pendientesFueraDe, agregar, anular, obtener, registrarImpuestos,
   agregarSuelto, listarSueltosDeCliente, adjuntoDe,
 };

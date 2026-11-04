@@ -248,17 +248,14 @@
               </div>
               <div class="liq-paso-cuerpo">
                 <div id="liq-preview" class="liq-preview hidden">
-                  <!-- Formato del Excel (16/10/2026, pedido de un cliente): el detallado suma la columna
-                       Destinatario y pone los extracargos debajo de cada envío. Arranca con el preferido
-                       del cliente (ficha) y se puede cambiar para esta liquidación. -->
-                  <label class="liq-formato" id="liq-formato-wrap" title="Suma la columna Destinatario y pone los extracargos de cada envío debajo del envío, en vez de la sección al pie">
-                    <input type="checkbox" id="liq-formato-detallado"> Formato detallado <small>(destinatario por envío · extracargos debajo de cada envío)</small>
-                  </label>
+                  <!-- Un solo formato desde el 04/11/2026 (el que era "detallado", ajustado por la
+                       oficina): la columna Destinatario sale cuando algún envío lo tiene y los
+                       extracargos van debajo de cada envío. Se baja en Excel o en PDF. -->
                   <div class="liq-tabla-wrap">
                     <table class="liq-tabla">
                       <thead>
                         <tr>
-                          <th>Guía</th><th class="liq-col-remitente hidden">Destinatario</th><th class="n">Flete</th><th class="n">Fuel</th><th class="n">Seguro</th>
+                          <th>Guía</th><th class="liq-col-remitente">Destinatario</th><th class="n">Flete</th><th class="n">Fuel</th><th class="n">Seguro</th>
                           <th class="n">Adicional</th><th class="n">Total USD</th>
                           <th class="liq-interno" title="Dato interno: no va al Excel del cliente">Profit (interno)</th>
                         </tr>
@@ -300,7 +297,8 @@
               </div>
               <div class="liq-res-botones">
                 <button type="button" class="btn btn-outline" id="btn-preview">Calcular</button>
-                <button type="button" class="btn btn-outline" id="btn-export-borrador" disabled>Exportar Excel</button>
+                <button type="button" class="btn btn-outline" id="btn-export-borrador" disabled title="Baja la liquidación en Excel (la guarda como borrador si todavía no lo es)">Excel</button>
+                <button type="button" class="btn btn-outline" id="btn-export-pdf" disabled title="Baja la liquidación en PDF (la guarda como borrador si todavía no lo es)">PDF</button>
                 <button type="button" class="btn btn-confirmar" id="btn-confirmar-liq" disabled>Confirmar liquidación</button>
               </div>
               <p class="liq-resumen-pie" id="liq-resumen-pie">Calculá antes de confirmar: cualquier cambio en la selección pide recalcular.</p>
@@ -374,8 +372,8 @@
 </div>
 
 <script src="/js/auth-guard.js?v=20261103a"></script>
-<script src="../js/api.js?v=20261103a"></script>
+<script src="../js/api.js?v=20261104a"></script>
 <script src="../js/main.js?v=20261103b"></script>
-<script src="../js/modules/liquidaciones.js?v=20261103a"></script>
+<script src="../js/modules/liquidaciones.js?v=20261104a"></script>
 </body>
 </html>

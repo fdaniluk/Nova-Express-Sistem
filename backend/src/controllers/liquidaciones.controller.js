@@ -1,6 +1,7 @@
 const liquidacionModel = require('../models/liquidacion.model');
 const envioModel = require('../models/envio.model');
 const excelService = require('../services/excel.service');
+const { nombreArchivo } = require('../services/liquidacion-documento');
 const cotizacionService = require('../services/cotizacion.service');
 const { cotizarEnvio } = require('../services/calculos.service');
 
@@ -114,17 +115,24 @@ async function obtener(req, res, next) {
   }
 }
 
+// Excel (de siempre) o PDF (04/11/2026): GET /:id/export?formato=pdf, o /:id/export.pdf.
 async function exportar(req, res, next) {
   try {
     const liq = await liquidacionModel.buscarPorId(req.params.id);
     if (!liq) return res.status(404).json({ error: 'Liquidación no encontrada' });
+    const pdf = req.query.formato === 'pdf' || /\.pdf$/i.test(req.path);
+    if (pdf) {
+      const buffer = await require('../services/liquidacion-pdf.service').exportarLiquidacionPdf(liq);
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo(liq, 'pdf')}"`);
+      return res.send(buffer);
+    }
     const buffer = await excelService.exportarLiquidacion(liq);
-    const filename = excelService.nombreArchivoExport(liq.cliente_nombre, liq.fecha, liq.tipo_cobro);
     res.setHeader(
       'Content-Type',
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
     );
-    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+    res.setHeader('Content-Disposition', `attachment; filename="${nombreArchivo(liq, 'xlsx')}"`);
     res.send(buffer);
   } catch (e) {
     next(e);

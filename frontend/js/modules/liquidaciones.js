@@ -341,7 +341,7 @@
     lastPreview = null;
     document.getElementById('liq-preview').classList.add('hidden');
     document.getElementById('btn-confirmar-liq').disabled = true;
-    document.getElementById('btn-export-borrador').disabled = true;
+    document.getElementById('btn-export-borrador').disabled = true; document.getElementById('btn-export-pdf').disabled = true;
     actualizarResumen();
   }
 
@@ -376,7 +376,8 @@
     });
     document.getElementById('btn-preview').addEventListener('click', calcularPreview);
     document.getElementById('btn-confirmar-liq').addEventListener('click', confirmarLiquidacion);
-    document.getElementById('btn-export-borrador').addEventListener('click', exportarActual);
+    document.getElementById('btn-export-borrador').addEventListener('click', () => exportarActual('excel'));
+    document.getElementById('btn-export-pdf').addEventListener('click', () => exportarActual('pdf'));
   }
 
   async function cargarEnviosCliente() {
@@ -406,7 +407,7 @@
         lastLiquidacionId = null;
         lastPreview = null;
         document.getElementById('btn-confirmar-liq').disabled = true;
-        document.getElementById('btn-export-borrador').disabled = true;
+        document.getElementById('btn-export-borrador').disabled = true; document.getElementById('btn-export-pdf').disabled = true;
         actualizarResumen();
         return;
       }
@@ -433,7 +434,7 @@
       lastLiquidacionId = null;
       lastPreview = null;
       document.getElementById('btn-confirmar-liq').disabled = true;
-      document.getElementById('btn-export-borrador').disabled = true;
+      document.getElementById('btn-export-borrador').disabled = true; document.getElementById('btn-export-pdf').disabled = true;
       actualizarResumen();
 
       // El botón "Cotizar" por fila se sacó (29/07). Recalculaba y mostraba un precio,
@@ -640,12 +641,6 @@
         cargos_anteriores_ids,
       });
       lastPreview = { cliente_id, envio_ids, cargos, cotizaciones, conceptos, cargos_anteriores_ids, preview };
-      // Formato del Excel: arranca con el preferido del cliente; si la persona ya lo tocó en
-      // esta pantalla, se respeta lo que eligió.
-      const chkFmt = document.getElementById('liq-formato-detallado');
-      if (chkFmt && !chkFmt.dataset.tocado) chkFmt.checked = preview.formato_sugerido === 'detallado';
-      aplicarFormatoPreview();
-
       const tbody = document.getElementById('liq-preview-body');
       // Desglose de cara al cliente: solo lo que pagó. NO se muestran % Profit ni Utilidad
       // empresa (datos internos). El desglose cierra exacto en Total USD = total_cobrado.
@@ -657,13 +652,14 @@
           <td><span class="guia-num">${i.envio?.numero_guia || i.envio_id}</span></td>
           <td class="liq-col-remitente hidden">${NovaUtils.escapeHtml ? NovaUtils.escapeHtml(i.envio?.destinatario_nombre || '') : String(i.envio?.destinatario_nombre || '').replace(/</g, '&lt;')}</td>
           <td class="n">${NovaUtils.formatMoney(i.flete)}</td>
-          <td class="n">${NovaUtils.formatMoney(i.fuel)}</td>
+          <td class="n">${NovaUtils.formatMoney(i.fuel)}${Number(i.fuel_diferencia) > 0 ? `<div class="liq-adic-detalle" title="Diferencia de fuel informada por el courier: va sumada en la columna Fuel, no como extracargo (04/11/2026)">↳ incluye dif. de fuel ${NovaUtils.formatMoney(i.fuel_diferencia)}</div>` : ''}</td>
           <td class="n">${NovaUtils.formatMoney(i.seguro)}</td>
           <td class="n">${NovaUtils.formatMoney(i.adicional)}${adicDetalleHtml(i.adicional_detalle)}</td>
           <td class="n">${NovaUtils.formatMoney(i.total_usd)}</td>
           <td class="liq-interno">${profitInternoHtml(i)}</td>
         </tr>`).join('') || '<tr><td colspan="8" class="empty">Sin envíos: esta liquidación es solo de cargos de envíos anteriores u otros conceptos (abajo).</td></tr>';
-      aplicarFormatoPreview();
+      // Columna Destinatario: solo si algún envío lo tiene (igual que el Excel y el PDF, 04/11/2026).
+      aplicarColumnaDestinatario(preview);
 
       // Con cargos de envíos anteriores, el pie de la tabla es "Total envíos" y el total
       // general lo cierra la sección de abajo (igual que el Excel).
@@ -691,7 +687,7 @@
       pintarAvisoBorradores(preview.en_borrador);
       document.getElementById('liq-preview').classList.remove('hidden');
       document.getElementById('btn-confirmar-liq').disabled = false;
-      document.getElementById('btn-export-borrador').disabled = false;
+      document.getElementById('btn-export-borrador').disabled = false; document.getElementById('btn-export-pdf').disabled = false;
       actualizarResumen();
     } catch (err) {
       NovaUtils.showAlert(alertBox, err.message, 'error');
@@ -709,7 +705,7 @@
         // Se manda la selección que se está viendo: si no coincide con el borrador, el
         // backend corta con 409 en vez de confirmar otra cosa (defensa en profundidad;
         // con la invalidación de arriba no debería pasar nunca).
-        liq = await NovaAPI.liquidaciones.confirmar(lastLiquidacionId, getSelectedEnvios().envio_ids, formatoElegido());
+        liq = await NovaAPI.liquidaciones.confirmar(lastLiquidacionId, getSelectedEnvios().envio_ids);
       } else {
         const { cliente_id, envio_ids, cargos, cotizaciones, conceptos, cargos_anteriores_ids } = lastPreview;
         liq = await crearConAviso({
@@ -722,7 +718,6 @@
           conceptos,
           cargos_anteriores_ids,
           confirmar: true,
-          formato: formatoElegido(),
         });
         lastLiquidacionId = liq.id;
       }
@@ -745,10 +740,10 @@
     }
   }
 
-  async function exportarActual() {
+  async function exportarActual(formato = 'excel') {
     try {
       const id = await ensureLiquidacionBorrador();
-      if (id) window.open(NovaAPI.liquidaciones.exportarUrl(id), '_blank');
+      if (id) window.open(formato === 'pdf' ? NovaAPI.liquidaciones.exportarPdfUrl(id) : NovaAPI.liquidaciones.exportarUrl(id), '_blank');
     } catch (err) {
       NovaUtils.showAlert(alertBox, err.message, 'error');
     }
@@ -771,28 +766,19 @@
       conceptos,
       cargos_anteriores_ids,
       confirmar: false,
-      formato: formatoElegido(),
     });
     lastLiquidacionId = liq.id;
     return liq.id;
   }
 
-  // Formato del Excel (16/10): 'detallado' o 'estandar' según el tilde del paso 3.
-  function formatoElegido() {
-    const chk = document.getElementById('liq-formato-detallado');
-    return chk && chk.checked ? 'detallado' : 'estandar';
-  }
-  function aplicarFormatoPreview() {
-    const on = formatoElegido() === 'detallado';
+  // Columna Destinatario de la vista previa (04/11/2026): se muestra solo si algún envío de
+  // la liquidación tiene destinatario, igual que en el Excel y el PDF.
+  function aplicarColumnaDestinatario(preview) {
+    const on = (preview && preview.items || []).some((i) => String(i.envio && i.envio.destinatario_nombre || '').trim() !== '');
     document.querySelectorAll('.liq-col-remitente').forEach((el) => el.classList.toggle('hidden', !on));
     const tf = document.querySelector('#liq-preview tfoot td[colspan]');
     if (tf) tf.setAttribute('colspan', on ? '6' : '5');
   }
-  (function bindFormato() {
-    const chk = document.getElementById('liq-formato-detallado');
-    if (!chk) return;
-    chk.addEventListener('change', () => { chk.dataset.tocado = '1'; aplicarFormatoPreview(); });
-  }());
 
   // RETOMAR UN BORRADOR (09/10/2026, pedido de la oficina). Antes, si alguien armaba la
   // liquidación, bajaba el Excel para revisar y salía sin confirmar, el borrador quedaba
@@ -888,6 +874,7 @@
           <td><span class="liq-chip ${l.estado === 'confirmada' ? 'confirmada' : 'borrador'}">${l.estado}</span> <span class="liq-num-id">#${l.id}</span></td>
           <td class="acciones">
             <button type="button" class="btn btn-sm btn-outline" data-export="${l.id}">Excel</button>
+            <button type="button" class="btn btn-sm btn-outline" data-export-pdf="${l.id}">PDF</button>
             ${l.estado !== 'confirmada' ? `<button type="button" class="btn btn-sm btn-coral" data-retomar="${l.id}" title="Abre este borrador en Crear liquidación con sus envíos ya tildados, para revisarlo, bajar el Excel y confirmarlo.">Retomar</button>` : ''}
             ${l.estado !== 'confirmada' ? `<button type="button" class="btn btn-sm btn-danger" data-borrar="${l.id}" title="Borrar este borrador. No toca ningún envío: los envíos de un borrador siguen pendientes.">Borrar</button>` : ''}
           </td>
@@ -896,6 +883,11 @@
       tbody.querySelectorAll('[data-export]').forEach((btn) => {
         btn.addEventListener('click', () => {
           window.open(NovaAPI.liquidaciones.exportarUrl(btn.dataset.export), '_blank');
+        });
+      });
+      tbody.querySelectorAll('[data-export-pdf]').forEach((btn) => {
+        btn.addEventListener('click', () => {
+          window.open(NovaAPI.liquidaciones.exportarPdfUrl(btn.dataset.exportPdf), '_blank');
         });
       });
       tbody.querySelectorAll('[data-retomar]').forEach((btn) => btn.addEventListener('click', () => retomarBorrador(btn.dataset.retomar)));

@@ -3351,7 +3351,9 @@
   // ── Cargos posteriores (25/09/2026) ────────────────────────────────────────────
   const CARGO_TIPOS = [
     ['manejo', 'Cargo por manejo'], ['sobrepeso', 'Sobrepeso'], ['mayor_tamano', 'Paquete de mayor tamaño'],
-    ['remota', 'Área remota'], ['residencial', 'Entrega residencial'], ['ddp', 'Impuestos de destino (DDP)'], ['otro', 'Otro (escribir)'],
+    ['remota', 'Área remota'], ['residencial', 'Entrega residencial'], ['ddp', 'Impuestos de destino (DDP)'],
+    // Diferencia de fuel (04/11/2026): en la liquidación se suma al FUEL del envío, no va como extracargo.
+    ['fuel', 'Diferencia de fuel'], ['otro', 'Otro (escribir)'],
   ];
 
   function cargoEstadoHtml(c) {
@@ -3369,7 +3371,7 @@
   // (lo que el envío no tenía previsto, lo que vino más caro, el peso distinto). Cada
   // anomalía cobrable tiene "Cobrar al cliente": abre el formulario de cargo posterior ya
   // completo con el tipo y el importe.
-  const ANOM_A_CARGO = { manejo: 'manejo', contorno: 'mayor_tamano', remota: 'remota', residencial: 'residencial', ddp: 'ddp', seguro: 'otro', papel: 'otro', direccion: 'otro', derechos: 'otro', otro: 'otro', surge: 'otro' };
+  const ANOM_A_CARGO = { manejo: 'manejo', contorno: 'mayor_tamano', remota: 'remota', residencial: 'residencial', ddp: 'ddp', fuel: 'fuel', seguro: 'otro', papel: 'otro', direccion: 'otro', derechos: 'otro', otro: 'otro', surge: 'otro' };
   function renderFacturaBlock() {
     const block = document.getElementById('saled-factura-block');
     if (!block || !editEnvio) return;

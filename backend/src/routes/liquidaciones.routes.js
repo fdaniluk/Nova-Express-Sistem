@@ -9,6 +9,7 @@ router.patch('/:id/confirmar', ctrl.confirmar);
 router.delete('/:id', ctrl.eliminar);
 router.get('/:id', ctrl.obtener);
 router.get('/:id/export', ctrl.exportar);
+router.get('/:id/export.pdf', ctrl.exportar);
 router.get('/', ctrl.listar);
 
 module.exports = router;
