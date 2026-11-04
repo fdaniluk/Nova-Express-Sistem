@@ -393,52 +393,46 @@ async function exportarLiquidacion(liquidacion) {
   });
   cols.forEach((c, i) => { ws.getColumn(i + 1).width = c.ancho; });
 
-  // ── Cabecera ──
+  // ── Cabecera (04/11, Felipe: "parecido al original": logo grande a la izquierda, título a
+  // la izquierda y más chico, datos en dos columnas; el tipo de cobro no es protagonista) ──
   const logo = leerLogo();
   if (logo) {
     const imgId = wb.addImage({ buffer: logo, extension: 'png' });
-    ws.addImage(imgId, { tl: { col: 0.15, row: 0.25 }, ext: { width: 150, height: 64 } });
+    // 1050×446 px de origen → 200×85, ocupa las cuatro filas de la cabecera.
+    ws.addImage(imgId, { tl: { col: 0.1, row: 0.15 }, ext: { width: 200, height: 85 } });
   }
   for (let r = 1; r <= 4; r++) ws.getRow(r).height = 19;
-  // Título centrado entre la guía y el seguro (deja el logo a la izquierda y el recuadro a la derecha).
-  const tIni = idx.guia + 1;
-  const tFin = idx.seguro - 1;
-  ws.mergeCells(1, tIni, 2, tFin);
-  const titleCell = ws.getCell(1, tIni);
+  const cLab1 = idx.guia + 1;            // rótulos de la izquierda (Cliente / Período)
+  const cVal1 = cLab1 + 1;
+  const cVal1Fin = idx.peso;
+  const cLab2 = idx.flete;               // rótulos de la derecha (Fecha / Liquidación)
+  const cVal2 = idx.fuel;
+  const cVal2Fin = idx.desglose;
+  ws.mergeCells(1, cLab1, 1, cVal2Fin);
+  const titleCell = ws.getCell(1, cLab1);
   titleCell.value = doc.cabecera.titulo;
-  titleCell.font = STYLES.title.font;
-  titleCell.alignment = { vertical: 'middle', horizontal: 'center' };
-  ws.mergeCells(3, tIni, 3, tFin);
-  ws.getCell(3, tIni).value = doc.cabecera.subtitulo;
-  ws.getCell(3, tIni).font = STYLES.subtitle.font;
-  ws.getCell(3, tIni).alignment = { vertical: 'middle', horizontal: 'center' };
-  // Recuadro de datos: rótulo (seguro..desglose, a la derecha) y valor (adicional..total).
-  const dIni = idx.seguro;
-  const dMid = idx.desglose;
-  const bordeCaja = { style: 'thin', color: { argb: 'FFC4BDD3' } };
-  doc.cabecera.datos.forEach(([label, value], i) => {
-    const r = 1 + i;
-    ws.mergeCells(r, dIni, r, dMid);
-    ws.mergeCells(r, dMid + 1, r, NCOL);
-    const lc = ws.getCell(r, dIni);
+  titleCell.font = { ...STYLES.title.font, size: 14 };
+  titleCell.alignment = { vertical: 'middle', horizontal: 'left' };
+  ws.mergeCells(2, cLab1, 2, cVal2Fin);
+  ws.getCell(2, cLab1).value = doc.cabecera.subtitulo;
+  ws.getCell(2, cLab1).font = STYLES.subtitle.font;
+  ws.getCell(2, cLab1).alignment = { vertical: 'middle', horizontal: 'left' };
+  const dato = (r, cLab, cVal, cValFin, label, value) => {
+    const lc = ws.getCell(r, cLab);
     lc.value = label;
     lc.font = STYLES.meta.font;
-    lc.alignment = { horizontal: 'right', vertical: 'middle', indent: 1 };
-    const vc = ws.getCell(r, dMid + 1);
+    lc.alignment = { horizontal: 'right', vertical: 'middle' };
+    if (cValFin > cVal) ws.mergeCells(r, cVal, r, cValFin);
+    const vc = ws.getCell(r, cVal);
     vc.value = value;
     vc.font = STYLES.metaStrong.font;
-    vc.alignment = { horizontal: 'left', vertical: 'middle', indent: 1 };
-    for (let c = dIni; c <= NCOL; c++) {
-      const cell = ws.getCell(r, c);
-      cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFAFAFC' } };
-      cell.border = {
-        top: r === 1 ? bordeCaja : undefined,
-        bottom: r === doc.cabecera.datos.length ? bordeCaja : undefined,
-        left: c === dIni ? bordeCaja : undefined,
-        right: c === NCOL ? bordeCaja : undefined,
-      };
-    }
-  });
+    vc.alignment = { horizontal: 'left', vertical: 'middle' };
+  };
+  const [dCliente, dPeriodo, dFecha, dLiq] = doc.cabecera.datos;
+  dato(3, cLab1, cVal1, cVal1Fin, dCliente[0], dCliente[1]);
+  dato(4, cLab1, cVal1, cVal1Fin, dPeriodo[0], dPeriodo[1]);
+  dato(3, cLab2, cVal2, cVal2Fin, dFecha[0], dFecha[1]);
+  dato(4, cLab2, cVal2, cVal2Fin, dLiq[0], dLiq[1]);
   // Línea coral fina debajo de la cabecera.
   ws.getRow(5).height = 6;
   for (let c = 1; c <= NCOL; c++) {

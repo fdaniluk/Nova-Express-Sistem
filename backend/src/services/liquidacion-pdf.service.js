@@ -76,24 +76,25 @@ async function exportarLiquidacionPdf(liquidacion) {
     if (stroke) pdf.rect(x, yy, w, h).lineWidth(0.5).stroke(stroke);
   };
 
-  // ── Cabecera ──
+  // ── Cabecera (04/11, Felipe: como el original: logo grande a la izquierda, título a la
+  // izquierda y más chico, datos en dos columnas; el tipo de cobro no es protagonista) ──
   const logo = leerLogo();
-  if (logo) pdf.image(logo, M, y, { width: 118 });
-  const dAncho = 250;
-  const dX = M + ANCHO - dAncho;
-  const tX = M + 130;
-  const tW = dX - tX - 10;
-  texto(doc.cabecera.titulo, tX, y + 10, tW, { align: 'center', size: 17, bold: true, color: AZUL });
-  texto(doc.cabecera.subtitulo, tX, y + 32, tW, { align: 'center', size: 9.5, bold: true, color: CORAL });
-  const dAltoFila = 14;
-  const dAlto = doc.cabecera.datos.length * dAltoFila + 10;
-  rect(dX, y, dAncho, dAlto, '#FAFAFC', BORDE);
-  doc.cabecera.datos.forEach(([label, value], i) => {
-    const yy = y + 5 + i * dAltoFila;
-    texto(label, dX, yy, 78, { align: 'right', size: 8.5, color: GRIS });
-    texto(value, dX + 82, yy, dAncho - 86, { size: 8.5, bold: true, color: AZUL });
-  });
-  y += Math.max(dAlto, 56) + 10;
+  if (logo) pdf.image(logo, M, y + 2, { width: 160 });
+  const tX = M + 180;
+  const tW = ANCHO - 180;
+  texto(doc.cabecera.titulo, tX, y + 2, tW, { size: 14, bold: true, color: AZUL });
+  texto(doc.cabecera.subtitulo, tX, y + 20, tW, { size: 9, bold: true, color: CORAL });
+  const [dCliente, dPeriodo, dFecha, dLiq] = doc.cabecera.datos;
+  const colB = tX + Math.round(tW * 0.5);
+  const fila = (yy, x, label, value) => {
+    texto(label, x, yy, 60, { align: 'right', size: 8.5, color: GRIS });
+    texto(value, x + 64, yy, 220, { size: 8.5, bold: true, color: AZUL });
+  };
+  fila(y + 38, tX, dCliente[0], dCliente[1]);
+  fila(y + 52, tX, dPeriodo[0], dPeriodo[1]);
+  fila(y + 38, colB, dFecha[0], dFecha[1]);
+  fila(y + 52, colB, dLiq[0], dLiq[1]);
+  y += 72;
   rect(M, y, ANCHO, 3, CORAL);
   y += 12;
 
