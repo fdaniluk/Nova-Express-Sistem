@@ -1117,6 +1117,21 @@ async function migrateFuelNova() {
   if (!colsNova.includes('proforma_proximo')) {
     await dbApi.exec('ALTER TABLE configuracion_nova ADD COLUMN proforma_proximo INTEGER NOT NULL DEFAULT 1300');
   }
+  // Revisión mensual de recargos UPS/DHL (04/11/2026): fecha en que la oficina marcó "ya
+  // los revisé" en el panel de Salud. El chequeo avisa en ámbar cada mes hasta que se marque.
+  if (!colsNova.includes('recargos_revisados')) {
+    await dbApi.exec('ALTER TABLE configuracion_nova ADD COLUMN recargos_revisados TEXT');
+  }
+  // Corridas automáticas del panel de Salud (04/11/2026): una por día desde el servidor; el
+  // menú muestra cuántos rojos dejó la última sin volver a correr nada.
+  await dbApi.exec(`CREATE TABLE IF NOT EXISTS salud_corridas (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    corrida_en TEXT NOT NULL DEFAULT (datetime('now', 'localtime')),
+    rojo INTEGER NOT NULL DEFAULT 0,
+    ambar INTEGER NOT NULL DEFAULT 0,
+    error INTEGER NOT NULL DEFAULT 0,
+    rojos_json TEXT
+  )`);
   // Margen objetivo del dashboard (10/09/2026): la línea punteada del gráfico "Margen por
   // mes". NULL = sin línea (no se inventa un objetivo).
   if (!colsNova.includes('margen_objetivo_pct')) {

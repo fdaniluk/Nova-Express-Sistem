@@ -173,6 +173,24 @@ async function actualizarFechaCorte(fecha) {
   return { fecha_corte_control: await obtenerFechaCorte() };
 }
 
+// ── REVISIÓN MENSUAL DE RECARGOS UPS/DHL (04/11/2026) ───────────────────────
+// Fecha en que la oficina marcó que revisó los recargos (fuel, surge, áreas) en las
+// páginas de UPS y DHL. El panel de Salud avisa cada mes hasta que se marque.
+async function obtenerRecargosRevisados() {
+  const fila = await getDb().prepare('SELECT recargos_revisados FROM configuracion_nova WHERE id = 1').get();
+  const v = fila && fila.recargos_revisados;
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(v || '')) ? v : null;
+}
+
+async function marcarRecargosRevisados(fecha) {
+  await getDb().prepare(
+    `INSERT INTO configuracion_nova (id, fuel_pct, recargos_revisados)
+     VALUES (1, 0, ?)
+     ON CONFLICT(id) DO UPDATE SET recargos_revisados = excluded.recargos_revisados`
+  ).run(fecha);
+  return { recargos_revisados: await obtenerRecargosRevisados() };
+}
+
 // ── NUMERACIÓN DE PROFORMAS ─────────────────────────────────────────────────
 // El próximo número que el sistema pone en una proforma cuando la guía se emite con el
 // campo vacío (10/09/2026). Si la oficina tipea uno a mano más alto, el contador salta
@@ -245,6 +263,7 @@ async function listarFuelTodos() {
 }
 
 module.exports = {
+  obtenerRecargosRevisados, marcarRecargosRevisados,
   obtenerMargenObjetivo, actualizarMargenObjetivo,
   obtenerProformaProximo, actualizarProformaProximo, tomarNumeroProforma, registrarNumeroProformaManual,
   obtenerFuel, listarFuel, actualizarFuel, historialFuel,

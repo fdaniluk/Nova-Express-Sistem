@@ -918,6 +918,47 @@ async function chequeoFacturasDuplicadas(db) {
 
 // ── Orquestador ─────────────────────────────────────────────────────────────
 
+// ── 15. Recargos de UPS/DHL: revisión mensual (04/11/2026) ─────────────────
+// Los couriers cambian el fuel todos los meses y el surge / las áreas cada tanto, sin
+// avisar. Hasta hoy nadie tenía la tarea de mirarlo. Este chequeo se pone en ámbar al
+// empezar cada mes hasta que alguien toque "Ya los revisé" (Configuración guarda la
+// fecha), y en rojo cuando la tabla de recargo por demanda de DHL que está en el motor
+// vence en menos de 30 días o ya venció: con tabla vencida se cotiza sin recargo.
+async function chequeoRecargosCouriers(db) {
+  const core = require('../../../shared/cotizador/cotizador-core');
+  const cfg = require('../models/configuracion.model');
+  const hoy = hoyLocal();
+  const mes = hoy.slice(0, 7);
+  const revisado = await cfg.obtenerRecargosRevisados();
+  const revisadoEsteMes = !!revisado && revisado.slice(0, 7) === mes;
+  const fuel = await cfg.listarFuel();
+  const detalle = [];
+  const dias = (iso) => Math.round((new Date(`${iso}T12:00:00`) - new Date(`${hoy}T12:00:00`)) / 86400000);
+  const faltan = dias(core.DHL_DEMANDA_HASTA);
+  let severidad = 'ok';
+  if (faltan < 0) {
+    severidad = 'rojo';
+    detalle.push({ recargo: 'DHL · recargo por demanda', estado: `VENCIDO el ${fechaCorta(core.DHL_DEMANDA_HASTA)}: desde entonces se cotiza DHL sin este recargo`, donde: 'Pedir a DHL la tabla nueva y cargarla en shared/cotizador/cotizador-core.js' });
+  } else if (faltan <= 30) {
+    severidad = 'rojo';
+    detalle.push({ recargo: 'DHL · recargo por demanda', estado: `vence el ${fechaCorta(core.DHL_DEMANDA_HASTA)} (en ${faltan} días)`, donde: 'Pedir a DHL la tabla que sigue y cargarla en shared/cotizador/cotizador-core.js' });
+  } else {
+    detalle.push({ recargo: 'DHL · recargo por demanda', estado: `vigente hasta el ${fechaCorta(core.DHL_DEMANDA_HASTA)}`, donde: 'shared/cotizador/cotizador-core.js' });
+  }
+  for (const f of fuel) {
+    detalle.push({ recargo: `${f.courier} · fuel`, estado: `${f.fuel_pct}% cargado${f.fecha_actualizacion ? ' el ' + fechaCorta(String(f.fecha_actualizacion).slice(0, 10)) : ''}`, donde: 'Configuración → Fuel (ups.com / dhl.com: recargo por combustible del mes)' });
+  }
+  detalle.push({ recargo: 'UPS · surge fee (export e import)', estado: `tabla de importación vigente desde el ${fechaCorta(core.SURGE_IMPORT_NUEVO_DESDE)}`, donde: 'ups.com → recargos → "Surge fee"; se carga en shared/cotizador/cotizador-core.js' });
+  detalle.push({ recargo: 'UPS/DHL · áreas remotas y extendidas', estado: 'listas en el motor', donde: 'ups.com / dhl.com → áreas remotas; SURGE-Y-AREAS-UPS-SEP-2026.md' });
+  if (severidad === 'ok' && !revisadoEsteMes) severidad = 'ambar';
+  const resumen = severidad === 'rojo'
+    ? 'La tabla de recargo por demanda de DHL está por vencer o vencida: hay que pedir la nueva.'
+    : revisadoEsteMes
+      ? `Recargos revisados este mes (el ${fechaCorta(revisado)}). El mes que viene vuelve a avisar.`
+      : `Todavía nadie revisó este mes si UPS y DHL cambiaron el fuel, el surge o las áreas${revisado ? ` (última revisión: ${fechaCorta(revisado)})` : ''}. Miralo en sus páginas, actualizá lo que cambió y tocá "Ya los revisé".`;
+  return { severidad, cantidad: severidad === 'ok' ? 0 : 1, resumen, detalle, truncado: 0, revisado_el: revisado };
+}
+
 const GRUPOS = { plata: 'Plata', datos: 'Datos que faltan', higiene: 'Higiene del sistema' };
 
 async function correrChequeos() {
@@ -967,6 +1008,11 @@ async function correrChequeos() {
 
     correr({ id: 'huerfanos', grupo: 'higiene', titulo: 'Filas huérfanas en la base',
       link: null }, () => chequeoHuerfanos(db)),
+
+    correr({ id: 'recargos_couriers', grupo: 'plata', titulo: 'Recargos de UPS y DHL: revisión mensual',
+      link: { href: 'configuracion.html', texto: 'Ir a Configuración' },
+      accion: { texto: 'Ya los revisé este mes', metodo: 'PUT', url: '/configuracion/recargos-revisados', confirmar: '¿Revisaste en las páginas de UPS y DHL el fuel, el surge y las áreas, y actualizaste lo que cambió?' } },
+      () => chequeoRecargosCouriers(db)),
   ]);
 
   const resumen = { rojo: 0, ambar: 0, ok: 0, error: 0 };
@@ -982,4 +1028,27 @@ async function correrChequeos() {
   };
 }
 
-module.exports = { correrChequeos, MAX_DETALLE, DIAS_BORRADOR };
+// ── Corrida automática (04/11/2026) ─────────────────────────────────────────
+// El servidor corre los chequeos una vez por día y guarda el resumen en salud_corridas; el
+// menú lee la última corrida (sin volver a correr nada) y muestra cuántos rojos hay. Nunca
+// escribe otra cosa que ese resumen: la regla 1 sigue valiendo para los chequeos.
+async function correrYGuardar() {
+  const db = getDb();
+  const r = await correrChequeos();
+  const rojos = r.chequeos.filter((c) => c.severidad === 'rojo').map((c) => ({ id: c.id, titulo: c.titulo, cantidad: c.cantidad }));
+  await db.prepare('INSERT INTO salud_corridas (rojo, ambar, error, rojos_json) VALUES (?, ?, ?, ?)')
+    .run(r.resumen.rojo || 0, r.resumen.ambar || 0, r.resumen.error || 0, JSON.stringify(rojos));
+  // Se guardan 90 corridas (tres meses); las demás se van.
+  await db.prepare('DELETE FROM salud_corridas WHERE id NOT IN (SELECT id FROM salud_corridas ORDER BY id DESC LIMIT 90)').run();
+  return { ...r.resumen, rojos };
+}
+
+async function ultimaCorrida() {
+  const fila = await getDb().prepare('SELECT id, corrida_en, rojo, ambar, error, rojos_json FROM salud_corridas ORDER BY id DESC LIMIT 1').get();
+  if (!fila) return null;
+  let rojos = [];
+  try { rojos = JSON.parse(fila.rojos_json || '[]'); } catch { rojos = []; }
+  return { corrida_en: fila.corrida_en, rojo: fila.rojo, ambar: fila.ambar, error: fila.error, rojos };
+}
+
+module.exports = { correrChequeos, correrYGuardar, ultimaCorrida, MAX_DETALLE, DIAS_BORRADOR };

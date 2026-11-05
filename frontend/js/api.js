@@ -390,6 +390,10 @@ api.salud = {
   chequear: () => api.get('/salud'),
   // Solo el semaforo, para la franja del Dashboard.
   resumen: () => api.get('/salud/resumen'),
+  // Última corrida automática del servidor (04/11/2026): para el contador del menú.
+  ultima: () => api.get('/salud/ultima'),
+  // Revisión mensual de recargos UPS/DHL: "Ya los revisé" (escribe en Configuración).
+  marcarRecargosRevisados: () => api.put('/configuracion/recargos-revisados', {}),
 };
 
 // Cotizaciones guardadas y el precio acordado (caso Asaplast). El cotizador no

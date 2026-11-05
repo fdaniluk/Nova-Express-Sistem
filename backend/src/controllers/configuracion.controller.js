@@ -163,6 +163,21 @@ async function actualizarCorte(req, res, next) {
   } catch (e) { next(e); }
 }
 
+// Revisión mensual de recargos UPS/DHL (04/11/2026): el botón "Ya los revisé" del panel de Salud.
+async function obtenerRecargosRevisados(req, res, next) {
+  try {
+    res.json({ recargos_revisados: await configuracionModel.obtenerRecargosRevisados() });
+  } catch (e) { next(e); }
+}
+async function marcarRecargosRevisados(req, res, next) {
+  try {
+    const { hoyLocal } = require('../utils/fecha');
+    const v = String((req.body || {}).recargos_revisados || hoyLocal()).trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(v)) return res.status(400).json({ error: 'recargos_revisados debe ser una fecha YYYY-MM-DD.' });
+    res.json(await configuracionModel.marcarRecargosRevisados(v));
+  } catch (e) { next(e); }
+}
+
 async function obtenerProforma(req, res, next) {
   try {
     res.json({ proforma_proximo: await configuracionModel.obtenerProformaProximo() });
@@ -202,6 +217,7 @@ async function actualizarMargen(req, res, next) {
 }
 
 module.exports = {
+  obtenerRecargosRevisados, marcarRecargosRevisados,
   obtenerMargen, actualizarMargen,
   obtenerProforma, actualizarProforma,
   obtenerCorte, actualizarCorte,

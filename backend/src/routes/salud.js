@@ -7,7 +7,7 @@
 // está roto.
 
 const { Router } = require('express');
-const { correrChequeos } = require('../services/salud.service');
+const { correrChequeos, ultimaCorrida } = require('../services/salud.service');
 
 const router = Router();
 
@@ -32,6 +32,16 @@ router.get('/resumen', async (req, res, next) => {
       rojos: r.chequeos.filter((c) => c.severidad === 'rojo').map((c) => ({ id: c.id, titulo: c.titulo, cantidad: c.cantidad })),
       errores: r.chequeos.filter((c) => c.severidad === 'error').map((c) => ({ id: c.id, titulo: c.titulo })),
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// Última corrida automática (04/11/2026): lo que dejó el chequeo diario del servidor. No
+// corre nada, solo lee la tabla: es lo que consulta el menú en cada pantalla.
+router.get('/ultima', async (req, res, next) => {
+  try {
+    res.json((await ultimaCorrida()) || { corrida_en: null, rojo: 0, ambar: 0, error: 0, rojos: [] });
   } catch (err) {
     next(err);
   }

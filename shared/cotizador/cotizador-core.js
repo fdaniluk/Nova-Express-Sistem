@@ -783,7 +783,7 @@ if(typeof module!=='undefined'&&module.exports){
     UPS_SAVER_ES_IT,UPS_SAVER_ES_PK,UPS_SAVER_IT_PK,
     resolverZona,
     getPesoVol,getDHL,getDHLBig,getDHLE50,getUPS,getUPSSaverEsIt,
-    getSurge,getSurgeImportNuevo,getSurgeDHL,calcSeguroUPS,calcSeguroDHL,calcSeguro,seguroPropioMonto,DHL_PROTECCION_DOC,calcDHLExtras,calcUPSDimExtras,calcImpuestos,calcZonaEntrega,normalizarEntrega,
+    getSurge,getSurgeImportNuevo,getSurgeDHL,DHL_DEMANDA_DESDE,DHL_DEMANDA_HASTA,SURGE_IMPORT_NUEVO_DESDE,calcSeguroUPS,calcSeguroDHL,calcSeguro,seguroPropioMonto,DHL_PROTECCION_DOC,calcDHLExtras,calcUPSDimExtras,calcImpuestos,calcZonaEntrega,normalizarEntrega,
     TOPES_PIEZA,calcTopesPieza,MSG_CONTORNO_UPS,
     cotizarServicio,
   };

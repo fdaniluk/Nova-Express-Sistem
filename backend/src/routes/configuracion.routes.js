@@ -23,6 +23,8 @@ router.put('/umbral/:courier', requireConfig, ctrl.actualizarUmbral);
 router.get('/margen-objetivo', ctrl.obtenerMargen);
 router.put('/margen-objetivo', requireConfig, ctrl.actualizarMargen);
 
+router.get('/recargos-revisados', ctrl.obtenerRecargosRevisados);
+router.put('/recargos-revisados', requireConfig, ctrl.marcarRecargosRevisados);
 router.get('/proforma', ctrl.obtenerProforma);
 router.put('/proforma', requireConfig, ctrl.actualizarProforma);
 

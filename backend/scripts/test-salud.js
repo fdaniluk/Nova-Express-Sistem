@@ -150,7 +150,7 @@ async function main() {
   // 14 desde el 06/08/2026, cuando se sumó "cierres" (los meses archivados fuera del
   // sistema). Este número se toca a mano a propósito: si alguien agrega un chequeo y no
   // actualiza el test, el test se lo recuerda.
-  check('devuelve los 14 chequeos', limpio.chequeos.length === 14, String(limpio.chequeos.length));
+  check('devuelve los 15 chequeos', limpio.chequeos.length === 15, String(limpio.chequeos.length));
   check('ninguno falló al correr', limpio.resumen.error === 0,
     limpio.chequeos.filter((c) => c.error).map((c) => `${c.id}: ${c.error}`).join(' | '));
 
@@ -159,7 +159,9 @@ async function main() {
   //   · backups → mientras no haya copia fuera del servidor, avisa. Se apaga solo cuando
   //     corre scripts/copia-externa.sh (lo cubre test-copia-externa.js).
   //   · cierres → una base nueva no tiene ningún mes archivado todavía.
-  const IGNORAR = ['backups', 'cierres'];
+  //   · recargos_couriers → cada mes avisa hasta que alguien marque "Ya los revisé" (04/11);
+  //     en una base nueva nadie lo marcó (lo cubre test-salud-automatica.js).
+  const IGNORAR = ['backups', 'cierres', 'recargos_couriers'];
   const falsosPositivos = limpio.chequeos.filter(
     (c) => c.severidad !== 'ok' && !IGNORAR.includes(c.id));
   check('ningún chequeo se enciende sin motivo', falsosPositivos.length === 0,

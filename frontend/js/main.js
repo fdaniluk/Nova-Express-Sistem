@@ -100,6 +100,24 @@ window.NovaUtils = {
   pintar();
 })();
 
+// ── Contador de Salud en el menú (04/11/2026) ────────────────────────────────
+// El servidor corre el panel de Salud una vez por día. Si la última corrida dejó cosas en
+// rojo, el ítem "Salud" del menú lleva un globito con la cantidad (y los títulos al pasar
+// el mouse), en todas las pantallas. Quien no tiene permiso de Salud recibe 403 y no ve
+// nada. No corre ningún chequeo: lee el resumen guardado.
+(function contadorSalud() {
+  const link = document.querySelector('.sidebar-nav a[href$="salud.html"]');
+  if (!link || !window.NovaAPI || !NovaAPI.salud || !NovaAPI.salud.ultima) return;
+  NovaAPI.salud.ultima().then((u) => {
+    if (!u || !(u.rojo > 0)) return;
+    const b = document.createElement('span');
+    b.className = 'nav-badge';
+    b.textContent = u.rojo;
+    b.title = `${u.rojo} chequeo${u.rojo === 1 ? '' : 's'} en rojo (${String(u.corrida_en || '').slice(0, 16)}): ` + (u.rojos || []).map((r) => r.titulo).join(' · ');
+    link.appendChild(b);
+  }).catch(() => {});
+})();
+
 // ── Cambio de módulo más rápido (03/11/2026) ─────────────────────────────────
 // 1) Pre-carga: al pasar el mouse por un ítem del menú, Chrome baja el HTML de esa
 //    pantalla antes del clic (speculation rules, solo el documento; los datos los pide

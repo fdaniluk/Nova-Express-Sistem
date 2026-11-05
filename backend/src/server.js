@@ -101,6 +101,23 @@ initDb()
     } else {
       console.log('[mercadopago] sin MP_ACCESS_TOKEN: la lectura de cobros queda apagada');
     }
+    // Panel de Salud automático (04/11/2026): una corrida por día (la primera a los 3
+    // minutos de arrancar), guardada en salud_corridas. El menú muestra los rojos de la
+    // última. En los tests no corre (NODE_ENV=production con DB de test lo correría: se
+    // apaga con SALUD_AUTO=0).
+    if (process.env.SALUD_AUTO !== '0') {
+      const salud = require('./services/salud.service');
+      const correrSalud = async () => {
+        try {
+          const r = await salud.correrYGuardar();
+          console.log(`[salud] corrida diaria: ${r.rojo} rojo · ${r.ambar} ámbar · ${r.error} error${r.rojos.length ? ' → ' + r.rojos.map((x) => x.titulo).join(' | ') : ''}`);
+        } catch (err) {
+          console.error('[salud] la corrida diaria falló:', err.message);
+        }
+      };
+      setTimeout(correrSalud, 3 * 60 * 1000);
+      setInterval(correrSalud, 24 * 60 * 60 * 1000);
+    }
     app.listen(config.port, () => {
       console.log(`Nova Express API en http://localhost:${config.port}`);
       console.log(`Base de datos: ${config.dbPath}`);

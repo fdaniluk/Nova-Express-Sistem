@@ -77,8 +77,13 @@
       ? `<p class="chequeo-resumen">Se muestran las primeras ${c.detalle.length}; hay ${c.truncado} más.</p>`
       : '';
 
-    const acciones = c.link
-      ? `<div class="chequeo-acciones"><a class="btn btn-sm btn-outline" href="${esc(c.link.href)}">${esc(c.link.texto)}</a></div>`
+    // `accion` (04/11/2026): un botón que escribe en OTRO módulo (hoy: "Ya los revisé" de
+    // los recargos, que guarda la fecha en Configuración). El panel sigue sin escribir nada.
+    const botonAccion = c.accion
+      ? `<button type="button" class="btn btn-sm btn-coral chequeo-accion" data-accion="${esc(c.id)}">${esc(c.accion.texto)}</button>`
+      : '';
+    const acciones = (c.link || c.accion)
+      ? `<div class="chequeo-acciones">${c.link ? `<a class="btn btn-sm btn-outline" href="${esc(c.link.href)}">${esc(c.link.texto)}</a>` : ''}${botonAccion}</div>`
       : '';
 
     const monto = c.monto
@@ -184,11 +189,30 @@
     });
   }
 
+  // Botón de acción de un chequeo (hoy solo "Ya los revisé este mes" de los recargos).
+  let ultimoReporte = null;
+  $grupos.addEventListener('click', async (ev) => {
+    const btn = ev.target.closest('.chequeo-accion');
+    if (!btn) return;
+    const c = (ultimoReporte && ultimoReporte.chequeos || []).find((x) => x.id === btn.dataset.accion);
+    if (!c || !c.accion) return;
+    if (c.accion.confirmar && !window.confirm(c.accion.confirmar)) return;
+    btn.disabled = true;
+    try {
+      if (c.id === 'recargos_couriers') await NovaAPI.salud.marcarRecargosRevisados();
+      await cargar();
+    } catch (err) {
+      btn.disabled = false;
+      NovaUtils.showAlert($alert, 'No se pudo guardar: ' + err.message);
+    }
+  });
+
   async function cargar() {
     $btn.disabled = true;
     $btn.textContent = 'Revisando...';
     try {
-      pintar(await NovaAPI.salud.chequear());
+      ultimoReporte = await NovaAPI.salud.chequear();
+      pintar(ultimoReporte);
     } catch (err) {
       // Falla ruidosa a proposito: si el panel no puede correr, lo peor que puede hacer
       // es quedarse en blanco y parecer "todo en orden".

@@ -14,8 +14,12 @@
 
   // Esconde los ítems del menú que el usuario no puede ver y lo saca de la pantalla si
   // entró por URL. Devuelve true si redirigió. Se puede llamar más de una vez.
-  function aplicar(user) {
+  // `soloMirar`: no redirige, solo dice si HABRÍA que redirigir (se usa con el usuario
+  // recordado: una redirección por un dato viejo del navegador mandaba al admin a Envíos
+  // cuando entraba a Usuarios después de que otro usuario usó la misma PC, 04/11/2026).
+  function aplicar(user, soloMirar) {
     var path = window.location.pathname;
+    var irA = function (destino) { if (!soloMirar) location.replace(destino); return true; };
 
     if (user.ver_dashboard !== 1) {
       document.querySelectorAll(
@@ -23,10 +27,7 @@
       ).forEach(function (el) {
         el.style.display = 'none';
       });
-      if (path === '/' || path === '/index.html') {
-        location.replace('/pages/envios.html');
-        return true;
-      }
+      if (path === '/' || path === '/index.html') return irA('/pages/envios.html');
     }
 
     if (user.rol !== 'admin') {
@@ -36,10 +37,7 @@
       ).forEach(function (el) {
         el.style.display = 'none';
       });
-      if (path.endsWith('usuarios.html') || path.endsWith('comisiones.html')) {
-        location.replace('/pages/envios.html');
-        return true;
-      }
+      if (path.endsWith('usuarios.html') || path.endsWith('comisiones.html')) return irA('/pages/envios.html');
     }
 
     // Configuración: visible para admin O usuarios con editar_config = 1.
@@ -49,10 +47,7 @@
       ).forEach(function (el) {
         el.style.display = 'none';
       });
-      if (path.endsWith('configuracion.html')) {
-        location.replace('/pages/envios.html');
-        return true;
-      }
+      if (path.endsWith('configuracion.html')) return irA('/pages/envios.html');
     }
 
     // Panel de salud: visible para admin O usuarios con ver_salud = 1.
@@ -63,10 +58,7 @@
       ).forEach(function (el) {
         el.style.display = 'none';
       });
-      if (path.endsWith('salud.html')) {
-        location.replace('/pages/envios.html');
-        return true;
-      }
+      if (path.endsWith('salud.html')) return irA('/pages/envios.html');
     }
 
     // Permisos sueltos DENTRO de una pantalla (no pantallas enteras): cualquier
@@ -81,9 +73,15 @@
     return false;
   }
 
+  if (cacheado && aplicar(cacheado, true)) {
+    // El usuario recordado no podría estar en esta pantalla: puede ser un dato viejo (otro
+    // usuario en la misma PC, permisos cambiados). No se redirige por eso: se espera al
+    // servidor como la primera vez.
+    cacheado = null;
+  }
   if (cacheado) {
     window.currentUser = cacheado;
-    if (aplicar(cacheado)) return;
+    aplicar(cacheado, false);
   } else {
     document.body.style.visibility = 'hidden';
   }
