@@ -2,7 +2,7 @@ const { getDb } = require('../db');
 const configuracionModel = require('./configuracion.model');
 const envioModel = require('./envio.model');
 const { redondear2, cotizarEnvio } = require('../services/calculos.service');
-const { descomponerVenta, detallarAdicional } = require('../utils/desgloseVenta');
+const { descomponerVenta, detallarAdicional, surgeDe } = require('../utils/desgloseVenta');
 const { hoyLocal } = require('../utils/fecha');
 const ccModel = require('./cuenta-corriente.model');
 const cargosModel = require('./envio-cargos.model');
@@ -689,8 +689,22 @@ async function buscarPorId(id) {
     // envío. OJO: cargos_adicionales guarda también una fila espejo "Cargo adicional" con la
     // columna entera cuando no hubo extras manuales (ver crear()), así que no se puede leer
     // esa tabla a ciegas: se usa solo si sus filas suman exactamente la parte manual.
-    const derivado = redondear2(detalle.reduce((s, d) => s + d.monto, 0));
-    const manual = redondear2((Number(it.adicional) || 0) - derivado);
+    let derivado = redondear2(detalle.reduce((s, d) => s + d.monto, 0));
+    let manual = redondear2((Number(it.adicional) || 0) - derivado);
+    // Liquidaciones anteriores al "surge con fuel" (junio–septiembre 2026): la columna
+    // Adicional guardada tiene el surge PELADO, sin su fuel. Si lo que sobra es exactamente
+    // el fuel del surge, era eso: se muestra el surge sin fuel y no hace falta "Ajuste".
+    const surgeLinea = detalle.find((d) => d.tipo === 'surge');
+    if (surgeLinea && manual < -0.005) {
+      const surgeRaw = redondear2(surgeDe(it.extras_json));
+      const fuelDelSurge = redondear2(surgeRaw * (Number(it.fuel_pct_usado) || 0) / 100);
+      if (fuelDelSurge > 0 && Math.abs(manual + fuelDelSurge) < 0.011) {
+        surgeLinea.monto = surgeRaw;
+        surgeLinea.label = 'Surge fee';
+        derivado = redondear2(detalle.reduce((s, d) => s + d.monto, 0));
+        manual = redondear2((Number(it.adicional) || 0) - derivado);
+      }
+    }
     // Diferencias de fuel del envío: desde el 04/11 están sumadas en la columna FUEL del
     // ítem. Una liquidación anterior a ese día las tiene dentro del Adicional: se reconoce
     // porque la parte manual las necesita para cerrar, y en ese caso siguen como línea.

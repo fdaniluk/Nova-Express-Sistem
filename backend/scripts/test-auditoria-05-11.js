@@ -112,6 +112,18 @@ const suma = (det) => r2((det || []).reduce((s, d) => s + r2(d.monto), 0));
   const viejo = (await J('GET', `/api/liquidaciones/${liqC.id}`)).body.items[0];
   check('ítem viejo sin desglose guardado: se deriva con la venta a mano y cierra igual', cerca(suma(viejo.adicional_detalle), viejo.adicional) && viejo.adicional_detalle.some((d) => d.tipo === 'ajuste') && viejo.adicional_detalle.some((d) => d.tipo === 'surge'), JSON.stringify([viejo.adicional, viejo.adicional_detalle]));
 
+  // Liquidación de junio–septiembre (surge pelado en la columna, sin su fuel): no muestra
+  // "Ajuste", muestra el surge sin fuel. Es lo que tienen 31 ítems viejos en producción.
+  const eV = await mk('1Z327W096795816176', { courier: 'UPS', servicio_ups: 'UPS_EXP', pais_destino: 'Israel', peso_real: 146, largo: 10, ancho: 10, alto: 10, total_cobrado: 2225 });
+  await J('PATCH', `/api/salidas/${eV.id}`, { adicionales: 483.45, extras_json: [{ tipo: 'surge', label: 'Recargo por demanda (surge)', monto: 483.45 }] });
+  const liqV = (await J('POST', '/api/liquidaciones', { cliente_id: cli.id, periodo_desde: '2026-10-01', periodo_hasta: '2026-10-31', envio_ids: [eV.id], confirmar: true })).body;
+  const itV0 = liqV.items[0];
+  const fuelSurge = r2(itV0.adicional - 483.45);
+  check('   (fixture) hoy el surge va con su fuel en el Adicional', fuelSurge > 1, JSON.stringify(itV0.adicional_detalle));
+  await db.prepare('UPDATE liquidacion_items SET adicional = 483.45, flete = flete + ?, adicional_detalle_json = NULL WHERE liquidacion_id = ?').run(fuelSurge, liqV.id);
+  const itV = (await J('GET', `/api/liquidaciones/${liqV.id}`)).body.items[0];
+  check('liquidación vieja con el surge pelado: renglón "Surge fee" 483,45, sin "Ajuste", y cierra', cerca(itV.adicional, 483.45) && cerca(suma(itV.adicional_detalle), 483.45) && itV.adicional_detalle.length === 1 && itV.adicional_detalle[0].label === 'Surge fee', JSON.stringify(itV.adicional_detalle));
+
   console.log('\n4. A3 · extras_json congelado en un envío liquidado\n');
   const ptX = await J('PATCH', `/api/salidas/${eC.id}`, { extras_json: [{ tipo: 'gogreen', label: 'x', monto: 1 }] });
   check('cambiar el desglose de recargos de un envío liquidado: 409', ptX.status === 409 && /desglose de recargos/.test(ptX.body.error), JSON.stringify(ptX.body));
