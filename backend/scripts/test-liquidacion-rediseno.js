@@ -113,8 +113,9 @@ const cerca = (a, b) => Math.abs(Number(a) - Number(b)) < 0.011;
   const { initDb, getDb } = require('../src/db');
   await initDb();
   const db = getDb();
-  // Se simula la forma vieja: el fuel de A pasa de la columna FUEL al Adicional.
-  await db.prepare('UPDATE liquidacion_items SET fuel = fuel - 10, adicional = adicional + 10 WHERE liquidacion_id = ? AND envio_id = ?').run(liq.id, eA.id);
+  // Se simula la forma vieja: el fuel de A pasa de la columna FUEL al Adicional, y sin el
+  // desglose congelado (esa columna es del 05/11: las liquidaciones viejas no la tienen).
+  await db.prepare('UPDATE liquidacion_items SET fuel = fuel - 10, adicional = adicional + 10, adicional_detalle_json = NULL WHERE liquidacion_id = ? AND envio_id = ?').run(liq.id, eA.id);
   const filaDb = await db.prepare('SELECT fuel, adicional FROM liquidacion_items WHERE liquidacion_id = ? AND envio_id = ?').get(liq.id, eA.id);
   check('   (fixture) la fila quedó con el fuel movido al adicional', cerca(filaDb.fuel, base.fuel) && cerca(filaDb.adicional, base.adicional + 10), JSON.stringify([filaDb, require('../src/config').dbPath]));
   const viejo = (await J('GET', `/api/liquidaciones/${liq.id}`)).body;

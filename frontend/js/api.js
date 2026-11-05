@@ -29,6 +29,7 @@ async function request(path, options = {}) {
     let errores = null;
     let borradores = null;
     let puedeForzar = false;
+    let codigo = null;
     try {
       const data = await res.json();
       msg = data.error || msg;
@@ -38,6 +39,8 @@ async function request(path, options = {}) {
       if (Array.isArray(data.errores) && data.errores.length) errores = data.errores;
       // Liquidaciones (pendiente 52): el 409 de crear trae los borradores que ya tienen esos envíos.
       if (Array.isArray(data.borradores) && data.borradores.length) borradores = data.borradores;
+      // Liquidaciones (05/11): el 409 de confirmar dice por qué (borrador_desactualizado).
+      if (data.codigo) codigo = data.codigo;
     } catch {
       /* ignore */
     }
@@ -48,6 +51,7 @@ async function request(path, options = {}) {
     if (errores) err.errores = errores;
     if (borradores) err.borradores = borradores;
     if (puedeForzar) err.puede_forzar = true;
+    if (codigo) err.codigo = codigo;
     throw err;
   }
 

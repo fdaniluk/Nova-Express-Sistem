@@ -926,6 +926,9 @@ router.patch('/:id', async (req, res, next) => {
         && Number(picked[c]) !== Number(existing[c]));
       // El desglose de venta a mano también es plata de la liquidación (cambia el Excel).
       if (Object.prototype.hasOwnProperty.call(picked, 'venta_json') && String(picked.venta_json ?? '') !== String(existing.venta_json ?? '')) cambiaPlata.push('desglose de venta');
+      // El desglose de recargos (surge, GoGreen, manejo…) también está congelado: un Recalcular
+      // en un envío liquidado lo cambiaba por la puerta de atrás (auditoría 05/11/2026).
+      if (Object.prototype.hasOwnProperty.call(picked, 'extras_json') && String(picked.extras_json ?? '') !== String(existing.extras_json ?? '')) cambiaPlata.push('desglose de recargos');
       if (cambiaPlata.length > 0) {
         return res.status(409).json({
           error: `El envío está liquidado: no se puede cambiar ${cambiaPlata.join(', ')}. ` +

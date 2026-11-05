@@ -736,6 +736,16 @@
       document.getElementById('liq-resumen-pie').textContent = `Liquidación #${liq.id} confirmada.`;
       document.getElementById('liq-resumen-pie').classList.add('ok');
     } catch (err) {
+      // Borrador desactualizado (05/11/2026): un envío cambió después de armar el borrador.
+      // Se descarta ese borrador y se vuelve a calcular; la persona revisa y confirma de nuevo.
+      if (err.status === 409 && err.codigo === 'borrador_desactualizado') {
+        const viejo = lastLiquidacionId;
+        lastLiquidacionId = null;
+        if (viejo) { try { await NovaAPI.liquidaciones.eliminarBorrador(viejo); } catch { /* si no se pudo, Calcular ofrece reemplazarlo */ } }
+        await calcularPreview();
+        NovaUtils.showAlert(alertBox, `${err.message} La vista previa ya está actualizada: revisala y confirmá.`, 'error');
+        return;
+      }
       NovaUtils.showAlert(alertBox, err.message, 'error');
     }
   }

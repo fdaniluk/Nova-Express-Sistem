@@ -78,7 +78,7 @@ async function confirmar(req, res, next) {
     if (!liq) return res.status(404).json({ error: 'Liquidación no encontrada' });
     res.json(liq);
   } catch (e) {
-    if (e.status === 400 || e.status === 409) return res.status(e.status).json({ error: e.message });
+    if (e.status === 400 || e.status === 409) return res.status(e.status).json({ error: e.message, codigo: e.codigo, desactualizados: e.desactualizados });
     next(e);
   }
 }

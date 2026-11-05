@@ -8,6 +8,25 @@ const ccModel = require('./cuenta-corriente.model');
 const cargosModel = require('./envio-cargos.model');
 
 // Migración automática: agrega columnas nuevas si no existen
+// Los renglones del desglose tienen que sumar EXACTAMENTE la columna Adicional. Centavos
+// de redondeo se absorben en el renglón más grande; una diferencia mayor va como "Ajuste"
+// con signo (es lo que la oficina movió a mano, o lo que cambió el envío después).
+function cerrarDetalle(lineas, adicional) {
+  const out = (Array.isArray(lineas) ? lineas : []).map((l) => ({ ...l, monto: redondear2(l.monto) }));
+  const suma = redondear2(out.reduce((s, l) => s + l.monto, 0));
+  const dif = redondear2((Number(adicional) || 0) - suma);
+  if (Math.abs(dif) < 0.005) return out;
+  if (Math.abs(dif) < 0.05 && out.length) {
+    const mayor = out.reduce((a, b) => (b.monto > a.monto ? b : a));
+    mayor.monto = redondear2(mayor.monto + dif);
+    return out;
+  }
+  const ajuste = out.find((l) => l.tipo === 'ajuste');
+  if (ajuste) ajuste.monto = redondear2(ajuste.monto + dif);
+  else out.push({ tipo: 'ajuste', label: 'Ajuste', monto: dif });
+  return out.filter((l) => Math.abs(l.monto) >= 0.005);
+}
+
 async function migrarColumnas() {
   const db = getDb();
   const rows = await db.prepare("PRAGMA table_info(liquidacion_items)").all();
@@ -23,6 +42,13 @@ async function migrarColumnas() {
   }
   if (!cols.includes('servicio_cotizado')) {
     await db.prepare("ALTER TABLE liquidacion_items ADD COLUMN servicio_cotizado TEXT").run();
+  }
+  // Desglose del Adicional CONGELADO al crear (auditoría 05/11/2026): antes se derivaba en
+  // vivo del envío al leer la liquidación, e ignoraba la venta ajustada a mano, así que el
+  // Excel del cliente podía mostrar una columna (138,70) y renglones que sumaban otra cosa
+  // (161,84). Los ítems viejos (NULL) se siguen derivando, pero cerrando contra la columna.
+  if (!cols.includes('adicional_detalle_json')) {
+    await db.prepare("ALTER TABLE liquidacion_items ADD COLUMN adicional_detalle_json TEXT").run();
   }
   // Otros conceptos (28/10/2026, pedido de Felipe): líneas a mano de la liquidación —
   // concepto + monto— que se le cobran al cliente AL COSTO, sin ganancia, y salen con su
@@ -363,8 +389,8 @@ async function crear({
     const insertItem = db.prepare(
       `INSERT INTO liquidacion_items
         (liquidacion_id, envio_id, flete, fuel, seguro, adicional, total_usd, fuel_pct_usado,
-         precio_cotizado, profit_pct, utilidad_usd, servicio_cotizado)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         precio_cotizado, profit_pct, utilidad_usd, servicio_cotizado, adicional_detalle_json)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     );
     const insertCargo = db.prepare(
       `INSERT INTO cargos_adicionales (envio_id, liquidacion_id, descripcion, monto) 
@@ -390,7 +416,8 @@ async function crear({
         item.precio_cotizado,
         item.profit_pct,
         item.utilidad_usd,
-        item.servicio_cotizado
+        item.servicio_cotizado,
+        JSON.stringify(cerrarDetalle(item.adicional_detalle, item.adicional))
       );
       const list = cargoByEnvio[item.envio_id] || [];
       for (const c of list) {
@@ -537,6 +564,24 @@ async function confirmar(id, envioIdsEsperados = null, usuario = null, formato =
     throw err;
   }
 
+  // BORRADOR DESACTUALIZADO (auditoría 05/11/2026, liq #239): el borrador se armó, después
+  // la oficina corrigió el envío (medidas, precio) y confirmó el borrador tal cual estaba:
+  // la liquidación salió con la venta vieja mientras la pantalla mostraba la nueva. Acá se
+  // recalcula cada envío con lo que tiene HOY y, si la plata cambió, se frena: hay que
+  // volver a Calcular (la pantalla descarta el borrador y arma uno nuevo).
+  const desactualizados = await itemsDesactualizados(liq, db);
+  if (desactualizados.length) {
+    const lista = desactualizados.map((d) => `${d.numero_guia}: ${d.antes.toFixed(2)} → ${d.ahora.toFixed(2)}`).join('; ');
+    const err = new Error(
+      `${desactualizados.length === 1 ? 'Un envío cambió' : desactualizados.length + ' envíos cambiaron'} después de armar este borrador (${lista}). ` +
+      'Apretá Calcular de nuevo para armarlo con los valores actuales y después confirmá.'
+    );
+    err.status = 409;
+    err.codigo = 'borrador_desactualizado';
+    err.desactualizados = desactualizados;
+    throw err;
+  }
+
   const fecha = hoyLocal();
 
   await db.transaction(async () => {
@@ -551,6 +596,25 @@ async function confirmar(id, envioIdsEsperados = null, usuario = null, formato =
     await ccModel.registrarDebitoLiquidacion(db, id, { usuario });
   });
   return buscarPorId(id);
+}
+
+// Compara cada ítem del borrador con lo que daría HOY el mismo envío: flete, fuel, seguro
+// y el precio cotizado (total cobrado). El extra manual de la liquidación y los cargos
+// posteriores no entran en la comparación (los cargos nuevos los frena el otro control).
+async function itemsDesactualizados(liq, db = getDb()) {
+  const out = [];
+  for (const it of liq.items || []) {
+    const envio = await db.prepare('SELECT * FROM envios WHERE id = ?').get(it.envio_id);
+    if (!envio) continue;
+    const fuelDif = redondear2((await cargosModel.listarDeEnvio(envio.id, db))
+      .filter((c) => c.estado !== 'anulado' && c.liquidacion_id === liq.id && cargosModel.esFuel(c))
+      .reduce((s, c) => s + (Number(c.monto) || 0), 0));
+    const ahora = await calcularItem(envio, 0, [], fuelDif);
+    const distinto = ['flete', 'fuel', 'seguro'].some((k) => Math.abs(redondear2(ahora[k]) - redondear2(it[k])) >= 0.011)
+      || Math.abs(redondear2(ahora.precio_cotizado) - redondear2(it.precio_cotizado)) >= 0.011;
+    if (distinto) out.push({ envio_id: envio.id, numero_guia: envio.numero_guia, antes: redondear2(it.precio_cotizado), ahora: redondear2(ahora.precio_cotizado) });
+  }
+  return out;
 }
 
 async function buscarPorId(id) {
@@ -571,6 +635,7 @@ async function buscarPorId(id) {
               e.peso_facturable, e.fob, e.courier, e.total_cobrado,
               e.extras_json, e.adicionales AS envio_adicionales, e.derechos AS envio_derechos,
               e.otros AS envio_otros, e.seguro AS envio_seguro, e.seguro_venta AS envio_seguro_venta,
+              e.venta_json AS envio_venta_json,
               COALESCE(d.nombre, e.destinatario_nombre) AS destinatario_nombre
        FROM liquidacion_items li
        JOIN envios e ON e.id = li.envio_id
@@ -598,6 +663,17 @@ async function buscarPorId(id) {
   // usó el cálculo (read-only, no toca lo confirmado). Los envíos liquidados tienen la plata
   // congelada, así que el detalle es el de siempre. El extra manual sale de cargos_adicionales.
   for (const it of items) {
+    // Desglose congelado al crear (05/11/2026): es el que vio la vista previa y no cambia
+    // aunque el envío se edite después. Los ítems anteriores se derivan del envío.
+    let congelado = null;
+    try { congelado = it.adicional_detalle_json ? JSON.parse(it.adicional_detalle_json) : null; } catch { congelado = null; }
+    if (Array.isArray(congelado)) {
+      it.adicional_detalle = cerrarDetalle(congelado, it.adicional);
+      it.fuel_diferencia = redondear2((fuelPorEnvio[it.envio_id] || []).reduce((s, c) => s + Number(c.monto), 0));
+      delete it.extras_json; delete it.envio_adicionales; delete it.envio_derechos;
+      delete it.envio_otros; delete it.envio_seguro; delete it.envio_seguro_venta; delete it.envio_venta_json; delete it.adicional_detalle_json;
+      continue;
+    }
     const detalle = detallarAdicional({
       total_cobrado: it.total_cobrado,
       seguro: it.envio_seguro_venta ?? it.envio_seguro,
@@ -606,6 +682,8 @@ async function buscarPorId(id) {
       otros: it.envio_otros,
       fuel_pct: it.fuel_pct_usado,
       extras: it.extras_json,
+      // Venta ajustada a mano: sin esto el desglose no cerraba con la columna (auditoría 05/11).
+      venta_json: it.envio_venta_json,
     });
     // La parte MANUAL es lo que la columna guardada tiene de más respecto del desglose del
     // envío. OJO: cargos_adicionales guarda también una fila espejo "Cargo adicional" con la
@@ -633,10 +711,12 @@ async function buscarPorId(id) {
         detalle.push({ tipo: 'manual', label: 'Adicional de esta liquidación', monto: manual });
       }
     }
-    it.adicional_detalle = detalle;
+    // Pase lo que pase, los renglones cierran con la columna: si el envío cambió después
+    // de liquidarse, la diferencia va como "Ajuste" y el cliente nunca ve dos números.
+    it.adicional_detalle = cerrarDetalle(detalle, it.adicional);
     it.fuel_diferencia = fuelDif;
     delete it.extras_json; delete it.envio_adicionales; delete it.envio_derechos;
-    delete it.envio_otros; delete it.envio_seguro; delete it.envio_seguro_venta;
+    delete it.envio_otros; delete it.envio_seguro; delete it.envio_seguro_venta; delete it.envio_venta_json; delete it.adicional_detalle_json;
   }
 
   const total_envios = redondear2(items.reduce((s, it) => s + (Number(it.total_usd) || 0), 0));
