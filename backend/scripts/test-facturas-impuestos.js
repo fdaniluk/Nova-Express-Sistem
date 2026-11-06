@@ -84,6 +84,33 @@ async function main() {
   check('cuadra contra el total del pie', sint.cuadra === true && cerca(sint.total_declarado, 146.95), `${sint.cuadra} / ${sint.total_declarado}`);
   const dos = await extraerFacturaUPS(facturaImpuestos({ numero: '0001-00999002', guias: [{ guia: '1Z327W096700000001', importe: 10 }, { guia: '1Z327W096700000002', importe: 20.5 }] }));
   check('si un día vienen dos guías en una factura, lee las dos', dos.guias.length === 2 && cerca(dos.suma_guias, 30.5), JSON.stringify(dos.guias.map((g) => g.costo_total)));
+  // Armado nuevo (facturas 0001-00932772 y 00932774 del 05/11/2026): la guía sola en su
+  // renglón y los importes en los siguientes, uno por concepto, pegados al concepto. Con
+  // ese armado las dos facturas entraron "sin importe" y quedaron en "Sin envío" (06/11).
+  const nuevo = await extraerFacturaUPS(pdfMinimo([
+    '05/11/2026', 'FACTURA', 'A', 'N° 0001-00932774', 'UPS de Argentina S.A.', 'DESCRIPCION', 'IMPORTE', 'Ref N°:',
+    'GUIA 1Z327W096798453302',
+    '          2,50     GASTOS DE IMPORTACION EN DESTINO',
+    '         17,50     GASTOS DE IMPORTACION EN DESTINO',
+    '          1,60     GASTOS DE IMPORTACION EN DESTINO',
+    '3070094095701000152207218652785202611143',
+    '         21,60', ' VEINTIUNO con SESENTA CENTAVOS.-', 'SON DOLARES:', 'TOTAL U$S',
+  ]));
+  check('armado de nov/2026 (guía sola, importes en los renglones siguientes): suma los tres conceptos', nuevo.tipo === 'impuestos' && nuevo.guias.length === 1 && nuevo.guias[0].numero_guia === '1Z327W096798453302' && cerca(nuevo.guias[0].costo_total, 21.6) && nuevo.guias[0].cargos.length === 3, JSON.stringify(nuevo.guias));
+  check('   y cuadra contra el total del pie (21,60)', nuevo.cuadra === true && cerca(nuevo.total_declarado, 21.6), `${nuevo.cuadra} / ${nuevo.total_declarado}`);
+  const nuevo1 = await extraerFacturaUPS(pdfMinimo([
+    '05/11/2026', 'FACTURA', 'A', 'N° 0001-00932772', 'UPS de Argentina S.A.', 'DESCRIPCION', 'IMPORTE', 'Ref N°:',
+    'GUIA 1Z327W096794008863', '         74,74     GASTOS DE IMPORTACION EN DESTINO', '3070094095701000152207218652785202611143',
+    '         74,74', ' SETENTA y CUATRO con SETENTA y CUATRO CENTAVOS.-', 'SON DOLARES:', 'TOTAL U$S',
+  ]));
+  check('   con un solo concepto: 74,74 (el número de 40 dígitos del CAI no se confunde con un importe)', nuevo1.guias.length === 1 && cerca(nuevo1.guias[0].costo_total, 74.74) && nuevo1.cuadra === true, JSON.stringify(nuevo1.guias.map((g) => g.costo_total)));
+  const dosNuevo = await extraerFacturaUPS(pdfMinimo([
+    '05/11/2026', 'FACTURA', 'A', 'N° 0001-00932799', 'UPS de Argentina S.A.', 'DESCRIPCION', 'IMPORTE', 'Ref N°:',
+    'GUIA 1Z327W096700000001', '         10,00     GASTOS DE IMPORTACION EN DESTINO',
+    'GUIA 1Z327W096700000002', '         20,50     GASTOS DE IMPORTACION EN DESTINO', '          5,00     GASTOS DE IMPORTACION EN DESTINO',
+    '         35,50', ' TREINTA y CINCO con CINCUENTA CENTAVOS.-', 'SON DOLARES:', 'TOTAL U$S',
+  ]));
+  check('   dos guías con ese armado: cada una con lo suyo (10 y 25,50)', dosNuevo.guias.length === 2 && cerca(dosNuevo.guias[0].costo_total, 10) && cerca(dosNuevo.guias[1].costo_total, 25.5) && dosNuevo.cuadra === true, JSON.stringify(dosNuevo.guias.map((g) => g.costo_total)));
 
   if (fs.existsSync(REALES)) {
     const pdfs = fs.readdirSync(REALES).filter((f) => f.endsWith('.pdf'));

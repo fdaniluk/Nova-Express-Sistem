@@ -10,6 +10,11 @@
   let recolectores = [];
   let pickupChoferPendienteId = null;
   let modoChoferAccion = null; // 'confirmar-ricardo' | 'reasignar'
+  /* Filtro por estado de la vista Día (06/11/2026, pedido de Felipe): null = todos;
+     'pend' | 'conf' | 'cam' | 'dep' | 'ent' | 'gris' = solo los pickups en ese estado.
+     Se mantiene al cambiar de día (sirve para recorrer la semana viendo "qué hay en la
+     camioneta"); se limpia tocando el mismo botón o "Ver todos". */
+  let filtroEstado = null;
 
   // ── DOM refs ───────────────────────────────────────────────────────────
   const alertBox      = document.getElementById('alert-box');
@@ -199,6 +204,38 @@
     });
   }
 
+  /* Los mismos criterios que los contadores del resumen, pickup por pickup. */
+  function pasaFiltro(p, filtro) {
+    if (!filtro) return true;
+    const tipo = p.tipo_recoleccion || 'normal';
+    const esGris = tipo === 'cliente' || tipo === 'courier';
+    if (filtro === 'gris') return esGris;
+    if (filtro === 'ent') return !!p.entrega_impo;
+    if (esGris) return false;
+    if (filtro === 'dep') return !!p.en_deposito_at && !p.entrega_impo;
+    if (filtro === 'cam') return !!p.confirmado_juanqui && !p.en_deposito_at;
+    if (filtro === 'conf') return !!p.confirmado_ricardo && !p.confirmado_juanqui;
+    if (filtro === 'pend') return !p.confirmado_ricardo;
+    return true;
+  }
+  const FILTRO_NOMBRE = { pend: 'sin confirmar', conf: 'confirmados por Ricardo', cam: 'en camioneta', dep: 'en depósito', ent: 'de entrega de importación', gris: 'del cliente o del courier' };
+  function setFiltro(filtro) {
+    filtroEstado = filtroEstado === filtro ? null : filtro;
+    renderVistaDia();
+  }
+  function pintarFiltro() {
+    const bar = document.getElementById('resumen-bar');
+    if (!bar) return;
+    bar.classList.toggle('filtrando', !!filtroEstado);
+    bar.querySelectorAll('.resumen-card').forEach((b) => {
+      const activo = b.dataset.filtro === filtroEstado;
+      b.classList.toggle('activo', activo);
+      b.setAttribute('aria-pressed', activo ? 'true' : 'false');
+    });
+    const todos = document.getElementById('btn-filtro-todos');
+    if (todos) todos.classList.toggle('hidden', !filtroEstado);
+  }
+
   function renderVistaDia() {
     const ymd = toYMD(diaActual);
     const delDia = pickups.filter(p => p.fecha === ymd);
@@ -241,13 +278,20 @@
       entEl.style.display = entregas.length > 0 ? '' : 'none';
     }
 
+    pintarFiltro();
     const list = document.getElementById('pickups-dia-list');
     if (delDia.length === 0) {
       list.innerHTML = '<div class="dia-empty">Sin pickups programados para este día</div>';
       return;
     }
+    const visibles = filtroEstado ? delDia.filter((p) => pasaFiltro(p, filtroEstado)) : delDia;
+    if (visibles.length === 0) {
+      list.innerHTML = `<div class="dia-empty dia-empty-filtro">Ningún pickup ${FILTRO_NOMBRE[filtroEstado] || ''} este día · <button type="button" class="link-btn" data-action="filtro-todos">ver los ${delDia.length}</button></div>`;
+      list.querySelector('[data-action="filtro-todos"]').addEventListener('click', () => setFiltro(null));
+      return;
+    }
 
-    list.innerHTML = delDia.map(p => buildPickupCard(p)).join('');
+    list.innerHTML = visibles.map(p => buildPickupCard(p)).join('');
 
     list.querySelectorAll('[data-action="conf-ricardo"]').forEach(btn => {
       btn.addEventListener('click', () => toggleConfirmacion(Number(btn.dataset.id), 'ricardo', true, btn));
@@ -1119,6 +1163,11 @@
   // ── Bind eventos ───────────────────────────────────────────────────────
 
   function bindEventos() {
+    // Resumen del día = filtros (06/11/2026). Mismo botón de nuevo o "Ver todos" lo saca.
+    document.querySelectorAll('#resumen-bar .resumen-card').forEach((b) => {
+      b.addEventListener('click', () => setFiltro(b.dataset.filtro));
+    });
+    document.getElementById('btn-filtro-todos').addEventListener('click', () => { filtroEstado = null; renderVistaDia(); });
     document.getElementById('btn-vista-dia').addEventListener('click', () => cambiarVista('dia'));
     document.getElementById('btn-vista-semana').addEventListener('click', () => cambiarVista('semana'));
 

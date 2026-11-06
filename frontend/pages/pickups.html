@@ -9,7 +9,7 @@
        inline, porque si queda solo en main.css Chrome a veces lo lee tarde y saltea el fundido. -->
   <style>@view-transition { navigation: auto; }</style>
   <link rel="stylesheet" href="../css/main.css?v=20261104a">
-  <link rel="stylesheet" href="../css/modules/pickups.css?v=20261015b">
+  <link rel="stylesheet" href="../css/modules/pickups.css?v=20261106a">
 </head>
 <body>
 <div class="app-layout">
@@ -139,20 +139,24 @@
           <h2 class="dia-titulo" id="dia-titulo">—</h2>
           <span class="dia-count" id="dia-count"></span>
         </div>
-        <div class="resumen-bar">
-          <div class="resumen-card pend" id="count-pend"><i class="rc-dot"></i><b>0</b> sin confirmar</div>
-          <div class="resumen-card conf" id="count-conf"><i class="rc-dot"></i><b>0</b> Ricardo</div>
-          <div class="resumen-card cam" id="count-cam"><i class="rc-dot"></i><b>0</b> en camioneta</div>
-          <div class="resumen-card dep" id="count-dep"><i class="rc-dot"></i><b>0</b> en depósito</div>
+        <!-- Resumen del día (06/11/2026, pedido de Felipe): cada tarjeta es un FILTRO.
+             Tocarla muestra solo los pickups en ese estado; tocarla de nuevo (o "Todos")
+             vuelve a la lista completa. El filtro se mantiene al cambiar de día. -->
+        <div class="resumen-bar" id="resumen-bar" role="group" aria-label="Filtrar por estado">
+          <button type="button" class="resumen-card pend" id="count-pend" data-filtro="pend" aria-pressed="false"><i class="rc-dot"></i><b>0</b> sin confirmar</button>
+          <button type="button" class="resumen-card conf" id="count-conf" data-filtro="conf" aria-pressed="false"><i class="rc-dot"></i><b>0</b> Ricardo</button>
+          <button type="button" class="resumen-card cam" id="count-cam" data-filtro="cam" aria-pressed="false"><i class="rc-dot"></i><b>0</b> en camioneta</button>
+          <button type="button" class="resumen-card dep" id="count-dep" data-filtro="dep" aria-pressed="false"><i class="rc-dot"></i><b>0</b> en depósito</button>
           <!-- Solo aparece si el día tiene entregas de importación: cuenta las que ya se
                entregaron sobre el total (las que faltan siguen en sin confirmar / Ricardo /
                camioneta, como cualquier pickup del chofer). -->
-          <div class="resumen-card ent" id="count-ent" style="display:none"
-               title="Entregas de importación del día: entregadas sobre el total"><i class="rc-dot"></i><b>0/0</b> entregas impo</div>
+          <button type="button" class="resumen-card ent" id="count-ent" data-filtro="ent" aria-pressed="false" style="display:none"
+               title="Entregas de importación del día: entregadas sobre el total"><i class="rc-dot"></i><b>0/0</b> entregas impo</button>
           <!-- Solo aparece si el dia tiene pickups sin cadena de chofer (los trae el
                cliente o los levanta el courier): no son "sin confirmar", son otra cosa. -->
-          <div class="resumen-card gris" id="count-gris" style="display:none"
-               title="Los trae el cliente al depósito o los levanta UPS/DHL: no llevan confirmación de chofer"><i class="rc-dot"></i><b>0</b> cliente/courier</div>
+          <button type="button" class="resumen-card gris" id="count-gris" data-filtro="gris" aria-pressed="false" style="display:none"
+               title="Los trae el cliente al depósito o los levanta UPS/DHL: no llevan confirmación de chofer"><i class="rc-dot"></i><b>0</b> cliente/courier</button>
+          <button type="button" class="resumen-todos hidden" id="btn-filtro-todos" title="Quitar el filtro">✕ Ver todos</button>
         </div>
         <div class="pickup-cards-list" id="pickups-dia-list">
           <div class="dia-empty">Cargando...</div>
@@ -383,6 +387,6 @@
 <script src="/js/auth-guard.js?v=20261104a"></script>
 <script src="../js/api.js?v=20261105a"></script>
 <script src="../js/main.js?v=20261104a"></script>
-<script src="../js/modules/pickups.js?v=20261015a"></script>
+<script src="../js/modules/pickups.js?v=20261106a"></script>
 </body>
 </html>

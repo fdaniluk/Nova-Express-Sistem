@@ -446,14 +446,39 @@ const CONCEPTO_IMPUESTOS = 'Gastos de importación en destino';
 
 function extraerImpuestosDestino(lines, { numero_factura, fecha_factura, advertencias }) {
   const guias = [];
-  for (const line of lines) {
+  const IMPORTE = /(-?[\d.]*\d,\d{2})/;
+  const importeDe = (texto) => { const m = String(texto || '').match(IMPORTE); return m ? parseImporte(m[1]) : null; };
+  for (let i = 0; i < lines.length; i++) {
+    const line = lines[i];
     // "146,95     GUIA 1Z327W096797194442" — pdf-parse pone el importe adelante. Por si
     // alguna vez viene al revés, se buscan la guía y el importe por separado en la línea.
     const g = line.match(/GUIA\s+(1Z\w{16})/i);
     if (!g) continue;
-    const resto = line.replace(g[0], ' ');
-    const imp = resto.match(/(-?[\d.]*\d,\d{2})/);
-    const monto = imp ? parseImporte(imp[1]) : null;
+    let monto = importeDe(line.replace(g[0], ' '));
+    let cargos = monto != null ? [{ nombre: CONCEPTO_IMPUESTOS, monto }] : [];
+    // Facturas desde noviembre/2026 (0001-00932772 y 00932774, 05/11): la guía viene SOLA
+    // en su renglón y los importes en los siguientes, uno por concepto (puede haber varios:
+    // 2,50 + 17,50 + 1,60), cada uno pegado a "GASTOS DE IMPORTACION EN DESTINO":
+    //   GUIA 1Z327W096798453302
+    //            2,50     GASTOS DE IMPORTACION EN DESTINO
+    //           17,50     GASTOS DE IMPORTACION EN DESTINO
+    // Si en el renglón de la guía no hay importe, se toman los renglones siguientes con el
+    // concepto y un importe (hasta la próxima guía o el primer renglón que no es eso) y se
+    // suman. Como último recurso, el primer importe de los dos renglones vecinos.
+    if (monto == null) {
+      const lineas = [];
+      for (let k = i + 1; k < lines.length && !/GUIA\s+1Z/i.test(lines[k]); k++) {
+        if (/GASTOS DE IMPORTACION EN DESTINO/i.test(lines[k]) && importeDe(lines[k]) != null) lineas.push(importeDe(lines[k]));
+        else if (lineas.length || lines[k].trim()) break;
+      }
+      if (lineas.length) {
+        monto = r2(lineas.reduce((t, x) => t + x, 0));
+        cargos = lineas.map((x) => ({ nombre: CONCEPTO_IMPUESTOS, monto: x }));
+      } else {
+        const vecino = [i + 1, i - 1].find((k) => k >= 0 && k < lines.length && !/GUIA\s+1Z/i.test(lines[k]) && !/^\s*\d{30,}/.test(lines[k]) && importeDe(lines[k]) != null);
+        if (vecino != null) { monto = importeDe(lines[vecino]); cargos = [{ nombre: CONCEPTO_IMPUESTOS, monto }]; }
+      }
+    }
     if (monto == null) {
       advertencias.push({
         tipo: 'guia_sin_importe',
@@ -469,7 +494,7 @@ function extraerImpuestosDestino(lines, { numero_factura, fecha_factura, adverte
       total_recargos: 0,
       percepcion: null,
       costo_total: monto,
-      cargos: monto != null ? [{ nombre: CONCEPTO_IMPUESTOS, monto }] : [],
+      cargos,
     });
   }
 

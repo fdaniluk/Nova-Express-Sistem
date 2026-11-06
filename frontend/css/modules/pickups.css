@@ -1166,3 +1166,44 @@
 .hora-row { align-items: flex-end; }
 .hora-row-off { opacity: .45; pointer-events: none; }
 #m-hora2-add, #m-hora2-del { margin-bottom: .35rem; white-space: nowrap; }
+
+/* ── Resumen del día como filtros + tarjetas que se vean (06/11/2026, Felipe) ─────────
+   "Con muchos pickups uno no ve a simple vista qué se levantó y qué no": las tarjetas
+   en camioneta y en depósito pasan a un fondo lleno (azul / verde), no el pastel de
+   antes, y los contadores de arriba filtran la lista al tocarlos. */
+.resumen-card { font: inherit; cursor: pointer; transition: box-shadow .12s, transform .12s, opacity .12s; }
+.resumen-card:hover { box-shadow: 0 2px 8px rgba(0,0,0,.12); transform: translateY(-1px); }
+.resumen-card:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.resumen-bar.filtrando .resumen-card:not(.activo) { opacity: .5; }
+.resumen-bar.filtrando .resumen-card:not(.activo):hover { opacity: .85; }
+.resumen-card.activo { box-shadow: 0 0 0 3px rgba(43,58,103,.25); font-weight: 700; }
+.resumen-card.activo.pend { background: #F87171; color: #fff; border-color: #DC2626; }
+.resumen-card.activo.conf { background: #FBBF24; color: #3F2A05; border-color: #D97706; }
+.resumen-card.activo.cam  { background: #2563EB; color: #fff; border-color: #1D4ED8; }
+.resumen-card.activo.dep  { background: #4D8A1E; color: #fff; border-color: #27500A; }
+.resumen-card.activo.ent  { background: #F59E0B; color: #fff; border-color: #B45309; }
+.resumen-card.activo.gris { background: #6B7280; color: #fff; border-color: #4B5563; }
+.resumen-card.activo .rc-dot { background: currentColor; }
+.resumen-todos {
+  font: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer;
+  padding: 0.45rem 0.8rem; border-radius: 8px; border: 1.5px dashed #9CA3AF;
+  background: transparent; color: #4B5563;
+}
+.resumen-todos:hover { background: #F3F4F6; color: var(--color-text); }
+.dia-empty-filtro .link-btn { font: inherit; color: var(--color-primary); background: none; border: 0; padding: 0; cursor: pointer; text-decoration: underline; }
+
+/* En camioneta: azul lleno. */
+.pickup-card-v2.en-camioneta { background: #9EC9FF; border: 2px solid #2563EB; }
+.en-camioneta .pickup-client-name { color: #0F2A5C; }
+.en-camioneta .pickup-hora, .en-camioneta .pickup-direccion { color: #1E3A5F; }
+.en-camioneta .pickup-badge.cam, .en-camioneta .pickup-avatar.cam { background: #1D4ED8; color: #fff; }
+.en-camioneta .btn-conf-on.btn-conf-juanqui { background: #1D4ED8; color: #fff; border-color: #1E40AF; }
+.en-camioneta .btn-conf-on.btn-conf-juanqui:hover { background: #1E40AF; }
+/* En depósito: verde lleno. */
+.pickup-card-v2.en-deposito { background: #B5DC7E; border: 2px solid #4D8A1E; }
+.en-deposito .pickup-client-name { color: #1F3F08; }
+.en-deposito .pickup-hora, .en-deposito .pickup-direccion { color: #27500A; }
+.en-deposito .pickup-badge.dep, .en-deposito .pickup-avatar.dep { background: #27500A; color: #fff; }
+.en-deposito .btn-conf-on.btn-conf-deposito { background: #3F7A14; color: #fff; border-color: #27500A; }
+.en-deposito .btn-conf-on.btn-conf-deposito:hover { background: #336310; }
+.en-deposito .btn-cobranza.cargada { background: #EAF3DE; }
