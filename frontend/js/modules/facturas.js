@@ -123,9 +123,13 @@
     document.getElementById('btn-sobreescribir').addEventListener('click', () => (
       loteConflictos ? continuarLoteSobreescribiendo() : ejecutarCarga(true)
     ));
-    document.getElementById('btn-omitir').addEventListener('click', () => (
-      loteConflictos ? cerrarLoteSinSobreescribir() : ejecutarCarga(false)
-    ));
+    document.getElementById('btn-omitir').addEventListener('click', () => {
+      if (loteConflictos) return cerrarLoteSinSobreescribir();
+      // Si la confirmación vino del 409 "ya fue cargada", volver a cargar sin sobreescribir
+      // daría el mismo 409: se cierra y listo.
+      if (document.getElementById('btn-omitir').textContent === 'No, dejarla como está') { hide('fac-confirm'); return; }
+      ejecutarCarga(false);
+    });
     document.getElementById('btn-revisar-reload').addEventListener('click', () => {
       revisarLoaded = false;
       loadRevisar();
@@ -145,6 +149,7 @@
 
   function resetCargarUI() {
     hide('fac-confirm');
+    document.getElementById('btn-omitir').textContent = 'No, omitir las repetidas';
     hide('fac-resumen');
     hide('fac-no-enc');
     hide('fac-anom');
@@ -226,7 +231,20 @@
       // Invalidar caché de la pestaña Revisar para que recargue cuando se abra
       revisarLoaded = false;
     } catch (err) {
-      NovaUtils.showAlert(alertBox, 'Error al cargar la factura: ' + err.message, 'error');
+      // La factura ya estaba cargada pero ninguna guía tenía costo (06/11/2026: las de
+      // impuestos DDP que entraron "sin importe"). El chequeo previo no la frena —mira los
+      // envíos, no la cabecera— y el servidor contesta 409 "ya fue cargada… marcá
+      // sobreescribir": el cartel lo decía pero el botón no aparecía. Ahora se abre la
+      // misma confirmación que cuando hay guías repetidas.
+      if (!sobreescribir && (err.status === 409 || /ya fue cargada/i.test(err.message || ''))) {
+        document.getElementById('fac-confirm-msg').innerHTML =
+          `<strong>⚠ ${esc(err.message)}</strong><br>
+          Sobreescribir reemplaza la carga anterior de esta factura por la de este PDF.`;
+        show('fac-confirm');
+        document.getElementById('btn-omitir').textContent = 'No, dejarla como está';
+      } else {
+        NovaUtils.showAlert(alertBox, 'Error al cargar la factura: ' + err.message, 'error');
+      }
     } finally {
       cargaEnCurso = false;
       botonesDeCarga(false);

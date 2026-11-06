@@ -243,6 +243,44 @@ async function main() {
   const facturasJs = fs.readFileSync(path.join(__dirname, '..', '..', 'frontend', 'js', 'modules', 'facturas.js'), 'utf8');
   check('la pantalla de Facturas dice con todas las letras que es de impuestos', /Factura de IMPUESTOS DDP/.test(facturasJs) && /no_ddp/.test(facturasJs));
 
+  // ── 9. Pantalla: la factura ya cargada ofrece el botón de sobreescribir (06/11/2026) ──
+  // Lo que vio Felipe: una factura de impuestos que había entrado "sin importe" (ninguna
+  // guía con costo) se vuelve a subir, el cartel dice "marcá sobreescribir" y el botón no
+  // aparecía, porque el chequeo previo mira los envíos (0 con costo) y no la cabecera.
+  let chromium = null;
+  try { ({ chromium } = require('playwright')); } catch { chromium = null; }
+  if (chromium) {
+    console.log('\n9. Pantalla: factura ya cargada → botón "Sí, sobreescribir"\n');
+    const pdfSinEnvio = Buffer.from(facturaImpuestos({ numero: '0001-00999777', guias: [{ guia: '1Z327W098888888888', importe: 12.5 }] }));
+    const tmpPdf = path.join(require('os').tmpdir(), 'fac-imp-9.pdf'); fs.writeFileSync(tmpPdf, pdfSinEnvio);
+    // Primera carga por API (la guía no tiene envío: ninguna con costo).
+    const fd1 = new FormData(); fd1.append('pdf', new Blob([pdfSinEnvio], { type: 'application/pdf' }), 'f.pdf');
+    const c1 = await fetch(`${BASE}/api/facturas/cargar`, { method: 'POST', headers: { Cookie: H.Cookie }, body: fd1 });
+    check('la primera carga entra (guía sin envío)', c1.status === 200, String(c1.status));
+    const exe = [process.env.CHROME_PATH, '/opt/pw-browsers/chromium/chrome-linux/chrome', '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'].filter(Boolean).find((p) => fs.existsSync(p));
+    const browser = await chromium.launch(exe ? { executablePath: exe } : {});
+    const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+    await ctx.addCookies([{ name: 'nova_session', value: TOKEN, url: BASE }]);
+    const page = await ctx.newPage();
+    const errores = []; page.on('pageerror', (e) => errores.push(String(e)));
+    await page.goto(`${BASE}/pages/facturas.html`); await esperar(1500);
+    await page.setInputFiles('#fac-file-input', [tmpPdf]); await esperar(300);
+    await page.click('#btn-cargar');
+    await page.waitForFunction(() => !document.getElementById('fac-confirm').classList.contains('hidden'), { timeout: 20000 }).catch(() => {});
+    const confVisible = await page.$eval('#fac-confirm', (e) => !e.classList.contains('hidden'));
+    const msg = await page.$eval('#fac-confirm-msg', (e) => e.textContent);
+    check('al subirla de nuevo aparece la confirmación con "Sí, sobreescribir" (no solo el cartel rojo)', confVisible && /ya fue cargada/.test(msg) && await page.$eval('#btn-sobreescribir', (b) => !b.disabled), msg.slice(0, 120));
+    check('   y el otro botón dice "No, dejarla como está"', (await page.$eval('#btn-omitir', (b) => b.textContent.trim())) === 'No, dejarla como está');
+    await page.click('#btn-sobreescribir');
+    await page.waitForFunction(() => !document.getElementById('fac-resumen').classList.contains('hidden') || !document.getElementById('fac-resultado').classList.contains('hidden'), { timeout: 20000 }).catch(() => {});
+    await esperar(500);
+    const cab = await (await fetch(`${BASE}/api/facturas/sin-envio?todo=1`, { headers: H })).json();
+    const l9 = (Array.isArray(cab) ? cab : (cab.guias || [])).filter((g) => g.numero_guia === '1Z327W098888888888');
+    check('"Sí, sobreescribir" recarga la factura: una sola fila de la guía (reemplazó, no duplicó)', l9.length === 1 && cerca(l9[0].costo_total, 12.5), JSON.stringify(l9));
+    check('sin errores de JavaScript', errores.length === 0, errores.slice(0, 2).join(' | '));
+    await browser.close();
+  }
+
   console.log('\n' + '─'.repeat(60));
   console.log(`${ok} pasaron · ${fail} fallaron`);
   matar();
