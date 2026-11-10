@@ -121,7 +121,7 @@ async function listarSalidas({ desde, hasta } = {}) {
       -- muestra como "En borrador #N" y el clic lo abre en Liquidaciones. El más nuevo si
       -- hubiera varios (misma subconsulta que listarPendientesPorCliente).
       (SELECT l.id FROM liquidacion_items li JOIN liquidaciones l ON l.id = li.liquidacion_id
-        WHERE li.envio_id = e.id AND l.estado = 'borrador' ORDER BY l.id DESC LIMIT 1) AS borrador_id,
+        WHERE li.envio_id = e.id AND l.estado = 'borrador' AND l.anulada_at IS NULL ORDER BY l.id DESC LIMIT 1) AS borrador_id,
       c.id                  AS cliente_id,
       COALESCE(NULLIF(c.nombre_nova,''), c.nombre) AS cliente_nombre,
       c.tipo_cobro,

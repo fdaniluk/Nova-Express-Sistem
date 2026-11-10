@@ -116,6 +116,7 @@ async function chequeoEnvioEnVariasLiquidaciones(db) {
     JOIN liquidaciones l ON l.id = li.liquidacion_id
     LEFT JOIN envios   e ON e.id = li.envio_id
     LEFT JOIN clientes c ON c.id = e.cliente_id
+    WHERE l.anulada_at IS NULL
     GROUP BY li.envio_id
     HAVING COUNT(*) > 1
     ORDER BY SUM(li.total_usd) DESC
@@ -793,7 +794,7 @@ async function chequeoBorradoresViejos(db) {
            (SELECT COUNT(*) FROM liquidacion_items li WHERE li.liquidacion_id = l.id) AS envios
     FROM liquidaciones l
     LEFT JOIN clientes c ON c.id = l.cliente_id
-    WHERE l.estado = 'borrador'
+    WHERE l.estado = 'borrador' AND l.anulada_at IS NULL
       AND COALESCE(l.fecha, DATE(l.created_at)) < ?
     ORDER BY l.fecha
   `).all(corte);

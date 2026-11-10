@@ -858,6 +858,10 @@
     document.getElementById('btn-hist-filtrar').addEventListener('click', loadHistorial);
   }
 
+  function escAttr(v) {
+    return String(v == null ? '' : v).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
   async function loadHistorial() {
     const params = {};
     const cid = document.getElementById('hist-cliente').value;
@@ -875,18 +879,19 @@
         return;
       }
       tbody.innerHTML = list.map((l) => `
-        <tr>
+        <tr class="${l.estado === 'anulada' ? 'liq-fila-anulada' : ''}">
           <td>${NovaUtils.formatDate(l.fecha)}</td>
           <td><strong>${l.cliente_nombre}</strong></td>
           <td>${NovaUtils.formatDate(l.periodo_desde)} – ${NovaUtils.formatDate(l.periodo_hasta)}</td>
           <td class="n">${l.cantidad_envios}${l.cantidad_cargos_anteriores ? ` <span class="liq-chip cargo-ant" title="Cargos de envíos anteriores incluidos en esta liquidación">+${l.cantidad_cargos_anteriores} cargo${l.cantidad_cargos_anteriores === 1 ? '' : 's'}</span>` : ''}</td>
           <td class="n"><strong>${NovaUtils.formatMoney(l.total)}</strong></td>
-          <td><span class="liq-chip ${l.estado === 'confirmada' ? 'confirmada' : 'borrador'}">${l.estado}</span> <span class="liq-num-id">#${l.id}</span></td>
+          <td><span class="liq-chip ${l.estado === 'confirmada' ? 'confirmada' : l.estado === 'anulada' ? 'anulada' : 'borrador'}"${l.estado === 'anulada' ? ` title="Anulada el ${escAttr(String(l.anulada_at || '').slice(0, 16))}${l.anulada_por ? ' por ' + escAttr(l.anulada_por) : ''}: ${escAttr(l.anulada_motivo || '')}"` : ''}>${l.estado}</span> <span class="liq-num-id">#${l.id}</span>${l.estado === 'anulada' && l.anulada_motivo ? `<div class="liq-anulada-motivo">${escAttr(l.anulada_motivo)}</div>` : ''}</td>
           <td class="acciones">
             <button type="button" class="btn btn-sm btn-outline" data-export="${l.id}">Excel</button>
             <button type="button" class="btn btn-sm btn-outline" data-export-pdf="${l.id}">PDF</button>
-            ${l.estado !== 'confirmada' ? `<button type="button" class="btn btn-sm btn-coral" data-retomar="${l.id}" title="Abre este borrador en Crear liquidación con sus envíos ya tildados, para revisarlo, bajar el Excel y confirmarlo.">Retomar</button>` : ''}
-            ${l.estado !== 'confirmada' ? `<button type="button" class="btn btn-sm btn-danger" data-borrar="${l.id}" title="Borrar este borrador. No toca ningún envío: los envíos de un borrador siguen pendientes.">Borrar</button>` : ''}
+            ${l.estado === 'confirmada' ? `<button type="button" class="btn btn-sm btn-danger-outline" data-anular="${l.id}" data-cliente="${escAttr(l.cliente_nombre)}" data-total="${l.total}" title="Anular esta liquidación (queda en el historial como anulada). Sus envíos vuelven a pendientes para corregirlos y liquidarlos de nuevo.">Anular</button>` : ''}
+            ${l.estado === 'borrador' ? `<button type="button" class="btn btn-sm btn-coral" data-retomar="${l.id}" title="Abre este borrador en Crear liquidación con sus envíos ya tildados, para revisarlo, bajar el Excel y confirmarlo.">Retomar</button>` : ''}
+            ${l.estado === 'borrador' ? `<button type="button" class="btn btn-sm btn-danger" data-borrar="${l.id}" title="Borrar este borrador. No toca ningún envío: los envíos de un borrador siguen pendientes.">Borrar</button>` : ''}
           </td>
         </tr>`
       ).join('');
@@ -898,6 +903,28 @@
       tbody.querySelectorAll('[data-export-pdf]').forEach((btn) => {
         btn.addEventListener('click', () => {
           window.open(NovaAPI.liquidaciones.exportarPdfUrl(btn.dataset.exportPdf), '_blank');
+        });
+      });
+      // Anular una confirmada (10/11/2026): pide el motivo y avisa qué pasa.
+      tbody.querySelectorAll('[data-anular]').forEach((btn) => {
+        btn.addEventListener('click', async () => {
+          const id = btn.dataset.anular;
+          const motivo = prompt(
+            `Anular la liquidación #${id} de ${btn.dataset.cliente} (USD ${NovaUtils.formatMoney(btn.dataset.total)}).\n\n`
+            + 'Queda en el historial como anulada. Sus envíos y cargos vuelven a pendientes para corregirlos y liquidarlos de nuevo, '
+            + 'y en la cuenta corriente se asienta la nota de crédito.\n\nMotivo de la anulación:'
+          );
+          if (motivo == null) return;
+          if (motivo.trim().length < 3) { NovaUtils.showAlert(alertBox, 'Para anular hay que escribir el motivo.', 'error'); return; }
+          btn.disabled = true;
+          try {
+            const r = await NovaAPI.liquidaciones.anular(id, motivo.trim());
+            NovaUtils.showAlert(alertBox, `Liquidación #${id} anulada. ${r.envios_liberados} envío${r.envios_liberados === 1 ? '' : 's'} ${r.envios_liberados === 1 ? 'volvió' : 'volvieron'} a pendientes de liquidar.`, 'success');
+            loadHistorial();
+          } catch (err) {
+            btn.disabled = false;
+            NovaUtils.showAlert(alertBox, err.message, 'error');
+          }
         });
       });
       tbody.querySelectorAll('[data-retomar]').forEach((btn) => btn.addEventListener('click', () => retomarBorrador(btn.dataset.retomar)));

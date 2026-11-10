@@ -72,7 +72,8 @@ function armarDocumento(liq) {
   const tipoLabel = tipoCobroLabel(liq.tipo_cobro);
 
   const cabecera = {
-    titulo: `LIQUIDACIÓN ${tipoLabel}`,
+    // Una anulada se puede bajar (queda de registro), pero el papel lo dice bien grande.
+    titulo: `LIQUIDACIÓN ${tipoLabel}${liq.estado === 'anulada' ? ' — ANULADA' : ''}`,
     subtitulo: 'Nova Express · Courier internacional',
     datos: [
       ['Cliente', liq.cliente_nombre || ''],

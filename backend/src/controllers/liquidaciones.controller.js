@@ -97,6 +97,21 @@ async function eliminar(req, res, next) {
   }
 }
 
+// POST /api/liquidaciones/:id/anular { motivo } — anula una CONFIRMADA (10/11/2026).
+async function anular(req, res, next) {
+  try {
+    const liq = await liquidacionModel.anular(req.params.id, {
+      usuario: req.usuario ? req.usuario.usuario : null,
+      motivo: req.body && req.body.motivo,
+    });
+    if (!liq) return res.status(404).json({ error: 'Liquidación no encontrada' });
+    res.json(liq);
+  } catch (e) {
+    if (e.status === 400 || e.status === 409) return res.status(e.status).json({ error: e.message });
+    next(e);
+  }
+}
+
 async function listar(req, res, next) {
   try {
     res.json(await liquidacionModel.listar(req.query));
@@ -208,4 +223,4 @@ async function cotizar(req, res, next) {
   }
 }
 
-module.exports = { pendientes, preview, crear, confirmar, eliminar, listar, obtener, exportar, cotizar };
+module.exports = { pendientes, preview, crear, confirmar, eliminar, anular, listar, obtener, exportar, cotizar };

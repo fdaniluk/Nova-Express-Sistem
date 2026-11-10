@@ -282,3 +282,11 @@ th.liq-interno { color: #166534; font-size: .7rem; }
 /* Cargos de envíos anteriores con tilde (03/11/2026) */
 .liq-pend-cargos th.liq-chk-col, .liq-pend-cargos td.liq-chk-col { width: 28px; text-align: center; }
 .liq-pend-cargos tr:has(.liq-cargo-ant-chk:not(:checked)) td { color: var(--color-muted); }
+
+/* Liquidación anulada (10/11/2026): queda en el historial, apagada y tachada. */
+.liq-chip.anulada { background: #fee2e2; color: #991b1b; }
+.liq-fila-anulada td { color: #9CA3AF; }
+.liq-fila-anulada td strong { color: #6B7280; text-decoration: line-through; font-weight: 600; }
+.liq-anulada-motivo { font-size: 0.78rem; color: #991b1b; margin-top: 2px; max-width: 260px; white-space: normal; }
+.btn-danger-outline { background: #fff; color: #B91C1C; border: 1px solid #FCA5A5; }
+.btn-danger-outline:hover { background: #FEF2F2; border-color: #B91C1C; }

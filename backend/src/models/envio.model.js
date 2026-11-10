@@ -624,7 +624,7 @@ async function listarPendientesPorCliente(filtros = {}) {
            -- Pendiente 52: si el envío ya está en un BORRADOR, la pantalla lo marca para que no
            -- se arme un segundo borrador con los mismos envíos (el más nuevo si hubiera varios).
            (SELECT l.id FROM liquidacion_items li JOIN liquidaciones l ON l.id = li.liquidacion_id
-             WHERE li.envio_id = e.id AND l.estado = 'borrador' ORDER BY l.id DESC LIMIT 1) AS borrador_id
+             WHERE li.envio_id = e.id AND l.estado = 'borrador' AND l.anulada_at IS NULL ORDER BY l.id DESC LIMIT 1) AS borrador_id
     FROM envios e
     JOIN clientes c ON c.id = e.cliente_id
     -- NO VOLO: un envio que no salio no se le factura al cliente, asi que ni siquiera

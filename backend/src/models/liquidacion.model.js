@@ -29,6 +29,15 @@ function cerrarDetalle(lineas, adicional) {
 
 async function migrarColumnas() {
   const db = getDb();
+  // Anulación de liquidaciones confirmadas (10/11/2026). La columna `estado` tiene un CHECK
+  // ('borrador','confirmada') que SQLite no deja cambiar sin rehacer la tabla, así que la
+  // anulada se guarda como estado 'borrador' + anulada_at: todo lo que suma plata filtra por
+  // 'confirmada' y la deja afuera sola; lo que mira borradores filtra además anulada_at IS NULL.
+  // Hacia afuera (API y pantallas) el estado es 'anulada'.
+  const colsLiq = (await db.prepare("PRAGMA table_info(liquidaciones)").all()).map((c) => c.name);
+  for (const col of ['anulada_at', 'anulada_por', 'anulada_motivo']) {
+    if (!colsLiq.includes(col)) await db.prepare(`ALTER TABLE liquidaciones ADD COLUMN ${col} TEXT`).run();
+  }
   const rows = await db.prepare("PRAGMA table_info(liquidacion_items)").all();
   const cols = rows.map(c => c.name);
   if (!cols.includes('precio_cotizado')) {
@@ -223,7 +232,7 @@ async function borradoresConEnvios(envio_ids) {
        FROM liquidacion_items li
        JOIN liquidaciones l ON l.id = li.liquidacion_id
        JOIN envios e ON e.id = li.envio_id
-       WHERE l.estado = 'borrador' AND li.envio_id IN (${placeholders})
+       WHERE l.estado = 'borrador' AND l.anulada_at IS NULL AND li.envio_id IN (${placeholders})
        ORDER BY l.id, li.envio_id`
     )
     .all(...envio_ids);
@@ -484,6 +493,11 @@ async function confirmar(id, envioIdsEsperados = null, usuario = null, formato =
   const db = getDb();
   const liq = await buscarPorId(id);
   if (!liq) return null;
+  if (liq.estado === 'anulada') {
+    const err = new Error('La liquidación está anulada: no se puede confirmar. Armá una nueva con esos envíos.');
+    err.status = 409;
+    throw err;
+  }
   if (liq.estado === 'confirmada') {
     const err = new Error('La liquidación ya está confirmada');
     err.status = 400;
@@ -738,7 +752,7 @@ async function buscarPorId(id) {
   const total_cargos_anteriores = redondear2(cargos_anteriores.reduce((s, c) => s + c.monto, 0));
   const conceptos = await conceptosDe(id, db);
   const total_conceptos = redondear2(conceptos.reduce((s, c) => s + c.monto, 0));
-  return { ...liq, items, cargos, cargos_anteriores, total_envios, total_cargos_anteriores, conceptos, total_conceptos };
+  return { ...liq, estado: liq.anulada_at ? 'anulada' : liq.estado, items, cargos, cargos_anteriores, total_envios, total_cargos_anteriores, conceptos, total_conceptos };
 }
 
 async function listar(filtros = {}) {
@@ -765,13 +779,88 @@ async function listar(filtros = {}) {
     sql += ' AND l.fecha <= ?';
     params.push(filtros.fecha_hasta);
   }
-  if (filtros.estado) {
-    sql += ' AND l.estado = ?';
+  if (filtros.estado === 'anulada') {
+    sql += ' AND l.anulada_at IS NOT NULL';
+  } else if (filtros.estado) {
+    sql += ' AND l.estado = ? AND l.anulada_at IS NULL';
     params.push(filtros.estado);
   }
 
   sql += ' ORDER BY l.fecha DESC, l.id DESC';
-  return db.prepare(sql).all(...params);
+  const rows = await db.prepare(sql).all(...params);
+  return rows.map((r) => (r.anulada_at ? { ...r, estado: 'anulada' } : r));
+}
+
+/**
+ * ANULA una liquidación confirmada (10/11/2026, pedido de Felipe: "para casos en los que
+ * haya errores"). Cualquier usuario con acceso a Liquidaciones, sin límite de tiempo.
+ * No se borra nada: queda en el historial como "anulada" con quién, cuándo y por qué.
+ *   · Los envíos vuelven a "sin liquidar" (se pueden corregir y liquidar de nuevo).
+ *   · Los cargos posteriores que entraron en ella vuelven a pendientes.
+ *   · En la cuenta corriente NO se borra el débito: se asienta una nota de crédito por el
+ *     mismo importe contra la LQ y su saldo queda en cero.
+ *   · Deja de contar en Dashboard, Comisiones y Analítica (todo eso filtra 'confirmada').
+ * Freno: si la LQ ya tiene pagos imputados (o una NC), primero hay que deshacer eso en
+ * Cobranzas; si no, quedaría un pago aplicado a una deuda que ya no existe.
+ */
+async function anular(id, { usuario = null, motivo = '' } = {}) {
+  const db = getDb();
+  const liq = await buscarPorId(id);
+  if (!liq) return null;
+  const fallo = (msg, status = 409) => { const e = new Error(msg); e.status = status; return e; };
+  if (liq.estado === 'anulada') throw fallo('La liquidación ya está anulada.');
+  if (liq.estado !== 'confirmada') throw fallo('Es un borrador: no hace falta anularlo, se borra.');
+  motivo = String(motivo || '').trim();
+  if (motivo.length < 3) throw fallo('Escribí el motivo de la anulación.', 400);
+  if (motivo.length > 300) motivo = motivo.slice(0, 300);
+
+  const cpte = await db.prepare('SELECT * FROM cc_comprobantes WHERE liquidacion_id = ? AND anulado_at IS NULL').get(id);
+  if (cpte) {
+    const imput = await db.prepare(
+      `SELECT COUNT(*) AS n, COALESCE(SUM(importe), 0) AS total FROM cc_recibo_imputaciones
+       WHERE comprobante_id = ? AND estado <> 'revertida'`
+    ).get(cpte.id);
+    const cobrado = redondear2((Number(cpte.importe) || 0) - (Number(cpte.saldo) || 0));
+    if ((imput && imput.n > 0) || cobrado > 0.005) {
+      const cuanto = redondear2(Math.max(cobrado, imput ? Number(imput.total) || 0 : 0));
+      throw fallo(
+        `No se puede anular: la liquidación #${liq.id} ya tiene pagos o notas de crédito aplicados en la cuenta corriente `
+        + `(USD ${cuanto.toFixed(2)}). Primero hay que deshacer eso en Cobranzas.`
+      );
+    }
+  }
+
+  const envioIds = liq.items.map((i) => i.envio_id);
+  const hoy = hoyLocal();
+  await db.transaction(async () => {
+    await db.prepare(
+      `UPDATE liquidaciones SET estado = 'borrador', anulada_at = datetime('now', 'localtime'),
+         anulada_por = ?, anulada_motivo = ?, updated_at = datetime('now', 'localtime')
+       WHERE id = ?`
+    ).run(usuario, motivo, id);
+    // Los envíos de ESTA liquidación vuelven a pendientes (solo los que apuntan a ella).
+    await db.prepare(
+      `UPDATE envios SET liquidado = 0, fecha_liquidacion = NULL, liquidacion_id = NULL,
+         updated_at = datetime('now', 'localtime')
+       WHERE liquidacion_id = ?`
+    ).run(id);
+    // Los cargos posteriores vuelven a pendientes: los levanta la próxima liquidación.
+    await cargosModel.liberarDeLiquidacion(id, db);
+    // Cuenta corriente: contraasiento. La LQ queda con saldo 0 y la NC la referencia.
+    if (cpte) {
+      await db.prepare(
+        `INSERT INTO cc_comprobantes (cliente_id, razon_social_id, libro, tipo, numero, fecha, moneda,
+           importe, tc_dia, importe_usd, importe_ars, saldo, referencia_id, descripcion, origen, creado_por)
+         VALUES (?, ?, ?, 'NC', ?, ?, ?, ?, ?, ?, ?, 0, ?, ?, 'sistema', ?)`
+      ).run(
+        cpte.cliente_id, cpte.razon_social_id, cpte.libro, `NC-LQ-${id}`, hoy, cpte.moneda,
+        cpte.importe, cpte.tc_dia, cpte.importe_usd, cpte.importe_ars, cpte.id,
+        `Anulación de la liquidación #${id}: ${motivo}`, usuario
+      );
+      await db.prepare('UPDATE cc_comprobantes SET saldo = 0 WHERE id = ?').run(cpte.id);
+    }
+  });
+  return { ...(await buscarPorId(id)), envios_liberados: envioIds.length };
 }
 
 /**
@@ -783,8 +872,13 @@ async function eliminarBorrador(id) {
   const db = getDb();
   const liq = await buscarPorId(id);
   if (!liq) return null;
+  if (liq.estado === 'anulada') {
+    const err = new Error('La liquidación está anulada: queda en el historial como registro, no se borra.');
+    err.status = 409;
+    throw err;
+  }
   if (liq.estado === 'confirmada') {
-    const err = new Error('La liquidación está confirmada: no se puede borrar (habría que anularla, y eso es otra operación).');
+    const err = new Error('La liquidación está confirmada: no se puede borrar. Si tiene un error, anulala desde el historial.');
     err.status = 409;
     throw err;
   }
@@ -806,6 +900,7 @@ async function eliminarBorrador(id) {
 module.exports = {
   migrarColumnas,
   eliminarBorrador,
+  anular,
   borradoresConEnvios,
   preview,
   crear,
