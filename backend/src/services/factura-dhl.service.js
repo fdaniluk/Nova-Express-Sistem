@@ -140,6 +140,8 @@ const NOMBRES_DHL = new Set([
   'restricted destination',
   'emergency situation',
   'duties taxes paid',
+  'duties and taxes paid',
+  'import export duties',
   'duty tax importer',
   'duty tax paid',
   'address correction',
@@ -248,7 +250,7 @@ function leerDetalle(paginas, advertencias) {
       }
       // Marca de IVA: hay tantas como cargos, en el mismo orden (k-ésima marca → k-ésimo cargo).
       if (marcas.length === cargos.length) marcas.forEach((m, i) => { cargos[i].gravado = m.s.trim() === 'S'; });
-      for (const cg of cargos) cg.nombre = cg.nombre.replace(/\s+/g, ' ').replace(/\s*-\s*$/, '').trim();
+      for (const cg of cargos) cg.nombre = cg.nombre.replace(/\s+/g, ' ').replace(/\s*\/\s*/g, '/').replace(/\s*-\s*$/, '').trim();
       if (importes.length === cargos.length) {
         cargos.forEach((cg, i) => { cg.monto = parseImporte(importes[i].s.trim()); });
       } else {
@@ -369,9 +371,18 @@ function extraerFacturaDHLDesdePaginas(paginas) {
     advertencias.push({ tipo: 'sin_guias', detalle: 'No se detectó ninguna guía en el PDF. Puede que DHL haya cambiado el formato o que el archivo no sea una factura.' });
   }
 
+  // Factura de DERECHOS E IMPUESTOS EN DESTINO de DHL (10/11/2026, 1700A00045043): todas
+  // las filas son producto "Z" (DERECHO IMPORTAC. EN DESTINO) con cargos "DUTIES AND TAXES
+  // PAID" / "IMPORT/EXPORT DUTIES". Es el equivalente a la factura de impuestos DDP de UPS:
+  // no es costo de flete, se le pega al envío como impuestos y genera el cargo al cliente.
+  const esImpuestos = guias.length > 0 && guias.every((g) => g.producto === 'Z');
+  if (esImpuestos) {
+    for (const g of guias) { g.neto = null; g.flete_neto = null; g.fuel = null; g.peso = null; }
+  }
+
   return {
     courier: 'DHL',
-    tipo: 'flete',
+    tipo: esImpuestos ? 'impuestos' : 'flete',
     numero_factura,
     fecha_factura,
     guias,
@@ -394,7 +405,11 @@ function extraerFacturaDHLDesdePaginas(paginas) {
 // Detecta el courier por el texto del PDF y usa el lector que corresponde.
 async function extraerFacturaCourier(buffer, extraerUPS) {
   const paginas = await leerPaginas(buffer);
-  if (esFacturaDHL(paginas.map(textoDe).join('\n'))) return extraerFacturaDHLDesdePaginas(paginas);
+  const texto = paginas.map(textoDe).join('\n');
+  if (esFacturaDHL(texto)) return extraerFacturaDHLDesdePaginas(paginas);
+  // "Factura - Liquidación de gastos" de UPS (flete de importación a cobrar en destino).
+  const gastos = require('./factura-ups-gastos.service');
+  if (gastos.esLiquidacionDeGastosUPS(texto)) return gastos.extraerLiquidacionGastosUPSDesdePaginas(paginas);
   const r = await extraerUPS(buffer);
   return { courier: 'UPS', ...r };
 }
