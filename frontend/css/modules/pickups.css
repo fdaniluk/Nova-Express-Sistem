@@ -1216,3 +1216,9 @@
 .semana-row.dep { background: #C6E6A1; border-left: 4px solid #4D8A1E; }
 .semana-row.dep:hover { background: #B5DC7E; }
 .semana-row.dep .semana-row-badge.dep { background: #27500A; color: #fff; }
+
+/* Semana en celular: el nombre del cliente en su propio renglón (antes quedaba "FI…"). */
+@media (max-width: 600px) {
+  .semana-row { flex-wrap: wrap; row-gap: 4px; }
+  .semana-row-name { flex: 1 1 calc(100% - 24px); white-space: normal; }
+}

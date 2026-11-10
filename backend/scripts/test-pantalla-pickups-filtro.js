@@ -123,6 +123,33 @@ const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0
   await page.click('#resumen-semana [data-action="filtro-todos"]'); await esperar(400);
   check('   "Ver todos" en la semana lo saca', (await filasSem()).length === 6);
   check('sin errores de JavaScript', errores.length === 0, errores.slice(0, 2).join(' | '));
+
+  console.log('\nCelular (iPhone 13): nada se sale de la pantalla y los filtros se pueden tocar\n');
+  const { devices } = require('playwright');
+  const ctxM = await browser.newContext({ ...devices['iPhone 13'] });
+  await ctxM.addCookies([{ name: 'nova_session', value: TOKEN, url: BASE }]);
+  const m = await ctxM.newPage();
+  const erroresM = []; m.on('pageerror', (e) => erroresM.push(String(e)));
+  await m.goto(`${BASE}/pages/pickups.html`); await esperar(2000);
+  await m.click('#btn-next-week'); await esperar(800);
+  await m.click(`.day-pill[data-ymd="${fL}"]`); await esperar(600);
+  const desborde = () => m.evaluate(() => ({ sw: document.documentElement.scrollWidth, iw: window.innerWidth, fuera: [...document.querySelectorAll('.resumen-bar:not(.resumen-semana) .resumen-card, #vista-dia .pickup-card-v2, #vista-semana:not(.hidden) .resumen-card, #vista-semana:not(.hidden) .semana-row')].filter((e) => e.offsetParent && (e.getBoundingClientRect().right > window.innerWidth + 1 || e.getBoundingClientRect().left < -1)).length }));
+  let d = await desborde();
+  check('Día en celular: sin scroll horizontal y ninguna tarjeta ni botón fuera de la pantalla', d.sw <= d.iw + 1 && d.fuera === 0, JSON.stringify(d));
+  const alto = await m.$eval('#count-dep', (b) => b.getBoundingClientRect().height);
+  check('los botones de filtro tienen alto cómodo para el dedo (≥ 32 px)', alto >= 32, String(alto));
+  if (process.env.SHOT_M) await m.screenshot({ path: process.env.SHOT_M });
+  await m.tap('#count-dep'); await esperar(400);
+  const visM = await m.$$eval('#pickups-dia-list .pickup-card-v2', (cs) => cs.length);
+  check('tocar "en depósito" con el dedo filtra (quedan 2)', visM === 2 && await m.$eval('#count-dep', (b) => b.getAttribute('aria-pressed') === 'true'), String(visM));
+  await m.tap('#btn-vista-semana'); await esperar(500);
+  d = await desborde();
+  check('Semana en celular: sin scroll horizontal, barra y filas dentro de la pantalla', d.sw <= d.iw + 1 && d.fuera === 0, JSON.stringify(d));
+  check('   y mantiene el filtro: solo filas en depósito', await m.$$eval('#semana-list .semana-row', (rs) => rs.length === 2 && rs.every((r) => r.classList.contains('dep'))));
+  if (process.env.SHOT_MS) await m.screenshot({ path: process.env.SHOT_MS });
+  await m.tap('#resumen-semana [data-action="filtro-todos"]'); await esperar(400);
+  check('   "Ver todos" con el dedo lo saca', await m.$$eval('#semana-list .semana-row', (rs) => rs.length === 6));
+  check('sin errores de JavaScript en celular', erroresM.length === 0, erroresM.slice(0, 2).join(' | '));
   await browser.close();
 
   matar();
