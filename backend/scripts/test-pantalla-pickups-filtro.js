@@ -107,6 +107,21 @@ const iso = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0
   await page.click(`#pickup-card-${cam.id} [data-action="conf-deposito"]`); await esperar(1200);
   check('con el filtro "en camioneta" puesto, confirmar depósito saca la tarjeta de la lista y el contador baja a 0', (await visibles()).length === 0 && (await page.$eval('#count-cam b', (b) => b.textContent)) === '0' && (await page.$eval('#count-dep b', (b) => b.textContent)) === '2', JSON.stringify(await visibles()));
   await page.click('#btn-filtro-todos'); await esperar(300);
+  console.log('\nVista Semana: mismos filtros, totales de la semana\n');
+  await page.click('#btn-vista-semana'); await esperar(500);
+  if (process.env.SHOT_SEM) await page.screenshot({ path: process.env.SHOT_SEM });
+  const filasSem = () => page.$$eval('#semana-list .semana-row', (rs) => rs.map((r) => r.querySelector('.semana-row-name').textContent.trim() + ':' + [...r.classList].find((c) => ['pend','conf','cam','dep','cliente','courier'].includes(c))));
+  check('la semana lista los 6 (5 del lunes + 1 del martes) y ninguno filtrado', (await filasSem()).length === 6, JSON.stringify(await filasSem()));
+  const totSem = await page.$eval('#resumen-semana', (b) => [...b.querySelectorAll('.resumen-card')].filter((x) => x.style.display !== 'none').map((x) => x.textContent.trim().replace(/\s+/g, ' ')).join(' | '));
+  check('la barra de la semana suma toda la semana: 1 sin confirmar · 1 Ricardo · 1 en camioneta · 2 en depósito · 1 cliente/courier', totSem === '1 sin confirmar | 1 Ricardo | 1 en camioneta | 2 en depósito | 1 cliente/courier', totSem);
+  check('la fila en camioneta tiene fondo azul lleno y la de depósito verde', await page.$eval('#semana-list .semana-row.cam', (r) => getComputedStyle(r).backgroundColor === 'rgb(191, 219, 254)') && await page.$eval('#semana-list .semana-row.dep', (r) => getComputedStyle(r).backgroundColor === 'rgb(198, 230, 161)'));
+  await page.click('#resumen-semana [data-filtro="cam"]'); await esperar(400);
+  check('tocar "en camioneta" en la semana: queda solo el del martes, y el lunes dice "0 de 5 en camioneta"', (await filasSem()).join() === 'FILTRO SA:cam' && /0 de 5 en camioneta/.test(await page.textContent('#semana-list')) && /Ninguno en camioneta/.test(await page.textContent('#semana-list')), JSON.stringify(await filasSem()));
+  await page.click('#btn-vista-dia'); await esperar(400);
+  check('   volver a Día mantiene el filtro (es el mismo)', await page.$eval('#count-cam', (b) => b.getAttribute('aria-pressed') === 'true'));
+  await page.click('#btn-vista-semana'); await esperar(400);
+  await page.click('#resumen-semana [data-action="filtro-todos"]'); await esperar(400);
+  check('   "Ver todos" en la semana lo saca', (await filasSem()).length === 6);
   check('sin errores de JavaScript', errores.length === 0, errores.slice(0, 2).join(' | '));
   await browser.close();
 

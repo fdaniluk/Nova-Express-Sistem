@@ -1207,3 +1207,12 @@
 .en-deposito .btn-conf-on.btn-conf-deposito { background: #3F7A14; color: #fff; border-color: #27500A; }
 .en-deposito .btn-conf-on.btn-conf-deposito:hover { background: #336310; }
 .en-deposito .btn-cobranza.cargada { background: #EAF3DE; }
+
+/* Semana: mismos filtros arriba y filas en camioneta / en depósito con color lleno (10/11/2026). */
+.resumen-semana { margin-bottom: 12px; }
+.semana-row.cam { background: #BFDBFE; border-left: 4px solid #2563EB; }
+.semana-row.cam:hover { background: #A7CCFB; }
+.semana-row.cam .semana-row-badge.cam { background: #1D4ED8; color: #fff; }
+.semana-row.dep { background: #C6E6A1; border-left: 4px solid #4D8A1E; }
+.semana-row.dep:hover { background: #B5DC7E; }
+.semana-row.dep .semana-row-badge.dep { background: #27500A; color: #fff; }

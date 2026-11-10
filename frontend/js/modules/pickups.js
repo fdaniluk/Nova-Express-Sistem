@@ -221,19 +221,19 @@
   const FILTRO_NOMBRE = { pend: 'sin confirmar', conf: 'confirmados por Ricardo', cam: 'en camioneta', dep: 'en depósito', ent: 'de entrega de importación', gris: 'del cliente o del courier' };
   function setFiltro(filtro) {
     filtroEstado = filtroEstado === filtro ? null : filtro;
-    renderVistaDia();
+    render();
   }
+  // Pinta el filtro activo en las dos barras (Día y Semana comparten el filtro).
   function pintarFiltro() {
-    const bar = document.getElementById('resumen-bar');
-    if (!bar) return;
-    bar.classList.toggle('filtrando', !!filtroEstado);
-    bar.querySelectorAll('.resumen-card').forEach((b) => {
-      const activo = b.dataset.filtro === filtroEstado;
-      b.classList.toggle('activo', activo);
-      b.setAttribute('aria-pressed', activo ? 'true' : 'false');
+    document.querySelectorAll('.resumen-bar').forEach((bar) => {
+      bar.classList.toggle('filtrando', !!filtroEstado);
+      bar.querySelectorAll('.resumen-card').forEach((b) => {
+        const activo = b.dataset.filtro === filtroEstado;
+        b.classList.toggle('activo', activo);
+        b.setAttribute('aria-pressed', activo ? 'true' : 'false');
+      });
+      bar.querySelectorAll('.resumen-todos').forEach((t) => t.classList.toggle('hidden', !filtroEstado));
     });
-    const todos = document.getElementById('btn-filtro-todos');
-    if (todos) todos.classList.toggle('hidden', !filtroEstado);
   }
 
   function renderVistaDia() {
@@ -548,21 +548,44 @@
 
   function renderVistaSemana() {
     const hoyYmd = toYMD(new Date());
+    // Totales de la semana para la barra de filtros (mismos criterios que en Día).
+    const bar = document.getElementById('resumen-semana');
+    if (bar) {
+      const n = (f) => pickups.filter((p) => pasaFiltro(p, f)).length;
+      const entregas = pickups.filter((p) => p.entrega_impo);
+      const entHechas = entregas.filter((p) => p.en_deposito_at).length;
+      const set = (f, txt, mostrar = true) => {
+        const b = bar.querySelector(`[data-filtro="${f}"]`);
+        if (!b) return;
+        b.innerHTML = `<i class="rc-dot"></i>${txt}`;
+        b.style.display = mostrar ? '' : 'none';
+      };
+      set('pend', `<b>${n('pend')}</b> sin confirmar`);
+      set('conf', `<b>${n('conf')}</b> Ricardo`);
+      set('cam', `<b>${n('cam')}</b> en camioneta`);
+      set('dep', `<b>${n('dep')}</b> en depósito`);
+      set('ent', `<b>${entHechas}/${entregas.length}</b> entrega${entregas.length !== 1 ? 's' : ''} impo`, entregas.length > 0);
+      set('gris', `<b>${n('gris')}</b> cliente/courier`, n('gris') > 0);
+    }
+    pintarFiltro();
     let html = '<div class="semana-list">';
     for (let i = 0; i < 5; i++) {
       const d = addDays(semanaLunes, i);
       const ymd = toYMD(d);
       const esHoy = ymd === hoyYmd;
-      const delDia = pickups.filter(p => p.fecha === ymd);
-      const countText = delDia.length === 0
+      const todosDelDia = pickups.filter(p => p.fecha === ymd);
+      const delDia = filtroEstado ? todosDelDia.filter((p) => pasaFiltro(p, filtroEstado)) : todosDelDia;
+      const countText = todosDelDia.length === 0
         ? 'sin pickups'
-        : `${delDia.length} pickup${delDia.length !== 1 ? 's' : ''}`;
+        : filtroEstado
+          ? `${delDia.length} de ${todosDelDia.length} ${FILTRO_NOMBRE[filtroEstado] || ''}`
+          : `${todosDelDia.length} pickup${todosDelDia.length !== 1 ? 's' : ''}`;
       const diaLabel = d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric' });
       const diaLabelCap = diaLabel.charAt(0).toUpperCase() + diaLabel.slice(1);
       const hoyBadge = esHoy ? ' <span class="semana-hoy-badge">hoy</span>' : '';
 
       const rowsHtml = delDia.length === 0
-        ? '<div class="semana-empty">Sin pickups programados</div>'
+        ? `<div class="semana-empty">${todosDelDia.length === 0 ? 'Sin pickups programados' : `Ninguno ${FILTRO_NOMBRE[filtroEstado] || ''}`}</div>`
         : delDia.map(p => {
             const sc = estadoPickup(p);
             const badgeLabel = sc === 'cliente' ? (p.entrega_impo ? 'la retira el cliente' : 'lo trae el cliente')
@@ -1167,7 +1190,11 @@
     document.querySelectorAll('#resumen-bar .resumen-card').forEach((b) => {
       b.addEventListener('click', () => setFiltro(b.dataset.filtro));
     });
-    document.getElementById('btn-filtro-todos').addEventListener('click', () => { filtroEstado = null; renderVistaDia(); });
+    document.getElementById('btn-filtro-todos').addEventListener('click', () => { filtroEstado = null; render(); });
+    document.querySelectorAll('#resumen-semana .resumen-card').forEach((b) => {
+      b.addEventListener('click', () => setFiltro(b.dataset.filtro));
+    });
+    document.querySelector('#resumen-semana [data-action="filtro-todos"]').addEventListener('click', () => { filtroEstado = null; render(); });
     document.getElementById('btn-vista-dia').addEventListener('click', () => cambiarVista('dia'));
     document.getElementById('btn-vista-semana').addEventListener('click', () => cambiarVista('semana'));
 
