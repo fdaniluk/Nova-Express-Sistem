@@ -1200,7 +1200,12 @@ router.patch('/:id', async (req, res, next) => {
       }
     });
 
+    // La zona que se muestra = la del servicio usado (13/11/2026): si se cambió el courier
+    // (o el país, o expo/impo) la etiqueta se pone al día. No toca importes.
+    const zonaNueva = await require('../utils/zona-envio').sincronizarZona(db, id);
+
     const respuesta = { ok: true };
+    if (zonaNueva != null) respuesta.zona = zonaNueva;
     if (ordenSalida !== undefined) respuesta.orden_salida = ordenSalida;
     if (avisoZona) respuesta.aviso_zona = avisoZona;
     // Guía corregida (03/11/2026): si la guía nueva figura en una factura cargada "sin

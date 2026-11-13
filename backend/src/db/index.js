@@ -1540,6 +1540,12 @@ async function initSchema() {
   // Otros conceptos de la liquidación (tabla liquidacion_conceptos) — 28/10/2026. Antes
   // migrarColumnas solo corría al crear una liquidación; la tabla se necesita al LEER.
   await require('../models/liquidacion.model').migrarColumnas();
+  // Zona mostrada = zona del servicio usado (13/11/2026): corrige las etiquetas viejas o
+  // vacías que quedaron (18 en producción). Solo la etiqueta; idempotente.
+  try {
+    const cambios = await require('../utils/zona-envio').sincronizarTodas(dbApi);
+    if (cambios.length) console.log(`Migración: zona de ${cambios.length} envío(s) puesta al día → ${cambios.map((c) => `#${c.id} ${c.antes ?? '—'}→${c.ahora}`).join(', ')}`);
+  } catch (e) { console.error('Migración de zonas: ', e.message); }
   await migrateLimpiezaCierre();
   await migrateUpsAreas();
   await migrateCierres();

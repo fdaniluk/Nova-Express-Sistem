@@ -419,6 +419,8 @@ async function crear(data) {
   // Si la guía ya venía en una factura cargada antes (Facturas → "Sin envío"), le llega el
   // costo/peso/impuestos de esa factura ahora mismo, sin recargar el PDF (03/11/2026).
   await require('../services/cruce-facturas.service').paraEnvio(id, db);
+  // La zona que se muestra = la del servicio usado (13/11/2026). Solo la etiqueta.
+  await require('../utils/zona-envio').sincronizarZona(db, id);
   return buscarPorId(id);
 }
 
@@ -614,6 +616,8 @@ async function actualizar(id, data) {
       await tocarDestinatario(data.destinatario_id);
     }
   });
+  // Si cambió el courier, el país o expo/impo, la zona mostrada se pone al día (13/11/2026).
+  await require('../utils/zona-envio').sincronizarZona(db, id);
   return buscarPorId(id);
 }
 
