@@ -3,12 +3,15 @@
 //   · momento = cuando el envío SALE (envios.fecha, no_volo = 0);
 //   · el cambio de vendedor es histórico por fecha (clientes_vendedores.desde/hasta);
 //   · % por vendedor, con excepción opcional por cliente (clientes_vendedores.comision_pct).
+// Kilos (13/11/2026): además de la plata se muestran los kg que lleva cada vendedor. Son los
+// kg FACTURABLES (los que se le cobran al cliente) de los mismos envíos que cuentan arriba.
 // "Nova Express" es la casa (es_casa = 1): sus clientes no generan comisión.
 const { getDb } = require('../db');
 const { utilidadEnvio, SUBQUERY_LIQUIDACION, SUBQUERY_CARGOS } = require('../utils/profit');
 
 const DESDE_SIEMPRE = '2000-01-01';
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
+const kgDe = (n) => { const k = Number(n); return k > 0 ? k : 0; };
 const err = (msg, status = 400) => Object.assign(new Error(msg), { status });
 
 // ── Vendedores ───────────────────────────────────────────────────────────────────
@@ -163,6 +166,7 @@ async function enviosDelPeriodo(desde, hasta) {
     return {
       id: row.id, fecha: row.fecha, numero_guia: row.numero_guia, courier: row.courier, tipo_envio: row.tipo_envio,
       pais_destino: row.pais_destino, cliente_id: row.cliente_id, cliente: row.cliente,
+      kg: r2(kgDe(row.peso_facturable)),
       venta, utilidad, pct, comision: r2(utilidad * pct / 100),
       fuente: profit_real ? 'real' : (row.utilidad_liq != null ? 'liquidación' : 'estimada'),
       vendedor_id: a ? a.vendedor_id : null, vendedor: a ? a.vendedor : null, es_casa: a ? a.es_casa : 0,
@@ -186,15 +190,15 @@ async function resumen(mes, tcManual = null) {
   const vendedores = await listarVendedores();
   const { tc, tc_fuente } = await tipoCambioMes(hasta, tcManual);
   const grupos = new Map(); // vendedor_id (null = sin asignar) → acumulado
-  const nuevo = (id, nombre, es_casa, pct, v = {}) => ({ vendedor_id: id, vendedor: nombre, es_casa, pct, piso_mensual: v.piso_mensual ?? null, piso_moneda: v.piso_moneda || 'ARS', envios: 0, venta: 0, utilidad: 0, comision: 0, clientes: new Map() });
+  const nuevo = (id, nombre, es_casa, pct, v = {}) => ({ vendedor_id: id, vendedor: nombre, es_casa, pct, piso_mensual: v.piso_mensual ?? null, piso_moneda: v.piso_moneda || 'ARS', envios: 0, kg: 0, venta: 0, utilidad: 0, comision: 0, clientes: new Map() });
   for (const v of vendedores) grupos.set(v.id, nuevo(v.id, v.nombre, v.es_casa, v.comision_pct, v));
   grupos.set(null, nuevo(null, 'Sin asignar', 0, 0));
   for (const e of envios) {
     const g = grupos.get(e.vendedor_id) || grupos.get(null);
-    g.envios++; g.venta += e.venta; g.utilidad += e.utilidad; g.comision += e.comision;
+    g.envios++; g.kg += e.kg; g.venta += e.venta; g.utilidad += e.utilidad; g.comision += e.comision;
     let c = g.clientes.get(e.cliente_id);
-    if (!c) { c = { cliente_id: e.cliente_id, cliente: e.cliente, pct: e.pct, pct_origen: e.pct_origen, envios: 0, venta: 0, utilidad: 0, comision: 0 }; g.clientes.set(e.cliente_id, c); }
-    c.envios++; c.venta += e.venta; c.utilidad += e.utilidad; c.comision += e.comision;
+    if (!c) { c = { cliente_id: e.cliente_id, cliente: e.cliente, pct: e.pct, pct_origen: e.pct_origen, envios: 0, kg: 0, venta: 0, utilidad: 0, comision: 0 }; g.clientes.set(e.cliente_id, c); }
+    c.envios++; c.kg += e.kg; c.venta += e.venta; c.utilidad += e.utilidad; c.comision += e.comision;
   }
   // Piso (Felipe, 24/09): el sueldo se compara contra la UTILIDAD que trajo el vendedor.
   // Hasta cubrir el sueldo no cobra nada; de ahí para arriba se lleva su % de la utilidad
@@ -214,14 +218,14 @@ async function resumen(mes, tcManual = null) {
         piso_estado = g.utilidad >= piso_usd ? 'superado' : 'no alcanzado';
       } else { a_pagar = null; piso_estado = 'falta TC'; }
     }
-    return { ...g, venta: r2(g.venta), utilidad: r2(g.utilidad), comision: r2(g.comision), piso_usd, excedente, a_pagar, piso_estado,
-      clientes: [...g.clientes.values()].map((c) => ({ ...c, venta: r2(c.venta), utilidad: r2(c.utilidad), comision: r2(c.comision) })).sort((a, b) => b.utilidad - a.utilidad) };
+    return { ...g, kg: r2(g.kg), venta: r2(g.venta), utilidad: r2(g.utilidad), comision: r2(g.comision), piso_usd, excedente, a_pagar, piso_estado,
+      clientes: [...g.clientes.values()].map((c) => ({ ...c, kg: r2(c.kg), venta: r2(c.venta), utilidad: r2(c.utilidad), comision: r2(c.comision) })).sort((a, b) => b.utilidad - a.utilidad) };
   };
   const lista = [...grupos.values()].filter((g) => g.vendedor_id !== null && (g.envios > 0 || vendedores.find((v) => v.id === g.vendedor_id && v.activo))).map(fin);
   const sin = fin(grupos.get(null));
-  const total = envios.reduce((a, e) => ({ envios: a.envios + 1, venta: a.venta + e.venta, utilidad: a.utilidad + e.utilidad, comision: a.comision + e.comision }), { envios: 0, venta: 0, utilidad: 0, comision: 0 });
+  const total = envios.reduce((a, e) => ({ envios: a.envios + 1, kg: a.kg + e.kg, venta: a.venta + e.venta, utilidad: a.utilidad + e.utilidad, comision: a.comision + e.comision }), { envios: 0, kg: 0, venta: 0, utilidad: 0, comision: 0 });
   const aPagar = lista.reduce((a, g) => a + (g.a_pagar || 0), 0);
-  return { mes, desde, hasta, tc, tc_fuente, vendedores: lista, sin_asignar: sin, total: { envios: total.envios, venta: r2(total.venta), utilidad: r2(total.utilidad), comision: r2(total.comision), a_pagar: r2(aPagar) } };
+  return { mes, desde, hasta, tc, tc_fuente, vendedores: lista, sin_asignar: sin, total: { envios: total.envios, kg: r2(total.kg), venta: r2(total.venta), utilidad: r2(total.utilidad), comision: r2(total.comision), a_pagar: r2(aPagar) } };
 }
 
 async function detalle(mes, vendedorId) {

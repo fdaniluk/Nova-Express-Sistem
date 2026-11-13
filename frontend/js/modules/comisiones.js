@@ -9,6 +9,8 @@
   const fUSD = new Intl.NumberFormat('es-AR', { style: 'currency', currency: 'USD', minimumFractionDigits: 2 });
   const usd = (n) => `<span class="${n < 0 ? 'com-neg' : ''}">${fUSD.format(Number(n) || 0)}</span>`;
   const fARS = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 2 });
+  const fKG = new Intl.NumberFormat('es-AR', { maximumFractionDigits: 1 });
+  const kg = (n) => `${fKG.format(Number(n) || 0)} kg`;
   const pctTxt = (p) => `${Number(p) % 1 ? Number(p).toFixed(1) : Number(p)} %`;
 
   let vendedores = [];
@@ -58,7 +60,7 @@
     const margen = t.venta ? Math.round((t.utilidad / t.venta) * 100) : 0;
     const faltaTC = r.vendedores.some((g) => g.piso_estado === 'falta TC');
     $('r-total').innerHTML = `
-      <div class="com-kpi"><span>Venta</span><b>${fUSD.format(t.venta)}</b><small>${t.envios} envíos en el mes</small></div>
+      <div class="com-kpi"><span>Venta</span><b>${fUSD.format(t.venta)}</b><small>${t.envios} envíos · ${kg(t.kg)} en el mes</small></div>
       <div class="com-kpi"><span>Utilidad</span><b>${fUSD.format(t.utilidad)}</b><small>${margen} % de la venta</small></div>
       <div class="com-kpi"><span>Utilidad sobre sueldos</span><b>${faltaTC ? '—' : fUSD.format(r.vendedores.reduce((a, g) => a + (g.excedente ?? (g.es_casa ? 0 : g.utilidad)), 0))}</b><small>${faltaTC ? 'falta el dólar del mes' : 'lo que queda después de cubrir cada sueldo'}</small></div>
       <div class="com-kpi destacado"><span>A pagar</span><b>${fUSD.format(t.a_pagar)}</b><small>${faltaTC ? 'falta el dólar del mes' : 'el % de cada vendedor sobre esa utilidad'}</small></div>`;
@@ -67,7 +69,7 @@
     const sa = r.sin_asignar;
     $('r-aviso').innerHTML = sa.envios ? `<div class="com-aviso">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-        <div><b>${sa.clientes.length} cliente${sa.clientes.length !== 1 ? 's' : ''} sin vendedor</b> · ${sa.envios} envíos · ${fUSD.format(sa.venta)} de venta y ${fUSD.format(sa.utilidad)} de utilidad que hoy no le cuentan a nadie.</div>
+        <div><b>${sa.clientes.length} cliente${sa.clientes.length !== 1 ? 's' : ''} sin vendedor</b> · ${sa.envios} envíos · ${fUSD.format(sa.venta)} de venta, ${kg(sa.kg)} y ${fUSD.format(sa.utilidad)} de utilidad que hoy no le cuentan a nadie.</div>
         <button type="button" class="btn btn-sm com-aviso-btn" id="r-ir-asignar">Asignar vendedor →</button>
       </div>` : '';
     const ir = $('r-ir-asignar');
@@ -111,6 +113,7 @@
         ${pie && !vacio ? `<div class="com-t-pie">${pie}</div>` : ''}
         <div class="com-t-stats">
           <span><b>${g.envios}</b> envíos</span>
+          <span class="com-kg"><b>${fKG.format(g.kg || 0)}</b> kg</span>
           <span><b>${g.clientes.length}</b> clientes</span>
           <span>utilidad <b>${fUSD.format(g.utilidad)}</b></span>
         </div>
@@ -133,14 +136,14 @@
     const r = resumen;
     const grupos = [...r.vendedores, ...(r.sin_asignar.envios ? [r.sin_asignar] : [])]
       .filter((g) => vendedorActivo == null || String(g.vendedor_id ?? 'sin') === String(vendedorActivo));
-    if (!grupos.length || !r.total.envios) { $('r-tabla').innerHTML = '<tr><td colspan="8" class="empty">Sin envíos en este mes</td></tr>'; return; }
+    if (!grupos.length || !r.total.envios) { $('r-tabla').innerHTML = '<tr><td colspan="9" class="empty">Sin envíos en este mes</td></tr>'; return; }
     const pisoTd = (g) => g.es_casa || g.vendedor_id == null ? '<td class="num">—</td><td class="num">—</td>'
       : `<td class="num">${g.piso_usd != null ? usd(g.piso_usd) : (g.piso_estado === 'falta TC' ? '<span class="com-chip sin">falta dólar</span>' : '—')}</td><td class="num"><b>${g.a_pagar != null ? usd(g.a_pagar) : '—'}</b></td>`;
     $('r-tabla').innerHTML = grupos.filter((g) => g.envios).map((g) => `
       <tr class="grupo"><td><span class="com-avatar sm ${g.vendedor_id == null ? 'sin' : (g.es_casa ? 'casa' : '')}">${g.vendedor_id == null ? '!' : esc(inicial(g.vendedor))}</span>${esc(g.vendedor)}${g.es_casa ? '<span class="com-chip">casa</span>' : ''}${g.vendedor_id == null ? '<span class="com-chip sin">asignar en la pestaña Clientes</span>' : ''}</td>
-        <td class="num">${g.envios}</td><td class="num">${usd(g.venta)}</td><td class="num">${usd(g.utilidad)}</td><td class="num">${g.es_casa ? '—' : pctTxt(g.pct)}</td><td class="num">${g.es_casa ? '—' : usd(g.comision)}</td>${pisoTd(g)}</tr>
+        <td class="num">${g.envios}</td><td class="num">${fKG.format(g.kg || 0)}</td><td class="num">${usd(g.venta)}</td><td class="num">${usd(g.utilidad)}</td><td class="num">${g.es_casa ? '—' : pctTxt(g.pct)}</td><td class="num">${g.es_casa ? '—' : usd(g.comision)}</td>${pisoTd(g)}</tr>
       ${g.clientes.map((c) => `<tr class="cliente" data-v="${g.vendedor_id ?? 'sin'}" data-c="${c.cliente_id}"><td>${esc(c.cliente)}${c.pct_origen === 'cliente' ? '<span class="com-chip cliente">% especial</span>' : ''}</td>
-        <td class="num">${c.envios}</td><td class="num">${usd(c.venta)}</td><td class="num">${usd(c.utilidad)}</td><td class="num">${g.es_casa ? '—' : pctTxt(c.pct)}</td><td class="num">${g.es_casa ? '—' : usd(c.comision)}</td><td></td><td></td></tr>`).join('')}`).join('');
+        <td class="num">${c.envios}</td><td class="num">${fKG.format(c.kg || 0)}</td><td class="num">${usd(c.venta)}</td><td class="num">${usd(c.utilidad)}</td><td class="num">${g.es_casa ? '—' : pctTxt(c.pct)}</td><td class="num">${g.es_casa ? '—' : usd(c.comision)}</td><td></td><td></td></tr>`).join('')}`).join('');
     $('r-tabla').querySelectorAll('tr.cliente').forEach((tr) => tr.addEventListener('click', () => toggleEnvios(tr)));
   }
 
@@ -154,7 +157,7 @@
       const mios = envios.filter((e) => String(e.cliente_id) === tr.dataset.c);
       const chip = (f) => f === 'real' ? '<span class="com-chip real">costo real</span>' : f === 'liquidación' ? '<span class="com-chip liq">liquidada</span>' : '<span class="com-chip">estimada</span>';
       tr.insertAdjacentHTML('afterend', mios.map((e) => `<tr class="envio"><td>${formatDate(e.fecha)} · <span class="code">${esc(e.numero_guia)}</span> · ${esc(e.courier)} · ${esc(e.pais_destino)} ${chip(e.fuente)}</td>
-        <td class="num"></td><td class="num">${usd(e.venta)}</td><td class="num">${usd(e.utilidad)}</td><td class="num">${e.es_casa ? '—' : pctTxt(e.pct)}</td><td class="num">${e.es_casa ? '—' : usd(e.comision)}</td><td></td><td></td></tr>`).join(''));
+        <td class="num"></td><td class="num">${fKG.format(e.kg || 0)}</td><td class="num">${usd(e.venta)}</td><td class="num">${usd(e.utilidad)}</td><td class="num">${e.es_casa ? '—' : pctTxt(e.pct)}</td><td class="num">${e.es_casa ? '—' : usd(e.comision)}</td><td></td><td></td></tr>`).join(''));
     } catch (e) { showAlert(alertBox, e.message); }
   }
 
