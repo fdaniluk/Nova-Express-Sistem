@@ -10,7 +10,7 @@
   <style>@view-transition { navigation: auto; }</style>
   <link rel="stylesheet" href="../css/main.css?v=20261104a">
   <link rel="stylesheet" href="../css/modules/guias.css?v=20260915a">
-  <link rel="stylesheet" href="../css/modules/envios.css?v=20260929a">
+  <link rel="stylesheet" href="../css/modules/envios.css?v=20261116a">
   <style>
     .cot-header {
       display: flex;
@@ -395,6 +395,19 @@
                     <input type="number" id="total_cobrado" step="0.01" min="0" required class="env-big">
                     <small id="ctzr-sugerido" class="hidden" style="color:#8a6500;font-size:11px"></small>
                   </div>
+                  <!-- GASTOS EXTERNOS (16/11/2026, Felipe): Vía Cargo, flete interno, etc. Lo que
+                       Nova paga por afuera del courier y le cobra al cliente al costo. Van APARTE
+                       del precio, como cargos del envío con su nombre (lo mismo que ya hacía la
+                       cotización con sus "otros conceptos"). -->
+                  <div class="env-gastos" id="env-gastos">
+                    <div class="env-gastos-cab">
+                      <span>Gastos externos <small>— Vía Cargo, flete interno…</small></span>
+                      <button type="button" id="btn-gasto-externo" class="btn btn-secondary">+ Agregar</button>
+                    </div>
+                    <div id="gastos-lista"></div>
+                    <small id="gastos-ayuda" class="env-gastos-ayuda">Se le cobran al cliente al costo, aparte del precio de arriba.</small>
+                    <small id="gastos-edicion" class="env-gastos-ayuda hidden">Este envío ya está cargado: los gastos externos se agregan desde <b>Salidas</b> (editar el envío → Gastos externos).</small>
+                  </div>
                   <!-- LAS COTIZACIONES DE ESTE CLIENTE (idea de Felipe, 25/08/2026). La oficina
                        ve el destino, el peso y las medidas, reconoce cuál es este envío y se
                        lleva el precio. El precio que escribe es un SUGERIDO — se puede pisar. -->
@@ -422,6 +435,7 @@
               <dt>Bultos</dt><dd data-r="bultos">—</dd>
               <dt>FOB</dt><dd data-r="fobr">—</dd>
               <dt>Precio</dt><dd data-r="fob">—</dd>
+              <dt data-r-dt="gastos" class="hidden">Gastos ext.</dt><dd data-r="gastos" class="hidden">—</dd>
             </dl>
             <div class="actions env-actions">
               <button type="submit" form="form-envio" class="btn btn-emitir" id="btn-guardar-envio">Guardar envío</button>
@@ -506,6 +520,6 @@
 <script src="/shared/cotizador/cotizador-core.js?v=20261030a"></script>
 <script src="/shared/guias/validar-guia.js?v=20260915a"></script>
 <script src="../js/cotizaciones-recientes.js?v=20261002a"></script>
-<script src="../js/modules/envios.js?v=20261030a"></script>
+<script src="../js/modules/envios.js?v=20261116a"></script>
 </body>
 </html>

@@ -13,7 +13,47 @@
   // Lleva guia_id, destinatario, contenido y renglones de la proforma al alta del envío.
   let precargaActual = null;
   // Otros conceptos de la cotización usada, a cargar como cargos del envío al guardarlo (28/10).
-  let otrosConceptosPendientes = [];
+  // Gastos externos del envío (16/11/2026, Felipe): Vía Cargo, flete interno, etc. Se cargan
+  // en la lista #gastos-lista (a mano, o solos al usar una cotización que los traía) y al
+  // guardar el envío quedan como cargos al costo, con su nombre. Antes solo llegaban desde
+  // la cotización y no se veían en pantalla.
+  function agregarGastoExterno(datos) {
+    const lista = document.getElementById('gastos-lista');
+    if (!lista) return null;
+    const row = document.createElement('div');
+    row.className = 'env-gasto-row';
+    row.innerHTML = '<input type="text" class="g-concepto" maxlength="80" placeholder="Concepto (ej: Vía Cargo)">'
+      + '<input type="number" class="g-monto" min="0" step="0.01" placeholder="USD">'
+      + '<button type="button" class="g-quitar" title="Quitar">✕</button>';
+    row.querySelector('.g-quitar').addEventListener('click', () => { row.remove(); actualizarResumen(); });
+    if (datos) { row.querySelector('.g-concepto').value = datos.concepto || ''; row.querySelector('.g-monto').value = datos.monto || ''; }
+    lista.appendChild(row);
+    if (!datos) row.querySelector('.g-concepto').focus();
+    return row;
+  }
+  // Lo escrito en la lista. Los renglones vacíos se ignoran; `incompleto` avisa si alguno
+  // tiene importe sin nombre o nombre sin importe (no se guarda a medias: es plata).
+  function gastosExternos() {
+    const gastos = []; let incompleto = null;
+    document.querySelectorAll('#gastos-lista .env-gasto-row').forEach((r) => {
+      const concepto = r.querySelector('.g-concepto').value.trim();
+      const monto = Math.round((parseFloat(r.querySelector('.g-monto').value) || 0) * 100) / 100;
+      if (!concepto && !(monto > 0)) return;
+      if (!concepto || !(monto > 0)) { if (!incompleto) incompleto = r; return; }
+      gastos.push({ concepto, monto });
+    });
+    return { gastos, incompleto };
+  }
+  function limpiarGastosExternos() { const l = document.getElementById('gastos-lista'); if (l) l.innerHTML = ''; }
+  // Al editar un envío ya cargado los gastos se manejan desde Salidas (ahí se ven los que
+  // ya tiene y cuáles se cobraron): acá se oculta el alta para no duplicarlos.
+  function modoGastosExternos(editando) {
+    const btn = document.getElementById('btn-gasto-externo'); if (!btn) return;
+    btn.classList.toggle('hidden', !!editando);
+    document.getElementById('gastos-ayuda').classList.toggle('hidden', !!editando);
+    document.getElementById('gastos-edicion').classList.toggle('hidden', !editando);
+    if (editando) limpiarGastosExternos();
+  }
 
   async function init() {
     // hoyLocal(): toISOString() es UTC y adelantaba la fecha un día después de las 21:00.
@@ -77,11 +117,16 @@
     set('fobr', `${fmt(fob)}${document.getElementById('asegurado').checked ? ' · asegurado' : ''}`);
     const total = parseFloat(document.getElementById('total_cobrado').value);
     set('fob', Number.isFinite(total) && total > 0 ? fmt(total) : '');
+    const sumaG = gastosExternos().gastos.reduce((s, g) => s + g.monto, 0);
+    set('gastos', sumaG > 0 ? `+ ${fmt(sumaG)}` : '');
+    dl.querySelectorAll('[data-r="gastos"], [data-r-dt="gastos"]').forEach((el) => el.classList.toggle('hidden', !(sumaG > 0)));
   }
   function bindResumen() {
     const form = document.getElementById('form-envio');
     if (!form) return;
     form.addEventListener('input', actualizarResumen);
+    const btnGasto = document.getElementById('btn-gasto-externo');
+    if (btnGasto) btnGasto.addEventListener('click', () => { agregarGastoExterno(); actualizarResumen(); });
     form.addEventListener('change', actualizarResumen);
     // El peso facturable llega por API después del input: se refresca cuando cambia el preview.
     const preview = document.getElementById('peso-preview');
@@ -877,6 +922,14 @@
           ? (document.getElementById('cot-ups-variante').value || null)
           : null,
       };
+      // Gastos externos: se leen ANTES de guardar. Un renglón a medias frena el guardado.
+      const ge = id ? { gastos: [], incompleto: null } : gastosExternos();
+      if (ge.incompleto) {
+        NovaUtils.showAlert(alertBox, 'Gastos externos: hay un renglón incompleto. Poné el concepto y el importe, o quitalo con la ✕.');
+        (ge.incompleto.querySelector('.g-concepto').value.trim() ? ge.incompleto.querySelector('.g-monto') : ge.incompleto.querySelector('.g-concepto')).focus();
+        return;
+      }
+      const gastosAlGuardar = ge.gastos;
       // Confirmación de una precarga: el envío nace de la guía emitida y se lleva el
       // destinatario, el contenido y los renglones de la proforma.
       if (precargaActual && !id) {
@@ -897,14 +950,13 @@
           // Otros conceptos de la cotización usada (28/10): cargos del envío, al costo,
           // con su nombre. Si alguno falla se avisa: el envío ya quedó guardado.
           let avisoOtros = '';
-          if (creado && creado.id && otrosConceptosPendientes.length) {
-            for (const o of otrosConceptosPendientes) {
+          if (creado && creado.id && gastosAlGuardar.length) {
+            for (const o of gastosAlGuardar) {
               try { await NovaAPI.salidas.agregarCargo(creado.id, { tipo: 'otro', label: o.concepto, monto: o.monto, fecha: data.fecha }); }
               catch (e2) { avisoOtros += ` No se pudo cargar "${o.concepto}" (${e2.message}): agregalo desde Salidas.`; }
             }
-            if (!avisoOtros) avisoOtros = ` Se cargaron ${otrosConceptosPendientes.length === 1 ? 'el concepto' : 'los ' + otrosConceptosPendientes.length + ' conceptos'} de la cotización como cargos al costo.`;
+            if (!avisoOtros) avisoOtros = ` Se ${gastosAlGuardar.length === 1 ? 'cargó el gasto externo' : 'cargaron los ' + gastosAlGuardar.length + ' gastos externos'} como cargo al costo.`;
           }
-          otrosConceptosPendientes = [];
           NovaUtils.showAlert(alertBox, (precargaActual ? 'Guía confirmada: el envío ya está en Salidas' : 'Envío registrado correctamente') + avisoOtros, avisoOtros.includes('No se pudo') ? 'error' : 'success');
         }
         resetForm();
@@ -917,7 +969,8 @@
 
   function resetForm() {
     precargaActual = null;
-    otrosConceptosPendientes = [];
+    limpiarGastosExternos();
+    modoGastosExternos(false);
     document.getElementById('guia-id').value = '';
     document.getElementById('form-envio').reset();
     const dnR = document.getElementById('destinatario_nombre'); if (dnR) { dnR.readOnly = false; dnR.title = ''; }
@@ -954,6 +1007,7 @@
     document.querySelector('.tab[data-tab="nuevo"]').click();
     document.getElementById('envio-id').value = envio.id;
     document.getElementById('form-title').textContent = 'Editar envío';
+    modoGastosExternos(true);
     document.getElementById('btn-cancelar-edit').classList.remove('hidden');
     document.getElementById('cliente_id').value = envio.cliente_id;
     pintarCotizacionesDelCliente();
@@ -1134,7 +1188,8 @@
         // Se descuentan del total y se cargan apenas se guarda el envío (ver submit).
         const otros = (ctx && ctx.cotizacion && ctx.cotizacion.datos && Array.isArray(ctx.cotizacion.datos.otros_conceptos)) ? ctx.cotizacion.datos.otros_conceptos : [];
         const sumaOtros = Math.round(otros.reduce((s, o) => s + (Number(o.monto) || 0), 0) * 100) / 100;
-        otrosConceptosPendientes = otros.map((o) => ({ concepto: o.concepto, monto: Number(o.monto) || 0 }));
+        limpiarGastosExternos();
+        if (!document.getElementById('envio-id').value) otros.forEach((o) => agregarGastoExterno({ concepto: o.concepto, monto: Number(o.monto) || 0 }));
         campo.value = (Number(total) - sumaOtros).toFixed(2);
         actualizarResumen();
         // El cotizador automatico pudo haber dejado su propio numero: se avisa cual quedo

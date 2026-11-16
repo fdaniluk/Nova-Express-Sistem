@@ -129,6 +129,17 @@
 .env-precio-final .form-group { margin: 0 0 0.75rem; }
 .env-big { font-size: 1.5rem; font-weight: 700; color: var(--color-primary); text-align: right; padding: 0.55rem 0.8rem; }
 .env-ctzr-cab { margin: 0 0 8px; justify-content: space-between; }
+/* Gastos externos (16/11/2026) */
+.env-gastos { margin: 0 0 0.9rem; padding: 0.6rem 0.7rem; border: 1px dashed #cfd7e3; border-radius: 8px; background: #fafbfd; }
+.env-gastos-cab { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 0.85rem; font-weight: 600; }
+.env-gastos-cab small { font-weight: 400; color: #888; }
+.env-gastos-cab .btn { padding: 3px 10px; font-size: 12px; white-space: nowrap; }
+.env-gasto-row { display: grid; grid-template-columns: minmax(0, 1fr) 82px 26px; gap: 0.35rem; margin-top: 0.45rem; align-items: center; }
+.env-gasto-row input { padding: 0.35rem 0.5rem; font-size: 0.85rem; min-width: 0; }
+.env-gasto-row .g-monto { text-align: right; }
+.env-gasto-row .g-quitar { border: 0; background: transparent; color: #a33; cursor: pointer; font-size: 0.95rem; padding: 0; }
+.env-gastos-ayuda { display: block; margin-top: 0.4rem; color: #888; font-size: 11px; }
+.env-gastos-ayuda.hidden { display: none; }
 #ctzr-panel { font-size: 0.85rem; }
 
 /* Resumen lateral */

@@ -3414,6 +3414,7 @@
     if (!form || !btn) return;
     form.classList.remove('hidden');
     btn.classList.add('hidden');
+    const btnG = document.getElementById('saled-gasto-btn'); if (btnG) btnG.classList.add('hidden');
     const tipoSel = document.getElementById('saled-cargo-tipo');
     const labelIn = document.getElementById('saled-cargo-label');
     tipoSel.value = tipo;
@@ -3437,12 +3438,13 @@
       ? 'El envío ya está liquidado: lo que falte cobrar va en la próxima liquidación del cliente como "cargo de envío anterior".'
       : 'Se suman a la venta y a la compra del envío y entran en su liquidación como una línea más del Adicional.';
     block.innerHTML = `
-      <div class="saled-extras-title">Cargos posteriores <span class="saled-cargos-help" title="Extracargos que aparecen después de cargado el envío (manejo, sobrepeso, área remota, impuestos DDP…). Van al costo, sin profit, y se le cobran al cliente. ${escAttr(destino)}">?</span></div>
+      <div class="saled-extras-title">Cargos posteriores y gastos externos <span class="saled-cargos-help" title="Extracargos que aparecen después de cargado el envío (manejo, sobrepeso, área remota, impuestos DDP…) y gastos externos que pagó Nova por afuera del courier (Vía Cargo, flete interno…). Van al costo, sin profit, y se le cobran al cliente. ${escAttr(destino)}">?</span></div>
       ${cargos.length ? `<div class="saled-extras-list">${rows}${pend > 0 ? `
         <div class="saled-extra-row saled-extra-total"><span class="saled-extra-label">Se cobra en la próxima liquidación</span><span class="saled-extra-monto">${fmtUSD(pend)}</span></div>` : ''}
-      </div>` : '<div class="saled-extras-empty">Sin cargos posteriores</div>'}
+      </div>` : '<div class="saled-extras-empty">Sin cargos posteriores ni gastos externos</div>'}
       <div class="saled-cargo-add">
         <button type="button" class="btn btn-secondary btn-sm btn-dashed" id="saled-cargo-btn">+ Agregar cargo</button>
+        <button type="button" class="btn btn-secondary btn-sm btn-dashed" id="saled-gasto-btn" title="Lo que Nova pagó por afuera del courier (Vía Cargo, flete interno…). Se le cobra al cliente al costo, con el nombre que escribas.">+ Agregar gasto externo</button>
         <form id="saled-cargo-form" class="saled-cargo-form hidden">
           <select id="saled-cargo-tipo">${CARGO_TIPOS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
           <input type="text" id="saled-cargo-label" placeholder="Nombre del cargo" class="hidden" maxlength="80">
@@ -3459,7 +3461,19 @@
     document.getElementById('saled-cargo-btn').addEventListener('click', () => {
       form.classList.remove('hidden');
       document.getElementById('saled-cargo-btn').classList.add('hidden');
+      document.getElementById('saled-gasto-btn').classList.add('hidden');
       document.getElementById('saled-cargo-monto').focus();
+    });
+    // Gasto externo (16/11/2026): es un cargo "Otro" con nombre libre, en un clic.
+    document.getElementById('saled-gasto-btn').addEventListener('click', () => {
+      form.classList.remove('hidden');
+      document.getElementById('saled-cargo-btn').classList.add('hidden');
+      document.getElementById('saled-gasto-btn').classList.add('hidden');
+      tipoSel.value = 'otro';
+      tipoSel.classList.add('hidden');
+      labelIn.classList.remove('hidden');
+      labelIn.placeholder = 'Concepto (ej: Vía Cargo)';
+      labelIn.focus();
     });
     document.getElementById('saled-cargo-cancel').addEventListener('click', () => { anomEnCurso = null; renderCargosBlock(); });
     tipoSel.addEventListener('change', () => {
@@ -3473,7 +3487,7 @@
       const tipo = tipoSel.value;
       const label = labelIn.value.trim();
       const monto = parseNum(document.getElementById('saled-cargo-monto').value);
-      if (tipo === 'otro' && !label) { status.textContent = 'Escribí el nombre del cargo.'; labelIn.focus(); return; }
+      if (tipo === 'otro' && !label) { status.textContent = tipoSel.classList.contains('hidden') ? 'Escribí el concepto del gasto.' : 'Escribí el nombre del cargo.'; labelIn.focus(); return; }
       if (!(monto > 0)) { status.textContent = 'Ingresá el importe.'; return; }
       status.textContent = 'Guardando…';
       try {
