@@ -217,6 +217,13 @@
               <label for="paso-hasta" id="paso-hasta-lbl" class="sub">hasta</label>
               <input type="number" id="paso-hasta" min="5" max="300" step="1" value="70" title="Tope: de ahí en adelante rige un solo tramo"><span class="uni" id="paso-hasta-uni">kg</span>
             </div>
+            <!-- Cortes de kilos altos (16/11/2026, Felipe): tramos por arriba del tope, para dar
+                 otro % a los envíos grandes (ej. 100, 150, 200, 300 → 50-100, 100-150, …, 300+). -->
+            <div class="tarifas-campo tarifas-cortes" id="tarifas-cortes">
+              <label for="cortes-altos" id="cortes-altos-lbl" title="Kilos donde cambia el tramo por arriba del tope. Ej.: 100, 150, 200, 300 arma los tramos 50-100, 100-150, 150-200, 200-300 y 300+. Después cargás el % de cada uno con Editar %.">Cortes arriba de 50 kg</label>
+              <input type="text" id="cortes-altos" placeholder="ej: 100, 150, 200, 300" inputmode="numeric" autocomplete="off">
+              <button class="btn btn-primary btn-xs" id="btn-cortes-altos" type="button">Aplicar</button>
+            </div>
           </div>
           <div class="tarifas-hints">
             <span class="tarifas-hint" id="tarifas-seguro-hint"></span>
@@ -542,6 +549,6 @@
 <script src="../js/vendor/chart.umd.js?v=20260915a"></script>
 <script src="/shared/cotizador/tramos.js?v=20261015a"></script>
 <script src="../js/cotizacion-imagen.js?v=20261015b"></script>
-<script src="../js/modules/clientes-perfil.js?v=20261104a"></script>
+<script src="../js/modules/clientes-perfil.js?v=20261116a"></script>
 </body>
 </html>

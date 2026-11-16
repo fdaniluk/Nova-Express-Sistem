@@ -901,10 +901,72 @@
       if (ultimo && ultimo.max === null) hasta.value = ultimo.min;
     }
     const hint = document.getElementById('paso-hint');
+    // Cortes de kilos altos: el paso que se marca es el de abajo del tope.
+    const pc = partesDeTramos();
+    const inC = document.getElementById('cortes-altos');
+    if (inC) {
+      if (document.activeElement !== inC) inC.value = pc.cortes.join(', ');
+      document.getElementById('cortes-altos-lbl').textContent = `Cortes arriba de ${fmtKgCorte(pc.tope)} kg`;
+    }
+    if (pasoActual === null && pc.cortes.length && pc.paso) {
+      seg.querySelectorAll('button').forEach((b) => b.classList.toggle('on', Number(b.dataset.paso) === pc.paso));
+      hint.textContent = `Tramos de ${fmtKgCorte(pc.paso)} kg hasta ${fmtKgCorte(pc.tope)} kg, y después cortes en ${pc.cortes.map(fmtKgCorte).join(', ')} kg. El % de cada tramo se carga con Editar %.`;
+      return;
+    }
     hint.textContent = pasoActual === null
       ? 'Tramos cargados a mano (irregulares). Elegí un paso para reordenarlos; los valores se conservan.'
       : (fino ? `${TARIFAS_BANDAS.length} tramos. Cambiar el paso conserva los precios: los tramos nuevos heredan el valor del que los contenía.`
         : 'Los tramos generales. Con 1 kg o 0,5 kg cada tramo puede tener su propio %, como en los tarifarios viejos.');
+  }
+
+  // ── Cortes de kilos altos (16/11/2026, Felipe) ─────────────────────────────────
+  // Por arriba del tope (50 kg con el paso de 5; el "hasta" con 1 o 0,5) la tarifa tenía un
+  // solo tramo abierto, así que no se le podía dar otro % a los envíos grandes. Acá se
+  // parten los kilos altos: "100, 150, 200, 300" → 50-100, 100-150, 150-200, 200-300, 300+.
+  // Los tramos de abajo no se tocan. Devuelve { base, tope, cortes, paso }.
+  const fmtKgCorte = (n) => String(n).replace('.', ',');
+  function partesDeTramos() {
+    const t = TARIFAS_BANDAS || [];
+    const cerrados = t.filter((x) => x.max !== null);
+    const ancho = (x) => Math.round((x.max - x.min) * 10) / 10;
+    let tope;
+    const w0 = cerrados.length ? ancho(cerrados[0]) : 5;
+    if (w0 < 5) {
+      // Paso fino: el tope es donde se termina la tira de tramos parejos.
+      let k = 0; while (k < cerrados.length && ancho(cerrados[k]) === w0) k++;
+      tope = k ? cerrados[k - 1].max : 0;
+    } else {
+      const hasta50 = cerrados.filter((x) => x.max <= 50);
+      tope = hasta50.length ? hasta50[hasta50.length - 1].max : (cerrados.length ? cerrados[0].max : 50);
+    }
+    const base = cerrados.filter((x) => x.max <= tope);
+    const cortes = cerrados.filter((x) => x.max > tope).map((x) => x.max);
+    return { base, tope, cortes, paso: [5, 1, 0.5].includes(w0) ? w0 : null };
+  }
+  async function aplicarCortesAltos() {
+    const pc = partesDeTramos();
+    const txt = document.getElementById('cortes-altos').value.trim();
+    const nums = txt ? txt.split(/[\s,;]+/).filter(Boolean).map((x) => Number(String(x).replace(',', '.'))) : [];
+    if (nums.some((n) => !Number.isFinite(n))) { NovaUtils.showAlert(alertBox, 'Cortes: escribí los kilos separados por coma, por ejemplo 100, 150, 200, 300.', 'error'); return; }
+    const cortes = [...new Set(nums)].sort((a, b) => a - b);
+    if (cortes.length && cortes[0] <= pc.tope) { NovaUtils.showAlert(alertBox, `Los cortes tienen que ser mayores a ${fmtKgCorte(pc.tope)} kg (hasta ahí la tarifa ya tiene sus tramos).`, 'error'); return; }
+    if (cortes.join('|') === pc.cortes.join('|')) return;
+    const bordes = [pc.tope, ...cortes];
+    const altos = bordes.map((b, i) => ({ min: b, max: i + 1 < bordes.length ? bordes[i + 1] : null }));
+    const etiqueta = (x) => (x.max === null ? `${fmtKgCorte(x.min)}+` : `${fmtKgCorte(x.min)}-${fmtKgCorte(x.max)}`);
+    const msg = cortes.length
+      ? `¿Partir los kilos altos en estos tramos?\n\n${altos.map(etiqueta).join('  ·  ')}\n\nLos tramos nuevos arrancan sin % propio: cobran el % general del cliente hasta que les cargues uno con Editar %.`
+      : `¿Sacar los cortes y volver a un solo tramo de ${fmtKgCorte(pc.tope)} kg en adelante?`;
+    if (!confirm(msg)) { renderPaso(); return; }
+    try {
+      await NovaAPI.clientes.tramos.guardar(clienteId, [...pc.base.map((x) => ({ min: x.min, max: x.max })), ...altos]);
+      NovaUtils.showAlert(alertBox, cortes.length ? `Listo: tramos ${altos.map(etiqueta).join(', ')} kg. Ahora cargales el % con Editar %.` : 'Listo: se sacaron los cortes de kilos altos.', 'success');
+      await cargarMatriz();
+    } catch (err) {
+      const h = err && err.data && err.data.huerfanos;
+      NovaUtils.showAlert(alertBox, `${err.message}${h ? ' Borrá primero esas celdas (o pasalas a mano) y volvé a aplicar.' : ''}`, 'error');
+      renderPaso();
+    }
   }
 
   async function cambiarPaso(paso) {
@@ -933,6 +995,11 @@
     if (!seg) return;
     seg.querySelectorAll('button').forEach((b) => b.addEventListener('click', () => cambiarPaso(Number(b.dataset.paso))));
     document.getElementById('paso-hasta').addEventListener('change', () => { if (pasoActual === 1 || pasoActual === 0.5) cambiarPaso(pasoActual); });
+    const btnC = document.getElementById('btn-cortes-altos');
+    if (btnC) {
+      btnC.addEventListener('click', aplicarCortesAltos);
+      document.getElementById('cortes-altos').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); aplicarCortesAltos(); } });
+    }
   }
 
   // Seguro negociado del cliente. Vale para DHL y UPS por igual: cuando esta cargado,

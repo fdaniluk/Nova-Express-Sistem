@@ -491,6 +491,7 @@ td.tarifa-cell.cero .cell-val { color: #d03b3b; font-weight: 650; }
 /* ── Paso de la tarifa (29/09/2026) ─────────────────────────────────────────────── */
 .tarifas-paso { align-items: center; }
 .tarifas-paso .paso-seg button { padding: .25rem .6rem; font-size: .76rem; }
+.tarifas-cortes input[type=text] { width: 170px; }
 .paso-seg { display: inline-flex; border: 1.5px solid var(--color-border); border-radius: 999px; overflow: hidden; }
 .paso-seg button { border: none; background: #fff; padding: .35rem .8rem; font: inherit; font-size: .82rem; font-weight: 600; color: var(--color-muted); cursor: pointer; }
 .paso-seg button + button { border-left: 1.5px solid var(--color-border); }
