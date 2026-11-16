@@ -31,7 +31,7 @@
 function costoEstimado(row) {
   return (row.flete || 0) - (row.descuento || 0) + (row.seguro || 0)
     + (row.fuel || 0) + (row.derechos || 0) + (row.adicionales || 0) + (row.otros || 0)
-    + cargosPost(row);
+    + cargosPost(row) + cargosCosto(row);
 }
 
 // ── Cargos posteriores (01/10/2026) ────────────────────────────────────────────────
@@ -45,6 +45,24 @@ function costoEstimado(row) {
 function cargosPost(row) { return Number(row.cargos_post) || 0; }
 function cargosDdp(row) { return Number(row.cargos_ddp) || 0; }
 
+// ── Gastos externos (16/11/2026, pedido de Felipe) ─────────────────────────────────────
+// Lo que Nova paga por AFUERA del courier por un envío (Vía Cargo, flete interno…). Al
+// cargarlo la oficina elige si se le cobra al cliente:
+//   · SÍ, aparte  → es un cargo posterior más (entra en cargos_post): sube venta y compra,
+//                   la utilidad no cambia. Queda marcado externo.
+//   · NO, solo costo → lo absorbe Nova (o ya estaba dentro del precio): NO entra en la venta
+//                   ni en la liquidación; sube la compra y BAJA la utilidad. row.cargos_costo.
+// Como no los factura el courier, ninguno de los dos está en costo_facturado: en la rama de
+// costo real se suman a la compra (row.cargos_ext = los externos que sí se cobran).
+function cargosCosto(row) { return Number(row.cargos_costo) || 0; }
+function cargosExtCobrados(row) { return Number(row.cargos_ext) || 0; }
+// Todo lo externo (cobrado o no): lo que hay que sumarle a la factura del courier para
+// tener la compra real, y restarle a la estimación para compararla contra esa factura.
+function cargosExternos(row) { return cargosCosto(row) + cargosExtCobrados(row); }
+// La estimación de lo que tiene que facturar EL COURIER (sin lo externo): es contra lo que
+// se compara costo_facturado en los desvíos. Sin gastos externos es igual a costoEstimado.
+function costoEstimadoCourier(row) { return costoEstimado(row) - cargosExternos(row); }
+
 // Venta COMPLETA del envío: lo cobrado (congelado en la liquidación si la hay) + cargos
 // posteriores. Es la que muestran Salidas (Venta Total) y el Dashboard (Venta).
 function ventaEnvio(row) {
@@ -55,7 +73,7 @@ function ventaEnvio(row) {
 // que UPS factura aparte) o la estimada (que ya incluye los cargos).
 function compraEnvio(row) {
   if (row.estado_revision === 'revisado_ok' && row.costo_facturado != null) {
-    return Math.round((Number(row.costo_facturado) + cargosDdp(row)) * 100) / 100;
+    return Math.round((Number(row.costo_facturado) + cargosDdp(row) + cargosExternos(row)) * 100) / 100;
   }
   return costoEstimado(row);
 }
@@ -74,7 +92,8 @@ function deriveProfit(row) {
     const ventaBase = row.venta_liq != null ? row.venta_liq : row.total;
     const venta = ventaBase != null ? ventaBase + cargosPost(row) - cargosDdp(row) : null;
     if (venta != null) {
-      const costoReal = row.costo_facturado;
+      // + los gastos externos (16/11): no los factura el courier, hay que sumarlos a la compra.
+      const costoReal = Math.round((Number(row.costo_facturado) + cargosExternos(row)) * 100) / 100;
       const profit = Math.round((venta - costoReal) * 100) / 100;
       // costo real 0 → margen indefinido (no dividir por cero); se deja null.
       const porcentaje = costoReal !== 0 ? Math.round((profit / costoReal) * 10000) / 100 : null;
@@ -89,7 +108,8 @@ function deriveProfit(row) {
     return { compra_total: costo, profit: row.profit ?? null, porcentaje: row.porcentaje ?? null, profit_real: false };
   }
   // La venta estimada también lleva los cargos posteriores (al costo: se anulan con los
-  // que ya están dentro de `costo` y la utilidad queda igual que sin ellos).
+  // que ya están dentro de `costo` y la utilidad queda igual que sin ellos). Los gastos
+  // externos "solo costo" están en `costo` y NO en la venta: bajan la utilidad.
   const profit = Math.round((row.total + cargosPost(row) - costo) * 100) / 100;
   const porcentaje = Math.round((profit / costo) * 10000) / 100;
   return { compra_total: costo, profit, porcentaje, profit_real: false };
@@ -124,9 +144,10 @@ function profitDoble(row) {
     const ventaBase = row.venta_liq != null ? row.venta_liq : row.total;
     const venta = ventaBase != null ? ventaBase + cargosPost(row) - cargosDdp(row) : null;
     if (venta != null) {
-      out.profit_real_monto = Math.round((venta - row.costo_facturado) * 100) / 100;
-      out.porcentaje_real = row.costo_facturado !== 0
-        ? Math.round((out.profit_real_monto / row.costo_facturado) * 10000) / 100
+      const costoReal = Math.round((Number(row.costo_facturado) + cargosExternos(row)) * 100) / 100;
+      out.profit_real_monto = Math.round((venta - costoReal) * 100) / 100;
+      out.porcentaje_real = costoReal !== 0
+        ? Math.round((out.profit_real_monto / costoReal) * 10000) / 100
         : null;
     }
   }
@@ -141,7 +162,9 @@ function profitDoble(row) {
 function utilidadEnvio(row) {
   const { profit, profit_real } = deriveProfit(row);
   if (profit_real) return profit;
-  if (row.utilidad_liq != null) return row.utilidad_liq;
+  // La utilidad congelada de la liquidación no sabe de los gastos "solo costo" (no entran
+  // en la liquidación): se restan acá, se hayan cargado antes o después de liquidar.
+  if (row.utilidad_liq != null) return Math.round((row.utilidad_liq - cargosCosto(row)) * 100) / 100;
   return profit == null ? 0 : profit;
 }
 
@@ -165,8 +188,10 @@ const SUBQUERY_LIQUIDACION = `
 // envio_id, cargos_post, cargos_ddp). Se suman a la venta y a la compra del envío.
 const SUBQUERY_CARGOS = `
   SELECT ec.envio_id,
-         SUM(ec.monto) AS cargos_post,
-         SUM(CASE WHEN ec.origen = 'impuestos_ddp' THEN ec.monto ELSE 0 END) AS cargos_ddp
+         SUM(CASE WHEN ec.solo_costo = 1 THEN 0 ELSE ec.monto END) AS cargos_post,
+         SUM(CASE WHEN ec.origen = 'impuestos_ddp' AND ec.solo_costo = 0 THEN ec.monto ELSE 0 END) AS cargos_ddp,
+         SUM(CASE WHEN ec.solo_costo = 1 THEN ec.monto ELSE 0 END) AS cargos_costo,
+         SUM(CASE WHEN ec.externo = 1 AND ec.solo_costo = 0 THEN ec.monto ELSE 0 END) AS cargos_ext
   FROM envio_cargos ec
   WHERE ec.anulado_at IS NULL
   GROUP BY ec.envio_id`;
@@ -174,8 +199,8 @@ const SUBQUERY_CARGOS = `
 const JOIN_LIQ_Y_CARGOS = `
   LEFT JOIN (${SUBQUERY_LIQUIDACION}) li ON li.envio_id = e.id
   LEFT JOIN (${SUBQUERY_CARGOS}) cp ON cp.envio_id = e.id`;
-const COLS_LIQ_Y_CARGOS = `li.utilidad_usd AS utilidad_liq, li.venta_liq AS venta_liq, cp.cargos_post AS cargos_post, cp.cargos_ddp AS cargos_ddp`;
+const COLS_LIQ_Y_CARGOS = `li.utilidad_usd AS utilidad_liq, li.venta_liq AS venta_liq, cp.cargos_post AS cargos_post, cp.cargos_ddp AS cargos_ddp, cp.cargos_costo AS cargos_costo, cp.cargos_ext AS cargos_ext`;
 
 module.exports = {
   SUBQUERY_LIQUIDACION, SUBQUERY_CARGOS, JOIN_LIQ_Y_CARGOS, COLS_LIQ_Y_CARGOS,
-  deriveProfit, costoEstimado, profitDoble, utilidadEnvio, ventaEnvio, compraEnvio, cargosPost, cargosDdp };
+  deriveProfit, costoEstimado, profitDoble, utilidadEnvio, ventaEnvio, compraEnvio, cargosPost, cargosDdp, cargosCosto, cargosExtCobrados, cargosExternos, costoEstimadoCourier };

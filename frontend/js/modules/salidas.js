@@ -608,7 +608,9 @@
     // Columnas de comparación contra la factura del courier (Costo/Peso UPS + sus desvíos).
     // Solo datos de UPS: no repiten venta/peso nuestros, que ya están en la fila. El desvío
     // se pinta rojo solo si va en contra nuestra (positivo) y supera la tolerancia del courier.
-    const difCosto = difEval(e, isFirst, e.costo_facturado, e.compra_estimada ?? e.compra_total, 'costo');
+    // Lo externo (Vía Cargo…) no viene en la factura del courier: no se compara contra ella.
+    const compraCourier = (e.compra_estimada ?? e.compra_total) != null ? Math.round(((e.compra_estimada ?? e.compra_total) - (parseNum(e.cargos_externos) || 0)) * 100) / 100 : null;
+    const difCosto = difEval(e, isFirst, e.costo_facturado, compraCourier, 'costo');
     const difPeso = difEval(e, isFirst, e.peso_facturado, e.peso_facturable, 'peso');
     const difFF = difFleteFuel(e, isFirst);
 
@@ -835,14 +837,14 @@
     const posteriores = (e.cargos || []).filter((c) => c.estado !== 'anulado');
     const chips = extras
       .map((x) => { const v = extraVista(x, e.fuel_pct); return `<span class="extra-chip"${v.title ? ` title="${escAttr(v.title)}"` : ''}>${esc(v.label)} <b>${fmtUSD(v.monto)}</b></span>`; })
-      .concat(posteriores.map((c) => `<span class="extra-chip extra-chip-post" title="Cargo posterior · ${NovaUtils.formatDate(c.fecha)}${c.estado === 'pendiente' && e.liquidado ? ' · se cobra en la próxima liquidación del cliente' : ''}${c.estado === 'liquidado' ? ' · liq. #' + c.liquidacion_id : ''}">${esc(c.label)} <b>${fmtUSD(c.monto)}</b>${c.estado === 'pendiente' && e.liquidado ? ' <i>próx. liq.</i>' : ''}</span>`))
+      .concat(posteriores.map((c) => `<span class="extra-chip extra-chip-post" title="${c.solo_costo ? 'Gasto externo que NO se le cobra al cliente (solo costo)' : 'Cargo posterior'} · ${NovaUtils.formatDate(c.fecha)}${c.estado === 'pendiente' && e.liquidado ? ' · se cobra en la próxima liquidación del cliente' : ''}${c.estado === 'liquidado' ? ' · liq. #' + c.liquidacion_id : ''}">${esc(c.label)} <b>${fmtUSD(c.monto)}</b>${c.estado === 'pendiente' && e.liquidado ? ' <i>próx. liq.</i>' : ''}${c.solo_costo ? ' <i>solo costo</i>' : ''}</span>`))
       .join('');
     const extrasBlock = (extras.length || posteriores.length) ? `
       <div class="detail-block detail-extras">
         <span class="detail-block-title">Extracargos compra</span>
         <div class="extras-breakdown">
           ${chips}
-          <span class="extra-chip extra-chip-total" title="Suma de la columna Adic. + cargos posteriores. El surge se lista con su fuel, que en las columnas está dentro de Fuel: por eso Σ puede ser menor que la suma de los chips.">Σ <b>${fmtUSD((parseNum(e.adicionales) || 0) + (parseNum(e.cargos_total) || 0))}</b></span>
+          <span class="extra-chip extra-chip-total" title="Suma de la columna Adic. + cargos posteriores. El surge se lista con su fuel, que en las columnas está dentro de Fuel: por eso Σ puede ser menor que la suma de los chips.">Σ <b>${fmtUSD((parseNum(e.adicionales) || 0) + (parseNum(e.cargos_total) || 0) + (parseNum(e.cargos_costo) || 0))}</b></span>
         </div>
       </div>` : '';
 
@@ -2648,6 +2650,10 @@
                 <span>Compra total</span>
                 <span id="saled-compra-view" class="sal-res-val">—</span>
               </div>
+              <div class="sal-res-row sal-res-ro sal-res-cargos hidden" id="saled-solocosto-row" title="Gastos externos que no se le cobran al cliente: están dentro de la Compra total y bajan el profit.">
+                <span>incluye gastos sin cobrar</span>
+                <span id="saled-solocosto-view" class="sal-res-val">—</span>
+              </div>
               <div class="sal-res-row sal-res-profit">
                 <label for="saled-profit">Profit total</label>
                 <div class="sal-res-pair">
@@ -3211,7 +3217,7 @@
   let ventaManualDirty = false;   // se tocó en esta sesión → se manda al guardar
   let ventaManualDrop = false;    // se volvió al automático → se manda null al guardar
   function cargarVentaModal(envio) {
-    const cargos = (envio.cargos || []).filter((c) => c.estado !== 'anulado').reduce((a, c) => a + parseNum(c.monto), 0);
+    const cargos = sumaCargosVenta(envio);
     const vd = envio.venta_manual || (envio.venta_desglose ? {
       flete: envio.venta_desglose.flete, fuel: envio.venta_desglose.fuel, seguro: envio.venta_desglose.seguro,
       adicional: Math.round((envio.venta_desglose.adicional - cargos) * 100) / 100,
@@ -3246,7 +3252,7 @@
   }
   function volverVentaAutomatica() {
     if (!editEnvio) return;
-    const cargos = (editEnvio.cargos || []).filter((c) => c.estado !== 'anulado').reduce((a, c) => a + parseNum(c.monto), 0);
+    const cargos = sumaCargosVenta(editEnvio);
     const vd = editEnvio.venta_desglose_auto || null;
     ventaManualActiva = false;
     ventaManualDirty = false;
@@ -3284,9 +3290,16 @@
     // La tarjeta Resultado muestra la compra total (suma de los costos) siempre, aunque no
     // haya venta: es el número contra el que se compara la factura del courier.
     // Cargos posteriores vigentes: suman lo mismo a la venta y a la compra (al costo).
-    const cargos = editEnvio ? (editEnvio.cargos || []).filter((c) => c.estado !== 'anulado').reduce((a, c) => a + parseNum(c.monto), 0) : 0;
+    const cargos = editEnvio ? sumaCargosVenta(editEnvio) : 0;
+    // Gastos externos que no se cobran: son compra y bajan el profit.
+    const soloCosto = editEnvio ? sumaCargosCosto(editEnvio) : 0;
     const compraView = document.getElementById('saled-compra-view');
-    if (compraView) compraView.textContent = (costo || cargos) ? (costo + cargos).toFixed(2) : '—';
+    if (compraView) compraView.textContent = (costo || cargos || soloCosto) ? (costo + cargos + soloCosto).toFixed(2) : '—';
+    const rowSC = document.getElementById('saled-solocosto-row');
+    if (rowSC) {
+      rowSC.classList.toggle('hidden', !(soloCosto > 0));
+      if (soloCosto > 0) document.getElementById('saled-solocosto-view').textContent = soloCosto.toFixed(2);
+    }
     const rowC = document.getElementById('saled-cargos-row');
     const rowV = document.getElementById('saled-venta-completa-row');
     if (rowC && rowV) {
@@ -3300,10 +3313,11 @@
     }
     if (total == null || total === 0) return;
 
-    const profit = Math.round((total - costo) * 100) / 100;
+    const costoP = costo + soloCosto;
+    const profit = Math.round((total - costoP) * 100) / 100;
     document.getElementById('saled-profit').value = profit;
-    document.getElementById('saled-porcentaje').value = costo > 0
-      ? Math.round((profit / costo) * 10000) / 100
+    document.getElementById('saled-porcentaje').value = costoP > 0
+      ? Math.round((profit / costoP) * 10000) / 100
       : '';
   }
 
@@ -3349,6 +3363,16 @@
   }
 
   // ── Cargos posteriores (25/09/2026) ────────────────────────────────────────────
+  // Sumas de los cargos vigentes de un envío (16/11/2026: gastos externos).
+  //   · venta: los que se le cobran al cliente (suben venta y compra por igual);
+  //   · costo: gastos externos que NO se cobran (solo compra: bajan el profit);
+  //   · ext:   todo lo externo, cobrado o no (no viene en la factura del courier).
+  function cargosVig(e) { return ((e && e.cargos) || []).filter((c) => c.estado !== 'anulado'); }
+  function sumaCargos(lista) { return Math.round(lista.reduce((a, c) => a + parseNum(c.monto), 0) * 100) / 100; }
+  function sumaCargosVenta(e) { return sumaCargos(cargosVig(e).filter((c) => !c.solo_costo)); }
+  function sumaCargosCosto(e) { return sumaCargos(cargosVig(e).filter((c) => c.solo_costo)); }
+  function sumaCargosExt(e) { return sumaCargos(cargosVig(e).filter((c) => c.externo || c.solo_costo)); }
+
   const CARGO_TIPOS = [
     ['manejo', 'Cargo por manejo'], ['sobrepeso', 'Sobrepeso'], ['mayor_tamano', 'Paquete de mayor tamaño'],
     ['remota', 'Área remota'], ['residencial', 'Entrega residencial'], ['ddp', 'Impuestos de destino (DDP)'],
@@ -3358,6 +3382,7 @@
 
   function cargoEstadoHtml(c) {
     if (c.estado === 'anulado') return '<span class="saled-cargo-est anulado">anulado</span>';
+    if (c.solo_costo) return '<span class="saled-cargo-est costo" title="Gasto externo que no se le cobra al cliente: suma a la compra del envío y baja el profit. No aparece en la liquidación.">solo costo · no se cobra</span>';
     if (c.estado === 'liquidado') {
       return `<span class="saled-cargo-est liq" title="Ya está en la liquidación #${c.liquidacion_id}${c.liquidacion_estado === 'borrador' ? ' (borrador)' : ''}">liq. #${c.liquidacion_id}${c.liquidacion_estado === 'borrador' ? ' (borrador)' : ''}</span>`;
     }
@@ -3431,14 +3456,14 @@
     const rows = cargos.map((c) => `
       <div class="saled-extra-row saled-cargo-row">
         <span class="saled-extra-label">${esc(c.label)}<span class="saled-cargo-meta"> · ${NovaUtils.formatDate(c.fecha)}${c.origen === 'impuestos_ddp' ? ' · factura UPS' : (c.creado_por ? ' · ' + esc(c.creado_por) : '')}</span> ${cargoEstadoHtml(c)}</span>
-        <span class="saled-extra-monto">${fmtUSD(c.monto)}${c.estado === 'pendiente' ? ` <button type="button" class="saled-cargo-del" data-cargo-id="${c.id}" title="Anular este cargo (todavía no se cobró)">×</button>` : ''}</span>
+        <span class="saled-extra-monto">${fmtUSD(c.monto)}${(c.estado === 'pendiente' || c.estado === 'costo') ? ` <button type="button" class="saled-cargo-del" data-cargo-id="${c.id}" title="${c.estado === 'costo' ? 'Anular este gasto' : 'Anular este cargo (todavía no se cobró)'}">×</button>` : ''}</span>
       </div>`).join('');
     const pend = editEnvio.liquidado ? cargos.filter((c) => c.estado === 'pendiente').reduce((s, c) => s + parseNum(c.monto), 0) : 0;
     const destino = editEnvio.liquidado
       ? 'El envío ya está liquidado: lo que falte cobrar va en la próxima liquidación del cliente como "cargo de envío anterior".'
       : 'Se suman a la venta y a la compra del envío y entran en su liquidación como una línea más del Adicional.';
     block.innerHTML = `
-      <div class="saled-extras-title">Cargos posteriores y gastos externos <span class="saled-cargos-help" title="Extracargos que aparecen después de cargado el envío (manejo, sobrepeso, área remota, impuestos DDP…) y gastos externos que pagó Nova por afuera del courier (Vía Cargo, flete interno…). Van al costo, sin profit, y se le cobran al cliente. ${escAttr(destino)}">?</span></div>
+      <div class="saled-extras-title">Cargos posteriores y gastos externos <span class="saled-cargos-help" title="Extracargos que aparecen después de cargado el envío (manejo, sobrepeso, área remota, impuestos DDP…) y gastos externos que pagó Nova por afuera del courier (Vía Cargo, flete interno…). Los cargos van al costo, sin profit, y se le cobran al cliente; de un gasto externo se elige si se cobra o si es solo costo. ${escAttr(destino)}">?</span></div>
       ${cargos.length ? `<div class="saled-extras-list">${rows}${pend > 0 ? `
         <div class="saled-extra-row saled-extra-total"><span class="saled-extra-label">Se cobra en la próxima liquidación</span><span class="saled-extra-monto">${fmtUSD(pend)}</span></div>` : ''}
       </div>` : '<div class="saled-extras-empty">Sin cargos posteriores ni gastos externos</div>'}
@@ -3449,6 +3474,10 @@
           <select id="saled-cargo-tipo">${CARGO_TIPOS.map(([v, l]) => `<option value="${v}">${l}</option>`).join('')}</select>
           <input type="text" id="saled-cargo-label" placeholder="Nombre del cargo" class="hidden" maxlength="80">
           <input type="number" id="saled-cargo-monto" step="0.01" min="0.01" placeholder="USD (al costo)" required>
+          <span id="saled-cargo-cobra" class="saled-cargo-cobra hidden">¿Se le cobra al cliente?
+            <label><input type="radio" name="saled-cargo-cobra" value="si"> Sí, aparte</label>
+            <label><input type="radio" name="saled-cargo-cobra" value="no"> No, solo es costo</label>
+          </span>
           <button type="submit" class="btn btn-primary btn-sm">Guardar</button>
           <button type="button" class="btn btn-secondary btn-sm" id="saled-cargo-cancel">Cancelar</button>
           <span id="saled-cargo-status" class="saled-recalc-status"></span>
@@ -3473,6 +3502,8 @@
       tipoSel.classList.add('hidden');
       labelIn.classList.remove('hidden');
       labelIn.placeholder = 'Concepto (ej: Vía Cargo)';
+      form.dataset.gasto = '1';
+      document.getElementById('saled-cargo-cobra').classList.remove('hidden');
       labelIn.focus();
     });
     document.getElementById('saled-cargo-cancel').addEventListener('click', () => { anomEnCurso = null; renderCargosBlock(); });
@@ -3489,9 +3520,14 @@
       const monto = parseNum(document.getElementById('saled-cargo-monto').value);
       if (tipo === 'otro' && !label) { status.textContent = tipoSel.classList.contains('hidden') ? 'Escribí el concepto del gasto.' : 'Escribí el nombre del cargo.'; labelIn.focus(); return; }
       if (!(monto > 0)) { status.textContent = 'Ingresá el importe.'; return; }
+      // Gasto externo (16/11): hay que elegir si se le cobra al cliente. No hay opción por
+      // defecto: cobrarlo sube la venta; no cobrarlo baja el profit.
+      const esGasto = form.dataset.gasto === '1';
+      const cobra = esGasto ? (form.querySelector('input[name="saled-cargo-cobra"]:checked') || {}).value : null;
+      if (esGasto && !cobra) { status.textContent = 'Elegí si se le cobra al cliente o si es solo costo.'; return; }
       status.textContent = 'Guardando…';
       try {
-        const cargo = await NovaAPI.salidas.agregarCargo(editEnvio.id, { tipo, label, monto });
+        const cargo = await NovaAPI.salidas.agregarCargo(editEnvio.id, esGasto ? { tipo, label, monto, externo: true, solo_costo: cobra === 'no' } : { tipo, label, monto });
         editEnvio.cargos = (editEnvio.cargos || []).concat([cargo]);
         // Si el cargo salió de una anomalía de la factura, esa anomalía queda cubierta.
         if (anomEnCurso != null && Array.isArray(editEnvio.anomalias_factura)) {
@@ -3511,7 +3547,7 @@
       btn.addEventListener('click', async () => {
         const id = Number(btn.dataset.cargoId);
         const c = (editEnvio.cargos || []).find((x) => x.id === id);
-        if (!c || !confirm(`¿Anular el cargo "${c.label}" de USD ${Number(c.monto).toFixed(2)}? No se le va a cobrar al cliente.`)) return;
+        if (!c || !confirm(c.solo_costo ? `¿Anular el gasto "${c.label}" de USD ${Number(c.monto).toFixed(2)}? Deja de contar como costo del envío.` : `¿Anular el cargo "${c.label}" de USD ${Number(c.monto).toFixed(2)}? No se le va a cobrar al cliente.`)) return;
         try {
           const upd = await NovaAPI.salidas.anularCargo(editEnvio.id, id);
           editEnvio.cargos = (editEnvio.cargos || []).map((x) => (x.id === id ? upd : x));
@@ -3532,13 +3568,15 @@
   // secas y, en un envío con cargos, el profit real quedaba más bajo que el del GET.
   function refrescarProfitReal(d) {
     if (d.costo_facturado == null || d.total == null) return;
-    const vig = (d.cargos || []).filter((c) => c.estado !== 'anulado');
+    const vig = cargosVig(d).filter((c) => !c.solo_costo);
     const cargos = vig.reduce((s, c) => s + parseNum(c.monto), 0);
     const ddp = vig.filter((c) => c.origen === 'impuestos_ddp').reduce((s, c) => s + parseNum(c.monto), 0);
     const venta = parseNum(d.total) + cargos - ddp;
-    d.profit_real_monto = Math.round((venta - d.costo_facturado) * 100) / 100;
-    d.porcentaje_real = d.costo_facturado !== 0
-      ? Math.round((d.profit_real_monto / d.costo_facturado) * 10000) / 100 : null;
+    // Los gastos externos no vienen en la factura del courier: se suman a la compra real.
+    const costoReal = Math.round((parseNum(d.costo_facturado) + sumaCargosExt(d)) * 100) / 100;
+    d.profit_real_monto = Math.round((venta - costoReal) * 100) / 100;
+    d.porcentaje_real = costoReal !== 0
+      ? Math.round((d.profit_real_monto / costoReal) * 10000) / 100 : null;
   }
 
   // Foto de peso y medidas con la que se calculó el peso facturable que está en el modal
@@ -3637,8 +3675,22 @@
       d.cargos_pendientes = (d.cargos || []).filter((c) => c.estado === 'pendiente').reduce((s, c) => s + parseNum(c.monto), 0);
       // Los cargos son plata del envío (01/10): venta y compra suben lo mismo, el profit no.
       const antes = parseNum(d.cargos_total) || 0;
-      const ahora = (d.cargos || []).filter((c) => c.estado !== 'anulado').reduce((s, c) => s + parseNum(c.monto), 0);
+      const ahora = sumaCargosVenta(d);
       const dif = Math.round((ahora - antes) * 100) / 100;
+      // Gastos que no se cobran: suben solo la compra y bajan el profit estimado.
+      const costoAhora = sumaCargosCosto(d);
+      const difC = Math.round((costoAhora - (parseNum(d.cargos_costo) || 0)) * 100) / 100;
+      d.cargos_externos = sumaCargosExt(d);
+      if (difC) {
+        d.cargos_costo = costoAhora;
+        if (d.compra_total != null) d.compra_total = Math.round((d.compra_total + difC) * 100) / 100;
+        if (d.compra_estimada != null) d.compra_estimada = Math.round((d.compra_estimada + difC) * 100) / 100;
+        if (d.profit_estimado != null) {
+          d.profit_estimado = Math.round((d.profit_estimado - difC) * 100) / 100;
+          if (d.compra_estimada > 0) d.porcentaje_estimado = Math.round((d.profit_estimado / d.compra_estimada) * 10000) / 100;
+        }
+        refrescarProfitReal(d);
+      }
       if (dif) {
         d.cargos_total = ahora;
         d.venta_total = Math.round(((parseNum(d.venta_total) ?? parseNum(d.total) ?? 0) + dif) * 100) / 100;
@@ -4351,7 +4403,7 @@
         if (cliSel) d.cliente_nombre = cliSel.nombre_nova || cliSel.nombre;
         d.compra_total = (payload.flete || 0) - (payload.descuento || 0) + (payload.seguro || 0)
           + (payload.fuel || 0) + (payload.derechos || 0) + (payload.adicionales || 0) + (payload.otros || 0)
-          + (parseNum(d.cargos_total) || 0);
+          + (parseNum(d.cargos_total) || 0) + (parseNum(d.cargos_costo) || 0);
         // La doble vista se refresca igual que la simple, o quedaría mostrando la
         // estimación vieja hasta el próximo GET (los campos *_estimado son los que pinta
         // la tabla desde el 31/08).

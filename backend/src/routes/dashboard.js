@@ -1,6 +1,6 @@
 const { Router } = require('express');
 const { getDb } = require('../db');
-const { deriveProfit, costoEstimado, cargosDdp, utilidadEnvio: utilidadEnvioCompartida, SUBQUERY_LIQUIDACION, SUBQUERY_CARGOS } = require('../utils/profit');
+const { deriveProfit, costoEstimado, costoEstimadoCourier, cargosDdp, utilidadEnvio: utilidadEnvioCompartida, SUBQUERY_LIQUIDACION, SUBQUERY_CARGOS } = require('../utils/profit');
 const { hoyLocal, hoyLocalMas } = require('../utils/fecha');
 
 const router = Router();
@@ -86,7 +86,9 @@ router.get('/metricas', async (req, res, next) => {
              li.utilidad_usd AS utilidad_liq,
              li.venta_liq    AS venta_liq,
              cp.cargos_post  AS cargos_post,
-             cp.cargos_ddp   AS cargos_ddp
+             cp.cargos_ddp   AS cargos_ddp,
+             cp.cargos_costo AS cargos_costo,
+             cp.cargos_ext   AS cargos_ext
            FROM envios e
            JOIN clientes c ON c.id = e.cliente_id
            LEFT JOIN (${SUBQUERY_LIQUIDACION}) li ON li.envio_id = e.id
@@ -178,13 +180,13 @@ router.get('/metricas', async (req, res, next) => {
       // fuente que deriveProfit (costoEstimado), así son consistentes con la utilidad.
       if (row.costo_facturado != null) {
         if (row.estado_revision === 'revisado_ok') {
-          const est = costoEstimado(row);
+          const est = costoEstimadoCourier(row);
           // + impuestos DDP: la estimación los incluye (cargos) y la factura del flete no.
           desvioTotal += row.costo_facturado + cargosDdp(row) - est;
           desvioBase += est;
           cantidadComparados += 1;
         } else if (row.estado_revision === 'reclamar') {
-          disputaTotal += row.costo_facturado + cargosDdp(row) - costoEstimado(row);
+          disputaTotal += row.costo_facturado + cargosDdp(row) - costoEstimadoCourier(row);
           disputaCantidad += 1;
         }
       }

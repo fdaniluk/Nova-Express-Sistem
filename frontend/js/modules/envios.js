@@ -24,9 +24,12 @@
     row.className = 'env-gasto-row';
     row.innerHTML = '<input type="text" class="g-concepto" maxlength="80" placeholder="Concepto (ej: Vía Cargo)">'
       + '<input type="number" class="g-monto" min="0" step="0.01" placeholder="USD">'
-      + '<button type="button" class="g-quitar" title="Quitar">✕</button>';
+      + '<button type="button" class="g-quitar" title="Quitar">✕</button>'
+      // ¿Se le cobra al cliente? Sin opción por defecto: hay que elegir (16/11, Felipe).
+      + '<select class="g-cobra" title="Sí, aparte: se suma a lo que paga el cliente. No, solo costo: lo absorbe Nova (o ya está en el precio) y baja el profit.">'
+      + '<option value="">¿Se le cobra al cliente?</option><option value="si">Sí, se cobra aparte</option><option value="no">No, solo es costo</option></select>';
     row.querySelector('.g-quitar').addEventListener('click', () => { row.remove(); actualizarResumen(); });
-    if (datos) { row.querySelector('.g-concepto').value = datos.concepto || ''; row.querySelector('.g-monto').value = datos.monto || ''; }
+    if (datos) { row.querySelector('.g-concepto').value = datos.concepto || ''; row.querySelector('.g-monto').value = datos.monto || ''; row.querySelector('.g-cobra').value = datos.cobra || ''; }
     lista.appendChild(row);
     if (!datos) row.querySelector('.g-concepto').focus();
     return row;
@@ -38,9 +41,10 @@
     document.querySelectorAll('#gastos-lista .env-gasto-row').forEach((r) => {
       const concepto = r.querySelector('.g-concepto').value.trim();
       const monto = Math.round((parseFloat(r.querySelector('.g-monto').value) || 0) * 100) / 100;
+      const cobra = r.querySelector('.g-cobra').value;
       if (!concepto && !(monto > 0)) return;
-      if (!concepto || !(monto > 0)) { if (!incompleto) incompleto = r; return; }
-      gastos.push({ concepto, monto });
+      if (!concepto || !(monto > 0) || !cobra) { if (!incompleto) incompleto = r; return; }
+      gastos.push({ concepto, monto, solo_costo: cobra === 'no' });
     });
     return { gastos, incompleto };
   }
@@ -117,8 +121,11 @@
     set('fobr', `${fmt(fob)}${document.getElementById('asegurado').checked ? ' · asegurado' : ''}`);
     const total = parseFloat(document.getElementById('total_cobrado').value);
     set('fob', Number.isFinite(total) && total > 0 ? fmt(total) : '');
-    const sumaG = gastosExternos().gastos.reduce((s, g) => s + g.monto, 0);
-    set('gastos', sumaG > 0 ? `+ ${fmt(sumaG)}` : '');
+    const gx = gastosExternos().gastos;
+    const sumaCob = gx.filter((g) => !g.solo_costo).reduce((s, g) => s + g.monto, 0);
+    const sumaAbs = gx.filter((g) => g.solo_costo).reduce((s, g) => s + g.monto, 0);
+    const sumaG = sumaCob + sumaAbs;
+    set('gastos', [sumaCob > 0 ? `+ ${fmt(sumaCob)}` : '', sumaAbs > 0 ? `${fmt(sumaAbs)} sin cobrar` : ''].filter(Boolean).join(' · '));
     dl.querySelectorAll('[data-r="gastos"], [data-r-dt="gastos"]').forEach((el) => el.classList.toggle('hidden', !(sumaG > 0)));
   }
   function bindResumen() {
@@ -925,8 +932,8 @@
       // Gastos externos: se leen ANTES de guardar. Un renglón a medias frena el guardado.
       const ge = id ? { gastos: [], incompleto: null } : gastosExternos();
       if (ge.incompleto) {
-        NovaUtils.showAlert(alertBox, 'Gastos externos: hay un renglón incompleto. Poné el concepto y el importe, o quitalo con la ✕.');
-        (ge.incompleto.querySelector('.g-concepto').value.trim() ? ge.incompleto.querySelector('.g-monto') : ge.incompleto.querySelector('.g-concepto')).focus();
+        NovaUtils.showAlert(alertBox, 'Gastos externos: hay un renglón incompleto. Poné el concepto, el importe y si se le cobra al cliente, o quitalo con la ✕.');
+        (!ge.incompleto.querySelector('.g-concepto').value.trim() ? ge.incompleto.querySelector('.g-concepto') : (!(parseFloat(ge.incompleto.querySelector('.g-monto').value) > 0) ? ge.incompleto.querySelector('.g-monto') : ge.incompleto.querySelector('.g-cobra'))).focus();
         return;
       }
       const gastosAlGuardar = ge.gastos;
@@ -952,10 +959,10 @@
           let avisoOtros = '';
           if (creado && creado.id && gastosAlGuardar.length) {
             for (const o of gastosAlGuardar) {
-              try { await NovaAPI.salidas.agregarCargo(creado.id, { tipo: 'otro', label: o.concepto, monto: o.monto, fecha: data.fecha }); }
+              try { await NovaAPI.salidas.agregarCargo(creado.id, { tipo: 'otro', label: o.concepto, monto: o.monto, fecha: data.fecha, externo: true, solo_costo: !!o.solo_costo }); }
               catch (e2) { avisoOtros += ` No se pudo cargar "${o.concepto}" (${e2.message}): agregalo desde Salidas.`; }
             }
-            if (!avisoOtros) avisoOtros = ` Se ${gastosAlGuardar.length === 1 ? 'cargó el gasto externo' : 'cargaron los ' + gastosAlGuardar.length + ' gastos externos'} como cargo al costo.`;
+            if (!avisoOtros) avisoOtros = ` Se ${gastosAlGuardar.length === 1 ? 'cargó el gasto externo' : 'cargaron los ' + gastosAlGuardar.length + ' gastos externos'}.`;
           }
           NovaUtils.showAlert(alertBox, (precargaActual ? 'Guía confirmada: el envío ya está en Salidas' : 'Envío registrado correctamente') + avisoOtros, avisoOtros.includes('No se pudo') ? 'error' : 'success');
         }
@@ -1189,7 +1196,7 @@
         const otros = (ctx && ctx.cotizacion && ctx.cotizacion.datos && Array.isArray(ctx.cotizacion.datos.otros_conceptos)) ? ctx.cotizacion.datos.otros_conceptos : [];
         const sumaOtros = Math.round(otros.reduce((s, o) => s + (Number(o.monto) || 0), 0) * 100) / 100;
         limpiarGastosExternos();
-        if (!document.getElementById('envio-id').value) otros.forEach((o) => agregarGastoExterno({ concepto: o.concepto, monto: Number(o.monto) || 0 }));
+        if (!document.getElementById('envio-id').value) otros.forEach((o) => agregarGastoExterno({ concepto: o.concepto, monto: Number(o.monto) || 0, cobra: 'si' }));
         campo.value = (Number(total) - sumaOtros).toFixed(2);
         actualizarResumen();
         // El cotizador automatico pudo haber dejado su propio numero: se avisa cual quedo

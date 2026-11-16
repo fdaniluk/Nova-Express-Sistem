@@ -142,7 +142,7 @@ async function enviosDelPeriodo(desde, hasta) {
             e.total_cobrado AS total, e.flete, e.descuento, e.seguro, e.fuel, e.derechos, e.adicionales, e.otros,
             e.profit, e.porcentaje, e.estado_revision, e.costo_facturado, e.liquidado,
             c.id AS cliente_id, COALESCE(NULLIF(c.nombre_nova,''), c.nombre) AS cliente,
-            li.utilidad_usd AS utilidad_liq, li.venta_liq, cp.cargos_post, cp.cargos_ddp
+            li.utilidad_usd AS utilidad_liq, li.venta_liq, cp.cargos_post, cp.cargos_ddp, cp.cargos_costo, cp.cargos_ext
      FROM envios e JOIN clientes c ON c.id = e.cliente_id
      LEFT JOIN (${SUBQUERY_LIQUIDACION}) li ON li.envio_id = e.id
      LEFT JOIN (${SUBQUERY_CARGOS}) cp ON cp.envio_id = e.id

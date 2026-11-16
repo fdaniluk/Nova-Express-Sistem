@@ -137,6 +137,8 @@
 .env-gasto-row { display: grid; grid-template-columns: minmax(0, 1fr) 82px 26px; gap: 0.35rem; margin-top: 0.45rem; align-items: center; }
 .env-gasto-row input { padding: 0.35rem 0.5rem; font-size: 0.85rem; min-width: 0; }
 .env-gasto-row .g-monto { text-align: right; }
+.env-gasto-row .g-cobra { grid-column: 1 / -1; padding: 0.3rem 0.4rem; font-size: 0.82rem; }
+.env-gasto-row .g-cobra:invalid, .env-gasto-row .g-cobra.sin-elegir { color: #a33; }
 .env-gasto-row .g-quitar { border: 0; background: transparent; color: #a33; cursor: pointer; font-size: 0.95rem; padding: 0; }
 .env-gastos-ayuda { display: block; margin-top: 0.4rem; color: #888; font-size: 11px; }
 .env-gastos-ayuda.hidden { display: none; }

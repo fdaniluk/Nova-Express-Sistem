@@ -10,7 +10,7 @@
   <style>@view-transition { navigation: auto; }</style>
   <link rel="stylesheet" href="../css/main.css?v=20261104a">
   <link rel="stylesheet" href="../css/modules/guias.css?v=20260915a">
-  <link rel="stylesheet" href="../css/modules/envios.css?v=20261116a">
+  <link rel="stylesheet" href="../css/modules/envios.css?v=20261116b">
   <style>
     .cot-header {
       display: flex;
@@ -405,7 +405,7 @@
                       <button type="button" id="btn-gasto-externo" class="btn btn-secondary">+ Agregar</button>
                     </div>
                     <div id="gastos-lista"></div>
-                    <small id="gastos-ayuda" class="env-gastos-ayuda">Se le cobran al cliente al costo, aparte del precio de arriba.</small>
+                    <small id="gastos-ayuda" class="env-gastos-ayuda"><b>Se cobra aparte:</b> se suma a lo que paga el cliente. <b>Solo costo:</b> lo absorbe Nova (o ya está en el precio) y baja el profit.</small>
                     <small id="gastos-edicion" class="env-gastos-ayuda hidden">Este envío ya está cargado: los gastos externos se agregan desde <b>Salidas</b> (editar el envío → Gastos externos).</small>
                   </div>
                   <!-- LAS COTIZACIONES DE ESTE CLIENTE (idea de Felipe, 25/08/2026). La oficina
@@ -520,6 +520,6 @@
 <script src="/shared/cotizador/cotizador-core.js?v=20261030a"></script>
 <script src="/shared/guias/validar-guia.js?v=20260915a"></script>
 <script src="../js/cotizaciones-recientes.js?v=20261002a"></script>
-<script src="../js/modules/envios.js?v=20261116a"></script>
+<script src="../js/modules/envios.js?v=20261116b"></script>
 </body>
 </html>

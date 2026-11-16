@@ -702,7 +702,7 @@ async function listarPendientesPorCliente(filtros = {}) {
                 FROM envio_cargos c
                 LEFT JOIN envios e ON e.id = c.envio_id
                 JOIN clientes cl ON cl.id = COALESCE(c.cliente_id, e.cliente_id)
-                WHERE (e.liquidado = 1 OR c.envio_id IS NULL) AND c.liquidacion_id IS NULL AND c.anulado_at IS NULL`;
+                WHERE (e.liquidado = 1 OR c.envio_id IS NULL) AND c.liquidacion_id IS NULL AND c.anulado_at IS NULL AND c.solo_costo = 0`;
     const pc = [];
     if (filtros.cliente_id) { sqlC += ' AND cl.id = ?'; pc.push(filtros.cliente_id); }
     if (filtros.courier) { sqlC += ' AND (e.courier = ? OR c.envio_id IS NULL)'; pc.push(filtros.courier); }

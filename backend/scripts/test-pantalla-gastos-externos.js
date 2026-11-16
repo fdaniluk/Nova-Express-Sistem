@@ -4,7 +4,9 @@
 //   · en la CARGA del envío: lista "Gastos externos" (concepto + USD). Al guardar quedan
 //     como cargos al costo del envío, con su nombre, APARTE del precio;
 //   · en SALIDAS: botón "+ Agregar gasto externo" en la ventana de edición del envío;
-//   · un renglón a medias (importe sin concepto) no deja guardar: es plata;
+//   · de cada gasto hay que elegir si SE LE COBRA al cliente (aparte) o si es SOLO COSTO
+//     (lo absorbe Nova): no viene nada marcado;
+//   · un renglón a medias (sin concepto, sin importe o sin elegir) no deja guardar: es plata;
 //   · al editar un envío ya cargado, la carga manda a Salidas (no se duplican).
 let chromium;
 try { ({ chromium } = require('playwright')); } catch { console.log('⚠ playwright no está instalado — se saltea.'); process.exit(0); }
@@ -61,9 +63,14 @@ const cerca = (a, b) => Math.abs(Number(a) - Number(b)) < 0.011;
   await page.click('#btn-gasto-externo');
   await page.fill('#gastos-lista .env-gasto-row:nth-child(1) .g-concepto', 'Vía Cargo');
   await page.fill('#gastos-lista .env-gasto-row:nth-child(1) .g-monto', '35.5');
+  check('"¿Se le cobra al cliente?" no viene marcado', (await page.inputValue('#gastos-lista .env-gasto-row:nth-child(1) .g-cobra')) === '');
+  await page.click('#btn-guardar-envio'); await esperar(700);
+  check('sin elegir si se cobra: NO guarda y avisa', (await salidas()).length === 0 && /incompleto/i.test(await page.textContent('#alert-box')), await page.textContent('#alert-box'));
+  await page.selectOption('#gastos-lista .env-gasto-row:nth-child(1) .g-cobra', 'si');
   await page.click('#btn-gasto-externo');
   await page.fill('#gastos-lista .env-gasto-row:nth-child(2) .g-monto', '12');          // sin concepto
-  check('el resumen muestra los gastos aparte del precio', (await page.textContent('#env-resumen [data-r="gastos"]')).includes('35,5') || (await page.textContent('#env-resumen [data-r="gastos"]')).includes('35.5'), await page.textContent('#env-resumen [data-r="gastos"]'));
+  await page.selectOption('#gastos-lista .env-gasto-row:nth-child(2) .g-cobra', 'no');
+  check('el resumen muestra el gasto que se cobra aparte del precio', /35[,.]5/.test(await page.textContent('#env-resumen [data-r="gastos"]')), await page.textContent('#env-resumen [data-r="gastos"]'));
   await page.click('#btn-guardar-envio'); await esperar(900);
   check('renglón a medias (importe sin concepto): NO guarda y avisa', (await salidas()).length === 0 && /incompleto/i.test(await page.textContent('#alert-box')), await page.textContent('#alert-box'));
   await page.fill('#gastos-lista .env-gasto-row:nth-child(2) .g-concepto', 'Flete interno');
@@ -75,8 +82,8 @@ const cerca = (a, b) => Math.abs(Number(a) - Number(b)) < 0.011;
   let s = await salidas();
   const e1 = s[0];
   const cargos1 = e1 ? (e1.cargos || []).filter((c) => c.estado !== 'anulado') : [];
-  check('el envío quedó con 2 cargos: Vía Cargo 35,50 y Flete interno 12', cargos1.length === 2 && cargos1.some((c) => c.label === 'Vía Cargo' && cerca(c.monto, 35.5)) && cargos1.some((c) => c.label === 'Flete interno' && cerca(c.monto, 12)), JSON.stringify(cargos1.map((c) => [c.label, c.monto])));
-  check('el precio del envío no se toca (400) y la venta total suma los gastos (447,50)', e1 && cerca(e1.total_cobrado ?? e1.total, 400) && cerca(e1.venta_total, 447.5), e1 && `total ${e1.total_cobrado ?? e1.total} venta_total ${e1.venta_total}`);
+  check('el envío quedó con Vía Cargo 35,50 (se cobra) y Flete interno 12 (solo costo)', cargos1.length === 2 && cargos1.some((c) => c.label === 'Vía Cargo' && cerca(c.monto, 35.5) && !c.solo_costo && c.externo) && cargos1.some((c) => c.label === 'Flete interno' && cerca(c.monto, 12) && c.solo_costo), JSON.stringify(cargos1.map((c) => [c.label, c.monto, c.solo_costo])));
+  check('precio 400; la venta total suma solo el que se cobra (435,50); el otro va a la compra', e1 && cerca(e1.total_cobrado ?? e1.total, 400) && cerca(e1.venta_total, 435.5) && cerca(e1.cargos_costo, 12), e1 && `total ${e1.total_cobrado ?? e1.total} venta_total ${e1.venta_total} costo ${e1.cargos_costo}`);
   check('después de guardar la lista queda vacía', (await page.locator('#gastos-lista .env-gasto-row').count()) === 0);
 
   await llenar('1Z327W096792000022', 250);
@@ -98,12 +105,29 @@ const cerca = (a, b) => Math.abs(Number(a) - Number(b)) < 0.011;
   await page.click('#saled-cargo-form button[type=submit]'); await esperar(500);
   check('sin concepto no guarda', /concepto/i.test(await page.textContent('#saled-cargo-status')) && !((await salidas()).find((e) => e.id === e2.id).cargos || []).length);
   await page.fill('#saled-cargo-label', 'Vía Cargo');
+  check('pregunta "¿Se le cobra al cliente?" sin nada marcado', await page.isVisible('#saled-cargo-cobra') && (await page.locator('input[name="saled-cargo-cobra"]:checked').count()) === 0);
+  await page.click('#saled-cargo-form button[type=submit]'); await esperar(500);
+  check('sin elegir no guarda', /Elegí/i.test(await page.textContent('#saled-cargo-status')) && !((await salidas()).find((e) => e.id === e2.id).cargos || []).length);
+  const profitAntes = Number(await page.inputValue('#saled-profit'));
+  await page.check('input[name="saled-cargo-cobra"][value="si"]');
   await page.click('#saled-cargo-form button[type=submit]');
-  await page.waitForFunction(() => /Vía Cargo/.test(document.getElementById('saled-cargos-block').textContent) && !document.getElementById('saled-cargo-status').textContent, null, { timeout: 8000 }).catch(() => {});
+  await page.waitForFunction(() => /Vía Cargo/.test(document.querySelector('#saled-cargos-block .saled-extras-list')?.textContent || ''), null, { timeout: 8000 }).catch(() => {});
   s = await salidas();
   const e2b = s.find((e) => e.id === e2.id);
-  check('queda como cargo "Vía Cargo" de 40 y la venta total pasa a 290', (e2b.cargos || []).length === 1 && e2b.cargos[0].label === 'Vía Cargo' && cerca(e2b.cargos[0].monto, 40) && cerca(e2b.venta_total, 290), JSON.stringify(e2b.cargos) + ' ' + e2b.venta_total);
-  check('la utilidad del envío no cambia (va al costo)', cerca(e2b.profit ?? 0, e2.profit ?? 0) || cerca(e2b.utilidad ?? 0, e2.utilidad ?? 0), `${e2.profit} → ${e2b.profit}`);
+  check('"Sí, aparte": cargo de 40, la venta total pasa a 290 y el profit no cambia', (e2b.cargos || []).length === 1 && e2b.cargos[0].label === 'Vía Cargo' && !e2b.cargos[0].solo_costo && cerca(e2b.venta_total, 290) && cerca(e2b.profit_estimado, e2.profit_estimado) && cerca(Number(await page.inputValue('#saled-profit')), profitAntes), JSON.stringify(e2b.cargos) + ' ' + e2b.venta_total);
+  check('   la ventana muestra Venta completa 290,00', /290\.00/.test(await page.textContent('#saled-venta-completa-view')));
+  // Ahora uno que absorbe Nova
+  await page.click('#saled-gasto-btn');
+  await page.fill('#saled-cargo-label', 'Flete interno');
+  await page.fill('#saled-cargo-monto', '15');
+  await page.check('input[name="saled-cargo-cobra"][value="no"]');
+  await page.click('#saled-cargo-form button[type=submit]');
+  await page.waitForFunction(() => /Flete interno/.test(document.querySelector('#saled-cargos-block .saled-extras-list')?.textContent || ''), null, { timeout: 8000 }).catch(() => {});
+  s = await salidas();
+  const e2c = s.find((e) => e.id === e2.id);
+  check('"No, solo es costo": la venta sigue en 290, la compra sube 15 y el profit baja 15', cerca(e2c.venta_total, 290) && cerca(e2c.compra_estimada, e2b.compra_estimada + 15) && cerca(e2c.profit_estimado, e2b.profit_estimado - 15), `venta ${e2c.venta_total} compra ${e2c.compra_estimada} profit ${e2c.profit_estimado}`);
+  check('   la ventana lo muestra sin recargar: profit −15, "solo costo · no se cobra" y la compra con el gasto', cerca(Number(await page.inputValue('#saled-profit')), profitAntes - 15) && /solo costo/.test(await page.textContent('#saled-cargos-block')) && cerca(Number(await page.textContent('#saled-compra-view')), e2c.compra_estimada) && /15\.00/.test(await page.textContent('#saled-solocosto-view')), `${await page.inputValue('#saled-profit')} / compra ${await page.textContent('#saled-compra-view')}`);
+  check('   la grilla también (sin recargar): venta 290 y profit −15', await page.evaluate(([id, p]) => { const tr = document.querySelector(`tr[data-envio-id="${id}"]`); return !!tr && tr.textContent.includes('290') && tr.textContent.includes(p); }, [e2.id, (e2b.profit_estimado - 15).toFixed(2)]));
   check('"+ Agregar cargo" sigue ofreciendo los tipos de siempre', await page.isVisible('#saled-cargo-btn') && await (async () => { await page.click('#saled-cargo-btn'); return page.isVisible('#saled-cargo-tipo'); })());
 
   console.log('\n3. Editar un envío ya cargado\n');

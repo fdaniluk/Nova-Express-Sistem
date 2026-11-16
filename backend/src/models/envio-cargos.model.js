@@ -20,6 +20,14 @@
 // CLIENTE (envio_id NULL, cliente_id, nº de guía como texto, PDF del courier opcional) y
 // entra en la próxima liquidación del cliente dentro de "Cargos de envíos anteriores",
 // igual que los cargos de envíos ya liquidados. Al costo, anulable mientras está pendiente.
+//
+// Gastos externos (16/11/2026, pedido de Felipe): lo que Nova paga por AFUERA del courier
+// (Vía Cargo, flete interno…). Dos columnas nuevas:
+//   · externo = 1     → no lo factura el courier (se suma a la compra real aparte).
+//   · solo_costo = 1  → NO se le cobra al cliente (lo absorbe Nova o ya estaba en el precio):
+//                       no entra en la venta ni en ninguna liquidación; es compra y baja la
+//                       utilidad del envío. Su estado de cara a la pantalla es 'costo'.
+// La oficina elige al cargarlo; no hay opción por defecto en pantalla.
 const { getDb } = require('../db');
 
 const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
@@ -126,6 +134,11 @@ async function migrar(db = getDb()) {
       CREATE INDEX IF NOT EXISTS idx_envio_cargos_cliente ON envio_cargos(cliente_id);
     `);
   }
+  // 16/11: gastos externos (ver arriba). Los cargos que ya existían quedan como estaban:
+  // del courier y cobrados al cliente.
+  const cols2 = (await db.prepare('PRAGMA table_info(envio_cargos)').all()).map((c) => c.name);
+  if (!cols2.includes('externo')) await db.exec('ALTER TABLE envio_cargos ADD COLUMN externo INTEGER NOT NULL DEFAULT 0');
+  if (!cols2.includes('solo_costo')) await db.exec('ALTER TABLE envio_cargos ADD COLUMN solo_costo INTEGER NOT NULL DEFAULT 0');
   // Una sola vez: los envíos que ya tenían impuestos DDP facturados (entrega 1 de DDP)
   // pasan a tener su cargo pendiente, así entran en la próxima liquidación del cliente.
   // Si alguno ya se le cobró al cliente por afuera, la oficina lo anula desde Salidas.
@@ -152,12 +165,14 @@ function mapCargo(c) {
     fecha: c.fecha, creado_por: c.creado_por, creado_at: c.creado_at,
     liquidacion_id: c.liquidacion_id, liquidacion_estado: c.liquidacion_estado || null,
     anulado_at: c.anulado_at, anulado_por: c.anulado_por,
-    estado: c.anulado_at ? 'anulado' : (c.liquidacion_id ? 'liquidado' : 'pendiente'),
+    externo: !!c.externo, solo_costo: !!c.solo_costo,
+    // 'costo' = gasto que no se le cobra al cliente: nunca queda "pendiente de cobrar".
+    estado: c.anulado_at ? 'anulado' : (c.solo_costo ? 'costo' : (c.liquidacion_id ? 'liquidado' : 'pendiente')),
   };
 }
 
 // Sin el BLOB del adjunto: se pide aparte (adjuntoDe).
-const COLS = 'c.id, c.envio_id, c.cliente_id, c.guia_texto, c.adjunto_nombre, c.tipo, c.label, c.monto, c.origen, c.fecha, c.creado_por, c.creado_at, c.liquidacion_id, c.anulado_at, c.anulado_por';
+const COLS = 'c.id, c.envio_id, c.cliente_id, c.guia_texto, c.adjunto_nombre, c.tipo, c.label, c.monto, c.origen, c.fecha, c.creado_por, c.creado_at, c.liquidacion_id, c.anulado_at, c.anulado_por, c.externo, c.solo_costo';
 const SQL_BASE = `SELECT ${COLS}, l.estado AS liquidacion_estado FROM envio_cargos c LEFT JOIN liquidaciones l ON l.id = c.liquidacion_id`;
 
 async function listarDeEnvio(envioId, db = getDb()) {
@@ -186,7 +201,7 @@ async function pendientesDeEnvios(envioIds, db = getDb()) {
   const out = {};
   if (!envioIds || !envioIds.length) return out;
   const rows = await db.prepare(
-    `SELECT ${COLS} FROM envio_cargos c WHERE envio_id IN (${envioIds.map(() => '?').join(',')}) AND liquidacion_id IS NULL AND anulado_at IS NULL ORDER BY id`
+    `SELECT ${COLS} FROM envio_cargos c WHERE envio_id IN (${envioIds.map(() => '?').join(',')}) AND liquidacion_id IS NULL AND anulado_at IS NULL AND solo_costo = 0 ORDER BY id`
   ).all(...envioIds);
   for (const r of rows) (out[r.envio_id] = out[r.envio_id] || []).push(mapCargo(r));
   return out;
@@ -198,11 +213,11 @@ async function pendientesAnterioresDeCliente(clienteId, db = getDb()) {
   // Los cargos sin envío (30/10) entran acá también: su "guía" es el texto que tipeó la
   // oficina y su "fecha de envío" es la fecha del cargo.
   const rows = await db.prepare(
-    `SELECT c.id, c.envio_id, c.cliente_id, c.guia_texto, c.adjunto_nombre, c.tipo, c.label, c.monto, c.origen, c.fecha, c.creado_por, c.creado_at, c.liquidacion_id, c.anulado_at, c.anulado_por,
+    `SELECT ${COLS},
             COALESCE(e.numero_guia, c.guia_texto) AS numero_guia, COALESCE(e.fecha, c.fecha) AS envio_fecha, e.pais_destino, e.liquidacion_id AS liquidacion_original_id
      FROM envio_cargos c LEFT JOIN envios e ON e.id = c.envio_id
      WHERE ((c.envio_id IS NULL AND c.cliente_id = ?) OR (e.cliente_id = ? AND e.liquidado = 1))
-       AND c.liquidacion_id IS NULL AND c.anulado_at IS NULL
+       AND c.liquidacion_id IS NULL AND c.anulado_at IS NULL AND c.solo_costo = 0
      ORDER BY COALESCE(e.fecha, c.fecha), COALESCE(e.numero_guia, c.guia_texto), c.id`
   ).all(clienteId, clienteId);
   return rows.map((r) => ({ ...mapCargo(r), numero_guia: r.numero_guia, envio_fecha: r.envio_fecha, pais_destino: r.pais_destino, liquidacion_original_id: r.liquidacion_original_id }));
@@ -212,7 +227,7 @@ async function pendientesAnterioresDeCliente(clienteId, db = getDb()) {
 // del ítem) y los de envíos anteriores (sección aparte).
 async function deLiquidacion(liquidacionId, db = getDb()) {
   const rows = await db.prepare(
-    `SELECT c.id, c.envio_id, c.cliente_id, c.guia_texto, c.adjunto_nombre, c.tipo, c.label, c.monto, c.origen, c.fecha, c.creado_por, c.creado_at, c.liquidacion_id, c.anulado_at, c.anulado_por,
+    `SELECT ${COLS},
             COALESCE(e.numero_guia, c.guia_texto) AS numero_guia, COALESCE(e.fecha, c.fecha) AS envio_fecha, e.pais_destino, e.liquidacion_id AS envio_liquidacion_id
      FROM envio_cargos c LEFT JOIN envios e ON e.id = c.envio_id
      WHERE c.liquidacion_id = ? AND c.anulado_at IS NULL
@@ -238,7 +253,7 @@ async function deLiquidacion(liquidacionId, db = getDb()) {
 
 async function asignarLiquidacion(ids, liquidacionId, db = getDb()) {
   if (!ids.length) return;
-  await db.prepare(`UPDATE envio_cargos SET liquidacion_id = ? WHERE id IN (${ids.map(() => '?').join(',')}) AND liquidacion_id IS NULL`).run(liquidacionId, ...ids);
+  await db.prepare(`UPDATE envio_cargos SET liquidacion_id = ? WHERE id IN (${ids.map(() => '?').join(',')}) AND liquidacion_id IS NULL AND solo_costo = 0`).run(liquidacionId, ...ids);
 }
 
 async function liberarDeLiquidacion(liquidacionId, db = getDb()) {
@@ -259,7 +274,7 @@ async function pendientesFueraDe(liquidacionId, clienteId, envioIds, db = getDb(
 }
 
 // ── Alta / baja desde Salidas ─────────────────────────────────────────────────────────
-async function agregar(envioId, { tipo, label, monto, fecha }, usuario) {
+async function agregar(envioId, { tipo, label, monto, fecha, externo, solo_costo }, usuario) {
   const db = getDb();
   const envio = await db.prepare('SELECT id, numero_guia, no_volo FROM envios WHERE id = ?').get(envioId);
   if (!envio) throw err('Envío inexistente', 404);
@@ -272,9 +287,15 @@ async function agregar(envioId, { tipo, label, monto, fecha }, usuario) {
   monto = r2(monto);
   if (!(monto > 0)) throw err('El importe tiene que ser mayor a cero');
   const f = /^\d{4}-\d{2}-\d{2}$/.test(String(fecha || '')) ? fecha : ahora().slice(0, 10);
+  // Gasto externo: "solo costo" (no se le cobra al cliente) existe únicamente para los
+  // gastos externos, así que lo marca como externo aunque no venga dicho.
+  const si = (v) => v === true || v === 1 || v === '1' || v === 'true';
+  const soloCosto = si(solo_costo) ? 1 : 0;
+  const ext = si(externo) || soloCosto ? 1 : 0;
+  if (soloCosto && tipo !== 'otro') throw err('Solo un gasto externo puede quedar como "solo costo"');
   const r = await db.prepare(
-    `INSERT INTO envio_cargos (envio_id, tipo, label, monto, origen, fecha, creado_por) VALUES (?, ?, ?, ?, 'manual', ?, ?)`
-  ).run(envioId, tipo, label, monto, f, usuario ? usuario.usuario : null);
+    `INSERT INTO envio_cargos (envio_id, tipo, label, monto, origen, fecha, creado_por, externo, solo_costo) VALUES (?, ?, ?, ?, 'manual', ?, ?, ?, ?)`
+  ).run(envioId, tipo, label, monto, f, usuario ? usuario.usuario : null, ext, soloCosto);
   return obtener(r.lastInsertRowid, db);
 }
 

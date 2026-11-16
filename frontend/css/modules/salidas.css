@@ -1712,6 +1712,11 @@ body.salidas-page .page-header.sal-header {
   padding: 0.35rem 0.5rem; border: 1px solid var(--color-border); border-radius: 6px; font: inherit; font-size: 12.5px;
 }
 .saled-cargo-form input[type=number] { width: 130px; }
+.saled-cargo-cobra { display: inline-flex; align-items: center; gap: 0.6rem; flex-wrap: wrap; font-size: 0.82rem; font-weight: 600; padding: 0.25rem 0.5rem; border: 1px dashed #cfd7e3; border-radius: 6px; background: #fafbfd; }
+.saled-cargo-cobra.hidden { display: none; }
+.saled-cargo-cobra label { font-weight: 400; display: inline-flex; align-items: center; gap: 0.25rem; margin: 0; cursor: pointer; }
+.saled-cargo-form input[type=radio] { width: auto; padding: 0; margin: 0; border: 0; }
+.saled-cargo-est.costo { background: #eef0f4; color: #4a5568; }
 .saled-cargo-form input[type=text] { width: 200px; }
 
 /* ── Escaneo UPS del día (28/09/2026): modal del paso nuevo del cierre diario ── */

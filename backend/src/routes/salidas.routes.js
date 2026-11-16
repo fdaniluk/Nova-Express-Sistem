@@ -3,7 +3,7 @@ const { numerarPorMes, claveParaNumero } = require('../../../shared/salidas/nume
 const { getDb } = require('../db');
 const { buildPesos, calcularDesgloseAlCosto, calcularSeguroVenta, normalizarProteccionDoc } = require('../models/envio.model');
 const { pesoVolumetricoBulto } = require('../services/calculos.service');
-const { deriveProfit, profitDoble, cargosPost, SUBQUERY_LIQUIDACION, SUBQUERY_CARGOS } = require('../utils/profit');
+const { deriveProfit, profitDoble, cargosPost, cargosCosto, cargosExternos, SUBQUERY_LIQUIDACION, SUBQUERY_CARGOS } = require('../utils/profit');
 const { descomponerVenta, ventaManualDe } = require('../utils/desgloseVenta');
 const configuracionModel = require('../models/configuracion.model');
 const cierreService = require('../services/cierre.service');
@@ -127,7 +127,9 @@ async function listarSalidas({ desde, hasta } = {}) {
       c.tipo_cobro,
       li.venta_liq          AS venta_liq,
       cp.cargos_post        AS cargos_post,
-      cp.cargos_ddp         AS cargos_ddp
+      cp.cargos_ddp         AS cargos_ddp,
+      cp.cargos_costo       AS cargos_costo,
+      cp.cargos_ext         AS cargos_ext
     FROM envios e
     JOIN clientes c ON c.id = e.cliente_id
     LEFT JOIN destinatarios d ON d.id = e.destinatario_id
@@ -365,6 +367,10 @@ async function listarSalidas({ desde, hasta } = {}) {
     // Venta COMPLETA (01/10): total_cobrado + cargos posteriores vigentes del envío. Es la
     // columna Venta Total de la grilla; `total` sigue siendo lo congelado al alta.
     cargos_total: cargosPost(row),
+    // Gastos externos que NO se le cobran al cliente (16/11): están en la compra, no en la venta.
+    cargos_costo: cargosCosto(row),
+    // Todo lo externo (cobrado o no): no viene en la factura del courier.
+    cargos_externos: cargosExternos(row),
     venta_total: r2((Number(row.total) || 0) + cargosPost(row)),
     venta_desglose: ventaDesgloseDe(row),
     venta_manual: ventaManualDeRow(row),

@@ -15,7 +15,7 @@
 //   · La venta es la de la liquidación confirmada si existe (venta_liq), si no
 //     total_cobrado.
 const { getDb } = require('../db');
-const { deriveProfit, profitDoble, costoEstimado, utilidadEnvio, ventaEnvio, compraEnvio, cargosPost, cargosDdp, SUBQUERY_LIQUIDACION, SUBQUERY_CARGOS } = require('../utils/profit');
+const { deriveProfit, profitDoble, costoEstimado, costoEstimadoCourier, utilidadEnvio, ventaEnvio, compraEnvio, cargosPost, cargosDdp, SUBQUERY_LIQUIDACION, SUBQUERY_CARGOS } = require('../utils/profit');
 const { hoyLocal } = require('../utils/fecha');
 const { esHabil, habilesEntre } = require('../utils/habiles');
 const { bandaCalibrada, CALIBRACION } = require('../utils/calibracion-proyeccion');
@@ -276,7 +276,7 @@ const SQL_ENVIOS = `
     e.profit, e.porcentaje,
     e.estado_revision, e.costo_facturado, e.fecha_facturado,
     e.liquidado, e.fecha_liquidacion, e.created_at,
-    li.utilidad_usd AS utilidad_liq, li.venta_liq AS venta_liq, cp.cargos_post AS cargos_post, cp.cargos_ddp AS cargos_ddp
+    li.utilidad_usd AS utilidad_liq, li.venta_liq AS venta_liq, cp.cargos_post AS cargos_post, cp.cargos_ddp AS cargos_ddp, cp.cargos_costo AS cargos_costo, cp.cargos_ext AS cargos_ext
   FROM envios e
   JOIN clientes c ON c.id = e.cliente_id
   LEFT JOIN (${SUBQUERY_LIQUIDACION}) li ON li.envio_id = e.id
@@ -299,7 +299,7 @@ const SQL_HISTORICOS = `
     NULL AS profit, NULL AS porcentaje,
     NULL AS estado_revision, NULL AS costo_facturado, NULL AS fecha_facturado,
     COALESCE(e2.liquidado, 1) AS liquidado, e2.fecha_liquidacion AS fecha_liquidacion, h.importado_at AS created_at,
-    NULL AS utilidad_liq, NULL AS venta_liq, h.cargos_post AS cargos_post, 0 AS cargos_ddp,
+    NULL AS utilidad_liq, NULL AS venta_liq, h.cargos_post AS cargos_post, 0 AS cargos_ddp, 0 AS cargos_costo, 0 AS cargos_ext,
     1 AS historico
   FROM envios_historicos h
   JOIN clientes c ON c.id = h.cliente_id
@@ -592,8 +592,8 @@ async function analitica(q = {}) {
   const sinFactura = todos.filter((e) => e.costo_facturado == null && e.courier === 'UPS' && e.fecha >= corte && diasEntre(e.fecha, hoy) > 45);
   const plata = {
     sin_liquidar: { n: sinLiqTodos.length, usd: r2(sinLiqTodos.reduce((s, e) => s + ventaConCargos(e), 0)) },
-    desvios_sin_revisar: { n: desvios.length, usd: r2(desvios.reduce((s, e) => s + (Number(e.costo_facturado) + cargosDdp(e) - costoEstimado(e)), 0)) },
-    disputa: { n: disputa.length, usd: r2(disputa.reduce((s, e) => s + (Number(e.costo_facturado) + cargosDdp(e) - costoEstimado(e)), 0)) },
+    desvios_sin_revisar: { n: desvios.length, usd: r2(desvios.reduce((s, e) => s + (Number(e.costo_facturado) + cargosDdp(e) - costoEstimadoCourier(e)), 0)) },
+    disputa: { n: disputa.length, usd: r2(disputa.reduce((s, e) => s + (Number(e.costo_facturado) + cargosDdp(e) - costoEstimadoCourier(e)), 0)) },
     sin_factura: { n: sinFactura.length, usd: r2(sinFactura.reduce((s, e) => s + costoEstimado(e), 0)) },
   };
 

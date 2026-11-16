@@ -111,7 +111,9 @@ async function perfil(req, res, next) {
            li.utilidad_usd AS utilidad_liq,
            li.venta_liq    AS venta_liq,
            cp.cargos_post  AS cargos_post,
-           cp.cargos_ddp   AS cargos_ddp
+           cp.cargos_ddp   AS cargos_ddp,
+           cp.cargos_costo AS cargos_costo,
+           cp.cargos_ext   AS cargos_ext
          FROM envios e
          LEFT JOIN (${SUBQUERY_LIQUIDACION}) li ON li.envio_id = e.id
          LEFT JOIN (${SUBQUERY_CARGOS}) cp ON cp.envio_id = e.id
