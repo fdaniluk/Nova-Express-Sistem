@@ -129,7 +129,7 @@ async function main() {
   const textos = [];
   wb.worksheets[0].eachRow((row) => row.eachCell((cell) => { if (typeof cell.value === 'string') textos.push(cell.value); }));
   check('  sección "CARGOS DE ENVÍOS ANTERIORES" con la guía tipeada', textos.includes('CARGOS DE ENVÍOS ANTERIORES') && textos.includes('1Z327W090412345678'), textos.filter((x) => /CARGOS|1Z/.test(x)).join(' | '));
-  check('  el concepto dice que el envío no está cargado en el sistema', textos.some((x) => x === 'Sobrepeso informado por UPS · informado el 20/10/2026 · envío no cargado en el sistema'), textos.filter((x) => /Sobrepeso/.test(x)).join(' | '));
+  check('  el concepto NO le cuenta al cliente que el envío no está cargado en el sistema (es interno)', textos.some((x) => x === 'Sobrepeso informado por UPS · informado el 20/10/2026') && !textos.some((x) => /no cargado|en el sistema/i.test(String(x))), textos.filter((x) => /Sobrepeso/.test(x)).join(' | '));
 
   r = await del(`/api/liquidaciones/${b.id}`);
   check('borrar el borrador → 200', r.status === 200, String(r.status));

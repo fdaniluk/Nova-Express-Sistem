@@ -2,9 +2,15 @@
 //
 // Un solo armado para el Excel y el PDF: acá se decide QUÉ va en cada renglón y en qué
 // columna; excel.service.js y liquidacion-pdf.service.js solo lo dibujan. Reglas:
-//   · Un solo formato (el que la oficina llamaba "detallado" y ajustó a mano): sin FOB ni
+//   · Un solo formato (el que la oficina llamaba "detallado" y ajustó a mano): sin
 //     DERECHOS; el desglose del Adicional va debajo de cada envío, en la columna
 //     "Desglose de adicional" pegada a ADICIONAL, con el importe en la columna ADICIONAL.
+//   · FOB (16/11/2026, Felipe): la columna VA, porque el cliente valida con ella el seguro
+//     que se le cobra; lo que NO va es la suma de los FOB en la fila de totales (no significa
+//     nada). El 04/11 se había sacado la columna entera por un malentendido.
+//   · Nada interno de la oficina de cara al cliente (16/11): un cargo de una guía que no
+//     está en el sistema NO dice "envío no cargado en el sistema"; va con su concepto, la
+//     fecha en que se informó y la guía en su columna.
 //   · DESTINATARIO aparece solo si algún envío lo tiene (Felipe, 04/11).
 //   · Filas: el envío sombreado, sus renglones de desglose en blanco.
 //   · Las diferencias de fuel ya vienen sumadas en la columna FUEL del ítem (modelo), así
@@ -42,25 +48,28 @@ const r2 = (n) => Math.round((Number(n) || 0) * 100) / 100;
 // Columnas de la tabla de envíos, en orden. `ancho` en caracteres de Excel; `pdf` en puntos.
 const COLUMNAS_BASE = [
   { key: 'fecha', label: 'FECHA', ancho: 11, pdf: 58, alinear: 'center' },
-  { key: 'guia', label: 'Nº ENVÍO', ancho: 20, pdf: 100, alinear: 'left' },
+  { key: 'guia', label: 'Nº ENVÍO', ancho: 20, pdf: 116, alinear: 'left' },
   { key: 'destinatario', label: 'DESTINATARIO', ancho: 18, pdf: 80, alinear: 'left', opcional: true },
-  { key: 'pais', label: 'PAÍS', ancho: 20, pdf: 104, alinear: 'left' },
-  { key: 'zona', label: 'ZONA', ancho: 6, pdf: 32, alinear: 'center' },
-  { key: 'tipo', label: 'TIPO', ancho: 13, pdf: 82, alinear: 'center' },
-  { key: 'peso', label: 'PESO (kg)', ancho: 10, pdf: 48, alinear: 'right', formato: 'peso' },
-  { key: 'flete', label: 'FLETE', ancho: 11, pdf: 56, alinear: 'right', formato: 'usd' },
-  { key: 'fuel', label: 'FUEL', ancho: 10, pdf: 52, alinear: 'right', formato: 'usd' },
-  { key: 'seguro', label: 'SEGURO', ancho: 10, pdf: 50, alinear: 'right', formato: 'usd' },
-  { key: 'desglose', label: 'DESGLOSE DE ADICIONAL', ancho: 24, pdf: 96, alinear: 'left' },
-  { key: 'adicional', label: 'ADICIONAL', ancho: 11, pdf: 56, alinear: 'right', formato: 'usd' },
-  { key: 'total', label: 'TOTAL USD', ancho: 12, pdf: 62, alinear: 'right', formato: 'usd', negrita: true },
+  { key: 'pais', label: 'PAÍS', ancho: 20, pdf: 80, alinear: 'left' },
+  { key: 'zona', label: 'ZONA', ancho: 6, pdf: 33, alinear: 'center' },
+  { key: 'tipo', label: 'TIPO', ancho: 13, pdf: 84, alinear: 'center' },
+  { key: 'peso', label: 'PESO (kg)', ancho: 10, pdf: 50, alinear: 'right', formato: 'peso' },
+  // Valor declarado: informativo, por envío. No se totaliza.
+  { key: 'fob', label: 'FOB', ancho: 12, pdf: 60, alinear: 'right', formato: 'usd' },
+  { key: 'flete', label: 'FLETE', ancho: 11, pdf: 52, alinear: 'right', formato: 'usd' },
+  { key: 'fuel', label: 'FUEL', ancho: 10, pdf: 48, alinear: 'right', formato: 'usd' },
+  { key: 'seguro', label: 'SEGURO', ancho: 10, pdf: 46, alinear: 'right', formato: 'usd' },
+  { key: 'desglose', label: 'DESGLOSE DE ADICIONAL', ancho: 24, pdf: 106, alinear: 'left' },
+  { key: 'adicional', label: 'ADICIONAL', ancho: 11, pdf: 54, alinear: 'right', formato: 'usd' },
+  { key: 'total', label: 'TOTAL USD', ancho: 12, pdf: 58, alinear: 'right', formato: 'usd', negrita: true },
 ];
 
 // "Sobrepeso · informado el 15/08/2026 · envío a Reino Unido, cobrado en la liquidación #45"
 function conceptoCargoAnterior(c) {
   let t = c.label || 'Cargo';
   if (c.fecha) t += ` · informado el ${fechaCorta(c.fecha)}`;
-  if (c.sin_envio) return `${t} · envío no cargado en el sistema`;
+  // Guía que no está en el sistema: eso es interno de la oficina, el cliente no lo lee.
+  if (c.sin_envio) return t;
   const envio = [c.pais_destino ? `envío a ${c.pais_destino}` : 'envío', c.liquidacion_original_id ? `cobrado en la liquidación #${c.liquidacion_original_id}` : ''].filter(Boolean).join(', ');
   return `${t} · ${envio}`;
 }
@@ -94,6 +103,7 @@ function armarDocumento(liq) {
       zona: it.zona != null ? String(it.zona) : '',
       tipo: tipoEnvioLabel(it.tipo_envio),
       peso: r2(it.peso_facturable),
+      fob: Number(it.fob) > 0 ? r2(it.fob) : '',
       flete: r2(it.flete),
       fuel: r2(it.fuel),
       seguro: r2(it.seguro),

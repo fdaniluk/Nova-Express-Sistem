@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Rediseño de la liquidación (04/11/2026, pedido de Felipe):
 //   · Excel o PDF, mismo documento (liquidacion-documento.js).
-//   · Un solo formato: sin FOB ni DERECHOS, desglose debajo de cada envío en la columna
+//   · Un solo formato: sin DERECHOS; con FOB por envío pero SIN sumarlo en el total (16/11), desglose debajo de cada envío en la columna
 //     "Desglose de adicional", DESTINATARIO solo si algún envío lo tiene, envío sombreado y
 //     desglose en blanco, cabecera con recuadro de datos.
 //   · Los cargos posteriores del propio envío van SIN "informado el…"; en "Cargos de envíos
@@ -76,7 +76,11 @@ const cerca = (a, b) => Math.abs(Number(a) - Number(b)) < 0.011;
 
   console.log('\n2. El Excel: un solo formato\n');
   const x = await excelDe(liq.id);
-  check('cabecera sin FOB ni DERECHOS, con DESGLOSE DE ADICIONAL antes de ADICIONAL, sin DESTINATARIO', !x.cab.includes('FOB') && !x.cab.includes('DERECHOS') && !x.cab.includes('DESTINATARIO') && x.col('DESGLOSE DE ADICIONAL') === x.col('ADICIONAL') - 1 && x.cab[x.cab.length - 1] === 'TOTAL USD', x.cab.join('|'));
+  // FOB (16/11/2026, Felipe): la columna va (valida el seguro); la suma de los FOB no.
+  check('la columna FOB está, después de PESO, con el valor declarado de cada envío (100)', x.col('FOB') === x.col('PESO (kg)') + 1 && x.filas.filter((f) => /^1Z000RED/.test(f.guia)).every((f) => cerca(f.row.getCell(x.col('FOB')).value, 100)), x.cab.join('|'));
+  const filaTot = x.filas.find((f) => /^TOTAL/.test(String(f.c1 || '')));
+  check('   la fila de totales NO suma los FOB (celda vacía) y sí el resto', filaTot && (filaTot.row.getCell(x.col('FOB')).value == null || filaTot.row.getCell(x.col('FOB')).value === '') && Number(filaTot.row.getCell(x.col('TOTAL USD')).value) > 0 && Number(filaTot.row.getCell(x.col('PESO (kg)')).value) > 0, filaTot && String(filaTot.row.getCell(x.col('FOB')).value));
+  check('cabecera sin DERECHOS, con DESGLOSE DE ADICIONAL antes de ADICIONAL, sin DESTINATARIO', !x.cab.includes('DERECHOS') && !x.cab.includes('DESTINATARIO') && x.col('DESGLOSE DE ADICIONAL') === x.col('ADICIONAL') - 1 && x.cab[x.cab.length - 1] === 'TOTAL USD', x.cab.join('|'));
   const fA = x.filas.find((f) => f.guia === eA.numero_guia);
   const fB = x.filas.find((f) => f.guia === eB.numero_guia);
   check('la fila de A lleva el fuel con la diferencia y ningún renglón ↳ de fuel', fA && cerca(fA.fuel, base.fuel + 10) && !x.textos.some((t) => /↳ .*fuel/i.test(t) && !/Surge/.test(t)), JSON.stringify([fA && fA.fuel, x.textos.filter((t) => /↳/.test(t))]));

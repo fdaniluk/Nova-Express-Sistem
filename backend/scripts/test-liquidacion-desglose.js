@@ -150,13 +150,13 @@ async function main() {
   check('la cabecera de la tabla va en azul con letra blanca', ws.getCell('A7').fill?.fgColor?.argb === 'FF2A3661' && ws.getCell('A7').font?.color?.argb === 'FFFFFFFF');
   check('la fila TOTAL va en coral', textos.includes('TOTAL') && (() => { let f = null; ws.eachRow((row) => { if (row.getCell(1).value === 'TOTAL') f = row.getCell(1).fill?.fgColor?.argb; }); return f === 'FFEA6749'; })());
   // Rediseño 04/11/2026: un solo formato, el desglose va debajo de cada envío con ↳ (ya no hay
-  // sección "DETALLE DE ADICIONALES" al pie) y sin FOB ni DERECHOS.
+  // sección "DETALLE DE ADICIONALES" al pie) y sin DERECHOS. El FOB volvió el 16/11 (sin total).
   check('no hay sección "DETALLE DE ADICIONALES" al pie', !textos.includes('DETALLE DE ADICIONALES'));
   check('  el GoGreen va debajo de su envío', textos.includes('↳ GoGreen'));
   check('  el surge con fuel también', textos.includes('↳ Surge fee (con fuel)'));
   check('  y el extra manual', textos.includes('↳ Embalaje'));
   const cab = []; ws.getRow(7).eachCell((c) => cab.push(String(c.value)));
-  check('la cabecera no tiene FOB ni DERECHOS y sí "DESGLOSE DE ADICIONAL" pegado a ADICIONAL', !cab.includes('FOB') && !cab.includes('DERECHOS') && cab.indexOf('DESGLOSE DE ADICIONAL') === cab.indexOf('ADICIONAL') - 1, cab.join('|'));
+  check('la cabecera tiene FOB, no tiene DERECHOS y sí "DESGLOSE DE ADICIONAL" pegado a ADICIONAL', cab.includes('FOB') && !cab.includes('DERECHOS') && cab.indexOf('DESGLOSE DE ADICIONAL') === cab.indexOf('ADICIONAL') - 1, cab.join('|'));
   check('sin destinatarios, la columna DESTINATARIO no sale', !cab.includes('DESTINATARIO'), cab.join('|'));
   check('el Excel NO muestra el profit (dato interno)', !textos.some((t) => /profit|utilidad/i.test(t)));
   console.log(`   (Excel de muestra en ${outPath})`);
@@ -276,9 +276,9 @@ async function main() {
   const wb5 = new ExcelJS.Workbook(); await wb5.xlsx.load(buf5);
   const ws5 = wb5.getWorksheet('Liquidacion');
   const cab5 = []; ws5.getRow(7).eachCell((c) => cab5.push(String(c.value)));
-  check('la cabecera tiene DESTINATARIO como tercera columna y 13 columnas', cab5[2] === 'DESTINATARIO' && cab5.length === 13 && cab5[12] === 'TOTAL USD', cab5.join('|'));
+  check('la cabecera tiene DESTINATARIO como tercera columna y 14 columnas (con FOB)', cab5[2] === 'DESTINATARIO' && cab5.length === 14 && cab5[13] === 'TOTAL USD' && cab5[7] === 'FOB', cab5.join('|'));
   // [fila, guía, destinatario, adicional, total, desglose]
-  const filas5 = []; ws5.eachRow((row, n) => { if (n >= 8) filas5.push([n, String(row.getCell(2).value ?? ''), String(row.getCell(3).value ?? ''), row.getCell(12).value, row.getCell(13).value, String(row.getCell(11).value ?? '')]); });
+  const filas5 = []; ws5.eachRow((row, n) => { if (n >= 8) filas5.push([n, String(row.getCell(2).value ?? ''), String(row.getCell(3).value ?? ''), row.getCell(13).value, row.getCell(14).value, String(row.getCell(12).value ?? '')]); });
   const fUps = filas5.find((f) => f[1] === '1Z000DESG000000005');
   const fDhl = filas5.find((f) => f[1] === 'DHLDESG000000006');
   const fChi = filas5.find((f) => f[1] === 'DHLDESG000000007');
@@ -292,7 +292,7 @@ async function main() {
   const textos5 = []; ws5.eachRow((row) => row.eachCell((c) => { if (c.value != null) textos5.push(String(c.value)); }));
   check('ya no hay sección "DETALLE DE ADICIONALES" al pie', !textos5.includes('DETALLE DE ADICIONALES'));
   const totalRow5 = filas5.find((f) => String(ws5.getRow(f[0]).getCell(1).value) === 'TOTAL');
-  check('la fila TOTAL cierra en la columna 13', totalRow5 && Math.abs(Number(totalRow5[4]) - (400 + 12 + 250 + 100)) < 0.011, JSON.stringify(totalRow5));
+  check('la fila TOTAL cierra en la columna 14', totalRow5 && Math.abs(Number(totalRow5[4]) - (400 + 12 + 250 + 100)) < 0.011, JSON.stringify(totalRow5));
   // PDF (04/11): mismo documento, bajable como .pdf
   const rp5 = await fetch(BASE + `/api/liquidaciones/${liq5.id}/export.pdf`, { headers: { Cookie: `nova_session=${TOKEN}` } });
   const bp5 = Buffer.from(await rp5.arrayBuffer());
