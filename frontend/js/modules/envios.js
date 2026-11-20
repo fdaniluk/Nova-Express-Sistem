@@ -217,6 +217,11 @@
     document.getElementById('alto').value = e.alto || '';
     document.getElementById('fob').value = e.fob || 0;
     document.getElementById('ddp').checked = Boolean(e.ddp);
+    // Seguro (20/11/2026, Felipe): si la guía se emitió asegurada, el envío nace con la
+    // tilde "Asegurado" puesta (antes había que ponerla a mano en Salidas). Manda lo que
+    // se hizo en la guía, así que queda como tocada: editar el FOB no la cambia sola.
+    document.getElementById('asegurado').checked = Boolean(g.asegurada);
+    seguroTocado = true;
     document.getElementById('observaciones').value = e.observaciones || '';
     renderBultos();
     if (e.bultos?.length) {

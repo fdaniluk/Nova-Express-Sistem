@@ -2662,7 +2662,7 @@
                   <span class="sal-res-pct-sign">%</span>
                 </div>
               </div>
-              <div class="sal-res-hint">Profit = venta − compra. Se recalcula solo al tocar un costo o la venta.</div>
+              <div class="sal-res-hint">Profit = venta − compra. Si escribís el profit o el %, se acomoda la venta.</div>
               <div class="sal-res-hint hidden" id="saled-descuento-venta" style="color:#b45309"></div>
               <!-- LAS COTIZACIONES DE ESTE CLIENTE. Arranca oculto y aparece SOLO cuando
                    alguien se para en "Venta total" (pedido de Felipe, 25/08: "que no
@@ -2734,6 +2734,11 @@
     for (const f of ['flete', 'descuento', 'seguro', 'fuel', 'derechos', 'adicionales', 'otros', 'total']) {
       document.getElementById(`saled-${f}`).addEventListener('input', recalcProfit);
     }
+    // Al revés: escribir el profit o el % mueve la venta. Al salir del casillero se
+    // redondea todo a como queda con la venta en centavos.
+    document.getElementById('saled-profit').addEventListener('input', () => ventaDesdeProfit('usd'));
+    document.getElementById('saled-porcentaje').addEventListener('input', () => ventaDesdeProfit('pct'));
+    for (const id of ['saled-profit', 'saled-porcentaje']) document.getElementById(id).addEventListener('blur', () => recalcProfit());
 
     // El cartelito de desfase se re-evalúa en vivo cada vez que se edita Adicionales a mano.
     document.getElementById('saled-adicionales').addEventListener('input', updateExtrasWarn);
@@ -3315,10 +3320,32 @@
 
     const costoP = costo + soloCosto;
     const profit = Math.round((total - costoP) * 100) / 100;
-    document.getElementById('saled-profit').value = profit;
-    document.getElementById('saled-porcentaje').value = costoP > 0
+    // No se pisa el casillero que se está escribiendo (ver ventaDesdeProfit).
+    const activo = document.activeElement && document.activeElement.id;
+    if (activo !== 'saled-profit') document.getElementById('saled-profit').value = profit;
+    if (activo !== 'saled-porcentaje') document.getElementById('saled-porcentaje').value = costoP > 0
       ? Math.round((profit / costoP) * 10000) / 100
       : '';
+  }
+
+  // Profit o % escritos a mano → se acomoda la VENTA para llegar a ese número (20/11/2026,
+  // pedido de la oficina). El % es sobre la compra total del envío (los costos + los gastos
+  // que no se cobran), el mismo que muestra la tarjeta. Los costos no se tocan y no se
+  // guarda nada hasta "Guardar cambios".
+  function ventaDesdeProfit(origen) {
+    const num = (id) => parseNum(document.getElementById(id).value);
+    const totalEl = document.getElementById('saled-total');
+    if (totalEl.disabled || totalEl.readOnly) return;
+    const raw = document.getElementById(origen === 'pct' ? 'saled-porcentaje' : 'saled-profit').value;
+    if (raw === '' || !Number.isFinite(Number(raw))) return;
+    const costoP = num('saled-flete') - num('saled-descuento') + num('saled-seguro')
+      + num('saled-fuel') + num('saled-derechos') + num('saled-adicionales') + num('saled-otros')
+      + (editEnvio ? sumaCargosCosto(editEnvio) : 0);
+    if (!(costoP > 0)) return;
+    const total = origen === 'pct' ? costoP * (1 + Number(raw) / 100) : costoP + Number(raw);
+    if (!(total > 0)) return;
+    totalEl.value = Math.round(total * 100) / 100;
+    totalEl.dispatchEvent(new Event('input', { bubbles: true }));   // recalcProfit + lo que escuche la venta
   }
 
   // Suma de los montos del desglose de adicionales.
