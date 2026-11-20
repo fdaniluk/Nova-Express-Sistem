@@ -117,9 +117,23 @@ function paginaGastos({ pv = '0027', nro = '00099001', fecha = '2/11/2026', guia
     check('DHL: se carga, 1 guardada, ninguna sin costo', caD.status === 200 && caD.body.guardadas === 1 && caD.body.sin_costo === 0 && caD.body.tipo === 'impuestos', JSON.stringify(caD.body).slice(0, 300));
     const sD = await salida(eDhl.id);
     check('   el envío queda con impuestos facturados 75,59 y SIN tocar el costo del flete', sD && cerca(sD.impuestos_facturados, 75.59) && sD.costo_facturado == null, JSON.stringify(sD && [sD.impuestos_facturados, sD.costo_facturado]));
-    check('   y genera el cargo "Impuestos de destino (DDP)" de 75,59, pendiente de liquidar (el envío ya estaba liquidado)', sD && (sD.cargos || []).some((c) => c.tipo === 'ddp' && cerca(c.monto, 75.59) && c.liquidacion_id == null), JSON.stringify(sD && sD.cargos));
+    check('   y genera el cargo "Impuestos de destino (DDP)" de 50,59 (75,59 − 25 del fijo, que ya estaba en el precio), pendiente de liquidar', sD && (sD.cargos || []).some((c) => c.tipo === 'ddp' && cerca(c.monto, 50.59) && c.liquidacion_id == null) && (caD.body.advertencias || []).some((a) => a.tipo === 'ddp_fijo_ya_cobrado'), JSON.stringify(sD && sD.cargos));
     const prev = (await J('POST', '/liquidaciones/preview', { cliente_id: cli.id, envio_ids: [] })).body;
-    check('   la próxima liquidación del cliente lo trae como cargo de envío anterior', prev && (prev.cargos_anteriores || []).some((c) => cerca(c.monto, 75.59)), JSON.stringify(prev && prev.cargos_anteriores));
+    check('   la próxima liquidación del cliente lo trae como cargo de envío anterior', prev && (prev.cargos_anteriores || []).some((c) => cerca(c.monto, 50.59)), JSON.stringify(prev && prev.cargos_anteriores));
+
+    // Cargo fijo del DDP (20/11/2026): DHL factura sus 25 junto con los impuestos. Si el
+    // envío ya tenía el DDP en el precio, al cliente se le cargan solo los impuestos.
+    if (fs.existsSync(F_DHL2)) {
+      const eDdp = (await J('POST', '/envios', { cliente_id: cli.id, fecha: '2026-10-25', courier: 'DHL', tipo_envio: 'exportacion', numero_guia: '2236819336', pais_destino: 'Brasil', peso_real: 2, largo: 20, ancho: 20, alto: 10, fob: 200 })).body;   // SIN DDP en el precio
+      const antes = await salida(eDhl.id);
+      const ddpEnPrecio = ((antes && antes.extras) || []).find((x) => x.tipo === 'ddp');
+      check('DDP de DHL: un envío con DDP lo lleva en el precio a 25,00 (antes 24,05)', ddpEnPrecio && cerca(ddpEnPrecio.monto, 25), JSON.stringify(antes && antes.extras));
+      const ca2 = await subir('cargar', F_DHL2);
+      const s2 = await salida(eDdp.id);
+      check('   factura de impuestos 154,52 (63 + 25 fijo + 66,52): se guarda entera como facturada', ca2.status === 200 && ca2.body.guardadas === 1 && s2 && cerca(s2.impuestos_facturados, 154.52), JSON.stringify([ca2.status, s2 && s2.impuestos_facturados]));
+      check('   ese envío NO tenía el DDP en el precio: al cliente se le carga todo, 154,52, fijo incluido', s2 && (s2.cargos || []).filter((c) => c.origen === 'impuestos_ddp' && c.estado !== 'anulado').length === 1 && cerca((s2.cargos || []).find((c) => c.origen === 'impuestos_ddp').monto, 154.52), JSON.stringify(s2 && s2.cargos));
+      check('   y no avisa descuento del fijo', !(ca2.body.advertencias || []).some((a) => a.tipo === 'ddp_fijo_ya_cobrado'), JSON.stringify(ca2.body.advertencias));
+    }
 
     const caU = await subir('cargar', F_U1);
     check('UPS gastos: se carga (ya no dice "No se detectó ninguna guía")', caU.status === 200 && caU.body.guardadas === 1 && caU.body.numero_factura === '0027-00014363', JSON.stringify(caU.body).slice(0, 300));

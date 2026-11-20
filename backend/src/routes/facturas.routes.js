@@ -48,6 +48,24 @@ function normalizarGuia(g) {
   return String(g ?? '').trim().toUpperCase();
 }
 
+// ── Cargo fijo del DDP (20/11/2026) ────────────────────────────────────────────────────
+// Lo que el courier factura como cargo fijo por pagar los impuestos en destino, dentro de
+// la factura de impuestos. DHL lo nombra "DUTIES AND TAXES PAID" (también "Duty Tax Paid").
+// UPS no lo separa ("Gastos de importación en destino"): ahí no se puede distinguir.
+const esFijoDdp = (nombre) => /^dut(y|ies)\s*(and|&)?\s*tax(es)?\s*paid$/i.test(String(nombre || '').replace(/[^a-z&]+/gi, ' ').trim());
+function cargoFijoDdpFacturado(guia) {
+  const suma = ((guia && guia.cargos) || []).filter((c) => esFijoDdp(c.nombre)).reduce((a, c) => a + (Number(c.monto) || 0), 0);
+  return Math.round(suma * 100) / 100;
+}
+// ¿El envío ya tiene el DDP dentro de su precio? Lo dice su desglose (extras), no la tilde:
+// un envío puede estar tildado DDP y haberse cargado sin el cargo.
+function ddpCobradoEnElPrecio(envio) {
+  try {
+    const extras = JSON.parse((envio && envio.extras_json) || '[]');
+    return Array.isArray(extras) && extras.some((x) => x && (x.tipo === 'ddp' || /^ddp$/i.test(String(x.label || '').trim())) && Number(x.monto) > 0);
+  } catch { return false; }
+}
+
 // POST /api/facturas/chequear
 // Solo lectura: extrae el PDF y devuelve qué guías ya tienen costo cargado en la BD.
 router.post('/chequear', subirPdf, async (req, res, next) => {
@@ -225,6 +243,7 @@ router.post('/cargar', subirPdf, async (req, res, next) => {
       // Solo impuestos: envíos que recibieron factura de impuestos sin estar marcados DDP.
       no_ddp: 0,
       no_ddp_lista: [],
+      ddp_fijo_descontado: [],
       // Anomalías (05/10): guías con recargos que el envío no tenía previstos, más caros de
       // lo previsto, o con otro peso. Van a la bandeja de revisión y se listan en el resumen.
       con_anomalias: 0,
@@ -310,15 +329,24 @@ router.post('/cargar', subirPdf, async (req, res, next) => {
                   updated_at           = datetime('now', 'localtime')
               WHERE id = ?
             `).run(guia.costo_total, fecha_factura || hoy, envio.id);
+            // Cargo fijo del DDP (20/11/2026, Felipe): DHL factura junto con los impuestos su
+            // cargo fijo por el servicio ("DUTIES AND TAXES PAID", USD 25). Si el envío ya se
+            // cargó con el DDP en el precio, el cliente ese fijo YA lo pagó: se le cargan solo
+            // los impuestos. Si no lo tenía en el precio, se le carga todo (como siempre).
+            // impuestos_facturados guarda siempre lo que facturó el courier, entero.
+            const fijoDdp = cargoFijoDdpFacturado(guia);
+            const ddpYaCobrado = fijoDdp > 0 && ddpCobradoEnElPrecio(envio);
+            const alCliente = ddpYaCobrado ? Math.round((guia.costo_total - fijoDdp) * 100) / 100 : guia.costo_total;
+            if (ddpYaCobrado) resumen.ddp_fijo_descontado.push({ numero_guia: guia.numero_guia, envio_id: envio.id, fijo: fijoDdp, facturado: guia.costo_total, al_cliente: alCliente });
             // Cargo posterior (25/09): los impuestos se le cobran al cliente solos. Si el
             // envío todavía no se liquidó, entran en su liquidación; si ya se liquidó,
             // quedan pendientes y salen en la próxima del cliente como "cargo de envío
             // anterior". Si ya se le cobraron y la factura se recarga con otro monto, no
             // se toca: se avisa en el resumen.
-            const rc = await cargosModel.registrarImpuestos(db, envio.id, guia.costo_total, fecha_factura || hoy);
+            const rc = await cargosModel.registrarImpuestos(db, envio.id, alCliente, fecha_factura || hoy);
             if (rc.accion === 'ya_liquidado') {
               resumen.impuestos_ya_liquidados = (resumen.impuestos_ya_liquidados || 0) + 1;
-              (resumen.impuestos_ya_liquidados_lista = resumen.impuestos_ya_liquidados_lista || []).push({ numero_guia: guia.numero_guia, liquidacion_id: rc.liquidacion_id, importe: guia.costo_total });
+              (resumen.impuestos_ya_liquidados_lista = resumen.impuestos_ya_liquidados_lista || []).push({ numero_guia: guia.numero_guia, liquidacion_id: rc.liquidacion_id, importe: alCliente });
             }
             enviosConImpuestos.push(envio.id);
             resumen.guardadas++;
@@ -467,6 +495,15 @@ router.post('/cargar', subirPdf, async (req, res, next) => {
         detalle: `${resumen.no_ddp} ${resumen.no_ddp === 1 ? 'envío recibió' : 'envíos recibieron'} factura de impuestos `
           + 'sin estar marcado como DDP: o se cargó sin la tilde, o UPS cobró algo que no correspondía. '
           + 'Revisalo en Salidas (queda marcado en rojo).',
+      });
+    }
+
+    for (const d of (resumen.ddp_fijo_descontado || [])) {
+      advertencias.push({
+        tipo: 'ddp_fijo_ya_cobrado',
+        guia: d.numero_guia,
+        detalle: `${d.numero_guia} — el cargo fijo de DDP (USD ${d.fijo.toFixed(2)}) ya estaba cobrado en el precio del envío: `
+          + `al cliente se le cargan solo los impuestos, USD ${d.al_cliente.toFixed(2)} (el courier facturó USD ${d.facturado.toFixed(2)}).`,
       });
     }
 

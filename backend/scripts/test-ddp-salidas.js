@@ -155,9 +155,9 @@ async function main() {
   const conDDP = await recalc(envioDHL.id, { ddp: 1, remota: 0, asegurado: 0 });
   const sinDDP = await recalc(envioDHL.id, { ddp: 0, remota: 0, asegurado: 0 });
   const tot = (x) => Number(x.json?.total ?? x.json?.desglose?.total ?? NaN);
-  check('recalcular con DDP cuesta 24.05 más que sin DDP',
+  check('recalcular con DDP cuesta 25.00 más que sin DDP (DHL, desde el 20/11/2026)',
     Number.isFinite(tot(conDDP)) && Number.isFinite(tot(sinDDP))
-      && Math.abs((tot(conDDP) - tot(sinDDP)) - 24.05) < 0.02,
+      && Math.abs((tot(conDDP) - tot(sinDDP)) - 25) < 0.02,
     `con ${tot(conDDP)} · sin ${tot(sinDDP)} · dif ${(tot(conDDP) - tot(sinDDP)).toFixed(2)}`);
 
   // `db.close()` de sqlite3 NO es sincronico: encola el cierre en un hilo del pool y avisa

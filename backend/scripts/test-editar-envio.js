@@ -155,8 +155,8 @@ async function main() {
 
   await editar(e3.id, { ddp: 0 });
   d3 = await leer(e3.id);
-  check('y sacarlo baja los adicionales en 24.05',
-    r2(conDdp - d3.adicionales) === 24.05, `${conDdp} → ${d3.adicionales}`);
+  check('y sacarlo baja los adicionales en 25.00 (DDP de DHL desde el 20/11/2026)',
+    r2(conDdp - d3.adicionales) === 25, `${conDdp} → ${d3.adicionales}`);
 
   await editar(e3.id, { asegurado: 1 });
   d3 = await leer(e3.id);

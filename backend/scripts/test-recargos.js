@@ -212,10 +212,11 @@ check('el recargo de zona de UPS sigue en 42.15 / 0.92 por kg', (() => {
   return f && cerca(f[1], 92);
 })());
 
-check('DDP sigue en 24.05 en los dos couriers', (() => {
+check('DDP: 25.00 en DHL (lo que factura, 20/11/2026) y 24.05 en UPS', (() => {
   const a = core.cotizarServicio('DHL', { ...base, pais: 'Estados Unidos', tipo: 'export', ddp: true });
   const b = core.cotizarServicio('UPS_EXP', { ...base, pais: 'Estados Unidos', tipo: 'export', ddp: true });
-  return [a, b].every((e) => { const f = e.extras.find(([n]) => /DDP/i.test(n)); return f && cerca(f[1], 24.05); });
+  const de = (e) => { const f = e.extras.find(([n]) => /DDP/i.test(n)); return f ? f[1] : null; };
+  return cerca(de(a), 25) && cerca(de(b), 24.05);
 })());
 
 check('el manejo adicional sigue costando 27.65', (() => {

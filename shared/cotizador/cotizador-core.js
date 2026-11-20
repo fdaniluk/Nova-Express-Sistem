@@ -665,7 +665,9 @@ function cotizarServicio(servicio, params) {
     if(seguroObj.monto>0)   extras.push(['Seguro DHL',seguroObj.monto]);
     const zeDHL=calcZonaEntrega('DHL',zonaEntrega,pf,pais);
     if(zeDHL)               extras.push([zeDHL.label,zeDHL.monto]);
-    if(ddp)                 extras.push(['DDP',24.05]);
+    // DDP de DHL: 25,00 (20/11/2026). Es lo que factura DHL como "DUTIES AND TAXES PAID"
+    // (facturas 1700A00045043 y 1700A00049494); antes decía 24,05. El de UPS sigue en 24,05.
+    if(ddp)                 extras.push(['DDP',25.00]);
     // Va DESPUÉS del margen y sin fuel, como el DDP y el resto de los recargos del courier:
     // criterio de Felipe del 29/07, la ganancia se calcula solo sobre el flete de tabla.
     if(protDocEfectiva)     extras.push(['Protección de documentos (DHL)',DHL_PROTECCION_DOC]);
