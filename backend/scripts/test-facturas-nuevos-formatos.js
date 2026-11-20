@@ -20,6 +20,7 @@ const DB = process.env.DB_PATH_TEST || '/tmp/test_facturas_nuevos_formatos.db';
 const TOKEN = 'token-test-fact-nuevos';
 const EJ = path.join(__dirname, '..', '..', 'facturas-ejemplo');
 const F_DHL = path.join(EJ, 'dhl', 'DHL-1700A00045043_06112026.pdf');
+const F_DHL2 = path.join(EJ, 'dhl', 'DHL-1700A00049494_18112026.pdf');
 const F_U1 = path.join(EJ, 'ups-gastos', '0027-00014363.pdf');
 const F_U2 = path.join(EJ, 'ups-gastos', '0027-00014772.pdf');
 
@@ -84,6 +85,14 @@ function paginaGastos({ pv = '0027', nro = '00099001', fecha = '2/11/2026', guia
     check('DHL 1700A00045043: tipo IMPUESTOS (todas las filas son producto Z)', d.courier === 'DHL' && d.tipo === 'impuestos' && d.numero_factura === '1700A00045043', JSON.stringify([d.courier, d.tipo, d.numero_factura]));
     check('   guía 5451062934: DUTIES AND TAXES PAID 25 + IMPORT/EXPORT DUTIES 50,59 = 75,59', d.guias.length === 1 && d.guias[0].numero_guia === '5451062934' && cerca(d.guias[0].costo_total, 75.59) && d.guias[0].cargos.length === 2 && d.guias[0].cargos[0].nombre === 'DUTIES AND TAXES PAID' && d.guias[0].cargos[1].nombre === 'IMPORT/EXPORT DUTIES', JSON.stringify(d.guias[0]));
     check('   cuadra con "Otros Servicios" 75,59; percepción 2,26 aparte; sin aviso de cargos desparejos', d.cuadra === true && cerca(d.percepciones, 2.26) && d.advertencias.every((a) => a.tipo === 'percepcion_aparte'), JSON.stringify(d.advertencias.map((a) => a.tipo)));
+    // 20/11/2026: "Clearance" + "Processing" venía partido y la guía quedaba SIN costo.
+    if (fs.existsSync(F_DHL2)) {
+      const d2 = await extraerFacturaCourier(fs.readFileSync(F_DHL2), extraerFacturaUPS);
+      const g2 = d2.guias[0] || {};
+      check('DHL 1700A00049494: impuestos, guía 2236819336 con costo 154,52', d2.tipo === 'impuestos' && g2.numero_guia === '2236819336' && cerca(g2.costo_total, 154.52), JSON.stringify([d2.tipo, g2.numero_guia, g2.costo_total]));
+      check('   Clearance Processing 63 + DUTIES AND TAXES PAID 25 + IMPORT/EXPORT DUTIES 66,52', (g2.cargos || []).length === 3 && cerca(g2.cargos[0].monto, 63) && /clearance processing/i.test(g2.cargos[0].nombre) && cerca(g2.cargos[1].monto, 25) && cerca(g2.cargos[2].monto, 66.52), JSON.stringify(g2.cargos));
+      check('   cuadra (154,52), percepción 4,64 aparte, total 159,16, sin cargos desparejos', d2.cuadra === true && cerca(d2.percepciones, 4.64) && cerca(d2.total_declarado, 159.16) && d2.advertencias.every((a) => a.tipo !== 'cargos_desparejos'), JSON.stringify(d2.advertencias));
+    }
 
     console.log('\n3. De punta a punta: se cargan y llegan al envío\n');
     prepararDb(DB, { desdeProduccion: false });
